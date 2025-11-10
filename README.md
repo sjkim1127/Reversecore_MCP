@@ -5,7 +5,7 @@ An MCP (Model Context Protocol) server that enables AI agents to perform reverse
 ## Overview
 
 Reversecore_MCP provides a standardized interface for AI agents to interact with reverse engineering tools such as:
-- **CLI Tools**: `strings`, `radare2`
+- **CLI Tools**: `file`, `strings`, `radare2`, `binwalk`
 - **Python Libraries**: `yara-python`, `capstone`
 
 The server handles security, error handling, and performance optimization (streaming, output limits) automatically, allowing AI agents to focus on analysis rather than tool management.
@@ -133,13 +133,46 @@ lib_tools.register_lib_tools(mcp)
 
 ### Using Docker (Recommended)
 
+#### Build the Docker Image
+
 ```bash
 # Build the Docker image
 docker build -t reversecore-mcp .
-
-# Run the server
-docker run -it reversecore-mcp
 ```
+
+#### Run the Server
+
+The server supports two transport modes: **stdio** (for local AI clients) and **http** (for network-based AI agents).
+
+**HTTP Mode (Default in Docker):**
+
+```bash
+# Run with HTTP transport on port 8000
+# Mount your samples directory to /app/workspace
+docker run -d \
+  -p 8000:8000 \
+  -v ./my_samples:/app/workspace \
+  -e REVERSECORE_WORKSPACE=/app/workspace \
+  -e MCP_TRANSPORT=http \
+  --name reversecore-mcp \
+  reversecore-mcp
+```
+
+**Stdio Mode (for local development):**
+
+```bash
+# Run with stdio transport (for local AI clients like Cursor)
+docker run -it \
+  -v ./my_samples:/app/workspace \
+  -e REVERSECORE_WORKSPACE=/app/workspace \
+  -e MCP_TRANSPORT=stdio \
+  reversecore-mcp
+```
+
+**Important Notes:**
+- All files to be analyzed must be placed in the mounted workspace directory (`/app/workspace`)
+- The `REVERSECORE_WORKSPACE` environment variable sets the allowed workspace path
+- YARA rule files can be placed in `/app/rules` (read-only) or in the workspace directory
 
 ### Local Installation
 
@@ -156,60 +189,153 @@ docker run -it reversecore-mcp
 
 3. Run the server:
    ```bash
+   # Stdio mode (default)
    python -m reversecore_mcp.server
+   
+   # HTTP mode
+   MCP_TRANSPORT=http python -m reversecore_mcp.server
    ```
 
 ## Usage
 
-The server runs as an MCP server using stdio transport by default. Configure your MCP client to connect to the server.
+### Project Goal
 
-### Example Tool Calls
+Reversecore_MCP is designed to enable AI agents to perform reverse engineering tasks through natural language commands. The server wraps common reverse engineering CLI tools and Python libraries, making them accessible to AI assistants for automated triage and analysis workflows.
 
-#### Extract strings from a binary
+### API Examples
+
+The server exposes tools that can be called by AI agents via the MCP protocol. Below are examples of how to use each tool:
+
+#### 1. Identify File Type (`run_file`)
+
+```json
+{
+  "tool": "run_file",
+  "arguments": {
+    "file_path": "/app/workspace/sample.exe"
+  }
+}
+```
+
+**Response:**
+```
+PE32 executable (GUI) Intel 80386, for MS Windows
+```
+
+#### 2. Extract Strings (`run_strings`)
+
 ```json
 {
   "tool": "run_strings",
   "arguments": {
-    "file_path": "/path/to/binary.exe",
+    "file_path": "/app/workspace/sample.exe",
     "min_length": 4,
-    "max_output_size": 10000000
+    "max_output_size": 10000000,
+    "timeout": 300
   }
 }
 ```
 
-#### Disassemble with radare2
+**Response:**
+```
+Hello World
+GetProcAddress
+LoadLibraryA
+...
+```
+
+#### 3. Disassemble with radare2 (`run_radare2`)
+
 ```json
 {
   "tool": "run_radare2",
   "arguments": {
-    "file_path": "/path/to/binary.exe",
-    "r2_command": "pdf @ main"
+    "file_path": "/app/workspace/sample.exe",
+    "r2_command": "pdf @ main",
+    "max_output_size": 10000000,
+    "timeout": 300
   }
 }
 ```
 
-#### Scan with YARA
+**Response:**
+```
+            ;-- main:
+/ (fcn) sym.main 42
+|   sym.main ();
+|           0x00401000      55             push rbp
+|           0x00401001      4889e5         mov rbp, rsp
+...
+```
+
+#### 4. Scan with YARA (`run_yara`)
+
 ```json
 {
   "tool": "run_yara",
   "arguments": {
-    "file_path": "/path/to/sample.exe",
-    "rule_file": "/path/to/rules.yar"
+    "file_path": "/app/workspace/sample.exe",
+    "rule_file": "/app/rules/malware.yar",
+    "timeout": 300
   }
 }
+```
+
+**Response:**
+```json
+[
+  {
+    "rule": "SuspiciousPE",
+    "namespace": "default",
+    "tags": ["malware"],
+    "meta": {"author": "analyst"},
+    "strings": [
+      {
+        "identifier": "$s1",
+        "offset": 1024,
+        "matched_data": "48656c6c6f"
+      }
+    ]
+  }
+]
+```
+
+#### 5. Disassemble with Capstone (`disassemble_with_capstone`)
+
+```json
+{
+  "tool": "disassemble_with_capstone",
+  "arguments": {
+    "file_path": "/app/workspace/sample.exe",
+    "offset": 0,
+    "size": 1024,
+    "arch": "x86",
+    "mode": "64"
+  }
+}
+```
+
+**Response:**
+```
+0x0:	push	rbp
+0x1:	mov	rbp, rsp
+0x4:	sub	rsp, 0x20
+...
 ```
 
 ## Available Tools
 
 ### CLI Tools
 
+- **`run_file`**: Identify file type using the `file` command
 - **`run_strings`**: Extract printable strings from binary files
 - **`run_radare2`**: Execute radare2 commands on binary files
+- **`run_binwalk`**: Analyze and extract embedded files from firmware/images (analysis only in v1.0)
 
 ### Library Tools
 
 - **`run_yara`**: Scan files using YARA rules
-- **`disassemble_with_capstone`**: Disassemble binary code using Capstone
+- **`disassemble_with_capstone`**: Disassemble binary code using Capstone (supports x86, ARM, ARM64)
 
 ## Error Handling
 

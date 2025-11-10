@@ -16,28 +16,39 @@ ALLOWED_WORKSPACE = Path(
     os.environ.get("REVERSECORE_WORKSPACE", "/app/workspace")
 ).resolve()
 
+# Read-only directories for static files (e.g., YARA rules)
+# Can be overridden via REVERSECORE_READ_DIRS environment variable (comma-separated)
+_read_dirs_str = os.environ.get("REVERSECORE_READ_DIRS", "/app/rules")
+ALLOWED_READ_DIRS = [
+    Path(d.strip()).resolve() for d in _read_dirs_str.split(",") if d.strip()
+]
 
-def validate_file_path(path: str) -> str:
+
+def validate_file_path(path: str, read_only: bool = False) -> str:
     """
     Validate and normalize a file path.
 
     This function ensures that:
     1. The path exists and points to a file (not a directory)
     2. The path is within the allowed workspace directory (REVERSECORE_WORKSPACE)
+       or within allowed read-only directories (if read_only=True)
     3. The path is resolved to an absolute path
 
     The workspace directory is determined by the REVERSECORE_WORKSPACE environment
     variable, defaulting to /app/workspace if not set.
+    Read-only directories are determined by the REVERSECORE_READ_DIRS environment
+    variable (comma-separated), defaulting to /app/rules if not set.
 
     Args:
         path: The file path to validate
+        read_only: If True, also allow files from ALLOWED_READ_DIRS (e.g., for YARA rules)
 
     Returns:
         The normalized absolute file path
 
     Raises:
         ValueError: If the path is invalid, doesn't exist, or is outside
-                   the allowed workspace directory
+                   the allowed directories
     """
     # Convert to Path object for easier manipulation
     file_path = Path(path)
@@ -52,14 +63,26 @@ def validate_file_path(path: str) -> str:
     if not abs_path.is_file():
         raise ValueError(f"Path does not point to a file: {abs_path}")
 
-    # Always enforce workspace restriction
-    # Check if path is within the allowed workspace directory
+    # Check if path is within allowed directories
     workspace_path = ALLOWED_WORKSPACE
-    if not str(abs_path).startswith(str(workspace_path)):
+    is_in_workspace = str(abs_path).startswith(str(workspace_path))
+
+    # If read_only is True, also check read-only directories
+    is_in_read_dirs = False
+    if read_only:
+        for read_dir in ALLOWED_READ_DIRS:
+            if str(abs_path).startswith(str(read_dir)):
+                is_in_read_dirs = True
+                break
+
+    if not (is_in_workspace or is_in_read_dirs):
+        allowed_dirs = [str(workspace_path)]
+        if read_only:
+            allowed_dirs.extend([str(d) for d in ALLOWED_READ_DIRS])
         raise ValueError(
-            f"File path is outside allowed workspace directory: {abs_path}. "
-            f"Allowed workspace: {workspace_path}. "
-            f"Set REVERSECORE_WORKSPACE environment variable to change the workspace."
+            f"File path is outside allowed directories: {abs_path}. "
+            f"Allowed directories: {allowed_dirs}. "
+            f"Set REVERSECORE_WORKSPACE or REVERSECORE_READ_DIRS environment variables to change allowed paths."
         )
 
     return str(abs_path)

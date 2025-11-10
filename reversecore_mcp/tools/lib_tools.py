@@ -46,8 +46,9 @@ def run_yara(
     """
     try:
         # Validate file paths
+        # rule_file can be in read-only directories (e.g., /app/rules) or workspace
         validated_file = validate_file_path(file_path)
-        validated_rule = validate_file_path(rule_file)
+        validated_rule = validate_file_path(rule_file, read_only=True)
 
         # Import yara (will raise ImportError if not installed)
         try:
