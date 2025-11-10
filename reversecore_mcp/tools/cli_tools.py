@@ -26,8 +26,56 @@ def register_cli_tools(mcp: FastMCP) -> None:
     Args:
         mcp: The FastMCP server instance to register tools with
     """
+    mcp.tool(run_file)
     mcp.tool(run_strings)
     mcp.tool(run_radare2)
+    mcp.tool(run_binwalk)
+
+
+def run_file(file_path: str, timeout: int = 30) -> str:
+    """
+    Identify the type of a file using the file command.
+
+    This tool runs the 'file' command on the specified file and returns
+    information about the file type, encoding, and other metadata.
+    Useful for initial file identification and triage.
+
+    Args:
+        file_path: Path to the file to identify
+        timeout: Maximum execution time in seconds (default: 30)
+
+    Returns:
+        File type information as a string. May be truncated if output exceeds
+        max_output_size.
+
+    Raises:
+        Returns error message string if execution fails (never raises exceptions)
+    """
+    try:
+        # Validate file path
+        validated_path = validate_file_path(file_path)
+
+        # Build command: file <file_path>
+        cmd = ["file", validated_path]
+
+        # Execute with streaming (small output expected, so default max_output_size is fine)
+        output, bytes_read = execute_subprocess_streaming(
+            cmd, max_output_size=1_000_000, timeout=timeout
+        )
+
+        return output.strip()
+
+    except ToolNotFoundError as e:
+        return f"Error: {e}"
+    except ExecutionTimeoutError as e:
+        return f"Error: {e}"
+    except ValueError as e:
+        return f"Error: Invalid file path - {e}"
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr if e.stderr else "Unknown error"
+        return f"Error: Command failed with exit code {e.returncode}. stderr: {stderr}"
+    except Exception as e:
+        return f"Error: Unexpected error - {type(e).__name__}: {e}"
 
 
 def run_strings(
@@ -133,6 +181,65 @@ def run_radare2(
         return f"Error: {e}"
     except ValueError as e:
         return f"Error: Invalid input - {e}"
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr if e.stderr else "Unknown error"
+        return f"Error: Command failed with exit code {e.returncode}. stderr: {stderr}"
+    except Exception as e:
+        return f"Error: Unexpected error - {type(e).__name__}: {e}"
+
+
+def run_binwalk(
+    file_path: str,
+    depth: int = 8,
+    max_output_size: int = 10_000_000,
+    timeout: int = 300,
+) -> str:
+    """
+    Analyze a file for embedded files and signatures using binwalk.
+
+    This tool runs binwalk analysis on the specified file to identify
+    embedded files, compression signatures, and other file system structures.
+    Useful for firmware analysis and file carving.
+
+    Note: File extraction is disabled in v1.0 for security reasons (disk-fill
+    attack prevention). Only analysis mode is supported.
+
+    Args:
+        file_path: Path to the file to analyze
+        depth: Maximum recursion depth for signature scanning (default: 8)
+        max_output_size: Maximum output size in bytes (default: 10MB)
+        timeout: Maximum execution time in seconds (default: 300)
+
+    Returns:
+        Binwalk analysis results showing detected signatures and embedded files.
+        May be truncated if output exceeds max_output_size.
+
+    Raises:
+        Returns error message string if execution fails (never raises exceptions)
+    """
+    try:
+        # Validate file path
+        validated_path = validate_file_path(file_path)
+
+        # Build command: binwalk -A -d <depth> <file_path>
+        # Note: -e (extract) is NOT used in v1.0 for security reasons
+        # -A: Displays ASCII strings in addition to signatures
+        # -d <depth>: Maximum recursion depth
+        cmd = ["binwalk", "-A", "-d", str(depth), validated_path]
+
+        # Execute with streaming
+        output, bytes_read = execute_subprocess_streaming(
+            cmd, max_output_size=max_output_size, timeout=timeout
+        )
+
+        return output
+
+    except ToolNotFoundError as e:
+        return f"Error: {e}"
+    except ExecutionTimeoutError as e:
+        return f"Error: {e}"
+    except ValueError as e:
+        return f"Error: Invalid file path - {e}"
     except subprocess.CalledProcessError as e:
         stderr = e.stderr if e.stderr else "Unknown error"
         return f"Error: Command failed with exit code {e.returncode}. stderr: {stderr}"
