@@ -10,27 +10,34 @@ import os
 from pathlib import Path
 from typing import List, Optional
 
+# Workspace directory for file access restrictions
+# Can be overridden via REVERSECORE_WORKSPACE environment variable
+ALLOWED_WORKSPACE = Path(
+    os.environ.get("REVERSECORE_WORKSPACE", "/app/workspace")
+).resolve()
 
-def validate_file_path(path: str, allowed_dirs: Optional[List[str]] = None) -> str:
+
+def validate_file_path(path: str) -> str:
     """
     Validate and normalize a file path.
 
     This function ensures that:
     1. The path exists and points to a file (not a directory)
-    2. The path is within allowed directories (if specified)
+    2. The path is within the allowed workspace directory (REVERSECORE_WORKSPACE)
     3. The path is resolved to an absolute path
+
+    The workspace directory is determined by the REVERSECORE_WORKSPACE environment
+    variable, defaulting to /app/workspace if not set.
 
     Args:
         path: The file path to validate
-        allowed_dirs: Optional list of allowed directory prefixes.
-                     If None, only checks that the file exists.
 
     Returns:
         The normalized absolute file path
 
     Raises:
         ValueError: If the path is invalid, doesn't exist, or is outside
-                   allowed directories
+                   the allowed workspace directory
     """
     # Convert to Path object for easier manipulation
     file_path = Path(path)
@@ -45,17 +52,15 @@ def validate_file_path(path: str, allowed_dirs: Optional[List[str]] = None) -> s
     if not abs_path.is_file():
         raise ValueError(f"Path does not point to a file: {abs_path}")
 
-    # Check if path is within allowed directories
-    if allowed_dirs:
-        allowed_paths = [Path(d).resolve() for d in allowed_dirs]
-        is_allowed = any(
-            str(abs_path).startswith(str(allowed)) for allowed in allowed_paths
+    # Always enforce workspace restriction
+    # Check if path is within the allowed workspace directory
+    workspace_path = ALLOWED_WORKSPACE
+    if not str(abs_path).startswith(str(workspace_path)):
+        raise ValueError(
+            f"File path is outside allowed workspace directory: {abs_path}. "
+            f"Allowed workspace: {workspace_path}. "
+            f"Set REVERSECORE_WORKSPACE environment variable to change the workspace."
         )
-        if not is_allowed:
-            raise ValueError(
-                f"File path is outside allowed directories: {abs_path}. "
-                f"Allowed: {allowed_dirs}"
-            )
 
     return str(abs_path)
 

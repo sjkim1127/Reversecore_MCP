@@ -134,18 +134,63 @@ def disassemble_with_capstone(
 
         # Import capstone (will raise ImportError if not installed)
         try:
-            from capstone import CS_ARCH_X86, CS_MODE_64, Cs
+            from capstone import (
+                CS_ARCH_ARM,
+                CS_ARCH_ARM64,
+                CS_ARCH_X86,
+                CS_MODE_32,
+                CS_MODE_64,
+                CS_MODE_ARM,
+                CS_MODE_THUMB,
+                Cs,
+            )
         except ImportError:
             return "Error: capstone library is not installed. Please install it with: pip install capstone"
 
         # Map architecture string to capstone constant
         arch_map = {
             "x86": CS_ARCH_X86,
-            # Add more architectures as needed
+            "arm": CS_ARCH_ARM,
+            "arm64": CS_ARCH_ARM64,
         }
 
         if arch not in arch_map:
-            return f"Error: Unsupported architecture: {arch}. Supported: {list(arch_map.keys())}"
+            supported_archs = ", ".join(sorted(arch_map.keys()))
+            return (
+                f"Error: Unsupported architecture: {arch}. "
+                f"Supported architectures: {supported_archs}"
+            )
+
+        # Map mode string to capstone constant
+        # Mode mapping depends on architecture
+        mode_map = {
+            "x86": {
+                "16": CS_MODE_32,  # x86-16 uses 32-bit mode constant
+                "32": CS_MODE_32,
+                "64": CS_MODE_64,
+            },
+            "arm": {
+                "arm": CS_MODE_ARM,
+                "thumb": CS_MODE_THUMB,
+            },
+            "arm64": {
+                "64": CS_MODE_64,  # ARM64 is always 64-bit
+            },
+        }
+
+        # Get mode constant based on architecture
+        if arch not in mode_map:
+            return f"Error: Invalid architecture for mode mapping: {arch}"
+
+        arch_mode_map = mode_map[arch]
+        if mode not in arch_mode_map:
+            supported_modes = ", ".join(sorted(arch_mode_map.keys()))
+            return (
+                f"Error: Unsupported mode '{mode}' for architecture '{arch}'. "
+                f"Supported modes: {supported_modes}"
+            )
+
+        mode_constant = arch_mode_map[mode]
 
         # Read binary data from file
         with open(validated_path, "rb") as f:
@@ -155,9 +200,8 @@ def disassemble_with_capstone(
         if not code:
             return f"Error: No data read from file at offset {offset}"
 
-        # Create disassembler
-        # For now, hardcode x86-64 mode. Can be extended later
-        md = Cs(CS_ARCH_X86, CS_MODE_64)
+        # Create disassembler with selected architecture and mode
+        md = Cs(arch_map[arch], mode_constant)
 
         # Disassemble
         results = []

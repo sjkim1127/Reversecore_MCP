@@ -9,19 +9,23 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies with pinned versions where possible
-# Note: Some packages may not have exact version pinning available in Debian repos
-# We use the latest stable versions and document them for reproducibility
+# Create workspace directory for file access restrictions
+RUN mkdir -p /app/workspace
+
+# Install system dependencies with pinned versions for reproducibility
+# Versions are pinned to ensure consistent behavior across builds
+# To check available versions: apt-cache madison <package-name>
 RUN apt-get update && apt-get install -y --no-install-recommends \
     # Radare2 reverse engineering framework
-    # Version: Latest stable from Debian repos (typically 5.9.x)
-    radare2 \
+    # Version: 5.8.8+dfsg-1 (Debian 12 Bookworm)
+    radare2=5.8.8+dfsg-1 \
     # YARA pattern matching tool and development libraries
-    # Version: Latest stable from Debian repos (typically 4.3.x)
-    yara \
-    libyara-dev \
+    # Version: 4.3.2-1 (Debian 12 Bookworm)
+    yara=4.3.2-1 \
+    libyara-dev=4.3.2-1 \
     # Binutils for strings command
-    binutils \
+    # Version: 2.40-2 (Debian 12 Bookworm)
+    binutils=2.40-2 \
     # Build dependencies for Python packages that may need compilation
     gcc \
     g++ \
@@ -38,8 +42,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY reversecore_mcp/ ./reversecore_mcp/
 
-# Set Python path
-ENV PYTHONPATH=/app
+# Set Python path and workspace
+ENV PYTHONPATH=/app \
+    REVERSECORE_WORKSPACE=/app/workspace
 
 # Expose port (if using HTTP transport)
 # EXPOSE 8000
