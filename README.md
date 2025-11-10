@@ -196,6 +196,131 @@ docker run -it \
    MCP_TRANSPORT=http python -m reversecore_mcp.server
    ```
 
+## MCP Client Integration
+
+Reversecore_MCP supports integration with various MCP-compatible AI clients. Below are setup instructions for popular clients.
+
+### Example 1: Claude Desktop
+
+To set up Claude Desktop to use Reversecore_MCP, configure the MCP server in your Claude Desktop settings.
+
+#### Configuration Steps
+
+1. Open Claude Desktop
+2. Navigate to `Claude` → `Settings` → `Developer` → `Edit Config`
+3. Add the following configuration to `claude_desktop_config.json`:
+
+**For Stdio Transport (Recommended for local use):**
+
+```json
+{
+  "mcpServers": {
+    "reversecore": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-v",
+        "/ABSOLUTE_PATH_TO_YOUR_SAMPLES:/app/workspace",
+        "-e",
+        "REVERSECORE_WORKSPACE=/app/workspace",
+        "-e",
+        "MCP_TRANSPORT=stdio",
+        "reversecore-mcp"
+      ]
+    }
+  }
+}
+```
+
+**For HTTP Transport (Advanced - for remote/networked use):**
+
+First, start the Reversecore_MCP server:
+
+```bash
+docker run -d \
+  -p 8000:8000 \
+  -v /path/to/your/samples:/app/workspace \
+  -e REVERSECORE_WORKSPACE=/app/workspace \
+  -e MCP_TRANSPORT=http \
+  --name reversecore-mcp \
+  reversecore-mcp
+```
+
+Then configure Claude Desktop to connect via HTTP. Note that Claude Desktop may require additional configuration or a custom HTTP client script for HTTP transport mode. For most users, stdio mode (above) is recommended.
+
+#### Configuration File Location
+
+Alternatively, you can directly edit the configuration file at:
+
+**macOS:**
+```
+/Users/YOUR_USER/Library/Application Support/Claude/claude_desktop_config.json
+```
+
+**Windows:**
+```
+%APPDATA%\Claude\claude_desktop_config.json
+```
+
+**Linux:**
+```
+~/.config/Claude/claude_desktop_config.json
+```
+
+#### Important Notes
+
+- Replace `/ABSOLUTE_PATH_TO_YOUR_SAMPLES` with the actual absolute path to your binary samples directory
+- Ensure Docker is installed and the `reversecore-mcp` image is built (run `docker build -t reversecore-mcp .`)
+- For stdio mode, Claude Desktop will automatically start/stop the container for each session
+- For HTTP mode, the server must be running before starting Claude Desktop
+- **Security**: All files must be placed in the mounted workspace directory (`/app/workspace`) for security. Files outside this directory cannot be accessed.
+- The workspace directory restriction prevents unauthorized file access and path traversal attacks
+- For read-only YARA rules, you can mount an additional directory to `/app/rules` and set `REVERSECORE_READ_DIRS` environment variable
+
+#### Verification
+
+After configuration:
+
+1. Restart Claude Desktop completely
+2. Look for the MCP server connection indicator in Claude Desktop (typically shown in the settings or as a connection status icon)
+3. You should see "reversecore" listed as an available tool server
+4. Test with a simple query: "What tools do you have available for reverse engineering?"
+5. Try analyzing a file: "Can you identify the file type of sample.exe in my workspace?"
+
+#### Troubleshooting
+
+**Issue:** Claude Desktop shows "Connection failed" or cannot connect to the MCP server
+
+- Verify Docker is running: `docker ps`
+- Check that the image exists: `docker images | grep reversecore-mcp`
+- If the image doesn't exist, build it: `docker build -t reversecore-mcp .`
+- Review Docker logs: `docker logs reversecore-mcp` (if using HTTP mode with named container)
+- Verify the absolute path in the configuration is correct and accessible
+
+**Issue:** "File not found" errors when trying to analyze files
+
+- Ensure files are in the mounted workspace directory on your host system
+- Check the path mapping in the Docker command: `/host/path:/app/workspace`
+- Verify the file path uses the container path (`/app/workspace/filename`) not the host path
+- Confirm the `REVERSECORE_WORKSPACE` environment variable matches the mounted directory
+
+**Issue:** Permission denied errors
+
+- Ensure Docker has permission to access the mounted directory
+- On Linux/macOS, check directory permissions: `ls -la /path/to/your/samples`
+- On Windows, ensure the path is accessible to Docker Desktop
+
+### Example 2: Other MCP Clients
+
+Reversecore_MCP follows the standard MCP protocol and should work with any MCP-compatible client. Configure the client to connect to:
+
+- **Stdio mode**: Use the Docker command as shown in Example 1 (Claude Desktop stdio configuration)
+- **HTTP mode**: Point to `http://localhost:8000` (or your configured host/port) after starting the server with HTTP transport
+
+For clients that support MCP over HTTP, ensure the Reversecore_MCP server is running in HTTP mode and accessible at the configured endpoint.
+
 ## Usage
 
 ### Project Goal

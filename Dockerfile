@@ -48,7 +48,13 @@ COPY reversecore_mcp/ ./reversecore_mcp/
 # Set Python path, workspace, and transport mode
 ENV PYTHONPATH=/app \
     REVERSECORE_WORKSPACE=/app/workspace \
-    MCP_TRANSPORT=http
+    MCP_TRANSPORT=http \
+    LOG_LEVEL=INFO \
+    LOG_FILE=/var/log/reversecore/app.log \
+    RATE_LIMIT=60
+
+# Create log directory
+RUN mkdir -p /var/log/reversecore
 
 # Expose port for HTTP transport
 EXPOSE 8000

@@ -1,0 +1,16 @@
+# Development dependencies for Reversecore_MCP
+# Install with: pip install -r requirements-dev.txt
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-asyncio>=0.21.0
+
+# Code quality
+black>=23.0.0
+ruff>=0.1.0
+mypy>=1.5.0
+
+# Type stubs
+types-requests>=2.31.0
+

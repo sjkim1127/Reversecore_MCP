@@ -10,6 +10,8 @@ import os
 from pathlib import Path
 from typing import List, Optional
 
+from reversecore_mcp.core.exceptions import ValidationError
+
 # Workspace directory for file access restrictions
 # Can be overridden via REVERSECORE_WORKSPACE environment variable
 ALLOWED_WORKSPACE = Path(
@@ -57,21 +59,38 @@ def validate_file_path(path: str, read_only: bool = False) -> str:
     try:
         abs_path = file_path.resolve(strict=True)
     except (OSError, RuntimeError) as e:
-        raise ValueError(f"Invalid file path: {path}. Error: {e}")
+        raise ValidationError(
+            f"Invalid file path: {path}. Error: {e}",
+            details={"path": path, "error": str(e)},
+        )
 
     # Check that it's a file, not a directory
     if not abs_path.is_file():
-        raise ValueError(f"Path does not point to a file: {abs_path}")
+        raise ValidationError(
+            f"Path does not point to a file: {abs_path}",
+            details={"path": str(abs_path)},
+        )
 
-    # Check if path is within allowed directories
+    # Check if path is within allowed directories using os.path.commonpath()
+    # This is more robust than startswith() and handles edge cases correctly
     workspace_path = ALLOWED_WORKSPACE
-    is_in_workspace = str(abs_path).startswith(str(workspace_path))
+    
+    def is_path_in_directory(file_path: Path, dir_path: Path) -> bool:
+        """Check if file_path is within dir_path using commonpath."""
+        try:
+            common = os.path.commonpath([file_path, dir_path])
+            return common == str(dir_path)
+        except ValueError:
+            # Different drives on Windows or no common path
+            return False
+    
+    is_in_workspace = is_path_in_directory(abs_path, workspace_path)
 
     # If read_only is True, also check read-only directories
     is_in_read_dirs = False
     if read_only:
         for read_dir in ALLOWED_READ_DIRS:
-            if str(abs_path).startswith(str(read_dir)):
+            if is_path_in_directory(abs_path, read_dir):
                 is_in_read_dirs = True
                 break
 
@@ -79,10 +98,11 @@ def validate_file_path(path: str, read_only: bool = False) -> str:
         allowed_dirs = [str(workspace_path)]
         if read_only:
             allowed_dirs.extend([str(d) for d in ALLOWED_READ_DIRS])
-        raise ValueError(
+        raise ValidationError(
             f"File path is outside allowed directories: {abs_path}. "
             f"Allowed directories: {allowed_dirs}. "
-            f"Set REVERSECORE_WORKSPACE or REVERSECORE_READ_DIRS environment variables to change allowed paths."
+            f"Set REVERSECORE_WORKSPACE or REVERSECORE_READ_DIRS environment variables to change allowed paths.",
+            details={"path": str(abs_path), "allowed_directories": allowed_dirs},
         )
 
     return str(abs_path)

@@ -1,0 +1,54 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, develop, 'feature/**' ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y radare2 yara libyara-dev binutils binwalk
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+    
+    - name: Create test workspace
+      run: |
+        mkdir -p tests/fixtures/workspace
+        mkdir -p tests/fixtures/rules
+        # Create simple test binary
+        echo -n "Hello World" > tests/fixtures/workspace/test_binary.bin
+    
+    - name: Run tests
+      env:
+        REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
+        REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
+        LOG_LEVEL: INFO
+      run: |
+        pytest tests/ -v --cov=reversecore_mcp --cov-report=xml --cov-report=term
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+

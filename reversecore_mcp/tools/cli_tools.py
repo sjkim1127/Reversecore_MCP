@@ -6,17 +6,24 @@ such as strings, radare2, etc.
 """
 
 import subprocess
+import time
+from pathlib import Path
 
 from fastmcp import FastMCP
 
+from reversecore_mcp.core.error_formatting import format_error, get_validation_hint
 from reversecore_mcp.core.exceptions import (
     ExecutionTimeoutError,
     OutputLimitExceededError,
     ReversecoreError,
     ToolNotFoundError,
+    ValidationError,
 )
 from reversecore_mcp.core.execution import execute_subprocess_streaming
+from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.security import sanitize_command_string, validate_file_path
+
+logger = get_logger(__name__)
 
 
 def register_cli_tools(mcp: FastMCP) -> None:
@@ -51,6 +58,14 @@ def run_file(file_path: str, timeout: int = 30) -> str:
     Raises:
         Returns error message string if execution fails (never raises exceptions)
     """
+    start_time = time.time()
+    file_name = Path(file_path).name
+    
+    logger.info(
+        "Starting run_file",
+        extra={"tool_name": "run_file", "file_name": file_name},
+    )
+    
     try:
         # Validate file path
         validated_path = validate_file_path(file_path)
@@ -63,19 +78,71 @@ def run_file(file_path: str, timeout: int = 30) -> str:
             cmd, max_output_size=1_000_000, timeout=timeout
         )
 
+        execution_time = int((time.time() - start_time) * 1000)
+        logger.info(
+            "run_file completed successfully",
+            extra={
+                "tool_name": "run_file",
+                "file_name": file_name,
+                "execution_time_ms": execution_time,
+            },
+        )
+
         return output.strip()
 
-    except ToolNotFoundError as e:
-        return f"Error: {e}"
-    except ExecutionTimeoutError as e:
-        return f"Error: {e}"
+    except (ToolNotFoundError, ExecutionTimeoutError, ValidationError) as e:
+        execution_time = int((time.time() - start_time) * 1000)
+        hint = get_validation_hint(e) if isinstance(e, ValidationError) else None
+        logger.warning(
+            "run_file failed",
+            extra={
+                "tool_name": "run_file",
+                "file_name": file_name,
+                "execution_time_ms": execution_time,
+                "error_code": e.error_code if hasattr(e, "error_code") else None,
+            },
+            exc_info=True,
+        )
+        return format_error(e, tool_name="run_file", hint=hint)
     except ValueError as e:
-        return f"Error: Invalid file path - {e}"
+        execution_time = int((time.time() - start_time) * 1000)
+        logger.warning(
+            "run_file validation failed",
+            extra={
+                "tool_name": "run_file",
+                "file_name": file_name,
+                "execution_time_ms": execution_time,
+            },
+            exc_info=True,
+        )
+        return format_error(e, tool_name="run_file", hint=get_validation_hint(e))
     except subprocess.CalledProcessError as e:
+        execution_time = int((time.time() - start_time) * 1000)
         stderr = e.stderr if e.stderr else "Unknown error"
-        return f"Error: Command failed with exit code {e.returncode}. stderr: {stderr}"
+        logger.error(
+            "run_file command failed",
+            extra={
+                "tool_name": "run_file",
+                "file_name": file_name,
+                "execution_time_ms": execution_time,
+                "exit_code": e.returncode,
+            },
+            exc_info=True,
+        )
+        error_msg = f"Command failed with exit code {e.returncode}. stderr: {stderr}"
+        return format_error(Exception(error_msg), tool_name="run_file")
     except Exception as e:
-        return f"Error: Unexpected error - {type(e).__name__}: {e}"
+        execution_time = int((time.time() - start_time) * 1000)
+        logger.error(
+            "run_file unexpected error",
+            extra={
+                "tool_name": "run_file",
+                "file_name": file_name,
+                "execution_time_ms": execution_time,
+            },
+            exc_info=True,
+        )
+        return format_error(e, tool_name="run_file")
 
 
 def run_strings(
@@ -104,6 +171,14 @@ def run_strings(
     Raises:
         Returns error message string if execution fails (never raises exceptions)
     """
+    start_time = time.time()
+    file_name = Path(file_path).name
+    
+    logger.info(
+        "Starting run_strings",
+        extra={"tool_name": "run_strings", "file_name": file_name},
+    )
+    
     try:
         # Validate file path
         validated_path = validate_file_path(file_path)
@@ -116,19 +191,71 @@ def run_strings(
             cmd, max_output_size=max_output_size, timeout=timeout
         )
 
+        execution_time = int((time.time() - start_time) * 1000)
+        logger.info(
+            "run_strings completed successfully",
+            extra={
+                "tool_name": "run_strings",
+                "file_name": file_name,
+                "execution_time_ms": execution_time,
+            },
+        )
+
         return output
 
-    except ToolNotFoundError as e:
-        return f"Error: {e}"
-    except ExecutionTimeoutError as e:
-        return f"Error: {e}"
+    except (ToolNotFoundError, ExecutionTimeoutError, ValidationError) as e:
+        execution_time = int((time.time() - start_time) * 1000)
+        hint = get_validation_hint(e) if isinstance(e, ValidationError) else None
+        logger.warning(
+            "run_strings failed",
+            extra={
+                "tool_name": "run_strings",
+                "file_name": file_name,
+                "execution_time_ms": execution_time,
+                "error_code": e.error_code if hasattr(e, "error_code") else None,
+            },
+            exc_info=True,
+        )
+        return format_error(e, tool_name="run_strings", hint=hint)
     except ValueError as e:
-        return f"Error: Invalid file path - {e}"
+        execution_time = int((time.time() - start_time) * 1000)
+        logger.warning(
+            "run_strings validation failed",
+            extra={
+                "tool_name": "run_strings",
+                "file_name": file_name,
+                "execution_time_ms": execution_time,
+            },
+            exc_info=True,
+        )
+        return format_error(e, tool_name="run_strings", hint=get_validation_hint(e))
     except subprocess.CalledProcessError as e:
+        execution_time = int((time.time() - start_time) * 1000)
         stderr = e.stderr if e.stderr else "Unknown error"
-        return f"Error: Command failed with exit code {e.returncode}. stderr: {stderr}"
+        logger.error(
+            "run_strings command failed",
+            extra={
+                "tool_name": "run_strings",
+                "file_name": file_name,
+                "execution_time_ms": execution_time,
+                "exit_code": e.returncode,
+            },
+            exc_info=True,
+        )
+        error_msg = f"Command failed with exit code {e.returncode}. stderr: {stderr}"
+        return format_error(Exception(error_msg), tool_name="run_strings")
     except Exception as e:
-        return f"Error: Unexpected error - {type(e).__name__}: {e}"
+        execution_time = int((time.time() - start_time) * 1000)
+        logger.error(
+            "run_strings unexpected error",
+            extra={
+                "tool_name": "run_strings",
+                "file_name": file_name,
+                "execution_time_ms": execution_time,
+            },
+            exc_info=True,
+        )
+        return format_error(e, tool_name="run_strings")
 
 
 def run_radare2(
@@ -156,6 +283,14 @@ def run_radare2(
     Raises:
         Returns error message string if execution fails (never raises exceptions)
     """
+    start_time = time.time()
+    file_name = Path(file_path).name
+    
+    logger.info(
+        "Starting run_radare2",
+        extra={"tool_name": "run_radare2", "file_name": file_name},
+    )
+    
     try:
         # Validate file path
         validated_path = validate_file_path(file_path)
@@ -173,19 +308,71 @@ def run_radare2(
             cmd, max_output_size=max_output_size, timeout=timeout
         )
 
+        execution_time = int((time.time() - start_time) * 1000)
+        logger.info(
+            "run_radare2 completed successfully",
+            extra={
+                "tool_name": "run_radare2",
+                "file_name": file_name,
+                "execution_time_ms": execution_time,
+            },
+        )
+
         return output
 
-    except ToolNotFoundError as e:
-        return f"Error: {e}"
-    except ExecutionTimeoutError as e:
-        return f"Error: {e}"
+    except (ToolNotFoundError, ExecutionTimeoutError, ValidationError) as e:
+        execution_time = int((time.time() - start_time) * 1000)
+        hint = get_validation_hint(e) if isinstance(e, ValidationError) else None
+        logger.warning(
+            "run_radare2 failed",
+            extra={
+                "tool_name": "run_radare2",
+                "file_name": file_name,
+                "execution_time_ms": execution_time,
+                "error_code": e.error_code if hasattr(e, "error_code") else None,
+            },
+            exc_info=True,
+        )
+        return format_error(e, tool_name="run_radare2", hint=hint)
     except ValueError as e:
-        return f"Error: Invalid input - {e}"
+        execution_time = int((time.time() - start_time) * 1000)
+        logger.warning(
+            "run_radare2 validation failed",
+            extra={
+                "tool_name": "run_radare2",
+                "file_name": file_name,
+                "execution_time_ms": execution_time,
+            },
+            exc_info=True,
+        )
+        return format_error(e, tool_name="run_radare2", hint=get_validation_hint(e))
     except subprocess.CalledProcessError as e:
+        execution_time = int((time.time() - start_time) * 1000)
         stderr = e.stderr if e.stderr else "Unknown error"
-        return f"Error: Command failed with exit code {e.returncode}. stderr: {stderr}"
+        logger.error(
+            "run_radare2 command failed",
+            extra={
+                "tool_name": "run_radare2",
+                "file_name": file_name,
+                "execution_time_ms": execution_time,
+                "exit_code": e.returncode,
+            },
+            exc_info=True,
+        )
+        error_msg = f"Command failed with exit code {e.returncode}. stderr: {stderr}"
+        return format_error(Exception(error_msg), tool_name="run_radare2")
     except Exception as e:
-        return f"Error: Unexpected error - {type(e).__name__}: {e}"
+        execution_time = int((time.time() - start_time) * 1000)
+        logger.error(
+            "run_radare2 unexpected error",
+            extra={
+                "tool_name": "run_radare2",
+                "file_name": file_name,
+                "execution_time_ms": execution_time,
+            },
+            exc_info=True,
+        )
+        return format_error(e, tool_name="run_radare2")
 
 
 def run_binwalk(
@@ -217,6 +404,14 @@ def run_binwalk(
     Raises:
         Returns error message string if execution fails (never raises exceptions)
     """
+    start_time = time.time()
+    file_name = Path(file_path).name
+    
+    logger.info(
+        "Starting run_binwalk",
+        extra={"tool_name": "run_binwalk", "file_name": file_name},
+    )
+    
     try:
         # Validate file path
         validated_path = validate_file_path(file_path)
@@ -232,17 +427,69 @@ def run_binwalk(
             cmd, max_output_size=max_output_size, timeout=timeout
         )
 
+        execution_time = int((time.time() - start_time) * 1000)
+        logger.info(
+            "run_binwalk completed successfully",
+            extra={
+                "tool_name": "run_binwalk",
+                "file_name": file_name,
+                "execution_time_ms": execution_time,
+            },
+        )
+
         return output
 
-    except ToolNotFoundError as e:
-        return f"Error: {e}"
-    except ExecutionTimeoutError as e:
-        return f"Error: {e}"
+    except (ToolNotFoundError, ExecutionTimeoutError, ValidationError) as e:
+        execution_time = int((time.time() - start_time) * 1000)
+        hint = get_validation_hint(e) if isinstance(e, ValidationError) else None
+        logger.warning(
+            "run_binwalk failed",
+            extra={
+                "tool_name": "run_binwalk",
+                "file_name": file_name,
+                "execution_time_ms": execution_time,
+                "error_code": e.error_code if hasattr(e, "error_code") else None,
+            },
+            exc_info=True,
+        )
+        return format_error(e, tool_name="run_binwalk", hint=hint)
     except ValueError as e:
-        return f"Error: Invalid file path - {e}"
+        execution_time = int((time.time() - start_time) * 1000)
+        logger.warning(
+            "run_binwalk validation failed",
+            extra={
+                "tool_name": "run_binwalk",
+                "file_name": file_name,
+                "execution_time_ms": execution_time,
+            },
+            exc_info=True,
+        )
+        return format_error(e, tool_name="run_binwalk", hint=get_validation_hint(e))
     except subprocess.CalledProcessError as e:
+        execution_time = int((time.time() - start_time) * 1000)
         stderr = e.stderr if e.stderr else "Unknown error"
-        return f"Error: Command failed with exit code {e.returncode}. stderr: {stderr}"
+        logger.error(
+            "run_binwalk command failed",
+            extra={
+                "tool_name": "run_binwalk",
+                "file_name": file_name,
+                "execution_time_ms": execution_time,
+                "exit_code": e.returncode,
+            },
+            exc_info=True,
+        )
+        error_msg = f"Command failed with exit code {e.returncode}. stderr: {stderr}"
+        return format_error(Exception(error_msg), tool_name="run_binwalk")
     except Exception as e:
-        return f"Error: Unexpected error - {type(e).__name__}: {e}"
+        execution_time = int((time.time() - start_time) * 1000)
+        logger.error(
+            "run_binwalk unexpected error",
+            extra={
+                "tool_name": "run_binwalk",
+                "file_name": file_name,
+                "execution_time_ms": execution_time,
+            },
+            exc_info=True,
+        )
+        return format_error(e, tool_name="run_binwalk")
 

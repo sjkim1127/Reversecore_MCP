@@ -12,6 +12,12 @@ yara-python>=4.3.1
 # Capstone disassembly framework
 capstone>=5.0.0
 
+# LIEF binary parsing library
+lief>=0.13.0
+
+# Rate limiting for HTTP mode
+slowapi>=0.1.9
+
 # Additional dependencies (if needed by fastmcp)
 # These are typically included by fastmcp but listed here for clarity
 # fastapi>=0.100.0
