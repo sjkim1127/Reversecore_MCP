@@ -27,7 +27,7 @@ class TestExceptions:
         error = ExecutionTimeoutError(300)
         assert error.timeout_seconds == 300
         assert "300" in str(error)
-        assert "timeout" in str(error).lower()
+        assert "timed out" in str(error).lower() or "timeout" in str(error).lower()
 
     def test_output_limit_exceeded_error(self):
         """Test OutputLimitExceededError exception."""

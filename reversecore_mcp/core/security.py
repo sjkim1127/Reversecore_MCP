@@ -12,18 +12,24 @@ from typing import List, Optional
 
 from reversecore_mcp.core.exceptions import ValidationError
 
-# Workspace directory for file access restrictions
-# Can be overridden via REVERSECORE_WORKSPACE environment variable
-ALLOWED_WORKSPACE = Path(
-    os.environ.get("REVERSECORE_WORKSPACE", "/app/workspace")
-).resolve()
+def _get_allowed_workspace() -> Path:
+    """Get the allowed workspace directory from environment variable."""
+    return Path(os.environ.get("REVERSECORE_WORKSPACE", "/app/workspace")).resolve()
 
-# Read-only directories for static files (e.g., YARA rules)
-# Can be overridden via REVERSECORE_READ_DIRS environment variable (comma-separated)
-_read_dirs_str = os.environ.get("REVERSECORE_READ_DIRS", "/app/rules")
-ALLOWED_READ_DIRS = [
-    Path(d.strip()).resolve() for d in _read_dirs_str.split(",") if d.strip()
-]
+
+def _get_allowed_read_dirs() -> list[Path]:
+    """Get the allowed read-only directories from environment variable."""
+    _read_dirs_str = os.environ.get("REVERSECORE_READ_DIRS", "/app/rules")
+    return [
+        Path(d.strip()).resolve() for d in _read_dirs_str.split(",") if d.strip()
+    ]
+
+
+# For backward compatibility, provide module-level constants
+# These are computed at access time to allow test overrides
+# Note: Direct access to these should use the functions above
+ALLOWED_WORKSPACE = _get_allowed_workspace()  # Initial value, but functions are used internally
+ALLOWED_READ_DIRS = _get_allowed_read_dirs()  # Initial value, but functions are used internally
 
 
 def validate_file_path(path: str, read_only: bool = False) -> str:
@@ -73,7 +79,8 @@ def validate_file_path(path: str, read_only: bool = False) -> str:
 
     # Check if path is within allowed directories using os.path.commonpath()
     # This is more robust than startswith() and handles edge cases correctly
-    workspace_path = ALLOWED_WORKSPACE
+    # Read workspace path dynamically to allow test overrides
+    workspace_path = _get_allowed_workspace()
     
     def is_path_in_directory(file_path: Path, dir_path: Path) -> bool:
         """Check if file_path is within dir_path using commonpath."""
@@ -87,9 +94,11 @@ def validate_file_path(path: str, read_only: bool = False) -> str:
     is_in_workspace = is_path_in_directory(abs_path, workspace_path)
 
     # If read_only is True, also check read-only directories
+    # Read read-only dirs dynamically to allow test overrides
     is_in_read_dirs = False
     if read_only:
-        for read_dir in ALLOWED_READ_DIRS:
+        read_dirs = _get_allowed_read_dirs()
+        for read_dir in read_dirs:
             if is_path_in_directory(abs_path, read_dir):
                 is_in_read_dirs = True
                 break
@@ -97,7 +106,8 @@ def validate_file_path(path: str, read_only: bool = False) -> str:
     if not (is_in_workspace or is_in_read_dirs):
         allowed_dirs = [str(workspace_path)]
         if read_only:
-            allowed_dirs.extend([str(d) for d in ALLOWED_READ_DIRS])
+            read_dirs = _get_allowed_read_dirs()
+            allowed_dirs.extend([str(d) for d in read_dirs])
         raise ValidationError(
             f"File path is outside allowed directories: {abs_path}. "
             f"Allowed directories: {allowed_dirs}. "
