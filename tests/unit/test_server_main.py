@@ -4,15 +4,19 @@ Unit tests for reversecore_mcp.server main() transport selection.
 
 import types
 import sys
+import importlib
 
 import pytest
 
 
-def test_server_main_stdio(monkeypatch):
-    import reversecore_mcp.server as server
-
-    # Force stdio mode
+def test_server_main_stdio(monkeypatch, tmp_path):
+    # Set LOG_FILE to writable temp path BEFORE import to avoid /var/log permission issues
+    monkeypatch.setenv("LOG_FILE", str(tmp_path / "app.log"))
     monkeypatch.setenv("MCP_TRANSPORT", "stdio")
+
+    # Ensure fresh import
+    sys.modules.pop("reversecore_mcp.server", None)
+    import reversecore_mcp.server as server
 
     called = {"run": False}
 
@@ -30,15 +34,12 @@ def test_server_main_stdio(monkeypatch):
     assert called["transport"] == "stdio"
 
 
-def test_server_main_http(monkeypatch):
-    # Import server fresh to ensure state
-    import importlib
-    import reversecore_mcp.server as server
-
-    # Force http mode
+def test_server_main_http(monkeypatch, tmp_path):
+    # Set LOG_FILE to writable temp path BEFORE import
+    monkeypatch.setenv("LOG_FILE", str(tmp_path / "app.log"))
     monkeypatch.setenv("MCP_TRANSPORT", "http")
 
-    # Mock uvicorn module
+    # Mock uvicorn module before import
     called = {"uvicorn_run": False}
 
     class _Uvicorn:
@@ -49,6 +50,10 @@ def test_server_main_http(monkeypatch):
             called["port"] = port
 
     monkeypatch.setitem(sys.modules, "uvicorn", _Uvicorn)
+
+    # Ensure fresh import
+    sys.modules.pop("reversecore_mcp.server", None)
+    import reversecore_mcp.server as server
 
     # Replace server.mcp.app with dummy for uvicorn.run signature
     class _App:
