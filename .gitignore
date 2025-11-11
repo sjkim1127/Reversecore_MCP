@@ -1,0 +1,40 @@
+# Virtual environments
+.venv/
+venv/
+
+# Python caches
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+
+# Compiled bytecode
+*.py[cod]
+*$py.class
+
+# Coverage and test artifacts
+.coverage
+coverage.xml
+htmlcov/
+
+# Logs
+*.log
+
+# IDE/editor
+.vscode/
+.idea/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# OS files
+.DS_Store
+
+# Env files
+.env
+.python-version
+
+
