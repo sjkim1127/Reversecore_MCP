@@ -13,6 +13,10 @@ def test_server_main_stdio(monkeypatch, tmp_path):
     # Set LOG_FILE to writable temp path BEFORE import to avoid /var/log permission issues
     monkeypatch.setenv("LOG_FILE", str(tmp_path / "app.log"))
     monkeypatch.setenv("MCP_TRANSPORT", "stdio")
+    
+    # Reload settings to pick up new environment variables
+    from reversecore_mcp.core.config import reload_settings
+    reload_settings()
 
     # Ensure fresh import
     sys.modules.pop("reversecore_mcp.server", None)
@@ -37,6 +41,10 @@ def test_server_main_http(monkeypatch, tmp_path):
     # Set LOG_FILE to writable temp path BEFORE import
     monkeypatch.setenv("LOG_FILE", str(tmp_path / "app.log"))
     monkeypatch.setenv("MCP_TRANSPORT", "http")
+    
+    # Reload settings to pick up new environment variables
+    from reversecore_mcp.core.config import reload_settings
+    reload_settings()
 
     # Mock uvicorn module before import
     called = {"uvicorn_run": False}

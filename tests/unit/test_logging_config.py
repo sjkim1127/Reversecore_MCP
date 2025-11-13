@@ -19,6 +19,10 @@ def test_setup_logging_smoke(monkeypatch, tmp_path):
     log_file = tmp_path / "app.log"
     monkeypatch.setenv("LOG_FILE", str(log_file))
     monkeypatch.setenv("LOG_LEVEL", "INFO")
+    
+    # Reload settings to pick up new environment variables
+    from reversecore_mcp.core.config import reload_settings
+    reload_settings()
 
     # Should not raise
     setup_logging()

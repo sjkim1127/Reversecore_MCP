@@ -26,6 +26,11 @@ def reset_workspace_env(monkeypatch, tmp_path):
     # security.py uses _get_allowed_workspace() which reads env vars dynamically
     monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace))
     monkeypatch.setenv("REVERSECORE_READ_DIRS", str(tmp_path / "rules"))
+    
+    # Reload settings to pick up new environment variables
+    # This is critical because get_settings() uses a singleton pattern
+    from reversecore_mcp.core.config import reload_settings
+    reload_settings()
 
     return workspace
 

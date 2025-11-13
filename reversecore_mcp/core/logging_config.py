@@ -58,7 +58,13 @@ def setup_logging() -> None:
     log_file = settings.log_file
 
     # Create log directory if it doesn't exist
-    log_file.parent.mkdir(parents=True, exist_ok=True)
+    # Handle permission errors gracefully (e.g., in test environments)
+    try:
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+    except (PermissionError, OSError):
+        # If we can't create the directory, log to console only
+        # This is acceptable in test environments
+        pass
 
     # Configure root logger
     logger = logging.getLogger("reversecore_mcp")

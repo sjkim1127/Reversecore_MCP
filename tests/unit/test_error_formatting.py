@@ -28,6 +28,10 @@ def test_format_error_plain_with_hint(monkeypatch):
 
 def test_format_error_structured_json(monkeypatch):
     monkeypatch.setenv("STRUCTURED_ERRORS", "true")
+    # Reload settings to pick up new environment variable
+    from reversecore_mcp.core.config import reload_settings
+    reload_settings()
+    
     err = ExecutionTimeoutError(timeout_seconds=5)
     data = format_error(err, tool_name="run_test")
     # Should be a dict

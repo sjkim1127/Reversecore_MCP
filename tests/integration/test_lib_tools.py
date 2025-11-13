@@ -79,6 +79,9 @@ class TestDisassembleWithCapstone:
     def test_disassemble_invalid_arch(self, workspace_dir, sample_binary_path, monkeypatch):
         """Test disassembly with invalid architecture."""
         monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace_dir))
+        # Reload settings to pick up new environment variable
+        from reversecore_mcp.core.config import reload_settings
+        reload_settings()
         
         try:
             from capstone import Cs
@@ -94,6 +97,9 @@ class TestDisassembleWithCapstone:
     def test_disassemble_invalid_mode(self, workspace_dir, sample_binary_path, monkeypatch):
         """Test disassembly with invalid mode."""
         monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace_dir))
+        # Reload settings to pick up new environment variable
+        from reversecore_mcp.core.config import reload_settings
+        reload_settings()
         
         try:
             from capstone import Cs

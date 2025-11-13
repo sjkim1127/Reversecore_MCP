@@ -46,6 +46,9 @@ class TestRunStrings:
     def test_run_strings_success(self, workspace_dir, sample_binary_path, monkeypatch):
         """Test successful string extraction."""
         monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace_dir))
+        # Reload settings to pick up new environment variable
+        from reversecore_mcp.core.config import reload_settings
+        reload_settings()
         
         result = cli_tools.run_strings(sample_binary_path, min_length=4)
         assert "Hello World" in result
@@ -53,6 +56,9 @@ class TestRunStrings:
     def test_run_strings_min_length(self, workspace_dir, sample_binary_path, monkeypatch):
         """Test string extraction with different min_length."""
         monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace_dir))
+        # Reload settings to pick up new environment variable
+        from reversecore_mcp.core.config import reload_settings
+        reload_settings()
         
         result = cli_tools.run_strings(sample_binary_path, min_length=10)
         assert "Hello World" in result

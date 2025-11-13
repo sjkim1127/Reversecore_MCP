@@ -19,6 +19,9 @@ class TestValidateFilePath:
         """Test that a valid file in workspace is accepted."""
         # Set workspace environment (security.py reads env vars dynamically)
         monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace_dir))
+        # Reload settings to pick up new environment variable
+        from reversecore_mcp.core.config import reload_settings
+        reload_settings()
         
         result = validate_file_path(sample_binary_path)
         assert result == str(Path(sample_binary_path).resolve())
@@ -85,6 +88,9 @@ class TestValidateFilePath:
         
         monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace_dir))
         monkeypatch.setenv("REVERSECORE_READ_DIRS", str(rules_dir))
+        # Reload settings to pick up new environment variables
+        from reversecore_mcp.core.config import reload_settings
+        reload_settings()
         
         # Should work with read_only=True
         result = validate_file_path(str(rule_file), read_only=True)
