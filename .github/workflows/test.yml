@@ -54,6 +54,8 @@ jobs:
 
   security:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read  # Minimal permissions for security scanning
     
     steps:
     - uses: actions/checkout@v4
