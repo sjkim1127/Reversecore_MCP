@@ -263,6 +263,55 @@ def upload_file(
     pass
 ```
 
+**AI 에이전트 파일 업로드 메커니즘**:
+
+AI 에이전트는 직접 파일 시스템에 접근할 수 없으므로, 다음과 같은 워크플로우가 필요합니다:
+
+**옵션 A: MCP 클라이언트가 파일 읽기 (권장)**
+```
+사용자 → "이 파일을 분석해줘" (파일 경로 제공)
+  ↓
+AI 에이전트 → MCP 클라이언트에 파일 읽기 요청
+  ↓
+MCP 클라이언트 (Cursor/Claude Desktop) → 파일 읽기 및 Base64 인코딩
+  ↓
+AI 에이전트 → upload_file(file_name, file_content, file_size) 호출
+  ↓
+FastMCP Cloud → 파일 저장 및 file_id 반환
+  ↓
+AI 에이전트 → file_id를 사용하여 분석 도구 호출
+```
+
+**옵션 B: 사용자가 파일 내용 직접 제공**
+```
+사용자 → 파일을 Base64로 인코딩하여 제공
+  ↓
+AI 에이전트 → upload_file(file_name, file_content, file_size) 호출
+  ↓
+FastMCP Cloud → 파일 저장 및 file_id 반환
+```
+
+**옵션 C: 파일 URL 제공 (향후 지원)**
+```
+사용자 → 파일 URL 제공 (예: https://example.com/sample.exe)
+  ↓
+AI 에이전트 → download_and_upload(url) 도구 호출
+  ↓
+FastMCP Cloud → 파일 다운로드, 저장, file_id 반환
+```
+
+**현실적인 제약사항**:
+- ❌ AI 에이전트는 로컬 파일 시스템에 직접 접근 불가 (보안상)
+- ✅ MCP 클라이언트가 파일을 읽어서 전달해야 함
+- ✅ 또는 사용자가 파일 내용을 직접 제공해야 함
+- ⚠️ 대용량 파일의 경우 Base64 인코딩 오버헤드 고려 필요
+
+**MCP 클라이언트 지원 필요**:
+현재 MCP 프로토콜에는 파일 읽기 기능이 표준화되어 있지 않습니다. 따라서:
+1. **Cursor/Claude Desktop 확장**: 파일 읽기 기능 추가 필요
+2. **임시 해결책**: 사용자가 파일을 Base64로 인코딩하여 제공
+3. **향후 개선**: MCP 프로토콜에 파일 읽기 표준 추가
+
 #### 2. 파일 식별자 기반 접근
 
 **변경 필요**:
@@ -756,16 +805,70 @@ def validate_uploaded_file(file_content: bytes, file_name: str):
 
 1. **구조적 제약**: Reversecore_MCP는 로컬 파일 시스템 기반으로 설계되어 FastMCP Cloud와 직접 호환되지 않음
 
-2. **지원 가능성**: 파일 업로드 기능 추가 시 FastMCP Cloud 지원 가능 (예상 작업량: 8-10일)
+2. **AI 에이전트 제약**: AI 에이전트는 파일 시스템에 직접 접근할 수 없으므로, 파일 업로드를 위해서는:
+   - MCP 클라이언트(Cursor/Claude Desktop)의 파일 읽기 기능 필요
+   - 또는 사용자가 파일을 Base64로 인코딩하여 제공
+   - 현재 MCP 프로토콜에는 파일 읽기 표준이 없음
 
-3. **권장사항**: 현재는 로컬 서버 사용 유지, 향후 사용자 요구사항에 따라 FastMCP Cloud 지원 검토
+3. **지원 가능성**: 파일 업로드 기능 추가 시 FastMCP Cloud 지원 가능 (예상 작업량: 8-10일)
+   - 단, MCP 클라이언트의 파일 읽기 기능 지원이 선행되어야 함
+
+4. **권장사항**: 현재는 로컬 서버 사용 유지, 향후 사용자 요구사항에 따라 FastMCP Cloud 지원 검토
+
+### 실제 사용 시나리오 비교
+
+#### 시나리오 1: 로컬 서버 (현재 방식) ✅
+
+```
+사용자: "E:\Reversecore_Workspace\sample.exe 파일을 분석해줘"
+  ↓
+AI 에이전트: run_file(file_path="E:\Reversecore_Workspace\sample.exe") 호출
+  ↓
+로컬 서버: 파일 직접 접근 → 분석 결과 반환
+```
+
+**장점**: 간단하고 직관적, 즉시 사용 가능
+
+#### 시나리오 2: FastMCP Cloud (제안 방식) ⚠️
+
+**현재 상태 (미지원)**:
+```
+사용자: "E:\Reversecore_Workspace\sample.exe 파일을 분석해줘"
+  ↓
+AI 에이전트: 파일 경로만 받음 → 클라우드 서버에서 접근 불가 ❌
+```
+
+**지원 시 (가정)**:
+```
+사용자: "이 파일을 분석해줘" (파일 경로 또는 파일 드래그 앤 드롭)
+  ↓
+MCP 클라이언트: 파일 읽기 및 Base64 인코딩
+  ↓
+AI 에이전트: upload_file(file_name, file_content, file_size) 호출
+  ↓
+FastMCP Cloud: 파일 저장 → file_id 반환
+  ↓
+AI 에이전트: run_file(file_id=file_id) 호출
+  ↓
+FastMCP Cloud: 파일 분석 → 결과 반환
+```
+
+**필수 조건**:
+- MCP 클라이언트의 파일 읽기 기능 지원
+- 또는 사용자가 파일을 Base64로 직접 제공
 
 ### 다음 단계
 
 1. **즉시**: 로컬 서버 사용 가이드 강화
-2. **단기**: 사용자 피드백 수집 (FastMCP Cloud 지원 필요성)
-3. **중기**: 파일 업로드 기능 프로토타입 개발
-4. **장기**: 하이브리드 모드 구현
+2. **단기**: 
+   - MCP 클라이언트 개발팀과 파일 읽기 기능 협의
+   - 사용자 피드백 수집 (FastMCP Cloud 지원 필요성)
+3. **중기**: 
+   - 파일 업로드 기능 프로토타입 개발
+   - MCP 클라이언트 파일 읽기 기능 지원 확인
+4. **장기**: 
+   - 하이브리드 모드 구현
+   - FastMCP Cloud 공식 지원
 
 ### 참고 자료
 
@@ -775,7 +878,12 @@ def validate_uploaded_file(file_content: bytes, file_name: str):
 
 ---
 
-**문서 버전**: 1.0  
-**최종 업데이트**: 2025-01-13  
+**문서 버전**: 1.1  
+**최종 업데이트**: 2025-11-13  
 **작성자**: Reversecore_MCP 개발팀
+
+### 변경 이력
+
+- **v1.1 (2025-11-13)**: AI 에이전트 파일 업로드 메커니즘 섹션 추가, 실제 사용 시나리오 비교 추가
+- **v1.0 (2025-11-13)**: 초기 리포트 작성
 
