@@ -1,0 +1,72 @@
+"""
+Input validators for tool-specific parameters.
+"""
+
+from typing import Dict, Any
+from reversecore_mcp.core.exceptions import ValidationError
+
+
+def validate_tool_parameters(tool_name: str, params: Dict[str, Any]) -> None:
+    """
+    Validate tool-specific parameters.
+    
+    Args:
+        tool_name: Name of the tool
+        params: Parameters to validate
+        
+    Raises:
+        ValidationError: If parameters are invalid
+    """
+    validators = {
+        "run_strings": _validate_strings_params,
+        "run_radare2": _validate_radare2_params,
+        "disassemble_with_capstone": _validate_capstone_params,
+        "run_yara": _validate_yara_params,
+    }
+    
+    if tool_name in validators:
+        validators[tool_name](params)
+
+
+def _validate_strings_params(params: Dict[str, Any]) -> None:
+    """Validate run_strings parameters."""
+    min_length = params.get("min_length", 4)
+    if not isinstance(min_length, int) or min_length < 1:
+        raise ValidationError("min_length must be a positive integer")
+    
+    max_output_size = params.get("max_output_size", 10_000_000)
+    if not isinstance(max_output_size, int) or max_output_size < 1:
+        raise ValidationError("max_output_size must be a positive integer")
+
+
+def _validate_radare2_params(params: Dict[str, Any]) -> None:
+    """Validate run_radare2 parameters."""
+    if "r2_command" not in params:
+        raise ValidationError("r2_command is required")
+    
+    if not isinstance(params["r2_command"], str):
+        raise ValidationError("r2_command must be a string")
+
+
+def _validate_capstone_params(params: Dict[str, Any]) -> None:
+    """Validate disassemble_with_capstone parameters."""
+    offset = params.get("offset", 0)
+    if not isinstance(offset, int) or offset < 0:
+        raise ValidationError("offset must be a non-negative integer")
+    
+    size = params.get("size", 1024)
+    if not isinstance(size, int) or size < 1:
+        raise ValidationError("size must be a positive integer")
+    
+    # Note: Architecture validation is done by the tool function itself
+    # to provide more detailed error messages
+
+
+def _validate_yara_params(params: Dict[str, Any]) -> None:
+    """Validate run_yara parameters."""
+    if "rule_file" not in params:
+        raise ValidationError("rule_file is required")
+    
+    timeout = params.get("timeout", 300)
+    if not isinstance(timeout, int) or timeout < 1:
+        raise ValidationError("timeout must be a positive integer")
