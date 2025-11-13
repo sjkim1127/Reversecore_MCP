@@ -80,41 +80,49 @@ def validate_file_path(path: str, read_only: bool = False) -> str:
     # This is more robust than startswith() and handles edge cases correctly
     # Read workspace path dynamically to allow test overrides
     workspace_path = _get_allowed_workspace()
-    
-    def is_path_in_directory(file_path: Path, dir_path: Path) -> bool:
+
+    # Convert to string once for reuse
+    abs_path_str = str(abs_path)
+    workspace_path_str = str(workspace_path)
+
+    def is_path_in_directory(file_path_str: str, dir_path_str: str) -> bool:
         """Check if file_path is within dir_path using commonpath."""
         try:
-            common = os.path.commonpath([file_path, dir_path])
-            return common == str(dir_path)
+            common = os.path.commonpath([file_path_str, dir_path_str])
+            return common == dir_path_str
         except ValueError:
             # Different drives on Windows or no common path
             return False
-    
-    is_in_workspace = is_path_in_directory(abs_path, workspace_path)
+
+    is_in_workspace = is_path_in_directory(abs_path_str, workspace_path_str)
+
+    # Early return if in workspace and no read_only check needed
+    if is_in_workspace and not read_only:
+        return abs_path_str
 
     # If read_only is True, also check read-only directories
     # Read read-only dirs dynamically to allow test overrides
     is_in_read_dirs = False
-    if read_only:
+    if read_only and not is_in_workspace:
         read_dirs = _get_allowed_read_dirs()
         for read_dir in read_dirs:
-            if is_path_in_directory(abs_path, read_dir):
+            if is_path_in_directory(abs_path_str, str(read_dir)):
                 is_in_read_dirs = True
                 break
 
     if not (is_in_workspace or is_in_read_dirs):
-        allowed_dirs = [str(workspace_path)]
+        allowed_dirs = [workspace_path_str]
         if read_only:
             read_dirs = _get_allowed_read_dirs()
             allowed_dirs.extend([str(d) for d in read_dirs])
         raise ValidationError(
-            f"File path is outside allowed directories: {abs_path}. "
+            f"File path is outside allowed directories: {abs_path_str}. "
             f"Allowed directories: {allowed_dirs}. "
             f"Set REVERSECORE_WORKSPACE or REVERSECORE_READ_DIRS environment variables to change allowed paths.",
-            details={"path": str(abs_path), "allowed_directories": allowed_dirs},
+            details={"path": abs_path_str, "allowed_directories": allowed_dirs},
         )
 
-    return str(abs_path)
+    return abs_path_str
 
 
 # Radare2 command allowlist

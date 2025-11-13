@@ -16,7 +16,6 @@ from typing import Tuple
 
 from reversecore_mcp.core.exceptions import (
     ExecutionTimeoutError,
-    OutputLimitExceededError,
     ToolNotFoundError,
 )
 
@@ -70,7 +69,6 @@ def execute_subprocess_streaming(
     output_chunks = []
     stderr_chunks = []
     bytes_read = 0
-    stderr_bytes_read = 0
 
     try:
         # Use time-based timeout checking
@@ -79,6 +77,9 @@ def execute_subprocess_streaming(
 
         # Use select for efficient I/O (Unix) or fallback to polling (Windows)
         use_select = hasattr(select, "select") and sys.platform != "win32"
+
+        # Set adaptive sleep interval for Windows polling
+        poll_interval = 0.05  # Start with 50ms
 
         # Read output in chunks with timeout checking
         while True:
@@ -106,16 +107,25 @@ def execute_subprocess_streaming(
                             output_chunks.append(chunk)
                         # Continue reading even if limit exceeded to drain the pipe
             else:
-                # Windows: use non-blocking read with small timeout
-                # Check if data is available by attempting to read
-                chunk = process.stdout.read(8192)  # 8KB chunks
-                if chunk:
-                    bytes_read += len(chunk.encode(encoding, errors=errors))
-                    if bytes_read <= max_output_size:
-                        output_chunks.append(chunk)
-                else:
-                    # No data available, wait a bit (but shorter than before)
-                    time.sleep(0.01)  # Reduced from 0.1 to 0.01 for better responsiveness
+                # Windows: use non-blocking read with adaptive timeout
+                # Try to read data - this is non-blocking with text mode
+                try:
+                    # Use a non-blocking approach with smaller chunk size initially
+                    chunk = process.stdout.read(8192)  # 8KB chunks
+                    if chunk:
+                        bytes_read += len(chunk.encode(encoding, errors=errors))
+                        if bytes_read <= max_output_size:
+                            output_chunks.append(chunk)
+                        # Reset poll interval when we receive data
+                        poll_interval = 0.05
+                    else:
+                        # No data available, use adaptive backoff
+                        time.sleep(poll_interval)
+                        # Gradually increase sleep time up to 0.1s to reduce CPU usage
+                        poll_interval = min(poll_interval * 1.5, 0.1)
+                except Exception:
+                    # If read fails, wait and try again
+                    time.sleep(poll_interval)
 
         # Read remaining stdout and stderr
         remaining_stdout = process.stdout.read()
@@ -128,7 +138,6 @@ def execute_subprocess_streaming(
         stderr_data = process.stderr.read()
         if stderr_data:
             stderr_chunks.append(stderr_data)
-            stderr_bytes_read = len(stderr_data.encode(encoding, errors=errors))
 
         # Combine output chunks
         output_text = "".join(output_chunks)
@@ -154,7 +163,7 @@ def execute_subprocess_streaming(
         process.kill()
         process.wait()
         raise ExecutionTimeoutError(timeout)
-    except Exception as e:
+    except Exception:
         # Ensure process is terminated
         try:
             process.kill()
