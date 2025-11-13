@@ -290,11 +290,10 @@ def disassemble_with_capstone(
     )
 
     try:
-        # Validate parameters
+        # Validate parameters (offset and size only, arch is validated later)
         validate_tool_parameters("disassemble_with_capstone", {
             "offset": offset,
-            "size": size,
-            "arch": arch
+            "size": size
         })
         
         # Validate file path

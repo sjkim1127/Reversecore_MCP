@@ -58,10 +58,8 @@ def _validate_capstone_params(params: Dict[str, Any]) -> None:
     if not isinstance(size, int) or size < 1:
         raise ValidationError("size must be a positive integer")
     
-    arch = params.get("arch", "x86")
-    valid_archs = {"x86", "arm", "arm64"}
-    if arch not in valid_archs:
-        raise ValidationError(f"arch must be one of {valid_archs}")
+    # Note: Architecture validation is done by the tool function itself
+    # to provide more detailed error messages
 
 
 def _validate_yara_params(params: Dict[str, Any]) -> None:
