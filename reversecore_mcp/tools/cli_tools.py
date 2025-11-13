@@ -10,11 +10,13 @@ from fastmcp import FastMCP
 
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.execution import execute_subprocess_streaming
+from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.security import (
     R2_READONLY_COMMANDS,
     sanitize_command_string,
     validate_file_path,
 )
+from reversecore_mcp.core.validators import validate_tool_parameters
 
 
 def register_cli_tools(mcp: FastMCP) -> None:
@@ -65,6 +67,7 @@ def run_file(file_path: str, timeout: int = 30) -> str:
 
 
 @log_execution(tool_name="run_strings")
+@track_metrics("run_strings")
 def run_strings(
     file_path: str,
     min_length: int = 4,
@@ -91,6 +94,12 @@ def run_strings(
     Raises:
         Returns error message string if execution fails (never raises exceptions)
     """
+    # Validate parameters
+    validate_tool_parameters("run_strings", {
+        "min_length": min_length,
+        "max_output_size": max_output_size
+    })
+    
     # Validate file path
     validated_path = validate_file_path(file_path)
 
@@ -106,6 +115,7 @@ def run_strings(
 
 
 @log_execution(tool_name="run_radare2")
+@track_metrics("run_radare2")
 def run_radare2(
     file_path: str,
     r2_command: str,
@@ -131,6 +141,9 @@ def run_radare2(
     Raises:
         Returns error message string if execution fails (never raises exceptions)
     """
+    # Validate parameters
+    validate_tool_parameters("run_radare2", {"r2_command": r2_command})
+    
     # Validate file path
     validated_path = validate_file_path(file_path)
 

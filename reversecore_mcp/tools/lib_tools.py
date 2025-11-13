@@ -17,7 +17,9 @@ from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_formatting import format_error, get_validation_hint
 from reversecore_mcp.core.exceptions import ValidationError
 from reversecore_mcp.core.logging_config import get_logger
+from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.security import validate_file_path
+from reversecore_mcp.core.validators import validate_tool_parameters
 
 logger = get_logger(__name__)
 
@@ -34,6 +36,7 @@ def register_lib_tools(mcp: FastMCP) -> None:
     mcp.tool(parse_binary_with_lief)
 
 
+@track_metrics("run_yara")
 def run_yara(
     file_path: str,
     rule_file: str,
@@ -57,6 +60,12 @@ def run_yara(
     Raises:
         Returns error message string if execution fails (never raises exceptions)
     """
+    # Validate parameters
+    validate_tool_parameters("run_yara", {
+        "rule_file": rule_file,
+        "timeout": timeout
+    })
+    
     start_time = time.time()
     file_name = Path(file_path).name
 
@@ -245,6 +254,7 @@ def run_yara(
         return format_error(e, tool_name="run_yara")
 
 
+@track_metrics("disassemble_with_capstone")
 def disassemble_with_capstone(
     file_path: str,
     offset: int = 0,
@@ -280,6 +290,13 @@ def disassemble_with_capstone(
     )
 
     try:
+        # Validate parameters
+        validate_tool_parameters("disassemble_with_capstone", {
+            "offset": offset,
+            "size": size,
+            "arch": arch
+        })
+        
         # Validate file path
         validated_path = validate_file_path(file_path)
 
