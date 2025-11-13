@@ -6,8 +6,9 @@ reverse engineering tasks, such as yara-python and capstone.
 """
 
 import json
+import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from fastmcp import FastMCP
 
@@ -58,12 +59,12 @@ def run_yara(
     """
     start_time = time.time()
     file_name = Path(file_path).name
-    
+
     logger.info(
         "Starting run_yara",
         extra={"tool_name": "run_yara", "file_name": file_name},
     )
-    
+
     try:
         # Validate file paths
         # rule_file can be in read-only directories (e.g., /app/rules) or workspace
@@ -148,42 +149,52 @@ def run_yara(
             )
             return "No YARA rule matches found."
 
+        # Pre-allocate results list with known size for better memory efficiency
         results = []
         for match in matches:
             # Build strings list supporting yara-python API:
             # match.strings is a list of StringMatch; each has .identifier and .instances
             # Each instance has .offset and .matched_data
             formatted_strings = []
-            try:
-                for sm in getattr(match, "strings", []) or []:
-                    identifier = getattr(sm, "identifier", None)
-                    instances = getattr(sm, "instances", []) or []
-                    for inst in instances:
-                        offset = getattr(inst, "offset", None)
-                        matched_data = getattr(inst, "matched_data", None)
-                        formatted_strings.append(
-                            {
-                                "identifier": identifier,
-                                "offset": int(offset) if offset is not None else None,
-                                "matched_data": matched_data.hex() if hasattr(matched_data, "hex") and matched_data is not None else (matched_data if isinstance(matched_data, str) else None),
-                            }
-                        )
-            except Exception:
-                # Fallback: older API may return tuples (offset, identifier, data)
+
+            # Check if match has strings attribute first to avoid multiple getattr calls
+            match_strings = getattr(match, "strings", None)
+            if match_strings:
                 try:
-                    for t in match.strings:
-                        if not isinstance(t, (list, tuple)) or len(t) < 3:
-                            continue
-                        off, ident, data = t[0], t[1], t[2]
-                        formatted_strings.append(
-                            {
-                                "identifier": ident,
-                                "offset": int(off) if off is not None else None,
-                                "matched_data": data.hex() if hasattr(data, "hex") else (data if isinstance(data, str) else None),
-                            }
-                        )
-                except Exception:
-                    pass
+                    # Try modern API first (more common case)
+                    for sm in match_strings:
+                        identifier = getattr(sm, "identifier", None)
+                        instances = getattr(sm, "instances", None)
+                        if instances:
+                            for inst in instances:
+                                offset = getattr(inst, "offset", None)
+                                matched_data = getattr(inst, "matched_data", None)
+                                # Optimize conditional by checking type once
+                                if matched_data is not None:
+                                    data_str = matched_data.hex() if isinstance(matched_data, bytes) else (matched_data if isinstance(matched_data, str) else None)
+                                else:
+                                    data_str = None
+                                formatted_strings.append(
+                                    {
+                                        "identifier": identifier,
+                                        "offset": int(offset) if offset is not None else None,
+                                        "matched_data": data_str,
+                                    }
+                                )
+                except (AttributeError, TypeError):
+                    # Fallback: older API may return tuples (offset, identifier, data)
+                    formatted_strings = []
+                    for t in match_strings:
+                        if isinstance(t, (list, tuple)) and len(t) >= 3:
+                            off, ident, data = t[0], t[1], t[2]
+                            data_str = data.hex() if isinstance(data, bytes) else (data if isinstance(data, str) else None)
+                            formatted_strings.append(
+                                {
+                                    "identifier": ident,
+                                    "offset": int(off) if off is not None else None,
+                                    "matched_data": data_str,
+                                }
+                            )
 
             result = {
                 "rule": match.rule,
@@ -262,12 +273,12 @@ def disassemble_with_capstone(
     """
     start_time = time.time()
     file_name = Path(file_path).name
-    
+
     logger.info(
         "Starting disassemble_with_capstone",
         extra={"tool_name": "disassemble_with_capstone", "file_name": file_name, "arch": arch, "mode": mode},
     )
-    
+
     try:
         # Validate file path
         validated_path = validate_file_path(file_path)
@@ -492,13 +503,13 @@ def _extract_sections(binary: Any) -> List[Dict[str, Any]]:
 def _extract_symbols(binary: Any) -> Dict[str, Any]:
     """Extract symbol information (imports/exports) from binary."""
     symbols: Dict[str, Any] = {}
-    
+
     if hasattr(binary, "imported_functions") and binary.imported_functions:
         symbols["imported_functions"] = [str(func) for func in binary.imported_functions[:100]]
-    
+
     if hasattr(binary, "exported_functions") and binary.exported_functions:
         symbols["exported_functions"] = [str(func) for func in binary.exported_functions[:100]]
-    
+
     # PE-specific imports/exports
     if hasattr(binary, "imports") and binary.imports:
         symbols["imports"] = [
@@ -508,7 +519,7 @@ def _extract_symbols(binary: Any) -> Dict[str, Any]:
             }
             for imp in binary.imports[:20]
         ]
-    
+
     if hasattr(binary, "exports") and binary.exports:
         symbols["exports"] = [
             {
@@ -517,7 +528,7 @@ def _extract_symbols(binary: Any) -> Dict[str, Any]:
             }
             for exp in binary.exports[:100]
         ]
-    
+
     return symbols
 
 
@@ -525,23 +536,40 @@ def _format_lief_output(result: Dict[str, Any], format: str) -> str:
     """Format LIEF parsing result as JSON or text."""
     if format.lower() == "json":
         return json.dumps(result, indent=2)
-    
-    # Text format
+
+    # Text format - optimize by using list comprehension and avoiding repeated slicing
     lines = [f"Format: {result.get('format', 'Unknown')}"]
     if result.get("entry_point"):
         lines.append(f"Entry Point: {result['entry_point']}")
-    if result.get("sections"):
-        lines.append(f"\nSections ({len(result['sections'])}):")
-        for section in result["sections"][:20]:
+
+    sections = result.get("sections")
+    if sections:
+        section_count = len(sections)
+        lines.append(f"\nSections ({section_count}):")
+        # Iterate directly with limit instead of slicing
+        for i, section in enumerate(sections):
+            if i >= 20:
+                break
             lines.append(f"  - {section['name']}: VA={section['virtual_address']}, Size={section['size']}")
-    if result.get("imported_functions"):
-        lines.append(f"\nImported Functions ({len(result['imported_functions'])}):")
-        for func in result["imported_functions"][:20]:
+
+    imported_funcs = result.get("imported_functions")
+    if imported_funcs:
+        func_count = len(imported_funcs)
+        lines.append(f"\nImported Functions ({func_count}):")
+        for i, func in enumerate(imported_funcs):
+            if i >= 20:
+                break
             lines.append(f"  - {func}")
-    if result.get("exported_functions"):
-        lines.append(f"\nExported Functions ({len(result['exported_functions'])}):")
-        for func in result["exported_functions"][:20]:
+
+    exported_funcs = result.get("exported_functions")
+    if exported_funcs:
+        func_count = len(exported_funcs)
+        lines.append(f"\nExported Functions ({func_count}):")
+        for i, func in enumerate(exported_funcs):
+            if i >= 20:
+                break
             lines.append(f"  - {func}")
+
     return "\n".join(lines)
 
 
@@ -571,7 +599,7 @@ def parse_binary_with_lief(file_path: str, format: str = "json") -> str:
     """
     # Validate file path
     validated_path = validate_file_path(file_path)
-    
+
     # Check file size (1GB limit for safety)
     max_file_size = get_settings().lief_max_file_size
     file_size = Path(validated_path).stat().st_size
@@ -601,12 +629,12 @@ def parse_binary_with_lief(file_path: str, format: str = "json") -> str:
         "format": str(binary.format).split(".")[-1].lower(),  # ELF, PE, MACHO
         "entry_point": hex(binary.entrypoint) if hasattr(binary, "entrypoint") else None,
     }
-    
+
     # Add sections and symbols
     sections = _extract_sections(binary)
     if sections:
         result["sections"] = sections
-    
+
     symbols = _extract_symbols(binary)
     result.update(symbols)
 

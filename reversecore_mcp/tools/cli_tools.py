@@ -5,7 +5,6 @@ This module provides MCP tools that wrap common reverse engineering CLI tools
 such as strings, radare2, etc.
 """
 
-from pathlib import Path
 
 from fastmcp import FastMCP
 
