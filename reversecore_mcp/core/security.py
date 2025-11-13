@@ -10,19 +10,18 @@ import os
 from pathlib import Path
 from typing import List, Optional
 
+from reversecore_mcp.core.config import get_settings
 from reversecore_mcp.core.exceptions import ValidationError
 
+
 def _get_allowed_workspace() -> Path:
-    """Get the allowed workspace directory from environment variable."""
-    return Path(os.environ.get("REVERSECORE_WORKSPACE", "/app/workspace")).resolve()
+    """Get the allowed workspace directory from settings."""
+    return get_settings().allowed_workspace
 
 
-def _get_allowed_read_dirs() -> list[Path]:
-    """Get the allowed read-only directories from environment variable."""
-    _read_dirs_str = os.environ.get("REVERSECORE_READ_DIRS", "/app/rules")
-    return [
-        Path(d.strip()).resolve() for d in _read_dirs_str.split(",") if d.strip()
-    ]
+def _get_allowed_read_dirs() -> List[Path]:
+    """Get the allowed read-only directories from settings."""
+    return get_settings().allowed_read_dirs
 
 
 # For backward compatibility, provide module-level constants
@@ -118,6 +117,43 @@ def validate_file_path(path: str, read_only: bool = False) -> str:
     return str(abs_path)
 
 
+# Radare2 command allowlist
+# Read-only commands that are safe to execute
+R2_READONLY_COMMANDS = [
+    "pdf",  # Print disassembly function
+    "afl",  # Analyze functions list
+    "iS",   # Sections info
+    "iz",   # Strings in data sections
+    "px",   # Print hexdump
+    "pd",   # Print disassembly
+    "V",    # Visual mode (read-only)
+    "s",    # Seek (read-only navigation)
+    "?",    # Help
+    "i",    # Info commands (read-only)
+    "fs",   # Flag spaces (read-only)
+    "f",    # Flags (read-only)
+    "a",    # Analysis commands (read-only)
+    "aa",   # Analyze all
+    "af",   # Analyze function
+    "pdj",  # Print disassembly JSON
+    "pdfj", # Print disassembly function JSON
+    "aflj", # Analyze functions list JSON
+]
+
+# Dangerous radare2 commands that should be blocked
+R2_DANGEROUS_PATTERNS = [
+    "w",    # Write
+    "wo",   # Write opcode
+    "wx",   # Write hex
+    "o+",   # Open file for writing
+    "o-",   # Close file
+    "!",    # System command execution
+    "#!",   # Script execution
+    "waf",  # Write assembly function
+    "wa",   # Write assembly
+]
+
+
 def sanitize_command_string(cmd: str, allowlist: Optional[List[str]] = None) -> str:
     """
     Validate a command string against an allowlist.
@@ -127,25 +163,49 @@ def sanitize_command_string(cmd: str, allowlist: Optional[List[str]] = None) -> 
     (since we use list-based subprocess calls), but validates that the
     command matches expected patterns.
 
+    For radare2 commands, this function checks:
+    1. Command is not empty
+    2. Command does not contain dangerous patterns (write, system execution, etc.)
+    3. If allowlist is provided, command matches allowed patterns
+
     Args:
         cmd: The command string to validate
         allowlist: Optional list of allowed command patterns.
-                  If None, only basic validation is performed (non-empty).
+                  If None, only basic validation and dangerous pattern checking
+                  is performed. For radare2, use R2_READONLY_COMMANDS.
 
     Returns:
         The validated command string
 
     Raises:
-        ValueError: If the command string is invalid or not in allowlist
+        ValueError: If the command string is invalid, contains dangerous patterns,
+                   or does not match allowlist
     """
     if not cmd or not cmd.strip():
         raise ValueError("Command string cannot be empty")
 
+    cmd_stripped = cmd.strip()
+    cmd_lower = cmd_stripped.lower()
+
+    # Check for dangerous patterns first
+    for dangerous in R2_DANGEROUS_PATTERNS:
+        # Check if dangerous pattern appears as a standalone command or with whitespace
+        # This prevents "w", "w ", " w", "wx", "wo", etc.
+        dangerous_lower = dangerous.lower()
+        if cmd_lower == dangerous_lower or cmd_lower.startswith(dangerous_lower + " "):
+            raise ValueError(
+                f"Dangerous command pattern detected: {dangerous}. "
+                f"Write and system execution commands are not allowed."
+            )
+
     # If allowlist is provided, check if command matches any pattern
     if allowlist:
-        cmd_lower = cmd.lower().strip()
+        # Check if command starts with any allowed pattern
+        # This allows commands like "pdf @ main", "afl", "iS", etc.
         matches = any(
-            pattern.lower() in cmd_lower or cmd_lower.startswith(pattern.lower())
+            cmd_lower == pattern.lower()
+            or cmd_lower.startswith(pattern.lower() + " ")
+            or cmd_lower.startswith(pattern.lower() + "@")
             for pattern in allowlist
         )
         if not matches:
@@ -154,5 +214,5 @@ def sanitize_command_string(cmd: str, allowlist: Optional[List[str]] = None) -> 
                 f"Allowed patterns: {allowlist}"
             )
 
-    return cmd.strip()
+    return cmd_stripped
 

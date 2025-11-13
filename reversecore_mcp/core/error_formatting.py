@@ -2,17 +2,17 @@
 Error formatting utilities for structured error responses.
 """
 
-import os
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Union
 
+from reversecore_mcp.core.config import get_settings
 from reversecore_mcp.core.exceptions import ReversecoreError
 
 
 def format_error(
-    error: Exception, tool_name: str = None, hint: str = None
-) -> str | Dict[str, Any]:
+    error: Exception, tool_name: Optional[str] = None, hint: Optional[str] = None
+) -> Union[str, Dict[str, Any]]:
     """
-    Format an error as string or structured JSON based on environment variable.
+    Format an error as string or structured JSON based on settings.
 
     Args:
         error: The exception to format
@@ -20,10 +20,10 @@ def format_error(
         hint: Optional hint message for resolving the error
 
     Returns:
-        Error message as string (default) or structured dict (if STRUCTURED_ERRORS=true)
+        Error message as string (default) or structured dict (if structured_errors enabled)
     """
     # Check if structured errors are enabled
-    structured = os.environ.get("STRUCTURED_ERRORS", "false").lower() == "true"
+    structured = get_settings().structured_errors
 
     if isinstance(error, ReversecoreError):
         error_code = error.error_code

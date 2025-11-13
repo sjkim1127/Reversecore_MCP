@@ -6,12 +6,13 @@ reverse engineering tasks, such as yara-python and capstone.
 """
 
 import json
-import os
-import time
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from fastmcp import FastMCP
 
+from reversecore_mcp.core.config import get_settings
+from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_formatting import format_error, get_validation_hint
 from reversecore_mcp.core.exceptions import ValidationError
 from reversecore_mcp.core.logging_config import get_logger
@@ -473,6 +474,78 @@ def disassemble_with_capstone(
         return format_error(e, tool_name="disassemble_with_capstone")
 
 
+def _extract_sections(binary: Any) -> List[Dict[str, Any]]:
+    """Extract section information from binary."""
+    if not hasattr(binary, "sections") or not binary.sections:
+        return []
+    return [
+        {
+            "name": section.name,
+            "virtual_address": hex(section.virtual_address),
+            "size": section.size,
+            "entropy": round(section.entropy, 2) if hasattr(section, "entropy") else None,
+        }
+        for section in binary.sections
+    ]
+
+
+def _extract_symbols(binary: Any) -> Dict[str, Any]:
+    """Extract symbol information (imports/exports) from binary."""
+    symbols: Dict[str, Any] = {}
+    
+    if hasattr(binary, "imported_functions") and binary.imported_functions:
+        symbols["imported_functions"] = [str(func) for func in binary.imported_functions[:100]]
+    
+    if hasattr(binary, "exported_functions") and binary.exported_functions:
+        symbols["exported_functions"] = [str(func) for func in binary.exported_functions[:100]]
+    
+    # PE-specific imports/exports
+    if hasattr(binary, "imports") and binary.imports:
+        symbols["imports"] = [
+            {
+                "name": imp.name,
+                "functions": [str(f) for f in imp.entries[:20]],
+            }
+            for imp in binary.imports[:20]
+        ]
+    
+    if hasattr(binary, "exports") and binary.exports:
+        symbols["exports"] = [
+            {
+                "name": exp.name,
+                "address": hex(exp.address) if hasattr(exp, "address") else None,
+            }
+            for exp in binary.exports[:100]
+        ]
+    
+    return symbols
+
+
+def _format_lief_output(result: Dict[str, Any], format: str) -> str:
+    """Format LIEF parsing result as JSON or text."""
+    if format.lower() == "json":
+        return json.dumps(result, indent=2)
+    
+    # Text format
+    lines = [f"Format: {result.get('format', 'Unknown')}"]
+    if result.get("entry_point"):
+        lines.append(f"Entry Point: {result['entry_point']}")
+    if result.get("sections"):
+        lines.append(f"\nSections ({len(result['sections'])}):")
+        for section in result["sections"][:20]:
+            lines.append(f"  - {section['name']}: VA={section['virtual_address']}, Size={section['size']}")
+    if result.get("imported_functions"):
+        lines.append(f"\nImported Functions ({len(result['imported_functions'])}):")
+        for func in result["imported_functions"][:20]:
+            lines.append(f"  - {func}")
+    if result.get("exported_functions"):
+        lines.append(f"\nExported Functions ({len(result['exported_functions'])}):")
+        for func in result["exported_functions"][:20]:
+            lines.append(f"  - {func}")
+    return "\n".join(lines)
+
+
+@log_execution(tool_name="parse_binary_with_lief")
 def parse_binary_with_lief(file_path: str, format: str = "json") -> str:
     """
     Parse binary file structure using LIEF library.
@@ -496,191 +569,46 @@ def parse_binary_with_lief(file_path: str, format: str = "json") -> str:
     Raises:
         Returns error message string if execution fails (never raises exceptions)
     """
-    start_time = time.time()
-    file_name = Path(file_path).name
+    # Validate file path
+    validated_path = validate_file_path(file_path)
     
-    logger.info(
-        "Starting parse_binary_with_lief",
-        extra={"tool_name": "parse_binary_with_lief", "file_name": file_name},
-    )
-    
+    # Check file size (1GB limit for safety)
+    max_file_size = get_settings().lief_max_file_size
+    file_size = Path(validated_path).stat().st_size
+    if file_size > max_file_size:
+        raise ValueError(
+            f"File size ({file_size} bytes) exceeds maximum allowed size ({max_file_size} bytes). "
+            f"Set LIEF_MAX_FILE_SIZE environment variable to increase limit (current: {max_file_size} bytes)"
+        )
+
+    # Import lief (will raise ImportError if not installed)
     try:
-        # Validate file path
-        validated_path = validate_file_path(file_path)
-        
-        # Check file size (1GB limit for safety)
-        max_file_size = int(os.environ.get("LIEF_MAX_FILE_SIZE", 1_000_000_000))  # 1GB default
-        file_size = Path(validated_path).stat().st_size
-        if file_size > max_file_size:
-            execution_time = int((time.time() - start_time) * 1000)
-            logger.warning(
-                "parse_binary_with_lief - file too large",
-                extra={
-                    "tool_name": "parse_binary_with_lief",
-                    "file_name": file_name,
-                    "execution_time_ms": execution_time,
-                    "file_size": file_size,
-                    "max_size": max_file_size,
-                },
-            )
-            return format_error(
-                ValueError(f"File size ({file_size} bytes) exceeds maximum allowed size ({max_file_size} bytes)"),
-                tool_name="parse_binary_with_lief",
-                hint=f"Set LIEF_MAX_FILE_SIZE environment variable to increase limit (current: {max_file_size} bytes)",
-            )
+        import lief
+    except ImportError:
+        raise ImportError("lief library is not installed. Please install it with: pip install lief")
 
-        # Import lief (will raise ImportError if not installed)
-        try:
-            import lief
-        except ImportError:
-            execution_time = int((time.time() - start_time) * 1000)
-            logger.error(
-                "parse_binary_with_lief failed - lief not installed",
-                extra={
-                    "tool_name": "parse_binary_with_lief",
-                    "file_name": file_name,
-                    "execution_time_ms": execution_time,
-                },
-            )
-            return format_error(
-                Exception("lief library is not installed"),
-                tool_name="parse_binary_with_lief",
-                hint="Please install it with: pip install lief",
-            )
-
-        # Parse binary file
-        try:
-            binary = lief.parse(validated_path)
-        except Exception as e:
-            execution_time = int((time.time() - start_time) * 1000)
-            logger.error(
-                "parse_binary_with_lief failed - parsing error",
-                extra={
-                    "tool_name": "parse_binary_with_lief",
-                    "file_name": file_name,
-                    "execution_time_ms": execution_time,
-                },
-                exc_info=True,
-            )
-            return format_error(
-                Exception(f"Failed to parse binary file: {e}"),
-                tool_name="parse_binary_with_lief",
-            )
-
-        if binary is None:
-            execution_time = int((time.time() - start_time) * 1000)
-            logger.warning(
-                "parse_binary_with_lief - unsupported format",
-                extra={
-                    "tool_name": "parse_binary_with_lief",
-                    "file_name": file_name,
-                    "execution_time_ms": execution_time,
-                },
-            )
-            return format_error(
-                ValueError("Unsupported binary format. LIEF supports ELF, PE, and Mach-O formats."),
-                tool_name="parse_binary_with_lief",
-            )
-
-        # Extract information
-        result = {
-            "format": str(binary.format).split(".")[-1].lower(),  # ELF, PE, MACHO
-            "entry_point": hex(binary.entrypoint) if hasattr(binary, "entrypoint") else None,
-        }
-
-        # Add sections
-        if hasattr(binary, "sections") and binary.sections:
-            result["sections"] = [
-                {
-                    "name": section.name,
-                    "virtual_address": hex(section.virtual_address),
-                    "size": section.size,
-                    "entropy": round(section.entropy, 2) if hasattr(section, "entropy") else None,
-                }
-                for section in binary.sections
-            ]
-
-        # Add symbols (imports/exports)
-        if hasattr(binary, "imported_functions") and binary.imported_functions:
-            result["imported_functions"] = [str(func) for func in binary.imported_functions[:100]]  # Limit to 100
-
-        if hasattr(binary, "exported_functions") and binary.exported_functions:
-            result["exported_functions"] = [str(func) for func in binary.exported_functions[:100]]  # Limit to 100
-
-        # Add imports/exports for PE files
-        if hasattr(binary, "imports") and binary.imports:
-            result["imports"] = [
-                {
-                    "name": imp.name,
-                    "functions": [str(f) for f in imp.entries[:20]],  # Limit to 20 per import
-                }
-                for imp in binary.imports[:20]  # Limit to 20 imports
-            ]
-
-        if hasattr(binary, "exports") and binary.exports:
-            result["exports"] = [
-                {
-                    "name": exp.name,
-                    "address": hex(exp.address) if hasattr(exp, "address") else None,
-                }
-                for exp in binary.exports[:100]  # Limit to 100 exports
-            ]
-
-        execution_time = int((time.time() - start_time) * 1000)
-        logger.info(
-            "parse_binary_with_lief completed successfully",
-            extra={
-                "tool_name": "parse_binary_with_lief",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-                "format": result.get("format"),
-            },
-        )
-
-        # Return in requested format
-        if format.lower() == "json":
-            return json.dumps(result, indent=2)
-        else:
-            # Text format
-            lines = [f"Format: {result.get('format', 'Unknown')}"]
-            if result.get("entry_point"):
-                lines.append(f"Entry Point: {result['entry_point']}")
-            if result.get("sections"):
-                lines.append(f"\nSections ({len(result['sections'])}):")
-                for section in result["sections"][:20]:  # Limit to 20 sections
-                    lines.append(f"  - {section['name']}: VA={section['virtual_address']}, Size={section['size']}")
-            if result.get("imported_functions"):
-                lines.append(f"\nImported Functions ({len(result['imported_functions'])}):")
-                for func in result["imported_functions"][:20]:
-                    lines.append(f"  - {func}")
-            if result.get("exported_functions"):
-                lines.append(f"\nExported Functions ({len(result['exported_functions'])}):")
-                for func in result["exported_functions"][:20]:
-                    lines.append(f"  - {func}")
-            return "\n".join(lines)
-
-    except (ValidationError, ValueError) as e:
-        execution_time = int((time.time() - start_time) * 1000)
-        hint = get_validation_hint(e) if isinstance(e, ValidationError) else get_validation_hint(ValueError(str(e)))
-        logger.warning(
-            "parse_binary_with_lief validation failed",
-            extra={
-                "tool_name": "parse_binary_with_lief",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-            },
-            exc_info=True,
-        )
-        return format_error(e, tool_name="parse_binary_with_lief", hint=hint)
+    # Parse binary file
+    try:
+        binary = lief.parse(validated_path)
     except Exception as e:
-        execution_time = int((time.time() - start_time) * 1000)
-        logger.error(
-            "parse_binary_with_lief unexpected error",
-            extra={
-                "tool_name": "parse_binary_with_lief",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-            },
-            exc_info=True,
-        )
-        return format_error(e, tool_name="parse_binary_with_lief")
+        raise Exception(f"Failed to parse binary file: {e}")
+
+    if binary is None:
+        raise ValueError("Unsupported binary format. LIEF supports ELF, PE, and Mach-O formats.")
+
+    # Extract information using helper functions
+    result: Dict[str, Any] = {
+        "format": str(binary.format).split(".")[-1].lower(),  # ELF, PE, MACHO
+        "entry_point": hex(binary.entrypoint) if hasattr(binary, "entrypoint") else None,
+    }
+    
+    # Add sections and symbols
+    sections = _extract_sections(binary)
+    if sections:
+        result["sections"] = sections
+    
+    symbols = _extract_symbols(binary)
+    result.update(symbols)
+
+    # Format and return
+    return _format_lief_output(result, format)

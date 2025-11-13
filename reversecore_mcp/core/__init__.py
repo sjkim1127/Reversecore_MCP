@@ -5,6 +5,8 @@ This package contains security, execution, and exception handling utilities
 used across all tool modules.
 """
 
+from reversecore_mcp.core.config import get_settings, reload_settings
+from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_formatting import format_error, get_validation_hint
 from reversecore_mcp.core.exceptions import (
     ExecutionTimeoutError,
@@ -30,5 +32,8 @@ __all__ = [
     "get_validation_hint",
     "get_logger",
     "setup_logging",
+    "get_settings",
+    "reload_settings",
+    "log_execution",
 ]
 

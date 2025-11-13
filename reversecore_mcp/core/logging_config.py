@@ -6,10 +6,10 @@ This module provides structured logging with JSON output option and log rotation
 
 import json
 import logging
-import os
 from logging.handlers import RotatingFileHandler
-from pathlib import Path
 from typing import Any, Dict
+
+from reversecore_mcp.core.config import get_settings
 
 
 class JSONFormatter(logging.Formatter):
@@ -46,19 +46,19 @@ def setup_logging() -> None:
     Configure logging for Reversecore_MCP.
 
     Logging configuration:
-    - Log level from LOG_LEVEL environment variable (default: INFO)
-    - Log format from LOG_FORMAT environment variable (default: human-readable)
-    - Log file from LOG_FILE environment variable (default: /var/log/reversecore/app.log)
+    - Log level from settings (default: INFO)
+    - Log format from settings (default: human-readable)
+    - Log file from settings (default: /var/log/reversecore/app.log)
     - Log rotation: 100MB max size, daily rotation, keep 10 backup files
     """
-    # Get configuration from environment
-    log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
-    log_format = os.environ.get("LOG_FORMAT", "human").lower()
-    log_file = os.environ.get("LOG_FILE", "/var/log/reversecore/app.log")
+    # Get configuration from settings
+    settings = get_settings()
+    log_level = settings.log_level.upper()
+    log_format = settings.log_format.lower()
+    log_file = settings.log_file
 
     # Create log directory if it doesn't exist
-    log_path = Path(log_file)
-    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_file.parent.mkdir(parents=True, exist_ok=True)
 
     # Configure root logger
     logger = logging.getLogger("reversecore_mcp")
@@ -79,7 +79,7 @@ def setup_logging() -> None:
 
     # File handler with rotation
     file_handler = RotatingFileHandler(
-        log_file,
+        str(log_file),
         maxBytes=100 * 1024 * 1024,  # 100MB
         backupCount=10,
         encoding="utf-8",

@@ -8,7 +8,10 @@ This module provides functions to execute subprocess commands safely with:
 - Proper error handling and reporting
 """
 
+import select
 import subprocess
+import sys
+import time
 from typing import Tuple
 
 from reversecore_mcp.core.exceptions import (
@@ -70,11 +73,12 @@ def execute_subprocess_streaming(
     stderr_bytes_read = 0
 
     try:
-        import time
-
         # Use time-based timeout checking
         start_time = time.time()
         return_code = None
+
+        # Use select for efficient I/O (Unix) or fallback to polling (Windows)
+        use_select = hasattr(select, "select") and sys.platform != "win32"
 
         # Read output in chunks with timeout checking
         while True:
@@ -90,16 +94,28 @@ def execute_subprocess_streaming(
             if return_code is not None:
                 break
 
-            # Try to read available data from stdout (non-blocking)
-            chunk = process.stdout.read(8192)  # 8KB chunks
-            if chunk:
-                bytes_read += len(chunk.encode(encoding, errors=errors))
-                if bytes_read <= max_output_size:
-                    output_chunks.append(chunk)
-                # Continue reading even if limit exceeded to drain the pipe
+            # Use select for efficient I/O on Unix, or fallback to polling on Windows
+            if use_select:
+                # Use select to check if data is available (non-blocking)
+                ready, _, _ = select.select([process.stdout], [], [], 0.1)
+                if ready:
+                    chunk = process.stdout.read(8192)  # 8KB chunks
+                    if chunk:
+                        bytes_read += len(chunk.encode(encoding, errors=errors))
+                        if bytes_read <= max_output_size:
+                            output_chunks.append(chunk)
+                        # Continue reading even if limit exceeded to drain the pipe
             else:
-                # No data available, wait a bit
-                time.sleep(0.1)
+                # Windows: use non-blocking read with small timeout
+                # Check if data is available by attempting to read
+                chunk = process.stdout.read(8192)  # 8KB chunks
+                if chunk:
+                    bytes_read += len(chunk.encode(encoding, errors=errors))
+                    if bytes_read <= max_output_size:
+                        output_chunks.append(chunk)
+                else:
+                    # No data available, wait a bit (but shorter than before)
+                    time.sleep(0.01)  # Reduced from 0.1 to 0.01 for better responsiveness
 
         # Read remaining stdout and stderr
         remaining_stdout = process.stdout.read()

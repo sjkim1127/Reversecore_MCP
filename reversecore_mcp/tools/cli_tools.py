@@ -5,25 +5,17 @@ This module provides MCP tools that wrap common reverse engineering CLI tools
 such as strings, radare2, etc.
 """
 
-import subprocess
-import time
 from pathlib import Path
 
 from fastmcp import FastMCP
 
-from reversecore_mcp.core.error_formatting import format_error, get_validation_hint
-from reversecore_mcp.core.exceptions import (
-    ExecutionTimeoutError,
-    OutputLimitExceededError,
-    ReversecoreError,
-    ToolNotFoundError,
-    ValidationError,
-)
+from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.execution import execute_subprocess_streaming
-from reversecore_mcp.core.logging_config import get_logger
-from reversecore_mcp.core.security import sanitize_command_string, validate_file_path
-
-logger = get_logger(__name__)
+from reversecore_mcp.core.security import (
+    R2_READONLY_COMMANDS,
+    sanitize_command_string,
+    validate_file_path,
+)
 
 
 def register_cli_tools(mcp: FastMCP) -> None:
@@ -39,6 +31,7 @@ def register_cli_tools(mcp: FastMCP) -> None:
     mcp.tool(run_binwalk)
 
 
+@log_execution(tool_name="run_file")
 def run_file(file_path: str, timeout: int = 30) -> str:
     """
     Identify the type of a file using the file command.
@@ -58,93 +51,21 @@ def run_file(file_path: str, timeout: int = 30) -> str:
     Raises:
         Returns error message string if execution fails (never raises exceptions)
     """
-    start_time = time.time()
-    file_name = Path(file_path).name
-    
-    logger.info(
-        "Starting run_file",
-        extra={"tool_name": "run_file", "file_name": file_name},
+    # Validate file path
+    validated_path = validate_file_path(file_path)
+
+    # Build command: file <file_path>
+    cmd = ["file", validated_path]
+
+    # Execute with streaming (small output expected, so default max_output_size is fine)
+    output, bytes_read = execute_subprocess_streaming(
+        cmd, max_output_size=1_000_000, timeout=timeout
     )
-    
-    try:
-        # Validate file path
-        validated_path = validate_file_path(file_path)
 
-        # Build command: file <file_path>
-        cmd = ["file", validated_path]
-
-        # Execute with streaming (small output expected, so default max_output_size is fine)
-        output, bytes_read = execute_subprocess_streaming(
-            cmd, max_output_size=1_000_000, timeout=timeout
-        )
-
-        execution_time = int((time.time() - start_time) * 1000)
-        logger.info(
-            "run_file completed successfully",
-            extra={
-                "tool_name": "run_file",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-            },
-        )
-
-        return output.strip()
-
-    except (ToolNotFoundError, ExecutionTimeoutError, ValidationError) as e:
-        execution_time = int((time.time() - start_time) * 1000)
-        hint = get_validation_hint(e) if isinstance(e, ValidationError) else None
-        logger.warning(
-            "run_file failed",
-            extra={
-                "tool_name": "run_file",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-                "error_code": e.error_code if hasattr(e, "error_code") else None,
-            },
-            exc_info=True,
-        )
-        return format_error(e, tool_name="run_file", hint=hint)
-    except ValueError as e:
-        execution_time = int((time.time() - start_time) * 1000)
-        logger.warning(
-            "run_file validation failed",
-            extra={
-                "tool_name": "run_file",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-            },
-            exc_info=True,
-        )
-        return format_error(e, tool_name="run_file", hint=get_validation_hint(e))
-    except subprocess.CalledProcessError as e:
-        execution_time = int((time.time() - start_time) * 1000)
-        stderr = e.stderr if e.stderr else "Unknown error"
-        logger.error(
-            "run_file command failed",
-            extra={
-                "tool_name": "run_file",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-                "exit_code": e.returncode,
-            },
-            exc_info=True,
-        )
-        error_msg = f"Command failed with exit code {e.returncode}. stderr: {stderr}"
-        return format_error(Exception(error_msg), tool_name="run_file")
-    except Exception as e:
-        execution_time = int((time.time() - start_time) * 1000)
-        logger.error(
-            "run_file unexpected error",
-            extra={
-                "tool_name": "run_file",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-            },
-            exc_info=True,
-        )
-        return format_error(e, tool_name="run_file")
+    return output.strip()
 
 
+@log_execution(tool_name="run_strings")
 def run_strings(
     file_path: str,
     min_length: int = 4,
@@ -171,93 +92,21 @@ def run_strings(
     Raises:
         Returns error message string if execution fails (never raises exceptions)
     """
-    start_time = time.time()
-    file_name = Path(file_path).name
-    
-    logger.info(
-        "Starting run_strings",
-        extra={"tool_name": "run_strings", "file_name": file_name},
+    # Validate file path
+    validated_path = validate_file_path(file_path)
+
+    # Build command: strings -n <min_length> <file_path>
+    cmd = ["strings", "-n", str(min_length), validated_path]
+
+    # Execute with streaming
+    output, bytes_read = execute_subprocess_streaming(
+        cmd, max_output_size=max_output_size, timeout=timeout
     )
-    
-    try:
-        # Validate file path
-        validated_path = validate_file_path(file_path)
 
-        # Build command: strings -n <min_length> <file_path>
-        cmd = ["strings", "-n", str(min_length), validated_path]
-
-        # Execute with streaming
-        output, bytes_read = execute_subprocess_streaming(
-            cmd, max_output_size=max_output_size, timeout=timeout
-        )
-
-        execution_time = int((time.time() - start_time) * 1000)
-        logger.info(
-            "run_strings completed successfully",
-            extra={
-                "tool_name": "run_strings",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-            },
-        )
-
-        return output
-
-    except (ToolNotFoundError, ExecutionTimeoutError, ValidationError) as e:
-        execution_time = int((time.time() - start_time) * 1000)
-        hint = get_validation_hint(e) if isinstance(e, ValidationError) else None
-        logger.warning(
-            "run_strings failed",
-            extra={
-                "tool_name": "run_strings",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-                "error_code": e.error_code if hasattr(e, "error_code") else None,
-            },
-            exc_info=True,
-        )
-        return format_error(e, tool_name="run_strings", hint=hint)
-    except ValueError as e:
-        execution_time = int((time.time() - start_time) * 1000)
-        logger.warning(
-            "run_strings validation failed",
-            extra={
-                "tool_name": "run_strings",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-            },
-            exc_info=True,
-        )
-        return format_error(e, tool_name="run_strings", hint=get_validation_hint(e))
-    except subprocess.CalledProcessError as e:
-        execution_time = int((time.time() - start_time) * 1000)
-        stderr = e.stderr if e.stderr else "Unknown error"
-        logger.error(
-            "run_strings command failed",
-            extra={
-                "tool_name": "run_strings",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-                "exit_code": e.returncode,
-            },
-            exc_info=True,
-        )
-        error_msg = f"Command failed with exit code {e.returncode}. stderr: {stderr}"
-        return format_error(Exception(error_msg), tool_name="run_strings")
-    except Exception as e:
-        execution_time = int((time.time() - start_time) * 1000)
-        logger.error(
-            "run_strings unexpected error",
-            extra={
-                "tool_name": "run_strings",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-            },
-            exc_info=True,
-        )
-        return format_error(e, tool_name="run_strings")
+    return output
 
 
+@log_execution(tool_name="run_radare2")
 def run_radare2(
     file_path: str,
     r2_command: str,
@@ -283,98 +132,26 @@ def run_radare2(
     Raises:
         Returns error message string if execution fails (never raises exceptions)
     """
-    start_time = time.time()
-    file_name = Path(file_path).name
-    
-    logger.info(
-        "Starting run_radare2",
-        extra={"tool_name": "run_radare2", "file_name": file_name},
+    # Validate file path
+    validated_path = validate_file_path(file_path)
+
+    # Validate and sanitize r2_command with allowlist
+    sanitized_cmd = sanitize_command_string(r2_command, allowlist=R2_READONLY_COMMANDS)
+
+    # Build command: r2 -q -c "<command>" <file_path>
+    # Note: We pass r2_command as a single argument to -c flag
+    # r2 expects: r2 -q -c "pdf @ main" file.exe
+    cmd = ["r2", "-q", "-c", sanitized_cmd, validated_path]
+
+    # Execute with streaming
+    output, bytes_read = execute_subprocess_streaming(
+        cmd, max_output_size=max_output_size, timeout=timeout
     )
-    
-    try:
-        # Validate file path
-        validated_path = validate_file_path(file_path)
 
-        # Basic validation of r2_command (non-empty)
-        sanitized_cmd = sanitize_command_string(r2_command)
-
-        # Build command: r2 -q -c "<command>" <file_path>
-        # Note: We pass r2_command as a single argument to -c flag
-        # r2 expects: r2 -q -c "pdf @ main" file.exe
-        cmd = ["r2", "-q", "-c", sanitized_cmd, validated_path]
-
-        # Execute with streaming
-        output, bytes_read = execute_subprocess_streaming(
-            cmd, max_output_size=max_output_size, timeout=timeout
-        )
-
-        execution_time = int((time.time() - start_time) * 1000)
-        logger.info(
-            "run_radare2 completed successfully",
-            extra={
-                "tool_name": "run_radare2",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-            },
-        )
-
-        return output
-
-    except (ToolNotFoundError, ExecutionTimeoutError, ValidationError) as e:
-        execution_time = int((time.time() - start_time) * 1000)
-        hint = get_validation_hint(e) if isinstance(e, ValidationError) else None
-        logger.warning(
-            "run_radare2 failed",
-            extra={
-                "tool_name": "run_radare2",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-                "error_code": e.error_code if hasattr(e, "error_code") else None,
-            },
-            exc_info=True,
-        )
-        return format_error(e, tool_name="run_radare2", hint=hint)
-    except ValueError as e:
-        execution_time = int((time.time() - start_time) * 1000)
-        logger.warning(
-            "run_radare2 validation failed",
-            extra={
-                "tool_name": "run_radare2",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-            },
-            exc_info=True,
-        )
-        return format_error(e, tool_name="run_radare2", hint=get_validation_hint(e))
-    except subprocess.CalledProcessError as e:
-        execution_time = int((time.time() - start_time) * 1000)
-        stderr = e.stderr if e.stderr else "Unknown error"
-        logger.error(
-            "run_radare2 command failed",
-            extra={
-                "tool_name": "run_radare2",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-                "exit_code": e.returncode,
-            },
-            exc_info=True,
-        )
-        error_msg = f"Command failed with exit code {e.returncode}. stderr: {stderr}"
-        return format_error(Exception(error_msg), tool_name="run_radare2")
-    except Exception as e:
-        execution_time = int((time.time() - start_time) * 1000)
-        logger.error(
-            "run_radare2 unexpected error",
-            extra={
-                "tool_name": "run_radare2",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-            },
-            exc_info=True,
-        )
-        return format_error(e, tool_name="run_radare2")
+    return output
 
 
+@log_execution(tool_name="run_binwalk")
 def run_binwalk(
     file_path: str,
     depth: int = 8,
@@ -404,92 +181,19 @@ def run_binwalk(
     Raises:
         Returns error message string if execution fails (never raises exceptions)
     """
-    start_time = time.time()
-    file_name = Path(file_path).name
-    
-    logger.info(
-        "Starting run_binwalk",
-        extra={"tool_name": "run_binwalk", "file_name": file_name},
+    # Validate file path
+    validated_path = validate_file_path(file_path)
+
+    # Build command: binwalk -A -d <depth> <file_path>
+    # Note: -e (extract) is NOT used in v1.0 for security reasons
+    # -A: Displays ASCII strings in addition to signatures
+    # -d <depth>: Maximum recursion depth
+    cmd = ["binwalk", "-A", "-d", str(depth), validated_path]
+
+    # Execute with streaming
+    output, bytes_read = execute_subprocess_streaming(
+        cmd, max_output_size=max_output_size, timeout=timeout
     )
-    
-    try:
-        # Validate file path
-        validated_path = validate_file_path(file_path)
 
-        # Build command: binwalk -A -d <depth> <file_path>
-        # Note: -e (extract) is NOT used in v1.0 for security reasons
-        # -A: Displays ASCII strings in addition to signatures
-        # -d <depth>: Maximum recursion depth
-        cmd = ["binwalk", "-A", "-d", str(depth), validated_path]
-
-        # Execute with streaming
-        output, bytes_read = execute_subprocess_streaming(
-            cmd, max_output_size=max_output_size, timeout=timeout
-        )
-
-        execution_time = int((time.time() - start_time) * 1000)
-        logger.info(
-            "run_binwalk completed successfully",
-            extra={
-                "tool_name": "run_binwalk",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-            },
-        )
-
-        return output
-
-    except (ToolNotFoundError, ExecutionTimeoutError, ValidationError) as e:
-        execution_time = int((time.time() - start_time) * 1000)
-        hint = get_validation_hint(e) if isinstance(e, ValidationError) else None
-        logger.warning(
-            "run_binwalk failed",
-            extra={
-                "tool_name": "run_binwalk",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-                "error_code": e.error_code if hasattr(e, "error_code") else None,
-            },
-            exc_info=True,
-        )
-        return format_error(e, tool_name="run_binwalk", hint=hint)
-    except ValueError as e:
-        execution_time = int((time.time() - start_time) * 1000)
-        logger.warning(
-            "run_binwalk validation failed",
-            extra={
-                "tool_name": "run_binwalk",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-            },
-            exc_info=True,
-        )
-        return format_error(e, tool_name="run_binwalk", hint=get_validation_hint(e))
-    except subprocess.CalledProcessError as e:
-        execution_time = int((time.time() - start_time) * 1000)
-        stderr = e.stderr if e.stderr else "Unknown error"
-        logger.error(
-            "run_binwalk command failed",
-            extra={
-                "tool_name": "run_binwalk",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-                "exit_code": e.returncode,
-            },
-            exc_info=True,
-        )
-        error_msg = f"Command failed with exit code {e.returncode}. stderr: {stderr}"
-        return format_error(Exception(error_msg), tool_name="run_binwalk")
-    except Exception as e:
-        execution_time = int((time.time() - start_time) * 1000)
-        logger.error(
-            "run_binwalk unexpected error",
-            extra={
-                "tool_name": "run_binwalk",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-            },
-            exc_info=True,
-        )
-        return format_error(e, tool_name="run_binwalk")
+    return output
 

@@ -4,10 +4,9 @@ Reversecore_MCP Server
 This module initializes the FastMCP server and registers all available tools.
 """
 
-import os
-
 from fastmcp import FastMCP
 
+from reversecore_mcp.core.config import get_settings
 from reversecore_mcp.core.logging_config import setup_logging
 from reversecore_mcp.tools import cli_tools, lib_tools
 
@@ -24,8 +23,9 @@ lib_tools.register_lib_tools(mcp)
 
 def main():
     """Run the MCP server."""
-    # Get transport mode from environment variable (default: stdio)
-    transport = os.environ.get("MCP_TRANSPORT", "stdio").lower()
+    # Get transport mode from settings (default: stdio)
+    settings = get_settings()
+    transport = settings.mcp_transport.lower()
 
     if transport == "http":
         # HTTP transport mode for network-based AI agents
@@ -48,7 +48,7 @@ def main():
             from slowapi.util import get_remote_address  # type: ignore
             from slowapi.errors import RateLimitExceeded  # type: ignore
 
-            rate_limit = int(os.environ.get("RATE_LIMIT", "60"))  # Default: 60 requests/min
+            rate_limit = settings.rate_limit
             limiter = Limiter(key_func=get_remote_address, default_limits=[f"{rate_limit}/minute"])
 
             # Attach middleware and exception handler
