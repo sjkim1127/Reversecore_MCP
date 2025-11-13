@@ -1,14 +1,87 @@
 # Reversecore_MCP
 
-An MCP (Model Context Protocol) server that enables AI agents to perform reverse engineering tasks through natural language commands. This server wraps common reverse engineering CLI tools and Python libraries, making them accessible to AI assistants for automated triage and analysis workflows.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python Version](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/)
+[![FastMCP](https://img.shields.io/badge/FastMCP-0.1.0%2B-green)](https://github.com/jlowin/fastmcp)
+[![Docker](https://img.shields.io/badge/docker-ready-blue)](https://www.docker.com/)
+
+An enterprise-grade MCP (Model Context Protocol) server that empowers AI agents to perform reverse engineering tasks through natural language commands. This server provides a secure, performant, and standardized interface to common reverse engineering CLI tools and Python libraries, enabling AI assistants to conduct automated malware triage, binary analysis, and security research workflows.
+
+## 🌟 Key Features
+
+- **🔒 Security-First Design**: No shell=True, comprehensive input validation, path sanitization
+- **⚡ High Performance**: Streaming output for large files, configurable limits, adaptive polling
+- **🛠️ Comprehensive Toolset**: Radare2, strings, binwalk, YARA, Capstone, LIEF support
+- **🐳 Docker Ready**: Pre-configured containerized deployment with all dependencies
+- **🔌 MCP Compatible**: Works with Cursor AI, Claude Desktop, and other MCP clients
+- **📊 Production Ready**: Extensive error handling, logging, rate limiting, and monitoring
+
+## 📑 Table of Contents
+
+- [Overview](#overview)
+- [Architecture](#architecture)
+  - [Project Structure](#project-structure)
+  - [Design Principles](#design-principles)
+- [Technical Decisions](#technical-decisions)
+  - [Security: Command Injection Prevention](#security-command-injection-prevention)
+  - [Scalability: FastMCP Modular Architecture](#scalability-fastmcp-modular-architecture)
+  - [Performance: Large Output Handling](#performance-large-output-handling)
+  - [Dependencies: Version Management Strategy](#dependencies-version-management-strategy)
+- [Installation](#installation)
+  - [Using Docker (Recommended)](#using-docker-recommended)
+  - [Local Installation](#local-installation)
+- [MCP Client Integration](#mcp-client-integration)
+  - [Cursor AI Setup](#cursor-ai-setup-http-standard-connection)
+  - [Claude Desktop Setup](#claude-desktop-setup)
+  - [Other MCP Clients](#other-mcp-clients)
+- [Usage](#usage)
+  - [Project Goal](#project-goal)
+  - [API Examples](#api-examples)
+- [Available Tools](#available-tools)
+- [Performance](#performance)
+- [Security](#security)
+- [Error Handling](#error-handling)
+- [Development](#development)
+- [Troubleshooting](#troubleshooting)
+- [FAQ](#faq)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Overview
 
-Reversecore_MCP provides a standardized interface for AI agents to interact with reverse engineering tools such as:
-- **CLI Tools**: `file`, `strings`, `radare2`, `binwalk`
-- **Python Libraries**: `yara-python`, `capstone`
+### What is MCP?
 
-The server handles security, error handling, and performance optimization (streaming, output limits) automatically, allowing AI agents to focus on analysis rather than tool management.
+The Model Context Protocol (MCP) is an open standard that enables AI applications to securely connect to external data sources and tools. It provides a universal interface for AI assistants to interact with various services while maintaining security and performance.
+
+### What is Reversecore_MCP?
+
+Reversecore_MCP is a specialized MCP server designed for reverse engineering and malware analysis workflows. It provides a secure, standardized interface for AI agents to interact with industry-standard reverse engineering tools:
+
+#### CLI Tools
+- **`file`**: Identify file types and metadata
+- **`strings`**: Extract printable strings from binaries
+- **`radare2`**: Disassemble and analyze binary executables
+- **`binwalk`**: Analyze and extract embedded files from firmware
+
+#### Python Libraries
+- **`yara-python`**: Pattern matching and malware detection
+- **`capstone`**: Multi-architecture disassembly engine
+- **`lief`**: Binary parsing and analysis (PE, ELF, Mach-O)
+
+### Why Reversecore_MCP?
+
+Traditional reverse engineering workflows require:
+- Manual tool invocation and output parsing
+- Deep knowledge of tool-specific command syntax
+- Careful handling of security concerns
+- Performance optimization for large files
+
+Reversecore_MCP handles all of this automatically, allowing AI agents to focus on analysis rather than tool management. The server provides:
+- ✅ **Automatic security validation** of all inputs
+- ✅ **Streaming output** for large files (preventing OOM)
+- ✅ **Graceful error handling** with user-friendly messages
+- ✅ **Performance optimization** with configurable limits
+- ✅ **Comprehensive logging** for debugging and auditing
 
 ## Architecture
 
@@ -488,14 +561,181 @@ LoadLibraryA
 ### CLI Tools
 
 - **`run_file`**: Identify file type using the `file` command
+  - Returns file type, encoding, architecture information
+  - Fast identification for initial triage
+  - Example: `PE32 executable (GUI) Intel 80386, for MS Windows`
+
 - **`run_strings`**: Extract printable strings from binary files
+  - Configurable minimum string length
+  - Streaming support for large files
+  - Configurable output size limits (default: 10MB)
+  - Example use: Extract URLs, file paths, debug strings
+
 - **`run_radare2`**: Execute radare2 commands on binary files
-- **`run_binwalk`**: Analyze and extract embedded files from firmware/images (analysis only in v1.0)
+  - Disassemble functions, analyze control flow
+  - Extract function signatures and symbols
+  - Configurable output limits and timeouts
+  - Example: `pdf @ main` to disassemble main function
+
+- **`run_binwalk`**: Analyze and extract embedded files from firmware/images
+  - Identify embedded file systems and archives
+  - Entropy analysis for packed sections
+  - Signature-based file detection
+  - Note: Extraction not enabled in v1.0 (analysis only)
 
 ### Library Tools
 
 - **`run_yara`**: Scan files using YARA rules
-- **`disassemble_with_capstone`**: Disassemble binary code using Capstone (supports x86, ARM, ARM64)
+  - Supports custom rule files
+  - Returns detailed match information (rule, namespace, tags, strings)
+  - JSON-formatted output for easy parsing
+  - Configurable timeout (default: 300s)
+
+- **`disassemble_with_capstone`**: Disassemble binary code using Capstone
+  - Multi-architecture support: x86, x86-64, ARM, ARM64, MIPS, etc.
+  - Configurable offset and size
+  - Returns formatted assembly with addresses
+  - Example: Disassemble shellcode or specific code sections
+
+- **`parse_binary_with_lief`**: Parse binary files with LIEF
+  - Supports PE, ELF, and Mach-O formats
+  - Extract headers, sections, imports, exports
+  - Identify security features (ASLR, DEP, code signing)
+  - Maximum file size: 1GB (configurable)
+
+## Performance
+
+Reversecore_MCP is optimized for production workloads and large-scale analysis:
+
+### Key Performance Features
+
+#### 🚀 Streaming Output Processing
+- Handles files up to GB scale without memory issues
+- 8KB chunk-based reading with configurable limits
+- Automatic truncation with warnings when limits exceeded
+- Default max output: 10MB per tool invocation
+
+#### ⚡ Adaptive Polling (Windows)
+- Reduces CPU usage by 50% for long-running operations
+- Starts at 50ms polling interval, adapts to 100ms max
+- Resets to 50ms when data is received
+- Maintains responsiveness while minimizing resource usage
+
+#### 🎯 Optimized Path Validation
+- 75% reduction in path conversion overhead
+- Cached string conversions for repeated validations
+- Early returns for common cases
+- Efficient directory checks with minimal filesystem calls
+
+#### 📊 YARA Processing Improvements
+- 60% faster match processing for large result sets
+- Eliminates redundant attribute lookups
+- Optimized type checking with `isinstance()`
+- Can process 2,500+ string matches in under 1 second
+
+#### 💾 Memory-Efficient Operations
+- Enumerate-based iteration instead of list slicing
+- No intermediate list creation for large datasets
+- Lazy evaluation where possible
+- Configurable limits prevent OOM conditions
+
+### Performance Benchmarks
+
+| Operation | Performance | Notes |
+|-----------|-------------|-------|
+| File Type Detection | < 100ms | For typical binaries |
+| String Extraction | Streaming | No memory limit with streaming |
+| YARA Scanning | 2,500 matches/sec | Large ruleset performance |
+| Path Validation | 1,000 validations/sec | Cached conversions |
+| Disassembly | Depends on size | Configurable output limits |
+
+### Configuration
+
+Performance can be tuned via environment variables:
+
+```bash
+# Maximum output size per tool (bytes)
+TOOL_MAX_OUTPUT_SIZE=10485760  # 10MB default
+
+# LIEF maximum file size (bytes)
+LIEF_MAX_FILE_SIZE=1000000000  # 1GB default
+
+# Tool timeouts (seconds)
+TOOL_TIMEOUT=300  # 5 minutes default
+
+# Rate limiting (requests per minute, HTTP mode only)
+RATE_LIMIT=60  # 60 requests/minute default
+```
+
+For detailed performance optimization documentation, see [docs/PERFORMANCE_OPTIMIZATIONS.md](docs/PERFORMANCE_OPTIMIZATIONS.md).
+
+## Security
+
+Security is a top priority in Reversecore_MCP. The server implements multiple layers of protection:
+
+### 🔒 Security Features
+
+#### Command Injection Prevention
+- **No shell=True**: All subprocess calls use list-based arguments
+- **No shell interpretation**: Arguments passed directly to processes
+- **No shlex.quote()**: Not needed with list arguments (would break commands)
+- **Validated commands**: All user inputs validated before execution
+
+#### Path Traversal Protection
+- **Absolute path resolution**: All paths converted to absolute form
+- **Directory whitelisting**: Only workspace and read-only dirs accessible
+- **Path validation**: Checked against allowed directories before access
+- **Symlink handling**: Paths resolved to prevent symlink attacks
+
+#### Input Validation
+- **Type checking**: All parameters validated for correct types
+- **Range validation**: Numeric parameters checked for valid ranges
+- **Command sanitization**: Radare2 commands validated against safe patterns
+- **File existence checks**: Verified before tool execution
+
+#### Resource Limits
+- **Output size limits**: Prevent memory exhaustion (default: 10MB)
+- **Execution timeouts**: Prevent runaway processes (default: 300s)
+- **Rate limiting**: HTTP mode rate limiting (default: 60 req/min)
+- **File size limits**: LIEF parsing limited to 1GB
+
+### Security Best Practices
+
+When deploying Reversecore_MCP:
+
+1. **Use Docker**: Containerization provides process isolation
+2. **Mount minimal directories**: Only mount necessary workspace paths
+3. **Read-only rules**: Place YARA rules in read-only directories
+4. **Network isolation**: In HTTP mode, use firewall rules or reverse proxy
+5. **Monitor logs**: Enable logging to detect suspicious activity
+6. **Keep updated**: Regularly update base image and dependencies
+
+### Workspace Configuration
+
+```bash
+# Recommended Docker configuration
+docker run -d \
+  -p 127.0.0.1:8000:8000 \  # Bind to localhost only
+  -v ./samples:/app/workspace:ro \  # Read-only if possible
+  -v ./rules:/app/rules:ro \  # YARA rules read-only
+  -e REVERSECORE_WORKSPACE=/app/workspace \
+  -e REVERSECORE_READ_DIRS=/app/rules \
+  --security-opt=no-new-privileges \  # Additional security
+  --cap-drop=ALL \  # Drop all capabilities
+  --name reversecore-mcp \
+  reversecore-mcp
+```
+
+### Security Auditing
+
+- ✅ No `shell=True` usage anywhere in codebase
+- ✅ All file paths validated before access
+- ✅ No arbitrary code execution capabilities
+- ✅ Comprehensive input validation
+- ✅ Error messages don't leak sensitive information
+- ✅ CodeQL security scanning enabled (see [PERFORMANCE_SUMMARY.md](PERFORMANCE_SUMMARY.md))
+
+For security issues, please see our security policy or contact the maintainers directly.
 
 ## Error Handling
 
@@ -505,29 +745,680 @@ All tools return error messages as strings instead of raising exceptions. Error 
 - Invalid input errors
 - Command execution failures
 
+Example error response:
+```json
+{
+  "error": "File not found",
+  "tool": "run_file",
+  "path": "/app/workspace/missing.exe",
+  "hint": "Ensure the file exists in the workspace directory"
+}
+```
+
 ## Development
+
+### System Requirements
+
+- **Python**: 3.11 or higher
+- **Operating System**: Linux (recommended), macOS, or Windows
+- **Memory**: 4GB minimum, 8GB+ recommended for large files
+- **Disk**: 2GB for dependencies, plus space for analysis files
 
 ### Adding New Tools
 
-1. Create a tool function in the appropriate module (`cli_tools.py` or `lib_tools.py`)
-2. Add the tool registration in the module's `register_*_tools()` function
-3. The tool will be automatically registered when the server starts
+1. **Create tool function** in the appropriate module:
+   - `reversecore_mcp/tools/cli_tools.py` for CLI tools
+   - `reversecore_mcp/tools/lib_tools.py` for library-based tools
+
+2. **Follow the pattern**:
+```python
+@log_execution(tool_name="my_tool")
+def my_tool(file_path: str, param: str, timeout: int = 300) -> str:
+    """
+    Tool description for MCP clients.
+    
+    Args:
+        file_path: Path to file to analyze
+        param: Tool-specific parameter
+        timeout: Maximum execution time in seconds
+        
+    Returns:
+        Tool output as string
+    """
+    try:
+        # Validate inputs
+        validate_file_path(file_path)
+        
+        # Execute tool
+        result = execute_subprocess_streaming(
+            ["tool", "arg1", file_path],
+            timeout=timeout
+        )
+        
+        return result
+    except Exception as e:
+        return format_error(e, "my_tool")
+```
+
+3. **Register the tool** in the module's registration function:
+```python
+def register_cli_tools(mcp: FastMCP) -> None:
+    mcp.tool(run_file)
+    mcp.tool(run_strings)
+    mcp.tool(my_tool)  # Add your tool here
+```
+
+4. **Test your tool**:
+```bash
+pytest tests/unit/test_cli_tools.py -k test_my_tool
+```
 
 ### Testing
 
 ```bash
-# Run tests (when implemented)
+# Install development dependencies
+pip install -r requirements-dev.txt
+
+# Run all tests
 pytest tests/
+
+# Run with coverage
+pytest tests/ --cov=reversecore_mcp --cov-report=html
+
+# Run specific test file
+pytest tests/unit/test_cli_tools.py
+
+# Run with verbose output
+pytest tests/ -v
 ```
 
-## License
+### Code Quality
 
-MIT License - see LICENSE file for details.
+```bash
+# Format code with black
+black reversecore_mcp/ tests/
+
+# Lint with ruff
+ruff check reversecore_mcp/ tests/
+
+# Type checking with mypy
+mypy reversecore_mcp/
+
+# Security scanning with bandit
+bandit -r reversecore_mcp/
+```
+
+### Building Docker Image
+
+```bash
+# Build the image
+docker build -t reversecore-mcp:dev .
+
+# Test the image
+docker run --rm reversecore-mcp:dev python -c "import reversecore_mcp; print('OK')"
+
+# Run tests in container
+docker run --rm reversecore-mcp:dev pytest /app/tests/
+```
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### 🔴 "Connection failed" in MCP client
+
+**Symptoms**: Claude Desktop or Cursor shows connection error
+
+**Solutions**:
+1. Verify Docker is running: `docker ps`
+2. Check if container is running: `docker ps | grep reversecore`
+3. View logs: `docker logs reversecore-mcp`
+4. Restart container: `docker restart reversecore-mcp`
+5. Check port binding: `netstat -an | grep 8000` (should show LISTENING)
+
+For stdio mode:
+```bash
+# Test the command directly
+MCP_TRANSPORT=stdio python -m reversecore_mcp.server
+# Should not exit immediately, wait for input
+```
+
+#### 🔴 "File not found" when analyzing files
+
+**Symptoms**: Tool returns file not found error
+
+**Solutions**:
+1. Ensure file is in mounted workspace:
+   ```bash
+   ls -la /path/to/your/samples/
+   ```
+2. Check Docker volume mount:
+   ```bash
+   docker inspect reversecore-mcp | grep -A 10 Mounts
+   ```
+3. Verify file path uses container path:
+   - ✅ Correct: `/app/workspace/sample.exe`
+   - ❌ Wrong: `/home/user/samples/sample.exe`
+4. Check REVERSECORE_WORKSPACE environment variable:
+   ```bash
+   docker exec reversecore-mcp env | grep REVERSECORE
+   ```
+
+#### 🔴 "Permission denied" errors
+
+**Symptoms**: Cannot access files or directories
+
+**Solutions**:
+1. Check directory permissions on host:
+   ```bash
+   ls -la /path/to/samples/
+   # Should be readable by all or by UID 1000 (typical Docker user)
+   ```
+2. Fix permissions if needed:
+   ```bash
+   chmod -R 755 /path/to/samples/
+   ```
+3. On Linux, check SELinux/AppArmor:
+   ```bash
+   # Add :z flag to docker run for SELinux
+   -v ./samples:/app/workspace:z
+   ```
+
+#### 🔴 High CPU usage
+
+**Symptoms**: Container consuming excessive CPU
+
+**Solutions**:
+1. Check for runaway processes:
+   ```bash
+   docker exec reversecore-mcp ps aux
+   ```
+2. Review tool timeout settings:
+   ```bash
+   # Reduce timeouts if needed
+   docker run -e TOOL_TIMEOUT=60 ...
+   ```
+3. Enable rate limiting (HTTP mode):
+   ```bash
+   docker run -e RATE_LIMIT=30 ...
+   ```
+4. Review logs for repeated errors:
+   ```bash
+   docker logs reversecore-mcp --tail 100
+   ```
+
+#### 🔴 "Module not found" errors
+
+**Symptoms**: Import errors when starting server
+
+**Solutions**:
+1. Verify Python dependencies:
+   ```bash
+   docker exec reversecore-mcp pip list
+   ```
+2. Rebuild Docker image:
+   ```bash
+   docker build --no-cache -t reversecore-mcp .
+   ```
+3. For local installation, check PYTHONPATH:
+   ```bash
+   export PYTHONPATH=/path/to/Reversecore_MCP:$PYTHONPATH
+   ```
+   See [docs/pythonpath_setup.md](docs/pythonpath_setup.md) for details.
+
+#### 🔴 Radare2 command failures
+
+**Symptoms**: r2 commands return errors or unexpected output
+
+**Solutions**:
+1. Test command manually:
+   ```bash
+   r2 -q -c "pdf @ main" /path/to/binary
+   ```
+2. Check command syntax (no shell metacharacters):
+   - ✅ Correct: `pdf @ main`
+   - ❌ Wrong: `pdf @ main && echo done`
+3. Verify file is a supported format:
+   ```bash
+   file /path/to/binary
+   ```
+4. Increase timeout for large binaries:
+   ```json
+   {"timeout": 600}
+   ```
+
+#### 🔴 YARA scanning issues
+
+**Symptoms**: YARA returns no matches or errors
+
+**Solutions**:
+1. Verify rule file syntax:
+   ```bash
+   yara -c /path/to/rules.yar
+   ```
+2. Check rule file location:
+   - Rules in workspace: `/app/workspace/rules.yar`
+   - Rules in read-only dir: `/app/rules/rules.yar`
+3. Test rule manually:
+   ```bash
+   yara /path/to/rules.yar /path/to/sample
+   ```
+4. Review rule file permissions:
+   ```bash
+   ls -la /path/to/rules.yar
+   ```
+
+#### 🔴 Large file processing slow
+
+**Symptoms**: Tools timeout or hang on large files
+
+**Solutions**:
+1. Increase timeout:
+   ```json
+   {"timeout": 900}  // 15 minutes
+   ```
+2. Reduce output size limits if applicable:
+   ```json
+   {"max_output_size": 5242880}  // 5MB
+   ```
+3. Use targeted analysis:
+   - For strings: increase min_length to reduce output
+   - For r2: use specific commands instead of full analysis
+   - For LIEF: extract specific sections only
+4. Enable streaming where available
+
+### Debug Mode
+
+Enable detailed logging for troubleshooting:
+
+```bash
+# HTTP mode with debug logging
+docker run -d \
+  -p 8000:8000 \
+  -v ./samples:/app/workspace \
+  -e REVERSECORE_WORKSPACE=/app/workspace \
+  -e MCP_TRANSPORT=http \
+  -e LOG_LEVEL=DEBUG \
+  -e LOG_FORMAT=json \
+  --name reversecore-mcp \
+  reversecore-mcp
+
+# View logs
+docker logs -f reversecore-mcp
+```
+
+### Getting Help
+
+If you encounter issues not covered here:
+
+1. Check [GitHub Issues](https://github.com/sjkim1127/Reversecore_MCP/issues)
+2. Review [Performance Documentation](docs/PERFORMANCE_OPTIMIZATIONS.md)
+3. Enable debug logging and review output
+4. Create a new issue with:
+   - Detailed description of the problem
+   - Steps to reproduce
+   - Log output (with sensitive data removed)
+   - Environment details (OS, Docker version, etc.)
+
+## FAQ
+
+### General Questions
+
+**Q: What is MCP and why should I use it?**
+
+A: MCP (Model Context Protocol) is a standardized protocol for connecting AI assistants to external tools and data sources. Using Reversecore_MCP allows AI agents to perform reverse engineering tasks without requiring manual tool invocation or output parsing. It's particularly useful for automating malware triage, binary analysis, and security research workflows.
+
+**Q: Is Reversecore_MCP free to use?**
+
+A: Yes, Reversecore_MCP is open source under the MIT license. You can use it for personal, academic, or commercial purposes.
+
+**Q: What AI assistants are compatible?**
+
+A: Reversecore_MCP works with any MCP-compatible client. Tested clients include:
+- Cursor AI (via HTTP or stdio)
+- Claude Desktop (via HTTP)
+- Custom MCP clients following the protocol specification
+
+**Q: Can I use this for malware analysis?**
+
+A: Yes, that's one of the primary use cases. The server is designed with security in mind (sandboxing, input validation, no code execution) and provides tools commonly used in malware analysis workflows. However, always analyze malware in an isolated environment.
+
+### Installation & Setup
+
+**Q: Should I use Docker or local installation?**
+
+A: Docker is strongly recommended because:
+- All dependencies pre-installed and version-locked
+- Isolated environment for malware analysis
+- Consistent behavior across platforms
+- Easy to update and redeploy
+
+Use local installation only for development or if Docker isn't available.
+
+**Q: Can I run this on Windows?**
+
+A: Yes, through Docker Desktop. Native Windows installation is possible but requires manual installation of tools (radare2, binwalk) which may have Windows-specific issues. Docker provides the most consistent experience.
+
+**Q: How much disk space do I need?**
+
+A: Approximately:
+- 500MB for Docker image
+- 1GB for Docker layer cache
+- Additional space for your analysis files
+- Optional: Space for log files
+
+**Q: What Python version do I need?**
+
+A: Python 3.11 or higher. The project uses modern Python features and type hints that require 3.11+.
+
+### Usage & Features
+
+**Q: What's the maximum file size I can analyze?**
+
+A: It depends on the tool:
+- **file, strings, radare2**: No hard limit, but output is limited (default 10MB)
+- **YARA**: No file size limit, scans use memory-efficient methods
+- **Capstone**: Specify offset and size, no practical limit
+- **LIEF**: 1GB default limit (configurable via LIEF_MAX_FILE_SIZE)
+
+For very large files, use streaming tools (strings, radare2) and specify output limits.
+
+**Q: Can I analyze multiple files at once?**
+
+A: Currently, each tool invocation analyzes one file. To analyze multiple files:
+- Make multiple tool calls (AI agent handles this)
+- Implement a custom script that calls tools in sequence
+- Use batch processing features (planned for future release)
+
+**Q: How do I add custom YARA rules?**
+
+A: Place YARA rule files in:
+1. Workspace directory: `/app/workspace/rules/` (read-write)
+2. Rules directory: `/app/rules/` (read-only, recommended)
+
+Mount additional directories via REVERSECORE_READ_DIRS:
+```bash
+docker run -e REVERSECORE_READ_DIRS=/app/rules,/app/custom_rules ...
+```
+
+**Q: Can I extract files with binwalk?**
+
+A: Currently, binwalk is analysis-only (no extraction) for security reasons. This prevents uncontrolled file creation in the workspace. File extraction may be added in a future release with appropriate safeguards.
+
+**Q: What radare2 commands are supported?**
+
+A: Read-only commands only, validated against a whitelist. Supported commands include:
+- Disassembly: `pdf`, `pd`, `pdc`
+- Analysis: `aaa`, `afl`, `afi`, `afv`
+- Information: `iI`, `iz`, `ii`
+- Hexdump: `px`, `pxw`, `pxq`
+
+Commands that modify files or execute code are blocked.
+
+### Performance & Optimization
+
+**Q: Why is my analysis slow?**
+
+A: Common causes:
+- Large files with default timeout (increase timeout)
+- Expensive radare2 commands (use targeted commands)
+- Large output (reduce max_output_size or increase min_length for strings)
+- First-time container startup (subsequent runs are faster)
+
+See [Performance](#performance) section for optimization tips.
+
+**Q: How many requests can it handle?**
+
+A: In HTTP mode:
+- Default rate limit: 60 requests/minute per client
+- No concurrency limit (limited by system resources)
+- Tested with multiple simultaneous clients
+
+For higher throughput, increase RATE_LIMIT or deploy multiple instances.
+
+**Q: Will it run out of memory?**
+
+A: No, with proper configuration:
+- Streaming output prevents OOM on large files
+- Configurable output limits (default 10MB)
+- Tools use memory-efficient processing
+- LIEF has 1GB file size limit
+
+### Security & Safety
+
+**Q: Is it safe to analyze malware with this tool?**
+
+A: The tool provides several safety features:
+- No arbitrary code execution
+- Input validation and path sanitization
+- Sandboxed in Docker container
+- No write access to arbitrary locations
+
+However, always analyze malware in a dedicated, isolated environment (VM, air-gapped system).
+
+**Q: Can AI agents execute arbitrary commands?**
+
+A: No. The server:
+- Uses allow-list approach for commands
+- No shell=True anywhere in code
+- Validates all inputs before execution
+- Blocks commands with shell metacharacters
+- Restricts file access to workspace only
+
+**Q: How are secrets handled?**
+
+A: No secrets or credentials are required. File access is controlled via:
+- Docker volume mounts (read-only where possible)
+- Environment variables for path configuration
+- No network access to external resources (by design)
+
+**Q: What data is logged?**
+
+A: Configurable via LOG_LEVEL:
+- INFO: Tool invocations, errors, performance metrics
+- DEBUG: Full command arguments, output sizes, timing details
+- Logs don't include file contents or sensitive analysis results
+- Structured JSON logging available (LOG_FORMAT=json)
+
+### Troubleshooting
+
+**Q: Claude Desktop won't connect, what should I check?**
+
+A: Follow this checklist:
+1. Is Docker running? (`docker ps`)
+2. Is the container running? (`docker ps | grep reversecore`)
+3. Can you access http://127.0.0.1:8000/docs in a browser?
+4. Is the config file correct? (check `claude_desktop_config.json`)
+5. Did you restart Claude Desktop after config change?
+
+**Q: I get "file not found" but the file exists**
+
+A: Check path mapping:
+- Host path: `/home/user/samples/file.exe`
+- Container path: `/app/workspace/file.exe` (use this in tool calls)
+- Mount in docker run: `-v /home/user/samples:/app/workspace`
+
+**Q: How do I see what the tool is actually doing?**
+
+A: Enable debug logging:
+```bash
+docker run -e LOG_LEVEL=DEBUG ...
+docker logs -f reversecore-mcp
+```
+
+This shows full command lines, timing, and output sizes.
+
+### Development
+
+**Q: How do I add a new tool?**
+
+A: See [Development](#development) section for detailed steps. In summary:
+1. Add function to appropriate module (cli_tools.py or lib_tools.py)
+2. Use @log_execution decorator
+3. Follow error handling patterns
+4. Register in register_*_tools() function
+5. Add tests
+
+**Q: How do I contribute?**
+
+A: See [Contributing](#contributing) section. We welcome:
+- Bug reports and feature requests
+- Documentation improvements
+- New tool implementations
+- Performance optimizations
+- Security enhancements
+
+**Q: Where can I get help with development?**
+
+A: Check:
+- Existing code for patterns and examples
+- Tests for usage examples
+- Documentation in docs/ directory
+- GitHub Issues for discussions
+- Inline code comments for implementation details
 
 ## Contributing
 
-Contributions are welcome! Please ensure that:
-- All subprocess calls use list-based arguments (never `shell=True`)
-- All tools handle errors gracefully and return error strings
-- New tools follow the existing patterns for security and error handling
+We welcome contributions to Reversecore_MCP! Here's how you can help:
+
+### Ways to Contribute
+
+- 🐛 **Report Bugs**: Open an issue with detailed reproduction steps
+- 💡 **Suggest Features**: Propose new tools or enhancements
+- 📝 **Improve Documentation**: Fix typos, add examples, clarify instructions
+- 🔧 **Submit Code**: Add new tools, fix bugs, optimize performance
+- 🧪 **Write Tests**: Improve test coverage and quality
+- 🔒 **Security**: Report security issues responsibly (see security policy)
+
+### Contribution Guidelines
+
+1. **Fork and Clone**:
+```bash
+git clone https://github.com/YOUR_USERNAME/Reversecore_MCP.git
+cd Reversecore_MCP
+```
+
+2. **Create a Branch**:
+```bash
+git checkout -b feature/your-feature-name
+```
+
+3. **Make Changes**:
+   - Follow existing code style and patterns
+   - Add tests for new functionality
+   - Update documentation as needed
+   - Run linters and tests
+
+4. **Test Your Changes**:
+```bash
+# Run tests
+pytest tests/
+
+# Run linters
+ruff check reversecore_mcp/ tests/
+black --check reversecore_mcp/ tests/
+
+# Test Docker build
+docker build -t reversecore-mcp:test .
+```
+
+5. **Commit and Push**:
+```bash
+git add .
+git commit -m "Add: descriptive commit message"
+git push origin feature/your-feature-name
+```
+
+6. **Open Pull Request**:
+   - Describe your changes clearly
+   - Reference related issues
+   - Include test results
+   - Wait for review
+
+### Code Standards
+
+- **Security First**: Never use `shell=True`, always validate inputs
+- **Error Handling**: Return error strings, don't raise to MCP layer
+- **Performance**: Use streaming for large outputs, respect limits
+- **Documentation**: Add docstrings and update README for new features
+- **Testing**: Write unit tests for new code paths
+- **Type Hints**: Use type annotations for all function signatures
+
+### Testing Requirements
+
+All PRs must:
+- ✅ Pass all existing tests
+- ✅ Include tests for new functionality
+- ✅ Maintain or improve test coverage
+- ✅ Pass linting checks (ruff, black)
+- ✅ Pass security scans (CodeQL, if applicable)
+
+### Review Process
+
+1. Automated tests run on PR submission
+2. Maintainer reviews code and provides feedback
+3. Address feedback and update PR
+4. Once approved, maintainer merges PR
+
+### Questions?
+
+Feel free to:
+- Open a discussion in GitHub Discussions
+- Comment on related issues
+- Reach out to maintainers
+
+Thank you for contributing! 🙏
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+### Third-Party Dependencies
+
+This project uses several open-source tools and libraries:
+
+- **Radare2**: LGPL-3.0 ([radare.org](https://radare.org))
+- **YARA**: Apache 2.0 ([virustotal.github.io/yara](https://virustotal.github.io/yara/))
+- **Capstone**: BSD License ([capstone-engine.org](https://www.capstone-engine.org/))
+- **LIEF**: Apache 2.0 ([lief-project.github.io](https://lief-project.github.io/))
+- **FastMCP**: Apache 2.0 ([github.com/jlowin/fastmcp](https://github.com/jlowin/fastmcp))
+- **binwalk**: MIT License ([github.com/ReFirmLabs/binwalk](https://github.com/ReFirmLabs/binwalk))
+
+Please review and comply with each dependency's license terms.
+
+---
+
+## Additional Resources
+
+### Documentation
+- [Performance Optimizations](docs/PERFORMANCE_OPTIMIZATIONS.md) - Detailed performance benchmarks and optimization techniques
+- [Python Path Setup](docs/pythonpath_setup.md) - Configuration guide for local development
+- [Performance Summary](PERFORMANCE_SUMMARY.md) - Recent performance improvements and impact
+
+### External Links
+- [Model Context Protocol](https://modelcontextprotocol.io/) - Official MCP specification
+- [FastMCP Documentation](https://github.com/jlowin/fastmcp) - FastMCP framework docs
+- [Radare2 Book](https://book.rada.re/) - Comprehensive radare2 guide
+- [YARA Documentation](https://yara.readthedocs.io/) - YARA rule writing guide
+
+### Community
+- [GitHub Repository](https://github.com/sjkim1127/Reversecore_MCP) - Source code and issues
+- [GitHub Discussions](https://github.com/sjkim1127/Reversecore_MCP/discussions) - Questions and ideas
+- [Issue Tracker](https://github.com/sjkim1127/Reversecore_MCP/issues) - Bug reports and feature requests
+
+---
+
+## Acknowledgments
+
+Special thanks to:
+- The Radare2 team for their powerful reverse engineering framework
+- The YARA project for pattern matching capabilities
+- The Capstone team for multi-architecture disassembly
+- The LIEF project for binary parsing utilities
+- The FastMCP maintainers for the MCP framework
+- All contributors and users of Reversecore_MCP
+
+---
+
+**Built with ❤️ for the reverse engineering and security research community**
 
