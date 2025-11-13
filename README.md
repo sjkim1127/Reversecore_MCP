@@ -263,10 +263,10 @@ docker run -it \
 3. Run the server:
    ```bash
    # HTTP mode (Standard)
-   MCP_TRANSPORT=http python -m reversecore_mcp.server
+   MCP_TRANSPORT=http python server.py
 
    # (Optional) Stdio mode
-   MCP_TRANSPORT=stdio python -m reversecore_mcp.server
+   MCP_TRANSPORT=stdio python server.py
    ```
 
 ## MCP Client Integration

@@ -1,5 +1,5 @@
 """
-Unit tests for reversecore_mcp.server main() transport selection.
+Unit tests for server main() transport selection.
 """
 
 import types
@@ -19,8 +19,8 @@ def test_server_main_stdio(monkeypatch, tmp_path):
     reload_settings()
 
     # Ensure fresh import
-    sys.modules.pop("reversecore_mcp.server", None)
-    import reversecore_mcp.server as server
+    sys.modules.pop("server", None)
+    import server
 
     called = {"run": False}
 
@@ -59,8 +59,8 @@ def test_server_main_http(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "uvicorn", _Uvicorn)
 
     # Ensure fresh import
-    sys.modules.pop("reversecore_mcp.server", None)
-    import reversecore_mcp.server as server
+    sys.modules.pop("server", None)
+    import server
 
     # Provide a minimal FastAPI-like app with required attributes
     class _App:

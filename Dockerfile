@@ -44,6 +44,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY reversecore_mcp/ ./reversecore_mcp/
+COPY server.py ./
 
 # Set Python path, workspace, and transport mode
 ENV PYTHONPATH=/app \
@@ -60,5 +61,5 @@ RUN mkdir -p /var/log/reversecore
 EXPOSE 8000
 
 # Run the MCP server
-CMD ["python", "-m", "reversecore_mcp.server"]
+CMD ["python", "server.py"]
 
