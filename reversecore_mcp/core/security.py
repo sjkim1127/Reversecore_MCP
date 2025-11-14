@@ -10,6 +10,7 @@ in command_spec.py which provides stronger security guarantees.
 """
 
 import os
+import warnings
 from pathlib import Path
 from typing import List, Optional
 
@@ -168,6 +169,10 @@ R2_DANGEROUS_PATTERNS = [
 def sanitize_command_string(cmd: str, allowlist: Optional[List[str]] = None) -> str:
     """
     Validate a command string against an allowlist.
+    
+    .. deprecated:: 1.1.0
+        Use :func:`validate_r2_command` from command_spec.py instead for radare2 commands.
+        This function provides only basic validation and is kept for backward compatibility.
 
     This function is used to validate command strings that will be passed
     as arguments to subprocess calls. It does NOT quote or escape the string
@@ -192,6 +197,14 @@ def sanitize_command_string(cmd: str, allowlist: Optional[List[str]] = None) -> 
         ValueError: If the command string is invalid, contains dangerous patterns,
                    or does not match allowlist
     """
+    warnings.warn(
+        "sanitize_command_string() is deprecated and will be removed in a future version. "
+        "Use validate_r2_command() from reversecore_mcp.core.command_spec for radare2 commands, "
+        "which provides stronger security guarantees through regex-based validation.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    
     if not cmd or not cmd.strip():
         raise ValueError("Command string cannot be empty")
 

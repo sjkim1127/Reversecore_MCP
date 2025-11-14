@@ -63,12 +63,14 @@ def test_run_yara_formatter(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "yara", fake_yara)
 
     out = lib_tools.run_yara(str(test_file), str(test_file))
-    # Should be JSON string
+    # Should be JSON string with Result type structure
     data = json.loads(out)
-    assert isinstance(data, list)
-    assert data[0]["rule"] == "r1"
-    assert data[0]["strings"][0]["identifier"] == "$a"
-    assert data[0]["strings"][0]["offset"] == 10
+    assert isinstance(data, dict)
+    assert "matches" in data
+    assert isinstance(data["matches"], list)
+    assert data["matches"][0]["rule"] == "r1"
+    assert data["matches"][0]["strings"][0]["identifier"] == "$a"
+    assert data["matches"][0]["strings"][0]["offset"] == 10
 
 
 def test_disassemble_invalid_arch_mode(monkeypatch, tmp_path):

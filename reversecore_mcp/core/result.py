@@ -15,7 +15,7 @@ from typing import Literal, Union, Optional, Any, Dict
 class Success:
     """Represents a successful tool execution."""
     
-    data: str
+    data: Union[str, Dict[str, Any]]
     status: Literal["success"] = "success"
     metadata: Optional[Dict[str, Any]] = None
     
@@ -57,6 +57,11 @@ class Failure:
 # Result type is a union of Success and Failure
 Result = Union[Success, Failure]
 
+# For type hints in function signatures, use these generic types
+from typing import TypeVar
+
+T = TypeVar('T', str, Dict[str, Any])  # Allow str or dict data types
+
 
 def is_success(result: Result) -> bool:
     """Check if a result is successful."""
@@ -68,12 +73,12 @@ def is_failure(result: Result) -> bool:
     return isinstance(result, Failure)
 
 
-def success(data: str, **metadata) -> Success:
+def success(data: Union[str, Dict[str, Any]], **metadata) -> Success:
     """
     Create a Success result.
     
     Args:
-        data: The successful output data
+        data: The successful output data (str or dict)
         **metadata: Additional metadata (e.g., bytes_read, execution_time)
         
     Returns:
@@ -121,7 +126,12 @@ def result_to_string(result: Result) -> str:
     Returns:
         String representation of the result
     """
+    import json
+    
     if isinstance(result, Success):
+        # If data is a dict, convert to JSON string
+        if isinstance(result.data, dict):
+            return json.dumps(result.data, indent=2)
         return result.data
     else:
         # Format as error message

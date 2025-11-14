@@ -914,19 +914,67 @@ For security issues, please see our security policy or contact the maintainers d
 
 ## Error Handling
 
-All tools return error messages as strings instead of raising exceptions. Error messages are formatted for AI consumption and include:
+### Result Type System (Internal)
+
+All tools internally use a Result type system for structured error handling, which provides:
+- Type-safe success/failure responses
+- Consistent error codes and messages
+- Optional hints for error resolution
+- Metadata for debugging
+
+**Internal Result Structure:**
+```python
+# Success result
+{
+    "status": "success",
+    "data": "tool output...",  # Can be string or dict
+    "metadata": {
+        "bytes_read": 1024,
+        "execution_time": 1.5
+    }
+}
+
+# Failure result
+{
+    "status": "error",
+    "error_code": "TOOL_NOT_FOUND",
+    "message": "strings command not found",
+    "hint": "Install with: apt-get install binutils"
+}
+```
+
+### Public API Response Format
+
+For backward compatibility, all tools return error messages as strings. Tools that return structured data (like YARA) will return JSON strings. Error messages include:
 - Tool not found errors
 - Timeout errors
 - Invalid input errors
 - Command execution failures
 
 Example error response:
+```
+Error: File not found
+Hint: Ensure the file exists in the workspace directory
+```
+
+Example YARA success response:
 ```json
 {
-  "error": "File not found",
-  "tool": "run_file",
-  "path": "/app/workspace/missing.exe",
-  "hint": "Ensure the file exists in the workspace directory"
+  "matches": [
+    {
+      "rule": "malware_rule",
+      "namespace": "default",
+      "tags": ["trojan"],
+      "strings": [
+        {
+          "identifier": "$suspicious_string",
+          "offset": 1234,
+          "matched_data": "48656c6c6f"
+        }
+      ]
+    }
+  ],
+  "match_count": 1
 }
 ```
 

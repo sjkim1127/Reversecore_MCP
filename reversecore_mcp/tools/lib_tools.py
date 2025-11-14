@@ -18,6 +18,7 @@ from reversecore_mcp.core.error_formatting import format_error, get_validation_h
 from reversecore_mcp.core.exceptions import ValidationError
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
+from reversecore_mcp.core.result import Result, success, failure, result_to_string
 from reversecore_mcp.core.security import validate_file_path
 from reversecore_mcp.core.validators import validate_tool_parameters
 
@@ -36,6 +37,152 @@ def register_lib_tools(mcp: FastMCP) -> None:
     mcp.tool(parse_binary_with_lief)
 
 
+def _format_yara_match(match) -> Dict[str, Any]:
+    """
+    Format a YARA match result as a dictionary.
+    
+    This helper function extracts match information and formats it
+    consistently. Supports both modern and legacy yara-python APIs.
+    
+    Args:
+        match: YARA match object
+        
+    Returns:
+        Dictionary with formatted match information
+    """
+    formatted_strings = []
+    
+    # Check if match has strings attribute
+    match_strings = getattr(match, "strings", None)
+    if match_strings:
+        try:
+            # Try modern API first (more common case)
+            for sm in match_strings:
+                identifier = getattr(sm, "identifier", None)
+                instances = getattr(sm, "instances", None)
+                if instances:
+                    for inst in instances:
+                        offset = getattr(inst, "offset", None)
+                        matched_data = getattr(inst, "matched_data", None)
+                        # Convert matched_data to string
+                        if matched_data is not None:
+                            data_str = (matched_data.hex() 
+                                       if isinstance(matched_data, bytes) 
+                                       else str(matched_data))
+                        else:
+                            data_str = None
+                        formatted_strings.append({
+                            "identifier": identifier,
+                            "offset": int(offset) if offset is not None else None,
+                            "matched_data": data_str,
+                        })
+        except (AttributeError, TypeError):
+            # Fallback: older API may return tuples (offset, identifier, data)
+            formatted_strings = []
+            for t in match_strings:
+                if isinstance(t, (list, tuple)) and len(t) >= 3:
+                    off, ident, data = t[0], t[1], t[2]
+                    data_str = (data.hex() 
+                               if isinstance(data, bytes) 
+                               else str(data))
+                    formatted_strings.append({
+                        "identifier": ident,
+                        "offset": int(off) if off is not None else None,
+                        "matched_data": data_str,
+                    })
+    
+    return {
+        "rule": match.rule,
+        "namespace": match.namespace,
+        "tags": match.tags,
+        "meta": match.meta,
+        "strings": formatted_strings,
+    }
+
+
+def _run_yara_impl(
+    file_path: str,
+    rule_file: str,
+    timeout: int = 300,
+) -> Result:
+    """
+    Internal implementation of run_yara that returns Result type.
+    
+    Args:
+        file_path: Path to the file to scan
+        rule_file: Path to the YARA rule file
+        timeout: Maximum execution time in seconds (default: 300)
+    
+    Returns:
+        Result: Success with match data or Failure with error details
+    """
+    try:
+        # 1. Validate parameters and file paths
+        validate_tool_parameters("run_yara", {
+            "rule_file": rule_file,
+            "timeout": timeout
+        })
+        validated_file = validate_file_path(file_path)
+        validated_rule = validate_file_path(rule_file, read_only=True)
+        
+        # 2. Import YARA library
+        import yara
+        
+        # 3. Compile rules and scan
+        rules = yara.compile(filepath=validated_rule)
+        matches = rules.match(validated_file, timeout=timeout)
+        
+        # 4. Format results
+        if not matches:
+            return success({"matches": []})
+        
+        results = [_format_yara_match(m) for m in matches]
+        return success({
+            "matches": results,
+            "match_count": len(matches)
+        })
+        
+    except ImportError:
+        return failure(
+            "DEPENDENCY_MISSING",
+            "yara-python library is not installed",
+            hint="Install with: pip install yara-python"
+        )
+    except Exception as e:
+        # Import yara to check exception types
+        try:
+            import yara
+            # Check if this is a YARA-specific exception
+            if hasattr(yara, 'TimeoutError') and isinstance(e, yara.TimeoutError):
+                return failure(
+                    "TIMEOUT",
+                    f"YARA scan timed out after {timeout} seconds"
+                )
+            elif hasattr(yara, 'Error') and isinstance(e, yara.Error):
+                return failure(
+                    "YARA_ERROR",
+                    f"YARA error: {str(e)}"
+                )
+        except ImportError:
+            pass
+        
+        # Handle validation errors
+        if isinstance(e, ValidationError):
+            return failure(
+                "VALIDATION_ERROR",
+                str(e),
+                hint="Ensure files are in allowed directories"
+            )
+        
+        # Generic error
+        logger.exception("Unexpected error in run_yara")
+        return failure(
+            "INTERNAL_ERROR",
+            f"An unexpected error occurred: {str(e)}"
+        )
+
+
+@log_execution(tool_name="run_yara")
 @track_metrics("run_yara")
 def run_yara(
     file_path: str,
@@ -60,200 +207,130 @@ def run_yara(
     Raises:
         Returns error message string if execution fails (never raises exceptions)
     """
-    # Validate parameters
-    validate_tool_parameters("run_yara", {
-        "rule_file": rule_file,
-        "timeout": timeout
-    })
+    result = _run_yara_impl(file_path, rule_file, timeout)
+    return result_to_string(result)
+
+
+def _disassemble_with_capstone_impl(
+    file_path: str,
+    offset: int = 0,
+    size: int = 1024,
+    arch: str = "x86",
+    mode: str = "64",
+) -> Result:
+    """
+    Internal implementation of disassemble_with_capstone that returns Result type.
     
-    start_time = time.time()
-    file_name = Path(file_path).name
-
-    logger.info(
-        "Starting run_yara",
-        extra={"tool_name": "run_yara", "file_name": file_name},
-    )
-
+    Args:
+        file_path: Path to the binary file to disassemble
+        offset: Byte offset in the file to start disassembly (default: 0)
+        size: Number of bytes to disassemble (default: 1024)
+        arch: Architecture (x86, arm, arm64) (default: x86)
+        mode: Mode (16, 32, 64, arm, thumb) (default: 64)
+    
+    Returns:
+        Result: Success with disassembly output or Failure with error details
+    """
     try:
-        # Validate file paths
-        # rule_file can be in read-only directories (e.g., /app/rules) or workspace
-        validated_file = validate_file_path(file_path)
-        validated_rule = validate_file_path(rule_file, read_only=True)
+        # 1. Validate parameters and file path
+        validate_tool_parameters("disassemble_with_capstone", {
+            "offset": offset,
+            "size": size
+        })
+        validated_path = validate_file_path(file_path)
 
-        # Import yara (will raise ImportError if not installed)
-        try:
-            import yara
-        except ImportError:
-            execution_time = int((time.time() - start_time) * 1000)
-            logger.error(
-                "run_yara failed - yara-python not installed",
-                extra={
-                    "tool_name": "run_yara",
-                    "file_name": file_name,
-                    "execution_time_ms": execution_time,
-                },
-            )
-            return format_error(
-                Exception("yara-python library is not installed"),
-                tool_name="run_yara",
-                hint="Please install it with: pip install yara-python",
+        # 2. Import capstone library
+        from capstone import (
+            CS_ARCH_ARM,
+            CS_ARCH_ARM64,
+            CS_ARCH_X86,
+            CS_MODE_32,
+            CS_MODE_64,
+            CS_MODE_ARM,
+            CS_MODE_THUMB,
+            Cs,
+        )
+
+        # 3. Validate architecture and mode
+        arch_map = {
+            "x86": CS_ARCH_X86,
+            "arm": CS_ARCH_ARM,
+            "arm64": CS_ARCH_ARM64,
+        }
+        
+        mode_map = {
+            "x86": {"16": CS_MODE_32, "32": CS_MODE_32, "64": CS_MODE_64},
+            "arm": {"arm": CS_MODE_ARM, "thumb": CS_MODE_THUMB},
+            "arm64": {"64": CS_MODE_64},
+        }
+
+        if arch not in arch_map:
+            supported = ", ".join(sorted(arch_map.keys()))
+            return failure(
+                "INVALID_PARAMETER",
+                f"Unsupported architecture: {arch}",
+                hint=f"Supported architectures: {supported}"
             )
 
-        # Compile YARA rules
-        try:
-            rules = yara.compile(filepath=validated_rule)
-        except yara.Error as e:
-            execution_time = int((time.time() - start_time) * 1000)
-            logger.error(
-                "run_yara failed - rule compilation error",
-                extra={
-                    "tool_name": "run_yara",
-                    "file_name": file_name,
-                    "execution_time_ms": execution_time,
-                },
-                exc_info=True,
+        if arch not in mode_map or mode not in mode_map[arch]:
+            supported = ", ".join(sorted(mode_map.get(arch, {}).keys()))
+            return failure(
+                "INVALID_PARAMETER",
+                f"Unsupported mode '{mode}' for architecture '{arch}'",
+                hint=f"Supported modes: {supported}"
             )
-            return format_error(e, tool_name="run_yara")
 
-        # Scan the file
-        try:
-            matches = rules.match(validated_file, timeout=timeout)
-        except yara.TimeoutError:
-            execution_time = int((time.time() - start_time) * 1000)
-            logger.warning(
-                "run_yara timed out",
-                extra={
-                    "tool_name": "run_yara",
-                    "file_name": file_name,
-                    "execution_time_ms": execution_time,
-                },
-            )
-            return format_error(
-                Exception(f"YARA scan timed out after {timeout} seconds"),
-                tool_name="run_yara",
-            )
-        except yara.Error as e:
-            execution_time = int((time.time() - start_time) * 1000)
-            logger.error(
-                "run_yara scan failed",
-                extra={
-                    "tool_name": "run_yara",
-                    "file_name": file_name,
-                    "execution_time_ms": execution_time,
-                },
-                exc_info=True,
-            )
-            return format_error(e, tool_name="run_yara")
+        # 4. Read binary data
+        with open(validated_path, "rb") as f:
+            f.seek(offset)
+            code = f.read(size)
 
-        # Format results
-        if not matches:
-            execution_time = int((time.time() - start_time) * 1000)
-            logger.info(
-                "run_yara completed - no matches",
-                extra={
-                    "tool_name": "run_yara",
-                    "file_name": file_name,
-                    "execution_time_ms": execution_time,
-                },
+        if not code:
+            return failure(
+                "NO_DATA",
+                f"No data read from file at offset {offset}",
+                hint="Check the offset and file size"
             )
-            return "No YARA rule matches found."
 
-        # Pre-allocate results list with known size for better memory efficiency
+        # 5. Disassemble
+        md = Cs(arch_map[arch], mode_map[arch][mode])
         results = []
-        for match in matches:
-            # Build strings list supporting yara-python API:
-            # match.strings is a list of StringMatch; each has .identifier and .instances
-            # Each instance has .offset and .matched_data
-            formatted_strings = []
+        for instruction in md.disasm(code, offset):
+            results.append(
+                f"0x{instruction.address:x}:\t{instruction.mnemonic}\t{instruction.op_str}"
+            )
 
-            # Check if match has strings attribute first to avoid multiple getattr calls
-            match_strings = getattr(match, "strings", None)
-            if match_strings:
-                try:
-                    # Try modern API first (more common case)
-                    for sm in match_strings:
-                        identifier = getattr(sm, "identifier", None)
-                        instances = getattr(sm, "instances", None)
-                        if instances:
-                            for inst in instances:
-                                offset = getattr(inst, "offset", None)
-                                matched_data = getattr(inst, "matched_data", None)
-                                # Optimize conditional by checking type once
-                                if matched_data is not None:
-                                    data_str = matched_data.hex() if isinstance(matched_data, bytes) else (matched_data if isinstance(matched_data, str) else None)
-                                else:
-                                    data_str = None
-                                formatted_strings.append(
-                                    {
-                                        "identifier": identifier,
-                                        "offset": int(offset) if offset is not None else None,
-                                        "matched_data": data_str,
-                                    }
-                                )
-                except (AttributeError, TypeError):
-                    # Fallback: older API may return tuples (offset, identifier, data)
-                    formatted_strings = []
-                    for t in match_strings:
-                        if isinstance(t, (list, tuple)) and len(t) >= 3:
-                            off, ident, data = t[0], t[1], t[2]
-                            data_str = data.hex() if isinstance(data, bytes) else (data if isinstance(data, str) else None)
-                            formatted_strings.append(
-                                {
-                                    "identifier": ident,
-                                    "offset": int(off) if off is not None else None,
-                                    "matched_data": data_str,
-                                }
-                            )
+        if not results:
+            return success("No instructions disassembled.", instruction_count=0)
 
-            result = {
-                "rule": match.rule,
-                "namespace": match.namespace,
-                "tags": match.tags,
-                "meta": match.meta,
-                "strings": formatted_strings,
-            }
-            results.append(result)
-
-        execution_time = int((time.time() - start_time) * 1000)
-        logger.info(
-            "run_yara completed successfully",
-            extra={
-                "tool_name": "run_yara",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-                "match_count": len(matches),
-            },
+        return success("\n".join(results), instruction_count=len(results))
+        
+    except ImportError:
+        return failure(
+            "DEPENDENCY_MISSING",
+            "capstone library is not installed",
+            hint="Install with: pip install capstone"
         )
-
-        return json.dumps(results, indent=2)
-
-    except (ValidationError, ValueError) as e:
-        execution_time = int((time.time() - start_time) * 1000)
-        hint = get_validation_hint(e) if isinstance(e, ValidationError) else get_validation_hint(ValueError(str(e)))
-        logger.warning(
-            "run_yara validation failed",
-            extra={
-                "tool_name": "run_yara",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-            },
-            exc_info=True,
+    except ValidationError as e:
+        return failure(
+            "VALIDATION_ERROR",
+            str(e),
+            hint="Ensure the file is in the workspace directory"
         )
-        return format_error(e, tool_name="run_yara", hint=hint)
+    except FileNotFoundError as e:
+        return failure(
+            "FILE_NOT_FOUND",
+            f"File not found: {file_path}"
+        )
     except Exception as e:
-        execution_time = int((time.time() - start_time) * 1000)
-        logger.error(
-            "run_yara unexpected error",
-            extra={
-                "tool_name": "run_yara",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-            },
-            exc_info=True,
+        logger.exception("Unexpected error in disassemble_with_capstone")
+        return failure(
+            "INTERNAL_ERROR",
+            f"An unexpected error occurred: {str(e)}"
         )
-        return format_error(e, tool_name="run_yara")
 
 
+@log_execution(tool_name="disassemble_with_capstone")
 @track_metrics("disassemble_with_capstone")
 def disassemble_with_capstone(
     file_path: str,
@@ -281,224 +358,8 @@ def disassemble_with_capstone(
     Raises:
         Returns error message string if execution fails (never raises exceptions)
     """
-    start_time = time.time()
-    file_name = Path(file_path).name
-
-    logger.info(
-        "Starting disassemble_with_capstone",
-        extra={"tool_name": "disassemble_with_capstone", "file_name": file_name, "arch": arch, "mode": mode},
-    )
-
-    try:
-        # Validate parameters (offset and size only, arch is validated later)
-        validate_tool_parameters("disassemble_with_capstone", {
-            "offset": offset,
-            "size": size
-        })
-        
-        # Validate file path
-        validated_path = validate_file_path(file_path)
-
-        # Import capstone (will raise ImportError if not installed)
-        try:
-            from capstone import (
-                CS_ARCH_ARM,
-                CS_ARCH_ARM64,
-                CS_ARCH_X86,
-                CS_MODE_32,
-                CS_MODE_64,
-                CS_MODE_ARM,
-                CS_MODE_THUMB,
-                Cs,
-            )
-        except ImportError:
-            execution_time = int((time.time() - start_time) * 1000)
-            logger.error(
-                "disassemble_with_capstone failed - capstone not installed",
-                extra={
-                    "tool_name": "disassemble_with_capstone",
-                    "file_name": file_name,
-                    "execution_time_ms": execution_time,
-                },
-            )
-            return format_error(
-                Exception("capstone library is not installed"),
-                tool_name="disassemble_with_capstone",
-                hint="Please install it with: pip install capstone",
-            )
-
-        # Map architecture string to capstone constant
-        arch_map = {
-            "x86": CS_ARCH_X86,
-            "arm": CS_ARCH_ARM,
-            "arm64": CS_ARCH_ARM64,
-        }
-
-        if arch not in arch_map:
-            supported_archs = ", ".join(sorted(arch_map.keys()))
-            execution_time = int((time.time() - start_time) * 1000)
-            logger.warning(
-                "disassemble_with_capstone - unsupported architecture",
-                extra={
-                    "tool_name": "disassemble_with_capstone",
-                    "file_name": file_name,
-                    "execution_time_ms": execution_time,
-                    "arch": arch,
-                },
-            )
-            return format_error(
-                ValueError(f"Unsupported architecture: {arch}. Supported: {supported_archs}"),
-                tool_name="disassemble_with_capstone",
-            )
-
-        # Map mode string to capstone constant
-        # Mode mapping depends on architecture
-        mode_map = {
-            "x86": {
-                "16": CS_MODE_32,  # x86-16 uses 32-bit mode constant
-                "32": CS_MODE_32,
-                "64": CS_MODE_64,
-            },
-            "arm": {
-                "arm": CS_MODE_ARM,
-                "thumb": CS_MODE_THUMB,
-            },
-            "arm64": {
-                "64": CS_MODE_64,  # ARM64 is always 64-bit
-            },
-        }
-
-        # Get mode constant based on architecture
-        if arch not in mode_map:
-            execution_time = int((time.time() - start_time) * 1000)
-            logger.warning(
-                "disassemble_with_capstone - invalid architecture for mode mapping",
-                extra={
-                    "tool_name": "disassemble_with_capstone",
-                    "file_name": file_name,
-                    "execution_time_ms": execution_time,
-                    "arch": arch,
-                },
-            )
-            return format_error(
-                ValueError(f"Invalid architecture for mode mapping: {arch}"),
-                tool_name="disassemble_with_capstone",
-            )
-
-        arch_mode_map = mode_map[arch]
-        if mode not in arch_mode_map:
-            supported_modes = ", ".join(sorted(arch_mode_map.keys()))
-            execution_time = int((time.time() - start_time) * 1000)
-            logger.warning(
-                "disassemble_with_capstone - unsupported mode",
-                extra={
-                    "tool_name": "disassemble_with_capstone",
-                    "file_name": file_name,
-                    "execution_time_ms": execution_time,
-                    "arch": arch,
-                    "mode": mode,
-                },
-            )
-            return format_error(
-                ValueError(f"Unsupported mode '{mode}' for architecture '{arch}'. Supported: {supported_modes}"),
-                tool_name="disassemble_with_capstone",
-            )
-
-        mode_constant = arch_mode_map[mode]
-
-        # Read binary data from file
-        with open(validated_path, "rb") as f:
-            f.seek(offset)
-            code = f.read(size)
-
-        if not code:
-            execution_time = int((time.time() - start_time) * 1000)
-            logger.warning(
-                "disassemble_with_capstone - no data read",
-                extra={
-                    "tool_name": "disassemble_with_capstone",
-                    "file_name": file_name,
-                    "execution_time_ms": execution_time,
-                    "offset": offset,
-                },
-            )
-            return format_error(
-                ValueError(f"No data read from file at offset {offset}"),
-                tool_name="disassemble_with_capstone",
-            )
-
-        # Create disassembler with selected architecture and mode
-        md = Cs(arch_map[arch], mode_constant)
-
-        # Disassemble
-        results = []
-        for instruction in md.disasm(code, offset):
-            results.append(
-                f"0x{instruction.address:x}:\t{instruction.mnemonic}\t{instruction.op_str}"
-            )
-
-        if not results:
-            execution_time = int((time.time() - start_time) * 1000)
-            logger.info(
-                "disassemble_with_capstone completed - no instructions",
-                extra={
-                    "tool_name": "disassemble_with_capstone",
-                    "file_name": file_name,
-                    "execution_time_ms": execution_time,
-                },
-            )
-            return "No instructions disassembled."
-
-        execution_time = int((time.time() - start_time) * 1000)
-        logger.info(
-            "disassemble_with_capstone completed successfully",
-            extra={
-                "tool_name": "disassemble_with_capstone",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-                "instruction_count": len(results),
-            },
-        )
-
-        return "\n".join(results)
-
-    except (ValidationError, ValueError) as e:
-        execution_time = int((time.time() - start_time) * 1000)
-        hint = get_validation_hint(e) if isinstance(e, ValidationError) else get_validation_hint(ValueError(str(e)))
-        logger.warning(
-            "disassemble_with_capstone validation failed",
-            extra={
-                "tool_name": "disassemble_with_capstone",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-            },
-            exc_info=True,
-        )
-        return format_error(e, tool_name="disassemble_with_capstone", hint=hint)
-    except FileNotFoundError as e:
-        execution_time = int((time.time() - start_time) * 1000)
-        logger.error(
-            "disassemble_with_capstone - file not found",
-            extra={
-                "tool_name": "disassemble_with_capstone",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-            },
-            exc_info=True,
-        )
-        return format_error(e, tool_name="disassemble_with_capstone")
-    except Exception as e:
-        execution_time = int((time.time() - start_time) * 1000)
-        logger.error(
-            "disassemble_with_capstone unexpected error",
-            extra={
-                "tool_name": "disassemble_with_capstone",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-            },
-            exc_info=True,
-        )
-        return format_error(e, tool_name="disassemble_with_capstone")
+    result = _disassemble_with_capstone_impl(file_path, offset, size, arch, mode)
+    return result_to_string(result)
 
 
 def _extract_sections(binary: Any) -> List[Dict[str, Any]]:
@@ -589,6 +450,85 @@ def _format_lief_output(result: Dict[str, Any], format: str) -> str:
     return "\n".join(lines)
 
 
+def _parse_binary_with_lief_impl(file_path: str, format: str = "json") -> Result:
+    """
+    Internal implementation of parse_binary_with_lief that returns Result type.
+    
+    Args:
+        file_path: Path to the binary file to parse
+        format: Output format - "json" (default) or "text"
+    
+    Returns:
+        Result: Success with binary structure info or Failure with error details
+    """
+    try:
+        # 1. Validate file path
+        validated_path = validate_file_path(file_path)
+
+        # 2. Check file size (1GB limit for safety)
+        max_file_size = get_settings().lief_max_file_size
+        file_size = Path(validated_path).stat().st_size
+        if file_size > max_file_size:
+            return failure(
+                "FILE_TOO_LARGE",
+                f"File size ({file_size} bytes) exceeds maximum allowed size ({max_file_size} bytes)",
+                hint=f"Set LIEF_MAX_FILE_SIZE environment variable to increase limit"
+            )
+
+        # 3. Import LIEF library
+        import lief
+
+        # 4. Parse binary file
+        binary = lief.parse(validated_path)
+        if binary is None:
+            return failure(
+                "UNSUPPORTED_FORMAT",
+                "Unsupported binary format",
+                hint="LIEF supports ELF, PE, and Mach-O formats"
+            )
+
+        # 5. Extract information
+        result_data: Dict[str, Any] = {
+            "format": str(binary.format).split(".")[-1].lower(),
+            "entry_point": hex(binary.entrypoint) if hasattr(binary, "entrypoint") else None,
+        }
+
+        # Add sections and symbols
+        sections = _extract_sections(binary)
+        if sections:
+            result_data["sections"] = sections
+
+        symbols = _extract_symbols(binary)
+        result_data.update(symbols)
+
+        # 6. Format output
+        if format.lower() == "json":
+            return success(result_data)
+        else:
+            # Text format
+            formatted_text = _format_lief_output(result_data, format)
+            return success(formatted_text)
+        
+    except ImportError:
+        return failure(
+            "DEPENDENCY_MISSING",
+            "lief library is not installed",
+            hint="Install with: pip install lief"
+        )
+    except ValidationError as e:
+        return failure(
+            "VALIDATION_ERROR",
+            str(e),
+            hint="Ensure the file is in the workspace directory"
+        )
+    except Exception as e:
+        logger.exception("Unexpected error in parse_binary_with_lief")
+        return failure(
+            "INTERNAL_ERROR",
+            f"An unexpected error occurred: {str(e)}"
+        )
+
+
 @log_execution(tool_name="parse_binary_with_lief")
 @track_metrics("parse_binary_with_lief")
 def parse_binary_with_lief(file_path: str, format: str = "json") -> str:
@@ -614,46 +554,5 @@ def parse_binary_with_lief(file_path: str, format: str = "json") -> str:
     Raises:
         Returns error message string if execution fails (never raises exceptions)
     """
-    # Validate file path
-    validated_path = validate_file_path(file_path)
-
-    # Check file size (1GB limit for safety)
-    max_file_size = get_settings().lief_max_file_size
-    file_size = Path(validated_path).stat().st_size
-    if file_size > max_file_size:
-        raise ValueError(
-            f"File size ({file_size} bytes) exceeds maximum allowed size ({max_file_size} bytes). "
-            f"Set LIEF_MAX_FILE_SIZE environment variable to increase limit (current: {max_file_size} bytes)"
-        )
-
-    # Import lief (will raise ImportError if not installed)
-    try:
-        import lief
-    except ImportError:
-        raise ImportError("lief library is not installed. Please install it with: pip install lief")
-
-    # Parse binary file
-    try:
-        binary = lief.parse(validated_path)
-    except Exception as e:
-        raise Exception(f"Failed to parse binary file: {e}")
-
-    if binary is None:
-        raise ValueError("Unsupported binary format. LIEF supports ELF, PE, and Mach-O formats.")
-
-    # Extract information using helper functions
-    result: Dict[str, Any] = {
-        "format": str(binary.format).split(".")[-1].lower(),  # ELF, PE, MACHO
-        "entry_point": hex(binary.entrypoint) if hasattr(binary, "entrypoint") else None,
-    }
-
-    # Add sections and symbols
-    sections = _extract_sections(binary)
-    if sections:
-        result["sections"] = sections
-
-    symbols = _extract_symbols(binary)
-    result.update(symbols)
-
-    # Format and return
-    return _format_lief_output(result, format)
+    result = _parse_binary_with_lief_impl(file_path, format)
+    return result_to_string(result)

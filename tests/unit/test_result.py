@@ -177,6 +177,14 @@ class TestResultConversion:
         result = result_to_string(s)
         assert result == "output data"
     
+    def test_result_to_string_success_dict(self):
+        """Test converting Success with dict data to string."""
+        s = Success(data={"key": "value", "count": 42})
+        result = result_to_string(s)
+        # Should be JSON formatted
+        assert '"key": "value"' in result
+        assert '"count": 42' in result
+    
     def test_result_to_string_failure(self):
         """Test converting Failure to string."""
         f = Failure(
@@ -205,6 +213,15 @@ class TestResultConversion:
             "status": "success",
             "data": "output",
             "metadata": {"key": "value"}
+        }
+    
+    def test_result_to_dict_success_dict_data(self):
+        """Test converting Success with dict data to dict."""
+        s = Success(data={"matches": [], "count": 0})
+        d = result_to_dict(s)
+        assert d == {
+            "status": "success",
+            "data": {"matches": [], "count": 0}
         }
     
     def test_result_to_dict_failure(self):

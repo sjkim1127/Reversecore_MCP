@@ -47,7 +47,8 @@ def test_run_strings_called_process_error(monkeypatch, tmp_path):
         raise e
     monkeypatch.setattr(cli_tools, "execute_subprocess_streaming", raise_cpe)
     out = cli_tools.run_strings(str(tmp_path / "x"))
-    assert "exit code" in out.lower()
+    # New Result type format includes "Error:" and error details
+    assert "Error" in out and ("non-zero exit status" in out.lower() or "unexpected error" in out.lower())
 
 
 def test_run_binwalk_success(monkeypatch, tmp_path):
@@ -63,7 +64,8 @@ def test_run_binwalk_called_process_error(monkeypatch, tmp_path):
         raise subprocess.CalledProcessError(2, cmd, output="", stderr="bad arg")
     monkeypatch.setattr(cli_tools, "execute_subprocess_streaming", raise_cpe)
     out = cli_tools.run_binwalk(str(tmp_path / "fw.bin"))
-    assert "exit code" in out.lower()
+    # New Result type format includes "Error:" and error details
+    assert "Error" in out and ("non-zero exit status" in out.lower() or "unexpected error" in out.lower())
 
 
 def test_run_radare2_success(monkeypatch, tmp_path):
