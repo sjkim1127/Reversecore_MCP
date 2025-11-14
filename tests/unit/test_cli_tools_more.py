@@ -10,9 +10,9 @@ from reversecore_mcp.core.exceptions import ValidationError
 
 def test_run_radare2_invalid_command_sanitization(monkeypatch, tmp_path):
     monkeypatch.setattr(cli_tools, "validate_file_path", lambda p, read_only=False: str(tmp_path / "a.out"))
-    def _sanitize(cmd):
-        raise ValueError("invalid")
-    monkeypatch.setattr(cli_tools, "sanitize_command_string", lambda s: _sanitize(s))
+    def _validate(cmd, allow_write=False):
+        raise ValidationError("invalid command")
+    monkeypatch.setattr(cli_tools, "validate_r2_command", _validate)
     out = cli_tools.run_radare2(str(tmp_path / "a.out"), "bad")
     assert "error" in out.lower()
 

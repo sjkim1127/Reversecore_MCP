@@ -11,11 +11,8 @@ from fastmcp import FastMCP
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.execution import execute_subprocess_streaming
 from reversecore_mcp.core.metrics import track_metrics
-from reversecore_mcp.core.security import (
-    R2_READONLY_COMMANDS,
-    sanitize_command_string,
-    validate_file_path,
-)
+from reversecore_mcp.core.security import validate_file_path
+from reversecore_mcp.core.command_spec import validate_r2_command
 from reversecore_mcp.core.validators import validate_tool_parameters
 
 
@@ -148,13 +145,14 @@ def run_radare2(
     # Validate file path
     validated_path = validate_file_path(file_path)
 
-    # Validate and sanitize r2_command with allowlist
-    sanitized_cmd = sanitize_command_string(r2_command, allowlist=R2_READONLY_COMMANDS)
+    # Validate r2_command with strict regex-based validation
+    # This prevents command injection attacks like "pdf @ main; w hello"
+    validate_r2_command(r2_command)
 
     # Build command: r2 -q -c "<command>" <file_path>
     # Note: We pass r2_command as a single argument to -c flag
     # r2 expects: r2 -q -c "pdf @ main" file.exe
-    cmd = ["r2", "-q", "-c", sanitized_cmd, validated_path]
+    cmd = ["r2", "-q", "-c", r2_command, validated_path]
 
     # Execute with streaming
     output, bytes_read = execute_subprocess_streaming(

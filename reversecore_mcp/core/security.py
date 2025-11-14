@@ -4,6 +4,9 @@ Security utilities for input validation and sanitization.
 This module provides functions to validate and sanitize user inputs before
 they are used in subprocess calls, preventing command injection and
 unauthorized file access.
+
+Note: For radare2 command validation, use the improved regex-based validation
+in command_spec.py which provides stronger security guarantees.
 """
 
 import os

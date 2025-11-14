@@ -68,7 +68,7 @@ def test_run_binwalk_called_process_error(monkeypatch, tmp_path):
 
 def test_run_radare2_success(monkeypatch, tmp_path):
     monkeypatch.setattr(cli_tools, "validate_file_path", lambda p, read_only=False: str(tmp_path / "a.out"))
-    monkeypatch.setattr(cli_tools, "sanitize_command_string", lambda s, allowlist=None: s)
+    monkeypatch.setattr(cli_tools, "validate_r2_command", lambda s, allow_write=False: None)
     monkeypatch.setattr(cli_tools, "execute_subprocess_streaming", lambda cmd, **kw: ("r2 out", 10))
     out = cli_tools.run_radare2(str(tmp_path / "a.out"), "i")
     assert isinstance(out, str)
@@ -76,7 +76,7 @@ def test_run_radare2_success(monkeypatch, tmp_path):
 
 def test_run_radare2_tool_not_found(monkeypatch, tmp_path):
     monkeypatch.setattr(cli_tools, "validate_file_path", lambda p, read_only=False: str(tmp_path / "a.out"))
-    monkeypatch.setattr(cli_tools, "sanitize_command_string", lambda s, allowlist=None: s)
+    monkeypatch.setattr(cli_tools, "validate_r2_command", lambda s, allow_write=False: None)
     def raise_not_found(cmd, **kw):
         raise ToolNotFoundError("r2")
     monkeypatch.setattr(cli_tools, "execute_subprocess_streaming", raise_not_found)
