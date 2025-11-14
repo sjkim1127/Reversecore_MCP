@@ -590,6 +590,7 @@ def _format_lief_output(result: Dict[str, Any], format: str) -> str:
 
 
 @log_execution(tool_name="parse_binary_with_lief")
+@track_metrics("parse_binary_with_lief")
 def parse_binary_with_lief(file_path: str, format: str = "json") -> str:
     """
     Parse binary file structure using LIEF library.

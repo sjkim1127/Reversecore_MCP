@@ -113,6 +113,25 @@ if BaseSettings:
                     for d in self.reversecore_read_dirs.split(",")
                     if d.strip()
                 ]
+
+            def validate_paths(self) -> None:
+                """
+                Validate that workspace and read directories exist and are accessible.
+                
+                Raises:
+                    ValueError: If required directories are missing or inaccessible
+                """
+                workspace = self.allowed_workspace
+                if not workspace.exists():
+                    raise ValueError(f"Workspace directory does not exist: {workspace}")
+                if not workspace.is_dir():
+                    raise ValueError(f"Workspace path is not a directory: {workspace}")
+                
+                for read_dir in self.allowed_read_dirs:
+                    if not read_dir.exists():
+                        raise ValueError(f"Read directory does not exist: {read_dir}")
+                    if not read_dir.is_dir():
+                        raise ValueError(f"Read directory path is not a directory: {read_dir}")
     else:
         # Pydantic v1
         class Settings(BaseSettings):
@@ -205,6 +224,25 @@ if BaseSettings:
                     for d in self.reversecore_read_dirs.split(",")
                     if d.strip()
                 ]
+
+            def validate_paths(self) -> None:
+                """
+                Validate that workspace and read directories exist and are accessible.
+                
+                Raises:
+                    ValueError: If required directories are missing or inaccessible
+                """
+                workspace = self.allowed_workspace
+                if not workspace.exists():
+                    raise ValueError(f"Workspace directory does not exist: {workspace}")
+                if not workspace.is_dir():
+                    raise ValueError(f"Workspace path is not a directory: {workspace}")
+                
+                for read_dir in self.allowed_read_dirs:
+                    if not read_dir.exists():
+                        raise ValueError(f"Read directory does not exist: {read_dir}")
+                    if not read_dir.is_dir():
+                        raise ValueError(f"Read directory path is not a directory: {read_dir}")
 else:
     # Fallback: simple class without pydantic
     class Settings:
@@ -250,6 +288,24 @@ else:
                 if d.strip()
             ]
 
+        def validate_paths(self) -> None:
+            """
+            Validate that workspace and read directories exist and are accessible.
+            
+            Raises:
+                ValueError: If required directories are missing or inaccessible
+            """
+            workspace = self.allowed_workspace
+            if not workspace.exists():
+                raise ValueError(f"Workspace directory does not exist: {workspace}")
+            if not workspace.is_dir():
+                raise ValueError(f"Workspace path is not a directory: {workspace}")
+            
+            for read_dir in self.allowed_read_dirs:
+                if not read_dir.exists():
+                    raise ValueError(f"Read directory does not exist: {read_dir}")
+                if not read_dir.is_dir():
+                    raise ValueError(f"Read directory path is not a directory: {read_dir}")
 
 
 # Global settings instance

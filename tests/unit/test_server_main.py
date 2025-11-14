@@ -14,6 +14,14 @@ def test_server_main_stdio(monkeypatch, tmp_path):
     monkeypatch.setenv("LOG_FILE", str(tmp_path / "app.log"))
     monkeypatch.setenv("MCP_TRANSPORT", "stdio")
     
+    # Set up workspace and read dirs for path validation
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(exist_ok=True)
+    read_dir = tmp_path / "rules"
+    read_dir.mkdir(exist_ok=True)
+    monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace))
+    monkeypatch.setenv("REVERSECORE_READ_DIRS", str(read_dir))
+    
     # Reload settings to pick up new environment variables
     from reversecore_mcp.core.config import reload_settings
     reload_settings()
@@ -42,6 +50,14 @@ def test_server_main_http(monkeypatch, tmp_path):
     monkeypatch.setenv("LOG_FILE", str(tmp_path / "app.log"))
     monkeypatch.setenv("MCP_TRANSPORT", "http")
     
+    # Set up workspace and read dirs for path validation
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(exist_ok=True)
+    read_dir = tmp_path / "rules"
+    read_dir.mkdir(exist_ok=True)
+    monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace))
+    monkeypatch.setenv("REVERSECORE_READ_DIRS", str(read_dir))
+    
     # Reload settings to pick up new environment variables
     from reversecore_mcp.core.config import reload_settings
     reload_settings()
@@ -61,19 +77,6 @@ def test_server_main_http(monkeypatch, tmp_path):
     # Ensure fresh import
     sys.modules.pop("server", None)
     import server
-
-    # Provide a minimal FastAPI-like app with required attributes
-    class _App:
-        def __init__(self):
-            self.state = types.SimpleNamespace()
-        def add_exception_handler(self, *args, **kwargs):
-            return None
-        def middleware(self, *args, **kwargs):
-            def decorator(fn):
-                return fn
-            return decorator
-
-    monkeypatch.setattr(server.mcp, "app", _App(), raising=True)
 
     server.main()
 

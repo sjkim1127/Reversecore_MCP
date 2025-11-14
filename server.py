@@ -7,11 +7,12 @@ This module initializes the FastMCP server and registers all available tools.
 from fastmcp import FastMCP
 
 from reversecore_mcp.core.config import get_settings
-from reversecore_mcp.core.logging_config import setup_logging
+from reversecore_mcp.core.logging_config import setup_logging, get_logger
 from reversecore_mcp.tools import cli_tools, lib_tools
 
 # Setup logging
 setup_logging()
+logger = get_logger(__name__)
 
 # Initialize the FastMCP server
 mcp = FastMCP(name="Reversecore_MCP")
@@ -25,12 +26,23 @@ def main():
     """Run the MCP server."""
     # Get transport mode from settings (default: stdio)
     settings = get_settings()
+    
+    # Validate paths at startup
+    try:
+        settings.validate_paths()
+        logger.info("Path validation successful")
+    except ValueError as e:
+        logger.error(f"Path validation failed: {e}")
+        raise
+    
     transport = settings.mcp_transport.lower()
 
     if transport == "http":
         # HTTP transport mode for network-based AI agents
         import uvicorn
         from fastapi import FastAPI
+        from fastapi.responses import JSONResponse
+        from reversecore_mcp.core.metrics import metrics_collector
 
         # Build a host FastAPI app with docs enabled and mount FastMCP under /mcp
         app = FastAPI(
@@ -41,6 +53,24 @@ def main():
         )
         mcp_app = mcp.http_app()
         app.mount("/mcp", mcp_app)
+
+        # Add health endpoint
+        @app.get("/health")
+        async def health():
+            """Health check endpoint."""
+            return JSONResponse(
+                content={
+                    "status": "healthy",
+                    "service": "Reversecore_MCP",
+                    "transport": "http"
+                }
+            )
+
+        # Add metrics endpoint
+        @app.get("/metrics")
+        async def metrics():
+            """Metrics endpoint returning collected tool metrics."""
+            return JSONResponse(content=metrics_collector.get_metrics())
 
         # Optional: apply rate limiting if slowapi is available
         try:

@@ -97,3 +97,72 @@ class TestSettings:
         assert len(settings.allowed_read_dirs) == 2
         assert dir1.resolve() in settings.allowed_read_dirs
         assert dir2.resolve() in settings.allowed_read_dirs
+
+    def test_validate_paths_success(self, tmp_path, monkeypatch):
+        """Test validate_paths succeeds when all paths exist."""
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        read_dir = tmp_path / "rules"
+        read_dir.mkdir()
+        
+        monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace))
+        monkeypatch.setenv("REVERSECORE_READ_DIRS", str(read_dir))
+        settings = reload_settings()
+        
+        # Should not raise any exception
+        settings.validate_paths()
+
+    def test_validate_paths_workspace_missing(self, tmp_path, monkeypatch):
+        """Test validate_paths raises error when workspace doesn't exist."""
+        workspace = tmp_path / "nonexistent_workspace"
+        read_dir = tmp_path / "rules"
+        read_dir.mkdir()
+        
+        monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace))
+        monkeypatch.setenv("REVERSECORE_READ_DIRS", str(read_dir))
+        settings = reload_settings()
+        
+        with pytest.raises(ValueError, match="Workspace directory does not exist"):
+            settings.validate_paths()
+
+    def test_validate_paths_workspace_not_directory(self, tmp_path, monkeypatch):
+        """Test validate_paths raises error when workspace is not a directory."""
+        workspace = tmp_path / "file.txt"
+        workspace.write_text("not a directory")
+        read_dir = tmp_path / "rules"
+        read_dir.mkdir()
+        
+        monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace))
+        monkeypatch.setenv("REVERSECORE_READ_DIRS", str(read_dir))
+        settings = reload_settings()
+        
+        with pytest.raises(ValueError, match="Workspace path is not a directory"):
+            settings.validate_paths()
+
+    def test_validate_paths_read_dir_missing(self, tmp_path, monkeypatch):
+        """Test validate_paths raises error when read directory doesn't exist."""
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        read_dir = tmp_path / "nonexistent_rules"
+        
+        monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace))
+        monkeypatch.setenv("REVERSECORE_READ_DIRS", str(read_dir))
+        settings = reload_settings()
+        
+        with pytest.raises(ValueError, match="Read directory does not exist"):
+            settings.validate_paths()
+
+    def test_validate_paths_read_dir_not_directory(self, tmp_path, monkeypatch):
+        """Test validate_paths raises error when read directory is not a directory."""
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        read_dir = tmp_path / "file.txt"
+        read_dir.write_text("not a directory")
+        
+        monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace))
+        monkeypatch.setenv("REVERSECORE_READ_DIRS", str(read_dir))
+        settings = reload_settings()
+        
+        with pytest.raises(ValueError, match="Read directory path is not a directory"):
+            settings.validate_paths()
+

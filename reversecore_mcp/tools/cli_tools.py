@@ -33,6 +33,7 @@ def register_cli_tools(mcp: FastMCP) -> None:
 
 
 @log_execution(tool_name="run_file")
+@track_metrics("run_file")
 def run_file(file_path: str, timeout: int = 30) -> str:
     """
     Identify the type of a file using the file command.
@@ -164,6 +165,7 @@ def run_radare2(
 
 
 @log_execution(tool_name="run_binwalk")
+@track_metrics("run_binwalk")
 def run_binwalk(
     file_path: str,
     depth: int = 8,
