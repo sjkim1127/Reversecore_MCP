@@ -18,6 +18,7 @@ from reversecore_mcp.core.error_formatting import format_error, get_validation_h
 from reversecore_mcp.core.exceptions import ValidationError
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
+from reversecore_mcp.core.result import Result, success, failure, result_to_string
 from reversecore_mcp.core.security import validate_file_path
 from reversecore_mcp.core.validators import validate_tool_parameters
 
@@ -36,6 +37,149 @@ def register_lib_tools(mcp: FastMCP) -> None:
     mcp.tool(parse_binary_with_lief)
 
 
+def _format_yara_match(match) -> Dict[str, Any]:
+    """
+    Format a YARA match result as a dictionary.
+    
+    This helper function extracts match information and formats it
+    consistently. Supports both modern and legacy yara-python APIs.
+    
+    Args:
+        match: YARA match object
+        
+    Returns:
+        Dictionary with formatted match information
+    """
+    formatted_strings = []
+    
+    # Check if match has strings attribute
+    match_strings = getattr(match, "strings", None)
+    if match_strings:
+        try:
+            # Try modern API first (more common case)
+            for sm in match_strings:
+                identifier = getattr(sm, "identifier", None)
+                instances = getattr(sm, "instances", None)
+                if instances:
+                    for inst in instances:
+                        offset = getattr(inst, "offset", None)
+                        matched_data = getattr(inst, "matched_data", None)
+                        # Convert matched_data to string
+                        if matched_data is not None:
+                            data_str = (matched_data.hex() 
+                                       if isinstance(matched_data, bytes) 
+                                       else str(matched_data))
+                        else:
+                            data_str = None
+                        formatted_strings.append({
+                            "identifier": identifier,
+                            "offset": int(offset) if offset is not None else None,
+                            "matched_data": data_str,
+                        })
+        except (AttributeError, TypeError):
+            # Fallback: older API may return tuples (offset, identifier, data)
+            formatted_strings = []
+            for t in match_strings:
+                if isinstance(t, (list, tuple)) and len(t) >= 3:
+                    off, ident, data = t[0], t[1], t[2]
+                    data_str = (data.hex() 
+                               if isinstance(data, bytes) 
+                               else str(data))
+                    formatted_strings.append({
+                        "identifier": ident,
+                        "offset": int(off) if off is not None else None,
+                        "matched_data": data_str,
+                    })
+    
+    return {
+        "rule": match.rule,
+        "namespace": match.namespace,
+        "tags": match.tags,
+        "meta": match.meta,
+        "strings": formatted_strings,
+    }
+
+
+def _run_yara_impl(
+    file_path: str,
+    rule_file: str,
+    timeout: int = 300,
+) -> Result:
+    """
+    Internal implementation of run_yara that returns Result type.
+    
+    Args:
+        file_path: Path to the file to scan
+        rule_file: Path to the YARA rule file
+        timeout: Maximum execution time in seconds (default: 300)
+    
+    Returns:
+        Result: Success with match data or Failure with error details
+    """
+    try:
+        # 1. Validate parameters and file paths
+        validate_tool_parameters("run_yara", {
+            "rule_file": rule_file,
+            "timeout": timeout
+        })
+        validated_file = validate_file_path(file_path)
+        validated_rule = validate_file_path(rule_file, read_only=True)
+        
+        # 2. Import YARA library
+        import yara
+        
+        # 3. Compile rules and scan
+        rules = yara.compile(filepath=validated_rule)
+        matches = rules.match(validated_file, timeout=timeout)
+        
+        # 4. Format results
+        if not matches:
+            return success({"matches": []})
+        
+        results = [_format_yara_match(m) for m in matches]
+        return success({
+            "matches": results,
+            "match_count": len(matches)
+        })
+        
+    except ImportError:
+        return failure(
+            "DEPENDENCY_MISSING",
+            "yara-python library is not installed",
+            hint="Install with: pip install yara-python"
+        )
+    except Exception as e:
+        # Handle yara-specific errors
+        error_type = type(e).__name__
+        if "yara" in error_type.lower():
+            if "timeout" in str(e).lower():
+                return failure(
+                    "TIMEOUT",
+                    f"YARA scan timed out after {timeout} seconds"
+                )
+            elif "error" in error_type.lower():
+                return failure(
+                    "YARA_ERROR",
+                    f"YARA error: {str(e)}"
+                )
+        
+        # Handle validation errors
+        if isinstance(e, ValidationError):
+            return failure(
+                "VALIDATION_ERROR",
+                str(e),
+                hint="Ensure files are in allowed directories"
+            )
+        
+        # Generic error
+        logger.exception("Unexpected error in run_yara")
+        return failure(
+            "INTERNAL_ERROR",
+            f"An unexpected error occurred: {str(e)}"
+        )
+
+
+@log_execution(tool_name="run_yara")
 @track_metrics("run_yara")
 def run_yara(
     file_path: str,
@@ -60,198 +204,8 @@ def run_yara(
     Raises:
         Returns error message string if execution fails (never raises exceptions)
     """
-    # Validate parameters
-    validate_tool_parameters("run_yara", {
-        "rule_file": rule_file,
-        "timeout": timeout
-    })
-    
-    start_time = time.time()
-    file_name = Path(file_path).name
-
-    logger.info(
-        "Starting run_yara",
-        extra={"tool_name": "run_yara", "file_name": file_name},
-    )
-
-    try:
-        # Validate file paths
-        # rule_file can be in read-only directories (e.g., /app/rules) or workspace
-        validated_file = validate_file_path(file_path)
-        validated_rule = validate_file_path(rule_file, read_only=True)
-
-        # Import yara (will raise ImportError if not installed)
-        try:
-            import yara
-        except ImportError:
-            execution_time = int((time.time() - start_time) * 1000)
-            logger.error(
-                "run_yara failed - yara-python not installed",
-                extra={
-                    "tool_name": "run_yara",
-                    "file_name": file_name,
-                    "execution_time_ms": execution_time,
-                },
-            )
-            return format_error(
-                Exception("yara-python library is not installed"),
-                tool_name="run_yara",
-                hint="Please install it with: pip install yara-python",
-            )
-
-        # Compile YARA rules
-        try:
-            rules = yara.compile(filepath=validated_rule)
-        except yara.Error as e:
-            execution_time = int((time.time() - start_time) * 1000)
-            logger.error(
-                "run_yara failed - rule compilation error",
-                extra={
-                    "tool_name": "run_yara",
-                    "file_name": file_name,
-                    "execution_time_ms": execution_time,
-                },
-                exc_info=True,
-            )
-            return format_error(e, tool_name="run_yara")
-
-        # Scan the file
-        try:
-            matches = rules.match(validated_file, timeout=timeout)
-        except yara.TimeoutError:
-            execution_time = int((time.time() - start_time) * 1000)
-            logger.warning(
-                "run_yara timed out",
-                extra={
-                    "tool_name": "run_yara",
-                    "file_name": file_name,
-                    "execution_time_ms": execution_time,
-                },
-            )
-            return format_error(
-                Exception(f"YARA scan timed out after {timeout} seconds"),
-                tool_name="run_yara",
-            )
-        except yara.Error as e:
-            execution_time = int((time.time() - start_time) * 1000)
-            logger.error(
-                "run_yara scan failed",
-                extra={
-                    "tool_name": "run_yara",
-                    "file_name": file_name,
-                    "execution_time_ms": execution_time,
-                },
-                exc_info=True,
-            )
-            return format_error(e, tool_name="run_yara")
-
-        # Format results
-        if not matches:
-            execution_time = int((time.time() - start_time) * 1000)
-            logger.info(
-                "run_yara completed - no matches",
-                extra={
-                    "tool_name": "run_yara",
-                    "file_name": file_name,
-                    "execution_time_ms": execution_time,
-                },
-            )
-            return "No YARA rule matches found."
-
-        # Pre-allocate results list with known size for better memory efficiency
-        results = []
-        for match in matches:
-            # Build strings list supporting yara-python API:
-            # match.strings is a list of StringMatch; each has .identifier and .instances
-            # Each instance has .offset and .matched_data
-            formatted_strings = []
-
-            # Check if match has strings attribute first to avoid multiple getattr calls
-            match_strings = getattr(match, "strings", None)
-            if match_strings:
-                try:
-                    # Try modern API first (more common case)
-                    for sm in match_strings:
-                        identifier = getattr(sm, "identifier", None)
-                        instances = getattr(sm, "instances", None)
-                        if instances:
-                            for inst in instances:
-                                offset = getattr(inst, "offset", None)
-                                matched_data = getattr(inst, "matched_data", None)
-                                # Optimize conditional by checking type once
-                                if matched_data is not None:
-                                    data_str = matched_data.hex() if isinstance(matched_data, bytes) else (matched_data if isinstance(matched_data, str) else None)
-                                else:
-                                    data_str = None
-                                formatted_strings.append(
-                                    {
-                                        "identifier": identifier,
-                                        "offset": int(offset) if offset is not None else None,
-                                        "matched_data": data_str,
-                                    }
-                                )
-                except (AttributeError, TypeError):
-                    # Fallback: older API may return tuples (offset, identifier, data)
-                    formatted_strings = []
-                    for t in match_strings:
-                        if isinstance(t, (list, tuple)) and len(t) >= 3:
-                            off, ident, data = t[0], t[1], t[2]
-                            data_str = data.hex() if isinstance(data, bytes) else (data if isinstance(data, str) else None)
-                            formatted_strings.append(
-                                {
-                                    "identifier": ident,
-                                    "offset": int(off) if off is not None else None,
-                                    "matched_data": data_str,
-                                }
-                            )
-
-            result = {
-                "rule": match.rule,
-                "namespace": match.namespace,
-                "tags": match.tags,
-                "meta": match.meta,
-                "strings": formatted_strings,
-            }
-            results.append(result)
-
-        execution_time = int((time.time() - start_time) * 1000)
-        logger.info(
-            "run_yara completed successfully",
-            extra={
-                "tool_name": "run_yara",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-                "match_count": len(matches),
-            },
-        )
-
-        return json.dumps(results, indent=2)
-
-    except (ValidationError, ValueError) as e:
-        execution_time = int((time.time() - start_time) * 1000)
-        hint = get_validation_hint(e) if isinstance(e, ValidationError) else get_validation_hint(ValueError(str(e)))
-        logger.warning(
-            "run_yara validation failed",
-            extra={
-                "tool_name": "run_yara",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-            },
-            exc_info=True,
-        )
-        return format_error(e, tool_name="run_yara", hint=hint)
-    except Exception as e:
-        execution_time = int((time.time() - start_time) * 1000)
-        logger.error(
-            "run_yara unexpected error",
-            extra={
-                "tool_name": "run_yara",
-                "file_name": file_name,
-                "execution_time_ms": execution_time,
-            },
-            exc_info=True,
-        )
-        return format_error(e, tool_name="run_yara")
+    result = _run_yara_impl(file_path, rule_file, timeout)
+    return result_to_string(result)
 
 
 @track_metrics("disassemble_with_capstone")
