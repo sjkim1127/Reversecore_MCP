@@ -1,10 +1,8 @@
-"""
-Additional unit tests for tools.lib_tools with mocks.
-"""
+"""Additional unit tests for tools.lib_tools with mocks."""
 
-import json
-import types
 import sys
+import types
+
 import pytest
 
 from reversecore_mcp.tools import lib_tools
@@ -36,7 +34,11 @@ def test_run_yara_formatter(monkeypatch, tmp_path):
     test_file.write_bytes(b"abc")
 
     # Bypass validation for both file and rule
-    monkeypatch.setattr(lib_tools, "validate_file_path", lambda p, read_only=False: str(test_file))
+    monkeypatch.setattr(
+        lib_tools,
+        "validate_file_path",
+        lambda p, read_only=False, config=None: test_file,
+    )
 
     # Fake yara module injected into sys.modules
     fake_yara = types.ModuleType("yara")
@@ -63,25 +65,34 @@ def test_run_yara_formatter(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "yara", fake_yara)
 
     out = lib_tools.run_yara(str(test_file), str(test_file))
-    # Should be JSON string with Result type structure
-    data = json.loads(out)
+    assert out.status == "success"
+    data = out.data
     assert isinstance(data, dict)
     assert "matches" in data
     assert isinstance(data["matches"], list)
     assert data["matches"][0]["rule"] == "r1"
     assert data["matches"][0]["strings"][0]["identifier"] == "$a"
     assert data["matches"][0]["strings"][0]["offset"] == 10
+    assert data["match_count"] == 1
 
 
 def test_disassemble_invalid_arch_mode(monkeypatch, tmp_path):
     test_file = tmp_path / "t.bin"
     test_file.write_bytes(b"\x90\x90\x90\x90")
-    monkeypatch.setattr(lib_tools, "validate_file_path", lambda p, read_only=False: str(test_file))
+    monkeypatch.setattr(
+        lib_tools,
+        "validate_file_path",
+        lambda p, read_only=False, config=None: test_file,
+    )
 
     # Invalid arch
     out1 = lib_tools.disassemble_with_capstone(str(test_file), arch="badarch", mode="64")
-    assert "Unsupported architecture" in out1
+    assert out1.status == "error"
+    assert out1.error_code == "INVALID_PARAMETER"
+    assert "unsupported architecture" in out1.message.lower()
 
     # Valid arch but invalid mode
     out2 = lib_tools.disassemble_with_capstone(str(test_file), arch="x86", mode="badmode")
-    assert "Unsupported mode" in out2
+    assert out2.status == "error"
+    assert out2.error_code == "INVALID_PARAMETER"
+    assert "unsupported mode" in out2.message.lower()

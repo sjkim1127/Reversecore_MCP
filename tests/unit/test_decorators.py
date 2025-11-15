@@ -4,8 +4,10 @@ Unit tests for core.decorators module.
 
 import pytest
 from unittest.mock import Mock, patch
+
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.exceptions import ValidationError, ToolNotFoundError
+from reversecore_mcp.core.result import ToolError
 
 
 class TestLogExecutionDecorator:
@@ -36,9 +38,10 @@ class TestLogExecutionDecorator:
         
         result = dummy_function("/tmp/test.bin")
         
-        assert "Error" in result
-        assert "Invalid path" in result
-        assert mock_logger.warning.called
+        assert isinstance(result, ToolError)
+        assert result.status == "error"
+        assert "Invalid path" in result.message
+        assert mock_logger.error.called
 
     @patch('reversecore_mcp.core.decorators.logger')
     def test_unexpected_error_handling(self, mock_logger):
@@ -49,8 +52,9 @@ class TestLogExecutionDecorator:
         
         result = dummy_function()
         
-        assert "Error" in result
-        assert "Unexpected error" in result
+        assert isinstance(result, ToolError)
+        assert result.status == "error"
+        assert "Unexpected error" in result.message
         assert mock_logger.error.called
 
     def test_function_metadata_preserved(self):
@@ -72,9 +76,10 @@ class TestLogExecutionDecorator:
         
         result = dummy_function()
         
-        assert "Error" in result
-        assert "Tool not found" in result
-        assert mock_logger.warning.called
+        assert isinstance(result, ToolError)
+        assert result.status == "error"
+        assert "Tool not found" in result.message
+        assert mock_logger.error.called
 
     @patch('reversecore_mcp.core.decorators.logger')
     def test_file_name_extraction_from_kwargs(self, mock_logger):

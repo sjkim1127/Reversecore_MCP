@@ -7,14 +7,23 @@ import pytest
 from reversecore_mcp.core.config import Config, get_config, reset_config
 
 
+def _provision_env(monkeypatch, tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    read_dir = tmp_path / "rules"
+    read_dir.mkdir()
+    monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace))
+    monkeypatch.setenv("REVERSECORE_READ_DIRS", str(read_dir))
+    return workspace, read_dir
+
+
 class TestConfigDefaults:
     """Verify default values and parsing behavior."""
 
-    def test_default_values(self, monkeypatch):
+    def test_default_values(self, monkeypatch, tmp_path):
         """Config.from_env should honor module defaults when env vars are unset."""
+        workspace, read_dir = _provision_env(monkeypatch, tmp_path)
         for key in (
-            "REVERSECORE_WORKSPACE",
-            "REVERSECORE_READ_DIRS",
             "LOG_LEVEL",
             "LOG_FILE",
             "LOG_FORMAT",
@@ -27,8 +36,8 @@ class TestConfigDefaults:
 
         config = reset_config()
 
-        assert config.workspace == Path("/app/workspace").resolve()
-        assert config.read_only_dirs == (Path("/app/rules").resolve(),)
+        assert config.workspace == workspace
+        assert config.read_only_dirs == (read_dir,)
         assert config.log_level == "INFO"
         assert config.log_file == Path("/tmp/reversecore/app.log")
         assert config.log_format == "human"
@@ -47,10 +56,7 @@ class TestConfigDefaults:
         read_dir_two.mkdir()
 
         monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace))
-        monkeypatch.setenv(
-            "REVERSECORE_READ_DIRS",
-            f" {read_dir_one} , {read_dir_two} ",
-        )
+        monkeypatch.setenv("REVERSECORE_READ_DIRS", f" {read_dir_one} , {read_dir_two} ")
         monkeypatch.setenv("LOG_LEVEL", "debug")
         monkeypatch.setenv("LOG_FILE", str(tmp_path / "app.log"))
         monkeypatch.setenv("LOG_FORMAT", "json")
@@ -78,9 +84,9 @@ class TestConfigDefaults:
 class TestConfigCaching:
     """Ensure get_config/reset_config manage the singleton correctly."""
 
-    def test_get_config_returns_cached_instance(self, monkeypatch):
+    def test_get_config_returns_cached_instance(self, monkeypatch, tmp_path):
         """Multiple calls to get_config should return the same object."""
-        monkeypatch.delenv("REVERSECORE_WORKSPACE", raising=False)
+        _provision_env(monkeypatch, tmp_path)
         reset_config()
         first = get_config()
         second = get_config()
@@ -92,12 +98,16 @@ class TestConfigCaching:
         workspace_two = tmp_path / "ws2"
         workspace_one.mkdir()
         workspace_two.mkdir()
+        read_dir = tmp_path / "rules"
+        read_dir.mkdir()
 
         monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace_one))
+        monkeypatch.setenv("REVERSECORE_READ_DIRS", str(read_dir))
         config_one = reset_config()
         assert config_one.workspace == workspace_one.resolve()
 
         monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace_two))
+        monkeypatch.setenv("REVERSECORE_READ_DIRS", str(read_dir))
         config_two = reset_config()
         assert config_two.workspace == workspace_two.resolve()
         # After reset, get_config should return the latest snapshot

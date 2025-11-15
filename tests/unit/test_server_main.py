@@ -46,6 +46,11 @@ def test_server_main_stdio(monkeypatch, tmp_path):
 
 
 def test_server_main_http(monkeypatch, tmp_path):
+    try:
+        import fastapi  # noqa: F401
+    except ImportError:
+        pytest.skip("fastapi not installed")
+
     # Set LOG_FILE to writable temp path BEFORE import
     monkeypatch.setenv("LOG_FILE", str(tmp_path / "app.log"))
     monkeypatch.setenv("MCP_TRANSPORT", "http")

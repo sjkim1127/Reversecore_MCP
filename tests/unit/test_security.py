@@ -64,7 +64,7 @@ class TestValidateFilePath:
         """Test that read-only directories are accessible when read_only=True."""
         # Create rules directory
         rules_dir = tmp_path / "rules"
-        rules_dir.mkdir()
+        rules_dir.mkdir(exist_ok=True)
         rule_file = rules_dir / "test.yar"
         rule_file.write_text("rule test { condition: true }")
 

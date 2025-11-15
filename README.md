@@ -482,8 +482,15 @@ The server exposes tools that can be called by AI agents via the MCP protocol. B
 ```
 
 **Response:**
-```
-PE32 executable (GUI) Intel 80386, for MS Windows
+```json
+{
+  "status": "success",
+  "data": "PE32 executable (GUI) Intel 80386, for MS Windows",
+  "metadata": {
+    "bytes_read": 128,
+    "tool": "run_file"
+  }
+}
 ```
 
 **Use Case**: Initial file identification during triage
@@ -504,14 +511,15 @@ PE32 executable (GUI) Intel 80386, for MS Windows
 ```
 
 **Response:**
-```
-Hello World
-GetProcAddress
-LoadLibraryA
-kernel32.dll
-http://malicious-domain.com/payload
-C:\Windows\System32\cmd.exe
-...
+```json
+{
+  "status": "success",
+  "data": "Hello World\nGetProcAddress\nLoadLibraryA\nkernel32.dll\nhttp://malicious-domain.com/payload\nC:\\Windows\\System32\\cmd.exe\n...",
+  "metadata": {
+    "bytes_read": 1048576,
+    "tool": "run_strings"
+  }
+}
 ```
 
 **Use Case**: Extract URLs, file paths, API names, debug strings for IOC extraction
@@ -532,16 +540,15 @@ C:\Windows\System32\cmd.exe
 ```
 
 **Response:**
-```
-            ;-- main:
-/ (fcn) sym.main 42
-|   sym.main ();
-|           0x00401000      55             push rbp
-|           0x00401001      4889e5         mov rbp, rsp
-|           0x00401004      4883ec20       sub rsp, 0x20
-|           0x00401008      488d0d...      lea rcx, str.Hello_World
-|           0x0040100f      e8...          call sym.imp.printf
-...
+```json
+{
+  "status": "success",
+  "data": "            ;-- main:\n/ (fcn) sym.main 42\n|   sym.main ();\n|           0x00401000      55             push rbp\n|           0x00401001      4889e5         mov rbp, rsp\n|           0x00401004      4883ec20       sub rsp, 0x20\n|           0x00401008      488d0d...      lea rcx, str.Hello_World\n|           0x0040100f      e8...          call sym.imp.printf\n...",
+  "metadata": {
+    "bytes_read": 4096,
+    "tool": "run_radare2"
+  }
+}
 ```
 
 **Use Case**: Analyze function behavior, control flow, identify malicious code patterns
@@ -569,26 +576,32 @@ C:\Windows\System32\cmd.exe
 
 **Response:**
 ```json
-[
-  {
-    "rule": "SuspiciousPE",
-    "namespace": "default",
-    "tags": ["malware", "trojan"],
-    "meta": {"author": "analyst", "description": "Detects suspicious PE behavior"},
-    "strings": [
+{
+  "status": "success",
+  "data": {
+    "matches": [
       {
-        "identifier": "$s1",
-        "offset": 1024,
-        "matched_data": "48656c6c6f20576f726c64"
-      },
-      {
-        "identifier": "$api1",
-        "offset": 2048,
-        "matched_data": "437265617465526d6f746554687265616445"
+        "rule": "SuspiciousPE",
+        "namespace": "default",
+        "tags": ["malware", "trojan"],
+        "meta": {"author": "analyst", "description": "Detects suspicious PE behavior"},
+        "strings": [
+          {
+            "identifier": "$s1",
+            "offset": 1024,
+            "matched_data": "48656c6c6f20576f726c64"
+          },
+          {
+            "identifier": "$api1",
+            "offset": 2048,
+            "matched_data": "437265617465526d6f746554687265616445"
+          }
+        ]
       }
-    ]
+    ],
+    "match_count": 1
   }
-]
+}
 ```
 
 **Use Case**: Automated malware family detection, compliance scanning, threat hunting
@@ -610,13 +623,14 @@ C:\Windows\System32\cmd.exe
 ```
 
 **Response:**
-```
-0x0:	push	rbp
-0x1:	mov	rbp, rsp
-0x4:	sub	rsp, 0x20
-0x8:	lea	rcx, [rip + 0x100]
-0xf:	call	0x200
-...
+```json
+{
+  "status": "success",
+  "data": "0x0:\tpush\trbp\n0x1:\tmov\trbp, rsp\n0x4:\tsub\trsp, 0x20\n0x8:\tlea\trcx, [rip + 0x100]\n0xf:\tcall\t0x200\n...",
+  "metadata": {
+    "instruction_count": 64
+  }
+}
 ```
 
 **Use Case**: Quick disassembly of specific code sections, shellcode analysis
@@ -643,35 +657,38 @@ C:\Windows\System32\cmd.exe
 **Response:**
 ```json
 {
-  "format": "PE",
-  "architecture": "x86-64",
-  "entrypoint": "0x1400",
-  "sections": [
-    {
-      "name": ".text",
-      "virtual_address": "0x1000",
-      "size": 16384,
-      "entropy": 6.42
-    },
-    {
-      "name": ".data",
-      "virtual_address": "0x5000",
-      "size": 4096,
-      "entropy": 3.21
+  "status": "success",
+  "data": {
+    "format": "PE",
+    "architecture": "x86-64",
+    "entrypoint": "0x1400",
+    "sections": [
+      {
+        "name": ".text",
+        "virtual_address": "0x1000",
+        "size": 16384,
+        "entropy": 6.42
+      },
+      {
+        "name": ".data",
+        "virtual_address": "0x5000",
+        "size": 4096,
+        "entropy": 3.21
+      }
+    ],
+    "imports": [
+      {
+        "library": "kernel32.dll",
+        "functions": ["CreateFileA", "ReadFile", "WriteFile"]
+      }
+    ],
+    "exports": [],
+    "security_features": {
+      "has_nx": true,
+      "has_aslr": true,
+      "has_pie": false,
+      "has_canary": true
     }
-  ],
-  "imports": [
-    {
-      "library": "kernel32.dll",
-      "functions": ["CreateFileA", "ReadFile", "WriteFile"]
-    }
-  ],
-  "exports": [],
-  "security_features": {
-    "has_nx": true,
-    "has_aslr": true,
-    "has_pie": false,
-    "has_canary": true
   }
 }
 ```
@@ -914,69 +931,52 @@ For security issues, please see our security policy or contact the maintainers d
 
 ## Error Handling
 
-### Result Type System (Internal)
+### ToolResult Contract (Public API)
 
-All tools internally use a Result type system for structured error handling, which provides:
-- Type-safe success/failure responses
-- Consistent error codes and messages
-- Optional hints for error resolution
-- Metadata for debugging
+Every MCP tool now returns a Pydantic `ToolResult` union consisting of:
 
-**Internal Result Structure:**
-```python
-# Success result
-{
-    "status": "success",
-    "data": "tool output...",  # Can be string or dict
-    "metadata": {
-        "bytes_read": 1024,
-        "execution_time": 1.5
-    }
-}
+- **`ToolSuccess`**: `{ "status": "success", "data": <string|dict>, "metadata": { ... } }`
+- **`ToolError`**: `{ "status": "error", "error_code": "...", "message": "...", "hint": "...", "details": { ... } }`
 
-# Failure result
-{
-    "status": "error",
-    "error_code": "TOOL_NOT_FOUND",
-    "message": "strings command not found",
-    "hint": "Install with: apt-get install binutils"
-}
-```
+The contract is intentionally small so AI agents can branch on `status` and inspect structured metadata without parsing natural-language strings.
 
-### Public API Response Format
-
-For backward compatibility, all tools return error messages as strings. Tools that return structured data (like YARA) will return JSON strings. Error messages include:
-- Tool not found errors
-- Timeout errors
-- Invalid input errors
-- Command execution failures
-
-Example error response:
-```
-Error: File not found
-Hint: Ensure the file exists in the workspace directory
-```
-
-Example YARA success response:
+**Success Example:**
 ```json
 {
-  "matches": [
-    {
-      "rule": "malware_rule",
-      "namespace": "default",
-      "tags": ["trojan"],
-      "strings": [
-        {
-          "identifier": "$suspicious_string",
-          "offset": 1234,
-          "matched_data": "48656c6c6f"
-        }
-      ]
-    }
-  ],
-  "match_count": 1
+  "status": "success",
+  "data": "ELF 64-bit LSB executable, x86-64, dynamically linked, not stripped",
+  "metadata": {
+    "bytes_read": 512,
+    "tool": "run_file",
+    "execution_time": 0.12
+  }
 }
 ```
+
+**Error Example:**
+```json
+{
+  "status": "error",
+  "error_code": "VALIDATION_ERROR",
+  "message": "File path is outside allowed directories: /tmp/payload.bin",
+  "hint": "Place samples under REVERSECORE_WORKSPACE or add a read-only path via REVERSECORE_READ_DIRS",
+  "details": {
+    "allowed_directories": ["/app/workspace"],
+    "path": "/tmp/payload.bin"
+  }
+}
+```
+
+### Standard Error Codes
+
+- `VALIDATION_ERROR` – File paths or parameters failed validation
+- `TOOL_NOT_FOUND` – Required CLI binary (file/strings/binwalk) is missing on host
+- `TIMEOUT` – Tool exceeded the configured execution deadline
+- `OUTPUT_LIMIT` – Streaming output exceeded the configured `max_output_size`
+- `DEPENDENCY_MISSING` – Python dependency such as `yara` or `capstone` isn’t installed
+- `INTERNAL_ERROR` – Unexpected failure surfaced through the `handle_tool_errors` decorator
+
+Clients should always branch on `status`, inspect `error_code`, and surface `hint`/`details` verbatim so users know how to remediate issues quickly.
 
 ## Development
 
@@ -993,35 +993,31 @@ Example YARA success response:
    - `reversecore_mcp/tools/cli_tools.py` for CLI tools
    - `reversecore_mcp/tools/lib_tools.py` for library-based tools
 
-2. **Follow the pattern**:
+2. **Follow the ToolResult pattern**:
 ```python
+from reversecore_mcp.core.decorators import log_execution
+from reversecore_mcp.core.error_handling import handle_tool_errors
+from reversecore_mcp.core.metrics import track_metrics
+from reversecore_mcp.core.result import ToolResult, success
+
+
 @log_execution(tool_name="my_tool")
-def my_tool(file_path: str, param: str, timeout: int = 300) -> str:
-    """
-    Tool description for MCP clients.
-    
-    Args:
-        file_path: Path to file to analyze
-        param: Tool-specific parameter
-        timeout: Maximum execution time in seconds
-        
-    Returns:
-        Tool output as string
-    """
-    try:
-        # Validate inputs
-        validate_file_path(file_path)
-        
-        # Execute tool
-        result = execute_subprocess_streaming(
-            ["tool", "arg1", file_path],
-            timeout=timeout
-        )
-        
-        return result
-    except Exception as e:
-        return format_error(e, "my_tool")
+@track_metrics("my_tool")
+@handle_tool_errors
+def my_tool(file_path: str, param: str, timeout: int = 300) -> ToolResult:
+  """Tool description for MCP clients."""
+
+  validated = validate_file_path(file_path)
+
+  output, bytes_read = execute_subprocess_streaming(
+    ["tool", "--flag", param, str(validated)],
+    timeout=timeout,
+  )
+
+  return success(output, bytes_read=bytes_read)
 ```
+
+`log_execution` adds structured logging, `track_metrics` records latency/error metrics, and `handle_tool_errors` converts raised exceptions into `ToolError` responses automatically.
 
 3. **Register the tool** in the module's registration function:
 ```python

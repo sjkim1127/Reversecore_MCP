@@ -78,6 +78,9 @@ class Config:
             mcp_transport=mcp_transport,
         )
 
+        config.validate_paths()
+        return config
+
     def validate_paths(self) -> None:
         """Validate that configured directories exist and are directories."""
         if not self.workspace.exists():
@@ -115,3 +118,8 @@ def reset_config() -> Config:
         # Security module may not be initialized yet (e.g., during partial imports)
         pass
     return _CONFIG
+
+
+def reload_settings() -> Config:
+    """Backward-compatible alias for legacy test helpers."""
+    return reset_config()

@@ -1,9 +1,4 @@
-"""
-Integration tests for library tools.
-"""
-
-import os
-from pathlib import Path
+"""Integration tests for library tools."""
 
 import pytest
 
@@ -13,102 +8,90 @@ from reversecore_mcp.tools import lib_tools
 class TestRunYara:
     """Integration tests for run_yara tool."""
 
-    def test_run_yara_success(self, workspace_dir, tmp_path, monkeypatch):
+    def test_run_yara_success(self, workspace_dir, read_only_dir, patched_workspace_config):
         """Test successful YARA scan."""
-        monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace_dir))
-        
+
         # Create test file
         test_file = workspace_dir / "test.txt"
         test_file.write_text("This is a test file with some content")
-        
-        # Create YARA rule
-        rules_dir = tmp_path / "rules"
-        rules_dir.mkdir()
-        rule_file = rules_dir / "test.yar"
-        rule_file.write_text('rule test { strings: $a = "test" condition: $a }')
-        
-        monkeypatch.setenv("REVERSECORE_READ_DIRS", str(rules_dir))
-        
-        try:
-            import yara
-        except ImportError:
-            pytest.skip("yara-python not installed")
-        
-        result = lib_tools.run_yara(str(test_file), str(rule_file))
-        assert "test" in result.lower() or "no match" in result.lower()
 
-    def test_run_yara_nonexistent_file(self, workspace_dir, tmp_path, monkeypatch):
-        """Test YARA scan on nonexistent file."""
-        monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace_dir))
-        
-        rules_dir = tmp_path / "rules"
-        rules_dir.mkdir()
-        rule_file = rules_dir / "test.yar"
-        rule_file.write_text('rule test { condition: true }')
-        
-        monkeypatch.setenv("REVERSECORE_READ_DIRS", str(rules_dir))
-        
+        # Create YARA rule inside allowed read-only directory
+        rule_file = read_only_dir / "test.yar"
+        rule_file.write_text('rule test { strings: $a = "test" condition: $a }')
+
         try:
             import yara
         except ImportError:
             pytest.skip("yara-python not installed")
-        
+
+        result = lib_tools.run_yara(str(test_file), str(rule_file))
+        assert result.status == "success"
+        assert isinstance(result.data, dict)
+        assert "match_count" in result.data
+
+    def test_run_yara_nonexistent_file(self, workspace_dir, read_only_dir, patched_workspace_config):
+        """Test YARA scan on nonexistent file."""
+
+        rule_file = read_only_dir / "test.yar"
+        rule_file.write_text('rule test { condition: true }')
+
+        try:
+            import yara
+        except ImportError:
+            pytest.skip("yara-python not installed")
+
         result = lib_tools.run_yara(
             str(workspace_dir / "nonexistent.txt"), str(rule_file)
         )
-        assert "Error" in result
+        assert result.status == "error"
+        assert result.error_code == "VALIDATION_ERROR"
 
 
 class TestDisassembleWithCapstone:
     """Integration tests for disassemble_with_capstone tool."""
 
-    def test_disassemble_x86_64(self, workspace_dir, sample_binary_path, monkeypatch):
+    def test_disassemble_x86_64(self, sample_binary_path, patched_workspace_config):
         """Test disassembly with x86-64 architecture."""
-        monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace_dir))
-        
+
         try:
             from capstone import Cs
         except ImportError:
             pytest.skip("capstone not installed")
-        
+
         result = lib_tools.disassemble_with_capstone(
             sample_binary_path, offset=0, size=16, arch="x86", mode="64"
         )
-        assert isinstance(result, str)
+        assert result.status == "success"
+        assert isinstance(result.data, str)
+        assert result.metadata and result.metadata.get("instruction_count") is not None
 
-    def test_disassemble_invalid_arch(self, workspace_dir, sample_binary_path, monkeypatch):
+    def test_disassemble_invalid_arch(self, sample_binary_path, patched_workspace_config):
         """Test disassembly with invalid architecture."""
-        monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace_dir))
-        # Reload settings to pick up new environment variable
-        from reversecore_mcp.core.config import reload_settings
-        reload_settings()
-        
+
         try:
             from capstone import Cs
         except ImportError:
             pytest.skip("capstone not installed")
-        
+
         result = lib_tools.disassemble_with_capstone(
             sample_binary_path, arch="invalid_arch", mode="64"
         )
-        assert "Error" in result
-        assert "Unsupported architecture" in result
+        assert result.status == "error"
+        assert result.error_code == "INVALID_PARAMETER"
+        assert "unsupported architecture" in result.message.lower()
 
-    def test_disassemble_invalid_mode(self, workspace_dir, sample_binary_path, monkeypatch):
+    def test_disassemble_invalid_mode(self, sample_binary_path, patched_workspace_config):
         """Test disassembly with invalid mode."""
-        monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace_dir))
-        # Reload settings to pick up new environment variable
-        from reversecore_mcp.core.config import reload_settings
-        reload_settings()
-        
+
         try:
             from capstone import Cs
         except ImportError:
             pytest.skip("capstone not installed")
-        
+
         result = lib_tools.disassemble_with_capstone(
             sample_binary_path, arch="x86", mode="invalid_mode"
         )
-        assert "Error" in result
-        assert "Unsupported mode" in result
+        assert result.status == "error"
+        assert result.error_code == "INVALID_PARAMETER"
+        assert "unsupported mode" in result.message.lower()
 

@@ -5,6 +5,7 @@ These tests ensure that optimizations don't introduce regressions
 and provide baseline measurements for key operations.
 """
 
+import sys
 import time
 from pathlib import Path
 from unittest.mock import MagicMock, Mock
@@ -41,7 +42,9 @@ def test_yara_result_processing_with_many_matches():
     mock_matches = [mock_match] * 5  # 5 matches = 2500 total instances
 
     with patch("reversecore_mcp.tools.lib_tools.validate_file_path") as mock_validate:
-        mock_validate.return_value = "/tmp/test.bin"
+        mock_validate.side_effect = (
+            lambda path, read_only=False, config=None: Path(path)
+        )
 
         # Import and mock yara within the function scope
         import sys
@@ -58,43 +61,30 @@ def test_yara_result_processing_with_many_matches():
 
             # Should complete in under 1 second even with 2500 instances
             assert elapsed < 1.0, f"YARA processing took too long: {elapsed}s"
-            assert "TestRule" in result
+            assert result.status == "success"
+            assert result.data["match_count"] == len(mock_matches)
+            assert result.data["matches"][0]["rule"] == "TestRule"
         finally:
             # Clean up mock
             if 'yara' in sys.modules:
                 del sys.modules['yara']
 
 
-def test_file_path_validation_string_conversion_optimization():
+def test_file_path_validation_string_conversion_optimization(workspace_config):
     """Test that file path validation optimizes string conversions."""
     from reversecore_mcp.core.security import validate_file_path
-    from unittest.mock import patch
 
-    # Create a temporary test file
-    import tempfile
-    with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
-        test_file = f.name
-        f.write("test")
+    test_file = workspace_config.workspace / "perf_test.bin"
+    test_file.write_text("test")
 
-    try:
-        # Mock the workspace to allow our temp file
-        with patch("reversecore_mcp.core.security._get_allowed_workspace") as mock_workspace:
-            with patch("reversecore_mcp.core.security._get_allowed_read_dirs") as mock_read_dirs:
-                mock_workspace.return_value = Path("/tmp")
-                mock_read_dirs.return_value = []
+    start_time = time.time()
+    for _ in range(100):
+        result = validate_file_path(str(test_file), config=workspace_config)
+    elapsed = time.time() - start_time
 
-                # Test that multiple validations of the same path are efficient
-                start_time = time.time()
-                for _ in range(100):
-                    result = validate_file_path(test_file)
-                elapsed = time.time() - start_time
-
-                # Should complete 100 validations in under 0.1 seconds
-                assert elapsed < 0.1, f"File validation took too long: {elapsed}s"
-                assert result == str(Path(test_file).resolve())
-    finally:
-        # Clean up
-        Path(test_file).unlink()
+    # Should complete 100 validations in under 0.1 seconds
+    assert elapsed < 0.1, f"File validation took too long: {elapsed}s"
+    assert result == test_file.resolve()
 
 
 def test_lief_output_formatting_no_redundant_slicing():
@@ -148,9 +138,9 @@ def test_subprocess_polling_adaptive_backoff():
     # Test a command that completes quickly
     start_time = time.time()
     output, bytes_read = execute_subprocess_streaming(
-        ["echo", "test"],
+        [sys.executable, "-c", "print('test')"],
         max_output_size=1000,
-        timeout=5
+        timeout=5,
     )
     elapsed = time.time() - start_time
 
@@ -161,9 +151,9 @@ def test_subprocess_polling_adaptive_backoff():
     # Test that timeout works
     with pytest.raises(ExecutionTimeoutError) as exc_info:
         execute_subprocess_streaming(
-            ["sleep", "10"],
+            [sys.executable, "-c", "import time; time.sleep(10)"],
             max_output_size=1000,
-            timeout=1
+            timeout=1,
         )
     assert "timed out" in str(exc_info.value).lower()
 

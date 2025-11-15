@@ -33,6 +33,7 @@ def test_metrics_collector_tracks_tools():
 def test_track_metrics_decorator():
     """Test that @track_metrics decorator records metrics."""
     from reversecore_mcp.core.metrics import track_metrics, metrics_collector
+    from reversecore_mcp.core.result import failure, success
     
     # Reset metrics
     metrics_collector.reset()
@@ -41,8 +42,8 @@ def test_track_metrics_decorator():
     @track_metrics("test_decorated_tool")
     def test_func(should_error=False):
         if should_error:
-            return "Error: Something went wrong"
-        return "Success"
+            return failure("INTERNAL_ERROR", "boom")
+        return success("ok")
     
     # Call the function
     test_func()
