@@ -10,6 +10,7 @@
 # Build Stage: Install dependencies that require compilation
 # ============================================================================
 FROM python:3.11-slim-bookworm AS builder
+ARG YARA_VERSION=4.3.2
 
 # Set working directory
 WORKDIR /app
@@ -20,10 +21,27 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     make \
-    # YARA development libraries needed to compile yara-python
-    # Version: 4.2.3-4 (Debian 12 Bookworm)
-    libyara-dev=4.2.3-4 \
+    automake \
+    autoconf \
+    libtool \
+    pkg-config \
+    flex \
+    bison \
+    libssl-dev \
+    curl \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# Build and install native YARA matching the pinned Python binding (4.3.2)
+RUN curl -sSL "https://github.com/VirusTotal/yara/archive/refs/tags/v${YARA_VERSION}.tar.gz" -o /tmp/yara.tar.gz \
+    && tar -xzf /tmp/yara.tar.gz -C /tmp \
+    && cd /tmp/yara-${YARA_VERSION} \
+    && ./bootstrap.sh \
+    && ./configure --disable-cuckoo --disable-magic --disable-dotnet \
+    && make -j"$(nproc)" \
+    && make install \
+    && ldconfig \
+    && rm -rf /tmp/yara*
 
 # Copy requirements file
 COPY requirements.txt .
@@ -53,12 +71,6 @@ RUN mkdir -p /app/workspace /app/rules
 # For production use, consider installing from backports or building from source.
 # For now, we install other runtime dependencies.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    # YARA pattern matching tool (runtime, not dev libraries)
-    # Version: 4.2.3-4 (Debian 12 Bookworm)
-    yara=4.2.3-4 \
-    # libyara runtime library (required by yara-python at runtime)
-    # Version: 4.2.3-4 (Debian 12 Bookworm)
-    libyara9=4.2.3-4 \
     # Binutils for strings command
     # Version: 2.40-2 (Debian 12 Bookworm)
     binutils=2.40-2 \
@@ -67,6 +79,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     binwalk=2.3.4+dfsg1-1 \
     # Cleanup
     && rm -rf /var/lib/apt/lists/*
+
+# Copy YARA 4.3.2 toolchain built in the builder stage so native libs match python bindings
+RUN mkdir -p /usr/local/include /usr/local/lib/pkgconfig
+COPY --from=builder /usr/local/bin/yara /usr/local/bin/yara
+COPY --from=builder /usr/local/bin/yarac /usr/local/bin/yarac
+COPY --from=builder /usr/local/lib/libyara* /usr/local/lib/
+COPY --from=builder /usr/local/include/yara /usr/local/include/yara
+COPY --from=builder /usr/local/lib/pkgconfig/yara.pc /usr/local/lib/pkgconfig/yara.pc
+RUN ldconfig
 
 # Optional: Install radare2 from pip (r2pipe already provides Python bindings)
 # The r2pipe Python package can work standalone for many operations
