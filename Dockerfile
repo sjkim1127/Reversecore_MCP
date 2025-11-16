@@ -67,16 +67,22 @@ RUN mkdir -p /app/workspace /app/rules
 # Versions are pinned to ensure consistent behavior across builds
 # To check available versions: apt-cache madison <package-name>
 #
-# Note: radare2 is not in Debian 12 Bookworm main repository.
-# For production use, consider installing from backports or building from source.
-# For now, we install other runtime dependencies.
+# Note: radare2 packages are available via Debian repositories but are
+# updated frequently, so we do not pin an exact version.
+# For stricter reproducibility, consider mirroring the package or building
+# from source in the builder stage.
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    # coreutils "file" command required by run_file tool
+    # Version: 1:5.44-3 (Debian 12 Bookworm)
+    file=1:5.44-3 \
     # Binutils for strings command
     # Version: 2.40-2 (Debian 12 Bookworm)
     binutils=2.40-2 \
     # Binwalk for firmware analysis and file carving
     # Version: 2.3.4+dfsg1-1 (Debian 12 Bookworm)
     binwalk=2.3.4+dfsg1-1 \
+    # radare2 CLI required for advanced disassembly workflows
+    radare2 \
     # Cleanup
     && rm -rf /var/lib/apt/lists/*
 

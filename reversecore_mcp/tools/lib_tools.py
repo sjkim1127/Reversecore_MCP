@@ -287,22 +287,32 @@ def _extract_symbols(binary: Any) -> Dict[str, Any]:
 
     # PE-specific imports/exports
     if hasattr(binary, "imports") and binary.imports:
-        symbols["imports"] = [
-            {
-                "name": imp.name,
-                "functions": [str(f) for f in imp.entries[:20]],
-            }
-            for imp in binary.imports[:20]
-        ]
+        imports_iterable = list(binary.imports)
+        formatted_imports: List[Dict[str, Any]] = []
+        for imp in imports_iterable[:20]:
+            entries = getattr(imp, "entries", [])
+            entry_list = list(entries) if entries else []
+            formatted_imports.append(
+                {
+                    "name": getattr(imp, "name", "unknown"),
+                    "functions": [str(f) for f in entry_list[:20]],
+                }
+            )
+        if formatted_imports:
+            symbols["imports"] = formatted_imports
 
     if hasattr(binary, "exports") and binary.exports:
-        symbols["exports"] = [
-            {
-                "name": exp.name,
-                "address": hex(exp.address) if hasattr(exp, "address") else None,
-            }
-            for exp in binary.exports[:100]
-        ]
+        exports_iterable = list(binary.exports)
+        formatted_exports: List[Dict[str, Any]] = []
+        for exp in exports_iterable[:100]:
+            formatted_exports.append(
+                {
+                    "name": getattr(exp, "name", "unknown"),
+                    "address": hex(exp.address) if hasattr(exp, "address") else None,
+                }
+            )
+        if formatted_exports:
+            symbols["exports"] = formatted_exports
 
     return symbols
 
