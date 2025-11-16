@@ -13,7 +13,7 @@ An enterprise-grade MCP (Model Context Protocol) server that empowers AI agents 
 - **⚡ High Performance**: Streaming output for large files, configurable limits, adaptive polling
 - **🛠️ Comprehensive Toolset**: Radare2, strings, binwalk, YARA, Capstone, LIEF support
 - **🐳 Docker Ready**: Pre-configured containerized deployment with all dependencies
-- **🔌 MCP Compatible**: Works with Cursor AI, Claude Desktop, and other MCP clients
+- **🔌 MCP Compatible**: Works with Cursor AI and other MCP clients
 - **📊 Production Ready**: Extensive error handling, logging, rate limiting, and monitoring
 
 ## 📑 Table of Contents
@@ -32,7 +32,6 @@ An enterprise-grade MCP (Model Context Protocol) server that empowers AI agents 
   - [Local Installation](#local-installation)
 - [MCP Client Integration](#mcp-client-integration)
   - [Cursor AI Setup](#cursor-ai-setup-http-standard-connection)
-  - [Claude Desktop Setup](#claude-desktop-setup)
   - [Other MCP Clients](#other-mcp-clients)
 - [Usage](#usage)
   - [Project Goal](#project-goal)
@@ -275,7 +274,9 @@ docker run -it \
 
 ## MCP Client Integration
 
-Reversecore_MCP works with MCP-compatible clients. This guide focuses on Cursor AI and Claude Desktop, which are the most commonly used.
+> ⚠️ **Note on Claude Desktop**: Using Reversecore_MCP with Claude Desktop is **not recommended**. Claude Desktop has limitations with stdio transport, inconsistent process lifecycle management, and lacks proper workspace isolation features required for secure reverse engineering workflows. We strongly recommend using **Cursor AI** or other MCP clients that support HTTP transport with proper containerization.
+
+Reversecore_MCP works with MCP-compatible clients. This guide focuses on Cursor AI, which is the recommended client for this server.
 
 ### Cursor AI setup (HTTP standard connection)
 
@@ -339,92 +340,17 @@ You can register the server using `command`/`args` so that Cursor starts it for 
 }
 ```
 
-### Claude Desktop setup
-
-To set up Claude Desktop to use Reversecore_MCP, configure the MCP server in your Claude Desktop settings.
-
-#### Setup steps
-
-1) Run the Reversecore_MCP server in HTTP mode (same as “Run the server” above for Cursor).
-
-2) In Claude Desktop → Settings → MCP Servers (or Developer), add a new server and set the URL to `http://127.0.0.1:8000/mcp`.
-
-If you prefer to edit the settings file manually, use a configuration like the following:
-
-**HTTP Transport (standard):**
-
-```json
-{
-  "mcpServers": {
-    "reversecore": {
-      "url": "http://127.0.0.1:8000/mcp"
-    }
-  }
-}
-```
-
-Menu names and paths may vary slightly by Claude Desktop version. If there’s no UI to add an MCP server, edit the settings file directly.
-
-#### Configuration File Location
-
-Alternatively, you can directly edit the configuration file at:
-
-**macOS:**
-```
-/Users/YOUR_USER/Library/Application Support/Claude/claude_desktop_config.json
-```
-
-**Windows:**
-```
-%APPDATA%\Claude\claude_desktop_config.json
-```
-
-**Linux:**
-```
-~/.config/Claude/claude_desktop_config.json
-```
-
-#### Important Notes
-
-- Ensure Docker is installed and the `reversecore-mcp` image is built (`docker build -t reversecore-mcp .`).
-- In HTTP mode, the server must be running before the client connects.
-- Security: Analysis files must be located inside the workspace (`/app/workspace`); files outside this directory are inaccessible.
-- Read-only YARA rules can be placed under `/app/rules`, or add extra read paths via the `REVERSECORE_READ_DIRS` environment variable.
-
-#### Verification
-
-After configuration:
-
-1. Restart Claude Desktop completely
-2. Look for the MCP server connection indicator in Claude Desktop (typically shown in the settings or as a connection status icon)
-3. You should see "reversecore" listed as an available tool server
-4. Test with a simple query: "What tools do you have available for reverse engineering?"
-5. Try analyzing a file: "Can you identify the file type of sample.exe in my workspace?"
-
-#### Troubleshooting
-
-**Issue:** Claude Desktop shows "Connection failed" or cannot connect to the MCP server
-
-- Verify Docker is running: `docker ps`
-- Check that the image exists: `docker images | grep reversecore-mcp`
-- If the image doesn't exist, build it: `docker build -t reversecore-mcp .`
-- Review Docker logs: `docker logs reversecore-mcp` (if using HTTP mode with named container)
-- Verify the absolute path in the configuration is correct and accessible
-
-**Issue:** "File not found" errors when trying to analyze files
-
-- Ensure files are in the mounted workspace directory on your host system
-- Check the path mapping in the Docker command: `/host/path:/app/workspace`
-- Verify the file path uses the container path (`/app/workspace/filename`) not the host path
-- Confirm the `REVERSECORE_WORKSPACE` environment variable matches the mounted directory
-
-**Issue:** Permission denied errors
-
-- Ensure Docker has permission to access the mounted directory
-- On Linux/macOS, check directory permissions: `ls -la /path/to/your/samples`
-- On Windows, ensure the path is accessible to Docker Desktop
-
 ### Other MCP Clients
+
+> ⚠️ **Note on Claude Desktop**: Using Reversecore_MCP with Claude Desktop is **not recommended**. Claude Desktop has limitations with stdio transport, inconsistent process lifecycle management, and lacks proper workspace isolation features required for secure reverse engineering workflows. We strongly recommend using **Cursor AI** or other MCP clients that support HTTP transport with proper containerization.
+
+Reversecore_MCP follows the standard MCP protocol and should work with any MCP-compatible client. Configure the client to connect to:
+
+- HTTP mode (standard): start the server in HTTP mode and point the client to \http://127.0.0.1:8000/mcp\ (or your configured host/port)
+- Stdio mode: provided for local development convenience. Start with \MCP_TRANSPORT=stdio\ and use a client that supports stdio transport
+
+For clients that support MCP over HTTP, ensure the Reversecore_MCP server is running in HTTP mode and accessible at the configured endpoint.
+
 
 Reversecore_MCP follows the standard MCP protocol and should work with any MCP-compatible client. Configure the client to connect to:
 
