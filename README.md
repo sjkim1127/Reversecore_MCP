@@ -31,7 +31,7 @@ An enterprise-grade MCP (Model Context Protocol) server that empowers AI agents 
   - [Using Docker (Recommended)](#using-docker-recommended)
   - [Local Installation](#local-installation)
 - [MCP Client Integration](#mcp-client-integration)
-  - [Cursor AI Setup](#cursor-ai-setup-http-standard-connection)
+  - [Cursor AI Setup](#cursor-ai-setup-stdio-standard-connection)
   - [Other MCP Clients](#other-mcp-clients)
 - [Usage](#usage)
   - [Project Goal](#project-goal)
@@ -218,9 +218,20 @@ docker build -t reversecore-mcp .
 
 #### Run the Server
 
-Reversecore_MCP supports two transport modes, but starting with v1.1 the documentation “standard” is HTTP mode. The standard HTTP endpoint is `http://127.0.0.1:8000/mcp`.
+Reversecore_MCP supports two transport modes. **Stdio mode is now the standard.**
 
-**HTTP Mode (Standard/Recommended):**
+**Stdio Mode (Standard/Recommended):**
+
+```bash
+# Run with stdio transport (for local AI clients like Cursor)
+docker run -it \
+  -v ./my_samples:/app/workspace \
+  -e REVERSECORE_WORKSPACE=/app/workspace \
+  -e MCP_TRANSPORT=stdio \
+  reversecore-mcp
+```
+
+**HTTP Mode (Alternative):**
 
 ```bash
 # Run with HTTP transport on port 8000
@@ -231,17 +242,6 @@ docker run -d \
   -e REVERSECORE_WORKSPACE=/app/workspace \
   -e MCP_TRANSPORT=http \
   --name reversecore-mcp \
-  reversecore-mcp
-```
-
-**Stdio Mode (for local development):**
-
-```bash
-# Run with stdio transport (for local AI clients like Cursor)
-docker run -it \
-  -v ./my_samples:/app/workspace \
-  -e REVERSECORE_WORKSPACE=/app/workspace \
-  -e MCP_TRANSPORT=stdio \
   reversecore-mcp
 ```
 
@@ -265,11 +265,11 @@ docker run -it \
 
 3. Run the server:
    ```bash
-   # HTTP mode (Standard)
-   MCP_TRANSPORT=http python server.py
-
-   # (Optional) Stdio mode
+   # Stdio mode (Standard)
    MCP_TRANSPORT=stdio python server.py
+
+   # (Optional) HTTP mode
+   MCP_TRANSPORT=http python server.py
    ```
 
 ## MCP Client Integration
@@ -278,12 +278,43 @@ docker run -it \
 
 Reversecore_MCP works with MCP-compatible clients. This guide focuses on Cursor AI, which is the recommended client for this server.
 
-### Cursor AI setup (HTTP standard connection)
+### Cursor AI setup (stdio standard connection)
 
-#### 1) Run the server
+#### 1) Add the MCP server in Cursor
 
-First, run the Reversecore_MCP server in HTTP mode.
+- Cursor → Settings → Cursor Settings → MCP → Add new global MCP server
+- Add the following to `~/.cursor/mcp.json` (Windows: `C:\Users\<USER>\.cursor\mcp.json`).
 
+```json
+{
+  "mcpServers": {
+    "reversecore": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "-v", "E:/Reversecore_Workspace:/app/workspace",
+        "-e", "REVERSECORE_WORKSPACE=/app/workspace",
+        "-e", "MCP_TRANSPORT=stdio",
+        "reversecore-mcp"
+      ]
+    }
+  }
+}
+```
+
+To add it per-project instead, create a `.cursor/mcp.json` file in your project root with the same contents.
+
+#### 2) Verify
+
+- From the Cursor command palette or MCP panel, run "List available tools for server reversecore"
+- If you see the tools listed (e.g., "Found N tools ..."), the connection is working
+
+
+#### (Optional) HTTP mode connection
+
+If you prefer to use HTTP mode instead, you can run the server manually and configure Cursor to connect to it:
+
+1. Run the server:
 ```bash
 docker run -d \
   -p 8000:8000 \
@@ -294,13 +325,7 @@ docker run -d \
   reversecore-mcp
 ```
 
-If the server is running correctly, you should be able to open `http://127.0.0.1:8000/docs` in your browser.
-
-#### 2) Add the MCP server in Cursor
-
-- Cursor → Settings → Cursor Settings → MCP → Add new global MCP server
-- Add the following to `~/.cursor/mcp.json` (Windows: `C:\Users\<USER>\.cursor\mcp.json`).
-
+2. Configure Cursor:
 ```json
 {
   "mcpServers": {
@@ -311,34 +336,8 @@ If the server is running correctly, you should be able to open `http://127.0.0.1
 }
 ```
 
-To add it per-project instead, create a `.cursor/mcp.json` file in your project root with the same contents.
+If the server is running correctly, you should be able to open `http://127.0.0.1:8000/docs` in your browser.
 
-#### 3) Verify
-
-- From the Cursor command palette or MCP panel, run “List available tools for server reversecore”
-- If you see the tools listed (e.g., “Found N tools ...”), the connection is working
-
-#### (Optional) Let Cursor manage a container/remote without running the server yourself
-
-You can register the server using `command`/`args` so that Cursor starts it for you.
-
-```json
-{
-  "mcpServers": {
-    "reversecore": {
-      "command": "docker",
-      "args": [
-        "run", "-i", "--rm",
-        "-p", "8000:8000",
-        "-v", "E:/Reversecore_Workspace:/app/workspace",
-        "-e", "REVERSECORE_WORKSPACE=/app/workspace",
-        "-e", "MCP_TRANSPORT=http",
-        "reversecore-mcp"
-      ]
-    }
-  }
-}
-```
 
 ### Other MCP Clients
 
@@ -346,18 +345,10 @@ You can register the server using `command`/`args` so that Cursor starts it for 
 
 Reversecore_MCP follows the standard MCP protocol and should work with any MCP-compatible client. Configure the client to connect to:
 
-- HTTP mode (standard): start the server in HTTP mode and point the client to \http://127.0.0.1:8000/mcp\ (or your configured host/port)
-- Stdio mode: provided for local development convenience. Start with \MCP_TRANSPORT=stdio\ and use a client that supports stdio transport
+- **Stdio mode (standard)**: Use `MCP_TRANSPORT=stdio` and configure your client to launch the server as a subprocess. This is the recommended mode for most use cases.
+- **HTTP mode (alternative)**: Start the server in HTTP mode with `MCP_TRANSPORT=http` and point the client to `http://127.0.0.1:8000/mcp` (or your configured host/port). This mode is useful for remote access or when stdio is not supported.
 
-For clients that support MCP over HTTP, ensure the Reversecore_MCP server is running in HTTP mode and accessible at the configured endpoint.
-
-
-Reversecore_MCP follows the standard MCP protocol and should work with any MCP-compatible client. Configure the client to connect to:
-
-- HTTP mode (standard): start the server in HTTP mode and point the client to `http://127.0.0.1:8000/mcp` (or your configured host/port)
-- Stdio mode: provided for local development convenience. Start with `MCP_TRANSPORT=stdio` and use a client that supports stdio transport
-
-For clients that support MCP over HTTP, ensure the Reversecore_MCP server is running in HTTP mode and accessible at the configured endpoint.
+For clients that support MCP over stdio (like Cursor AI), use the stdio mode for better integration. For clients that only support HTTP, ensure the Reversecore_MCP server is running in HTTP mode and accessible at the configured endpoint.
 
 ## Usage
 
