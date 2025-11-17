@@ -39,6 +39,56 @@ def log_execution(tool_name: Optional[str] = None) -> Callable[[F], F]:
         # Use provided tool_name or function name
         actual_tool_name = tool_name or func.__name__
 
+        # Check if function is async
+        import inspect
+        is_async = inspect.iscoroutinefunction(func)
+
+        if is_async:
+            @functools.wraps(func)
+            async def async_wrapper(*args: Any, **kwargs: Any) -> ToolResult:
+                start_time = time.time()
+                file_name = None
+
+                # Try to extract file_name from arguments
+                for arg_name in ["file_path", "path", "file"]:
+                    if arg_name in kwargs:
+                        file_name = Path(kwargs[arg_name]).name
+                        break
+                if not file_name and args:
+                    first_arg = args[0]
+                    if isinstance(first_arg, str):
+                        file_name = Path(first_arg).name
+
+                # Log start
+                log_extra = {"tool_name": actual_tool_name}
+                if file_name:
+                    log_extra["file_name"] = file_name
+                logger.info(f"Starting {actual_tool_name}", extra=log_extra)
+
+                try:
+                    result = await func(*args, **kwargs)
+                    execution_time = int((time.time() - start_time) * 1000)
+                    log_extra["execution_time_ms"] = execution_time
+                    logger.info(
+                        f"{actual_tool_name} completed successfully", extra=log_extra
+                    )
+                    return result
+                except Exception as exc:
+                    execution_time = int((time.time() - start_time) * 1000)
+                    log_extra["execution_time_ms"] = execution_time
+                    logger.error(
+                        f"{actual_tool_name} failed",
+                        extra=log_extra,
+                        exc_info=True,
+                    )
+                    return failure(
+                        "INTERNAL_ERROR",
+                        f"{actual_tool_name} failed: {exc}",
+                        exception_type=type(exc).__name__,
+                    )
+
+            return async_wrapper  # type: ignore
+
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> ToolResult:
             start_time = time.time()
