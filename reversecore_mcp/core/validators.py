@@ -24,6 +24,9 @@ def validate_tool_parameters(tool_name: str, params: Dict[str, Any]) -> None:
         "run_yara": _validate_yara_params,
         "generate_function_graph": _validate_cfg_params,
         "emulate_machine_code": _validate_emulation_params,
+        "get_pseudo_code": _validate_pseudo_code_params,
+        "generate_signature": _validate_signature_params,
+        "extract_rtti_info": _validate_rtti_params,
     }
     
     if tool_name in validators:
@@ -106,3 +109,38 @@ def _validate_emulation_params(params: Dict[str, Any]) -> None:
         raise ValidationError(
             "instructions cannot exceed 1000 (safety limit to prevent CPU exhaustion)"
         )
+
+
+def _validate_pseudo_code_params(params: Dict[str, Any]) -> None:
+    """Validate get_pseudo_code parameters."""
+    if "address" in params:
+        if not isinstance(params["address"], str):
+            raise ValidationError("address must be a string")
+    
+    timeout = params.get("timeout", 300)
+    if not isinstance(timeout, int) or timeout < 1:
+        raise ValidationError("timeout must be a positive integer")
+
+
+def _validate_signature_params(params: Dict[str, Any]) -> None:
+    """Validate generate_signature parameters."""
+    if "address" not in params:
+        raise ValidationError("address is required")
+    
+    if not isinstance(params["address"], str):
+        raise ValidationError("address must be a string")
+    
+    length = params.get("length", 32)
+    if not isinstance(length, int) or length < 1 or length > 1024:
+        raise ValidationError("length must be between 1 and 1024 bytes")
+    
+    timeout = params.get("timeout", 300)
+    if not isinstance(timeout, int) or timeout < 1:
+        raise ValidationError("timeout must be a positive integer")
+
+
+def _validate_rtti_params(params: Dict[str, Any]) -> None:
+    """Validate extract_rtti_info parameters."""
+    timeout = params.get("timeout", 300)
+    if not isinstance(timeout, int) or timeout < 1:
+        raise ValidationError("timeout must be a positive integer")

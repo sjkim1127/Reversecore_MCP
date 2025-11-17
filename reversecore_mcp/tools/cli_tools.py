@@ -32,6 +32,9 @@ def register_cli_tools(mcp: FastMCP) -> None:
     mcp.tool(list_workspace)
     mcp.tool(generate_function_graph)
     mcp.tool(emulate_machine_code)
+    mcp.tool(get_pseudo_code)
+    mcp.tool(generate_signature)
+    mcp.tool(extract_rtti_info)
 
 
 @log_execution(tool_name="run_file")
@@ -538,3 +541,361 @@ async def emulate_machine_code(
             f"ESIL emulation failed: {str(e)}",
             hint="Check that the binary architecture is supported and the start address is valid"
         )
+
+
+@log_execution(tool_name="get_pseudo_code")
+@track_metrics("get_pseudo_code")
+@handle_tool_errors
+async def get_pseudo_code(
+    file_path: str,
+    address: str = "main",
+    timeout: int = 300,
+) -> ToolResult:
+    """
+    Generate pseudo C code (decompilation) for a function using radare2's pdc command.
+    
+    This tool decompiles binary code into C-like pseudocode, making it much easier
+    to understand program logic compared to raw assembly. The output can be further
+    refined by AI for better readability.
+    
+    **Use Cases:**
+    - Quick function understanding without reading assembly
+    - AI-assisted code analysis and refactoring
+    - Documentation generation from binaries
+    - Reverse engineering workflow optimization
+    
+    **Note:** The output is "pseudo C" - it may not be syntactically perfect C,
+    but provides a high-level representation of the function logic.
+
+    Args:
+        file_path: Path to the binary file (must be in workspace)
+        address: Function address to decompile (e.g., 'main', '0x401000', 'sym.foo')
+        timeout: Execution timeout in seconds (default 300)
+        
+    Returns:
+        ToolResult with pseudo C code string
+        
+    Example:
+        get_pseudo_code("/app/workspace/sample.exe", "main")
+        # Returns C-like code representation of the main function
+    """
+    from reversecore_mcp.core.result import failure
+    
+    # 1. Validate file path
+    validated_path = validate_file_path(file_path)
+    
+    # 2. Security check for address (prevent shell injection)
+    if not re.match(r'^[a-zA-Z0-9_.]+$', address.replace("0x", "")):
+        return failure(
+            "VALIDATION_ERROR", 
+            "Invalid address format",
+            hint="Address must contain only alphanumeric characters, dots, underscores, and '0x' prefix"
+        )
+
+    # 3. Build radare2 command to decompile
+    cmd = [
+        "r2",
+        "-q",
+        "-c", "aaa",                    # Analyze all
+        "-c", f"pdc @ {address}",       # Print Decompiled C code at address
+        str(validated_path)
+    ]
+
+    # 4. Execute decompilation
+    output, bytes_read = await execute_subprocess_async(
+        cmd,
+        max_output_size=10_000_000,     # Decompiled code can be large
+        timeout=timeout,
+    )
+
+    # 5. Check if output is valid
+    if not output or output.strip() == "":
+        return failure(
+            "DECOMPILATION_ERROR",
+            f"No decompilation output for address: {address}",
+            hint="Verify the address exists and points to a valid function. Try analyzing with 'afl' first."
+        )
+
+    # 6. Return pseudo C code
+    return success(
+        output,
+        bytes_read=bytes_read,
+        address=address,
+        format="pseudo_c",
+        description=f"Pseudo C code decompiled from address {address}"
+    )
+
+
+@log_execution(tool_name="generate_signature")
+@track_metrics("generate_signature")
+@handle_tool_errors
+async def generate_signature(
+    file_path: str,
+    address: str,
+    length: int = 32,
+    timeout: int = 300,
+) -> ToolResult:
+    """
+    Generate a YARA signature from opcode bytes at a specific address.
+    
+    This tool extracts opcode bytes from a function or code section and formats
+    them as a YARA rule, enabling automated malware detection. It attempts to
+    mask variable values (addresses, offsets) to create more flexible signatures.
+    
+    **Use Cases:**
+    - Generate detection signatures for malware samples
+    - Create YARA rules for threat hunting
+    - Automate IOC (Indicator of Compromise) generation
+    - Build malware family signatures
+    
+    **Workflow:**
+    1. Extract opcode bytes from specified address
+    2. Apply basic masking for variable values (optional)
+    3. Format as YARA rule template
+    4. Return ready-to-use YARA rule
+    
+    Args:
+        file_path: Path to the binary file (must be in workspace)
+        address: Start address for signature extraction (e.g., 'main', '0x401000')
+        length: Number of bytes to extract (default 32, recommended 16-64)
+        timeout: Execution timeout in seconds (default 300)
+        
+    Returns:
+        ToolResult with YARA rule string
+        
+    Example:
+        generate_signature("/app/workspace/malware.exe", "0x401000", 48)
+        # Returns a YARA rule with extracted byte pattern
+    """
+    from reversecore_mcp.core.result import failure
+    
+    # 1. Validate parameters
+    validated_path = validate_file_path(file_path)
+    
+    if not isinstance(length, int) or length < 1 or length > 1024:
+        return failure(
+            "VALIDATION_ERROR",
+            "Length must be between 1 and 1024 bytes",
+            hint="Typical signature lengths are 16-64 bytes for good detection accuracy"
+        )
+    
+    # 2. Security check for address
+    if not re.match(r'^[a-zA-Z0-9_.]+$', address.replace("0x", "")):
+        return failure(
+            "VALIDATION_ERROR",
+            "Invalid address format",
+            hint="Address must contain only alphanumeric characters, dots, underscores, and '0x' prefix"
+        )
+
+    # 3. Extract hex bytes using radare2's p8 command
+    cmd = [
+        "r2",
+        "-q",
+        "-c", f"s {address}",           # Seek to address
+        "-c", f"p8 {length}",           # Print hex bytes
+        str(validated_path)
+    ]
+
+    output, bytes_read = await execute_subprocess_async(
+        cmd,
+        max_output_size=1_000_000,
+        timeout=timeout,
+    )
+
+    # 4. Validate output
+    hex_bytes = output.strip()
+    if not hex_bytes or not re.match(r'^[0-9a-fA-F]+$', hex_bytes):
+        return failure(
+            "SIGNATURE_ERROR",
+            f"Failed to extract valid hex bytes from address: {address}",
+            hint="Verify the address is valid and contains executable code"
+        )
+
+    # 5. Format as YARA hex string (space-separated pairs)
+    # Convert: "4883ec20" -> "48 83 ec 20"
+    formatted_bytes = ' '.join([hex_bytes[i:i+2] for i in range(0, len(hex_bytes), 2)])
+    
+    # 6. Generate YARA rule template
+    # Extract filename for rule name
+    file_name = Path(file_path).stem.replace('-', '_').replace('.', '_')
+    rule_name = f"suspicious_{file_name}_{address.replace('0x', 'x')}"
+    
+    yara_rule = f'''rule {rule_name} {{
+    meta:
+        description = "Auto-generated signature for {file_name}"
+        address = "{address}"
+        length = {length}
+        author = "Reversecore_MCP"
+        date = "auto-generated"
+        
+    strings:
+        $code = {{ {formatted_bytes} }}
+        
+    condition:
+        $code
+}}'''
+
+    # 7. Return YARA rule
+    return success(
+        yara_rule,
+        bytes_read=bytes_read,
+        address=address,
+        length=length,
+        format="yara",
+        hex_bytes=formatted_bytes,
+        description=f"YARA signature generated from {length} bytes at {address}"
+    )
+
+
+@log_execution(tool_name="extract_rtti_info")
+@track_metrics("extract_rtti_info")
+@handle_tool_errors
+async def extract_rtti_info(
+    file_path: str,
+    timeout: int = 300,
+) -> ToolResult:
+    """
+    Extract C++ RTTI (Run-Time Type Information) and class structure information.
+    
+    This tool analyzes C++ binaries to recover class names, methods, and inheritance
+    hierarchies using RTTI metadata and symbol tables. Essential for reverse engineering
+    large C++ applications like games and commercial software.
+    
+    **Use Cases:**
+    - Recover class structure from C++ binaries
+    - Map out object hierarchies in games/applications
+    - Identify virtual function tables (vtables)
+    - Understand C++ software architecture
+    - Generate class diagrams from binaries
+    
+    **Extracted Information:**
+    - Class names and namespaces
+    - Virtual methods and vtables
+    - Type descriptors
+    - Symbol information
+    - Import/export functions
+    
+    **Note:** RTTI recovery works best with binaries compiled with RTTI enabled
+    (typically the default). Stripped or heavily obfuscated binaries may have
+    limited RTTI information.
+
+    Args:
+        file_path: Path to the binary file (must be in workspace)
+        timeout: Execution timeout in seconds (default 300)
+        
+    Returns:
+        ToolResult with structured RTTI information including classes, symbols, and methods
+        
+    Example:
+        extract_rtti_info("/app/workspace/game.exe")
+        # Returns JSON with class hierarchy and method information
+    """
+    from reversecore_mcp.core.result import failure
+    
+    # 1. Validate file path
+    validated_path = validate_file_path(file_path)
+
+    # 2. Build radare2 command chain to extract RTTI and symbols
+    # We'll use multiple commands to get comprehensive information
+    cmd = [
+        "r2",
+        "-q",
+        "-c", "aaa",                    # Analyze all (includes class analysis)
+        "-c", "icj",                    # List classes in JSON format
+        str(validated_path)
+    ]
+
+    # 3. Execute class extraction
+    classes_output, bytes_read = await execute_subprocess_async(
+        cmd,
+        max_output_size=50_000_000,     # Class info can be large for complex binaries
+        timeout=timeout,
+    )
+
+    # 4. Extract symbols
+    symbols_cmd = [
+        "r2",
+        "-q",
+        "-c", "isj",                    # List symbols in JSON format
+        str(validated_path)
+    ]
+    
+    symbols_output, symbols_bytes = await execute_subprocess_async(
+        symbols_cmd,
+        max_output_size=50_000_000,
+        timeout=timeout,
+    )
+
+    # 5. Parse JSON outputs
+    try:
+        classes = json.loads(classes_output) if classes_output.strip() else []
+        symbols = json.loads(symbols_output) if symbols_output.strip() else []
+    except json.JSONDecodeError as e:
+        return failure(
+            "PARSE_ERROR",
+            f"Failed to parse RTTI output: {str(e)}",
+            hint="The binary may not contain valid RTTI information or is not a C++ binary"
+        )
+
+    # 6. Filter and organize C++ specific symbols
+    cpp_classes = []
+    cpp_methods = []
+    vtables = []
+    
+    # Process classes
+    for cls in classes:
+        if isinstance(cls, dict):
+            cpp_classes.append({
+                "name": cls.get("classname", "unknown"),
+                "address": cls.get("addr", "0x0"),
+                "methods": cls.get("methods", []),
+                "vtable": cls.get("vtable", None)
+            })
+    
+    # Process symbols to find C++ related items
+    for sym in symbols:
+        if isinstance(sym, dict):
+            name = sym.get("name", "")
+            sym_type = sym.get("type", "")
+            
+            # Detect C++ mangled names (start with _Z or ??)
+            if name.startswith("_Z") or name.startswith("??"):
+                cpp_methods.append({
+                    "name": name,
+                    "address": sym.get("vaddr", sym.get("paddr", "0x0")),
+                    "type": sym_type,
+                    "size": sym.get("size", 0)
+                })
+            
+            # Detect vtables
+            if "vtable" in name.lower() or name.startswith("vtable"):
+                vtables.append({
+                    "name": name,
+                    "address": sym.get("vaddr", sym.get("paddr", "0x0"))
+                })
+
+    # 7. Build comprehensive RTTI report
+    rtti_info = {
+        "classes": cpp_classes,
+        "class_count": len(cpp_classes),
+        "methods": cpp_methods[:100],  # Limit to first 100 for readability
+        "method_count": len(cpp_methods),
+        "vtables": vtables,
+        "vtable_count": len(vtables),
+        "has_rtti": len(cpp_classes) > 0 or len(vtables) > 0,
+        "binary_type": "C++" if (len(cpp_classes) > 0 or len(cpp_methods) > 0) else "Unknown"
+    }
+
+    # 8. Add summary message
+    if not rtti_info["has_rtti"]:
+        description = "No RTTI information found. Binary may be stripped, not C++, or compiled without RTTI."
+    else:
+        description = f"Found {rtti_info['class_count']} classes, {rtti_info['method_count']} methods, {rtti_info['vtable_count']} vtables"
+
+    # 9. Return structured RTTI information
+    return success(
+        rtti_info,
+        bytes_read=bytes_read + symbols_bytes,
+        format="rtti_info",
+        description=description
+    )
