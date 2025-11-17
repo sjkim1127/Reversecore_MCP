@@ -8,10 +8,8 @@ This module provides functions to execute subprocess commands safely with:
 - Proper error handling and reporting
 """
 
-import select
+import asyncio
 import subprocess
-import sys
-import time
 from typing import Tuple
 
 from reversecore_mcp.core.exceptions import (
@@ -20,7 +18,7 @@ from reversecore_mcp.core.exceptions import (
 )
 
 
-def execute_subprocess_streaming(
+async def execute_subprocess_async(
     cmd: list[str],
     max_output_size: int = 10_000_000,  # 10 MB default
     timeout: int = 300,  # 5 minutes default
@@ -28,11 +26,11 @@ def execute_subprocess_streaming(
     errors: str = "replace",
 ) -> Tuple[str, int]:
     """
-    Execute a subprocess command with streaming output and size limits.
+    Execute a subprocess command asynchronously with streaming output and size limits.
 
-    This function uses subprocess.Popen to stream output in chunks, preventing
-    OOM issues when processing large files. Output is truncated if it exceeds
-    max_output_size.
+    This function uses asyncio.create_subprocess_exec to stream output in chunks,
+    preventing OOM issues when processing large files and avoiding CPU polling.
+    Output is truncated if it exceeds max_output_size.
 
     Args:
         cmd: Command and arguments as a list (e.g., ["r2", "-q", "-c", "pdf @ main", "file.exe"])
@@ -53,12 +51,10 @@ def execute_subprocess_streaming(
     """
     try:
         # Start the process with piped stdout/stderr
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            encoding=encoding,
-            errors=errors,
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
     except FileNotFoundError:
         # Extract command name from cmd list
@@ -71,73 +67,39 @@ def execute_subprocess_streaming(
     bytes_read = 0
 
     try:
-        # Use time-based timeout checking
-        start_time = time.time()
-        return_code = None
-
-        # Use select for efficient I/O (Unix) or fallback to polling (Windows)
-        use_select = hasattr(select, "select") and sys.platform != "win32"
-
-        # Set adaptive sleep interval for Windows polling
-        poll_interval = 0.05  # Start with 50ms
-
         # Read output in chunks with timeout checking
-        while True:
-            # Check timeout
-            elapsed = time.time() - start_time
-            if elapsed > timeout:
-                process.kill()
-                process.wait()
-                raise ExecutionTimeoutError(timeout)
+        async def read_stream():
+            """Read stdout in chunks until EOF or size limit."""
+            nonlocal bytes_read
+            chunk_size = 8192  # 8KB chunks
+            
+            while True:
+                chunk = await process.stdout.read(chunk_size)
+                if not chunk:
+                    break
+                    
+                # Decode chunk
+                decoded_chunk = chunk.decode(encoding, errors=errors)
+                chunk_bytes = len(chunk)
+                bytes_read += chunk_bytes
+                
+                # Only append if we haven't exceeded the limit
+                if bytes_read <= max_output_size:
+                    output_chunks.append(decoded_chunk)
+        
+        # Wait for process to complete with timeout
+        try:
+            await asyncio.wait_for(read_stream(), timeout=timeout)
+            await asyncio.wait_for(process.wait(), timeout=1.0)
+        except asyncio.TimeoutError:
+            process.kill()
+            await process.wait()
+            raise ExecutionTimeoutError(timeout)
 
-            # Check if process has finished
-            return_code = process.poll()
-            if return_code is not None:
-                break
-
-            # Use select for efficient I/O on Unix, or fallback to polling on Windows
-            if use_select:
-                # Use select to check if data is available (non-blocking)
-                ready, _, _ = select.select([process.stdout], [], [], 0.1)
-                if ready:
-                    chunk = process.stdout.read(8192)  # 8KB chunks
-                    if chunk:
-                        bytes_read += len(chunk.encode(encoding, errors=errors))
-                        if bytes_read <= max_output_size:
-                            output_chunks.append(chunk)
-                        # Continue reading even if limit exceeded to drain the pipe
-            else:
-                # Windows: use non-blocking read with adaptive timeout
-                # Try to read data - this is non-blocking with text mode
-                try:
-                    # Use a non-blocking approach with smaller chunk size initially
-                    chunk = process.stdout.read(8192)  # 8KB chunks
-                    if chunk:
-                        bytes_read += len(chunk.encode(encoding, errors=errors))
-                        if bytes_read <= max_output_size:
-                            output_chunks.append(chunk)
-                        # Reset poll interval when we receive data
-                        poll_interval = 0.05
-                    else:
-                        # No data available, use adaptive backoff
-                        time.sleep(poll_interval)
-                        # Gradually increase sleep time up to 0.1s to reduce CPU usage
-                        poll_interval = min(poll_interval * 1.5, 0.1)
-                except Exception:
-                    # If read fails, wait and try again
-                    time.sleep(poll_interval)
-
-        # Read remaining stdout and stderr
-        remaining_stdout = process.stdout.read()
-        if remaining_stdout:
-            remaining_bytes = len(remaining_stdout.encode(encoding, errors=errors))
-            bytes_read += remaining_bytes
-            if bytes_read <= max_output_size:
-                output_chunks.append(remaining_stdout)
-
-        stderr_data = process.stderr.read()
+        # Read any remaining stderr
+        stderr_data = await process.stderr.read()
         if stderr_data:
-            stderr_chunks.append(stderr_data)
+            stderr_chunks.append(stderr_data.decode(encoding, errors=errors))
 
         # Combine output chunks
         output_text = "".join(output_chunks)
@@ -151,24 +113,70 @@ def execute_subprocess_streaming(
             output_text += truncation_warning
 
         # If process failed, raise CalledProcessError with stderr
-        if return_code != 0:
+        if process.returncode != 0:
             stderr_text = "".join(stderr_chunks)
             raise subprocess.CalledProcessError(
-                return_code, cmd, output=output_text, stderr=stderr_text
+                process.returncode, cmd, output=output_text, stderr=stderr_text
             )
 
         return output_text, bytes_read
 
-    except subprocess.TimeoutExpired:
+    except asyncio.TimeoutError:
         process.kill()
-        process.wait()
+        await process.wait()
         raise ExecutionTimeoutError(timeout)
     except Exception:
         # Ensure process is terminated
         try:
             process.kill()
-            process.wait()
+            await process.wait()
         except Exception:
             pass
         raise
+
+
+
+def execute_subprocess_streaming(
+    cmd: list[str],
+    max_output_size: int = 10_000_000,  # 10 MB default
+    timeout: int = 300,  # 5 minutes default
+    encoding: str = "utf-8",
+    errors: str = "replace",
+) -> Tuple[str, int]:
+    """
+    Execute a subprocess command with streaming output and size limits.
+    
+    This is a synchronous wrapper around execute_subprocess_async that provides
+    backward compatibility. It uses asyncio.run() to execute the async version.
+
+    This function uses asyncio to stream output in chunks, preventing
+    OOM issues when processing large files and avoiding CPU polling.
+    Output is truncated if it exceeds max_output_size.
+
+    Args:
+        cmd: Command and arguments as a list (e.g., ["r2", "-q", "-c", "pdf @ main", "file.exe"])
+        max_output_size: Maximum output size in bytes (default: 10MB)
+        timeout: Maximum execution time in seconds (default: 300)
+        encoding: Text encoding for output (default: "utf-8")
+        errors: Error handling for encoding (default: "replace")
+
+    Returns:
+        Tuple of (output_text, bytes_read)
+        - output_text: The captured output (truncated if limit exceeded)
+        - bytes_read: Total bytes read (may exceed max_output_size if truncated)
+
+    Raises:
+        ToolNotFoundError: If the command executable is not found
+        ExecutionTimeoutError: If the command exceeds the timeout
+        subprocess.CalledProcessError: If the command returns non-zero exit code
+    """
+    return asyncio.run(
+        execute_subprocess_async(
+            cmd,
+            max_output_size=max_output_size,
+            timeout=timeout,
+            encoding=encoding,
+            errors=errors,
+        )
+    )
 

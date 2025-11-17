@@ -15,7 +15,7 @@ from reversecore_mcp.core.exceptions import (
     ToolNotFoundError,
     ValidationError,
 )
-from reversecore_mcp.core.execution import execute_subprocess_streaming
+from reversecore_mcp.core.execution import execute_subprocess_streaming, execute_subprocess_async
 from reversecore_mcp.core.logging_config import get_logger, setup_logging
 from reversecore_mcp.core.security import validate_file_path
 
@@ -26,6 +26,7 @@ __all__ = [
     "OutputLimitExceededError",
     "ValidationError",
     "execute_subprocess_streaming",
+    "execute_subprocess_async",
     "validate_file_path",
     "format_error",
     "get_validation_hint",
