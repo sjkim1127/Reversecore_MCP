@@ -1,5 +1,7 @@
 """CLI tool wrappers that return structured ToolResult payloads."""
 
+import json
+import re
 import shutil
 from pathlib import Path
 
@@ -28,6 +30,7 @@ def register_cli_tools(mcp: FastMCP) -> None:
     mcp.tool(run_binwalk)
     mcp.tool(copy_to_workspace)
     mcp.tool(list_workspace)
+    mcp.tool(generate_function_graph)
 
 
 @log_execution(tool_name="run_file")
@@ -262,3 +265,148 @@ def list_workspace() -> ToolResult:
     return success(
         {"files": files}, file_count=len(files), workspace_path=str(workspace)
     )
+
+
+def _radare2_json_to_mermaid(json_str: str) -> str:
+    """
+    Convert Radare2 'agfj' JSON output to Mermaid Flowchart syntax.
+    Optimized for LLM context efficiency.
+    
+    Args:
+        json_str: JSON output from radare2 agfj command
+        
+    Returns:
+        Mermaid flowchart syntax string
+    """
+    try:
+        graph_data = json.loads(json_str)
+        if not graph_data:
+            return "graph TD;\n    Error[No graph data found]"
+            
+        # agfj returns list format for function graph
+        blocks = graph_data[0].get("blocks", []) if isinstance(graph_data, list) else graph_data.get("blocks", [])
+        
+        mermaid_lines = ["graph TD"]
+        
+        for block in blocks:
+            # 1. Generate node ID from offset
+            node_id = f"N_{hex(block.get('offset', 0))}"
+            
+            # 2. Generate node label from assembly opcodes
+            ops = block.get("ops", [])
+            op_codes = [op.get("opcode", "") for op in ops]
+            
+            # Token efficiency: limit to 5 lines per block
+            if len(op_codes) > 5:
+                op_codes = op_codes[:5] + ["..."]
+            
+            # Escape Mermaid special characters
+            label_content = "\\n".join(op_codes).replace('"', "'").replace("(", "[").replace(")", "]")
+            
+            # Define node
+            mermaid_lines.append(f'    {node_id}["{label_content}"]')
+            
+            # 3. Create edges
+            # True branch (jump)
+            if "jump" in block:
+                target_id = f"N_{hex(block['jump'])}"
+                mermaid_lines.append(f"    {node_id} -->|True| {target_id}")
+                
+            # False branch (fail)
+            if "fail" in block:
+                target_id = f"N_{hex(block['fail'])}"
+                mermaid_lines.append(f"    {node_id} -.->|False| {target_id}")
+                
+        return "\n".join(mermaid_lines)
+        
+    except Exception as e:
+        return f"graph TD;\n    Error[Parse Error: {str(e)}]"
+
+
+@log_execution(tool_name="generate_function_graph")
+@track_metrics("generate_function_graph")
+@handle_tool_errors
+async def generate_function_graph(
+    file_path: str,
+    function_address: str,
+    format: str = "mermaid",
+    timeout: int = 300,
+) -> ToolResult:
+    """
+    Generate a Control Flow Graph (CFG) for a specific function.
+    
+    This tool uses radare2 to analyze the function structure and returns
+    a visualization code (Mermaid by default) that helps AI understand
+    the code flow without reading thousands of lines of assembly.
+
+    Args:
+        file_path: Path to the binary file (must be in workspace)
+        function_address: Function address (e.g., 'main', '0x140001000', 'sym.foo')
+        format: Output format ('mermaid', 'json', or 'dot'). Default is 'mermaid'.
+        timeout: Execution timeout in seconds
+        
+    Returns:
+        ToolResult with CFG visualization or JSON data
+    """
+    from reversecore_mcp.core.result import failure
+    
+    # 1. Parameter validation
+    validate_tool_parameters(
+        "generate_function_graph", 
+        {"function_address": function_address, "format": format}
+    )
+    validated_path = validate_file_path(file_path)
+    
+    # 2. Security check for function address (prevent shell injection)
+    if not re.match(r'^[a-zA-Z0-9_.]+$', function_address.replace("0x", "")):
+        return failure("VALIDATION_ERROR", "Invalid function address format")
+
+    # 3. Build radare2 command
+    r2_cmd_str = f"agfj @ {function_address}"
+    
+    cmd = [
+        "r2", 
+        "-q", 
+        "-c", "aaa",             # Automatic analysis
+        "-c", r2_cmd_str,        # Extract graph JSON
+        str(validated_path)
+    ]
+
+    # 4. Execute subprocess asynchronously
+    # Large graphs need higher output limit
+    output, bytes_read = await execute_subprocess_async(
+        cmd,
+        max_output_size=50_000_000, 
+        timeout=timeout,
+    )
+
+    # 5. Format conversion and return
+    if format.lower() == "json":
+        return success(output, bytes_read=bytes_read, format="json")
+    
+    elif format.lower() == "mermaid":
+        mermaid_code = _radare2_json_to_mermaid(output)
+        return success(
+            mermaid_code, 
+            bytes_read=bytes_read, 
+            format="mermaid",
+            description="Render this using Mermaid to see the control flow."
+        )
+    
+    elif format.lower() == "dot":
+        # For DOT format, call radare2 with agfd command
+        dot_cmd = [
+            "r2",
+            "-q",
+            "-c", "aaa",
+            "-c", f"agfd @ {function_address}",
+            str(validated_path)
+        ]
+        dot_output, dot_bytes = await execute_subprocess_async(
+            dot_cmd,
+            max_output_size=50_000_000,
+            timeout=timeout,
+        )
+        return success(dot_output, bytes_read=dot_bytes, format="dot")
+    
+    return failure("INVALID_FORMAT", f"Unsupported format: {format}")

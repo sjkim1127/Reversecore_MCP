@@ -124,6 +124,14 @@ R2_COMMAND_SPECS: List[CommandSpec] = [
         description="Analyze function variables"
     ),
     
+    # Graph commands
+    CommandSpec(
+        name="agfj",
+        type="read",
+        regex=re.compile(r'^agfj(\s+@\s+[a-zA-Z0-9_.]+)?$'),
+        description="Print function graph in JSON format"
+    ),
+    
     # Information commands
     CommandSpec(
         name="i",

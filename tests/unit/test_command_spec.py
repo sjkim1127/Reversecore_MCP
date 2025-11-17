@@ -164,6 +164,30 @@ class TestValidateR2Command:
         validate_r2_command("px 16")
         validate_r2_command("ii")
     
+    def test_agfj_graph_command_validation(self):
+        """Test agfj (graph JSON) command validation."""
+        # Valid agfj commands - should not raise
+        validate_r2_command("agfj")
+        validate_r2_command("agfj @ main")
+        validate_r2_command("agfj @ sym.main")
+        validate_r2_command("agfj @ 0x401000")
+        validate_r2_command("agfj @ entry0")
+    
+    def test_agfj_invalid_patterns(self):
+        """Test that agfj blocks dangerous patterns."""
+        # Should block command injection attempts
+        with pytest.raises(ValidationError):
+            validate_r2_command("agfj; w hello")
+        
+        with pytest.raises(ValidationError):
+            validate_r2_command("agfj | grep test")
+        
+        with pytest.raises(ValidationError):
+            validate_r2_command("agfj && ls")
+        
+        with pytest.raises(ValidationError):
+            validate_r2_command("agfj @ main; rm -rf /")
+    
     def test_empty_command_rejected(self):
         """Test that empty commands are rejected."""
         with pytest.raises(ValidationError) as exc_info:

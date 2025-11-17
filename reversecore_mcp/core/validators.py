@@ -22,6 +22,7 @@ def validate_tool_parameters(tool_name: str, params: Dict[str, Any]) -> None:
         "run_radare2": _validate_radare2_params,
         "disassemble_with_capstone": _validate_capstone_params,
         "run_yara": _validate_yara_params,
+        "generate_function_graph": _validate_cfg_params,
     }
     
     if tool_name in validators:
@@ -70,3 +71,17 @@ def _validate_yara_params(params: Dict[str, Any]) -> None:
     timeout = params.get("timeout", 300)
     if not isinstance(timeout, int) or timeout < 1:
         raise ValidationError("timeout must be a positive integer")
+
+
+def _validate_cfg_params(params: Dict[str, Any]) -> None:
+    """Validate generate_function_graph parameters."""
+    if "function_address" in params:
+        if not isinstance(params["function_address"], str):
+            raise ValidationError("function_address must be a string")
+    
+    output_format = params.get("format", "mermaid")
+    allowed_formats = ["json", "mermaid", "dot"]
+    if output_format not in allowed_formats:
+        raise ValidationError(
+            f"Invalid format '{output_format}'. Allowed: {', '.join(allowed_formats)}"
+        )
