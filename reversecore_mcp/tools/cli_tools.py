@@ -35,6 +35,8 @@ def register_cli_tools(mcp: FastMCP) -> None:
     mcp.tool(get_pseudo_code)
     mcp.tool(generate_signature)
     mcp.tool(extract_rtti_info)
+    mcp.tool(smart_decompile)
+    mcp.tool(generate_yara_rule)
 
 
 @log_execution(tool_name="run_file")
@@ -898,4 +900,177 @@ async def extract_rtti_info(
         bytes_read=bytes_read + symbols_bytes,
         format="rtti_info",
         description=description
+    )
+
+
+@log_execution(tool_name="smart_decompile")
+@track_metrics("smart_decompile")
+@handle_tool_errors
+async def smart_decompile(
+    file_path: str,
+    function_address: str,
+    timeout: int = 300,
+) -> ToolResult:
+    """
+    Decompile a function to pseudo C code using radare2.
+    
+    This tool provides decompilation for a specific function in a binary,
+    making it easier to understand the logic without reading raw assembly.
+    
+    Args:
+        file_path: Path to the binary file (must be in workspace)
+        function_address: Function address to decompile (e.g., 'main', '0x401000')
+        timeout: Execution timeout in seconds (default 300)
+        
+    Returns:
+        ToolResult with decompiled pseudo C code
+    """
+    from reversecore_mcp.core.result import failure
+    
+    # 1. Validate parameters
+    validate_tool_parameters("smart_decompile", {"function_address": function_address})
+    validated_path = validate_file_path(file_path)
+    
+    # 2. Security check for function address (prevent shell injection)
+    if not re.match(r'^[a-zA-Z0-9_.]+$', function_address.replace("0x", "")):
+        return failure(
+            "VALIDATION_ERROR",
+            "Invalid function address format",
+            hint="Function address must contain only alphanumeric characters, dots, underscores, and '0x' prefix"
+        )
+    
+    # 3. Build radare2 command to decompile
+    cmd = [
+        "r2",
+        "-q",
+        "-c", "aaa",                    # Analyze all
+        "-c", f"pdc @ {function_address}",  # Print Decompiled C code at address
+        str(validated_path)
+    ]
+    
+    # 4. Execute decompilation
+    output, bytes_read = await execute_subprocess_async(
+        cmd,
+        max_output_size=10_000_000,
+        timeout=timeout,
+    )
+    
+    # 5. Return result (even if empty or error message from radare2)
+    return success(
+        output,
+        bytes_read=bytes_read,
+        function_address=function_address,
+        format="pseudo_c",
+        description=f"Decompiled code from function {function_address}"
+    )
+
+
+@log_execution(tool_name="generate_yara_rule")
+@track_metrics("generate_yara_rule")
+@handle_tool_errors
+async def generate_yara_rule(
+    file_path: str,
+    function_address: str,
+    rule_name: str = "auto_generated_rule",
+    byte_length: int = 64,
+    timeout: int = 300,
+) -> ToolResult:
+    """
+    Generate a YARA rule from function bytes.
+    
+    This tool extracts bytes from a function and generates a ready-to-use
+    YARA rule for malware detection and threat hunting.
+    
+    Args:
+        file_path: Path to the binary file (must be in workspace)
+        function_address: Function address to extract bytes from (e.g., 'main', '0x401000')
+        rule_name: Name for the YARA rule (default 'auto_generated_rule')
+        byte_length: Number of bytes to extract (default 64, max 1024)
+        timeout: Execution timeout in seconds (default 300)
+        
+    Returns:
+        ToolResult with YARA rule string
+    """
+    from reversecore_mcp.core.result import failure
+    
+    # 1. Validate parameters
+    validate_tool_parameters(
+        "generate_yara_rule",
+        {
+            "function_address": function_address,
+            "rule_name": rule_name,
+            "byte_length": byte_length
+        }
+    )
+    validated_path = validate_file_path(file_path)
+    
+    # 2. Validate rule_name format
+    if not re.match(r'^[a-zA-Z][a-zA-Z0-9_]*$', rule_name):
+        return failure(
+            "VALIDATION_ERROR",
+            "rule_name must start with a letter and contain only alphanumeric characters and underscores"
+        )
+    
+    # 3. Security check for function address (prevent shell injection)
+    if not re.match(r'^[a-zA-Z0-9_.]+$', function_address.replace("0x", "")):
+        return failure(
+            "VALIDATION_ERROR",
+            "Invalid function address format",
+            hint="Function address must contain only alphanumeric characters, dots, underscores, and '0x' prefix"
+        )
+    
+    # 4. Extract hex bytes using radare2's p8 command
+    cmd = [
+        "r2",
+        "-q",
+        "-c", f"s {function_address}",      # Seek to address
+        "-c", f"p8 {byte_length}",          # Print hex bytes
+        str(validated_path)
+    ]
+    
+    output, bytes_read = await execute_subprocess_async(
+        cmd,
+        max_output_size=1_000_000,
+        timeout=timeout,
+    )
+    
+    # 5. Validate output
+    hex_bytes = output.strip()
+    if not hex_bytes or not re.match(r'^[0-9a-fA-F]+$', hex_bytes):
+        return failure(
+            "YARA_GENERATION_ERROR",
+            f"Failed to extract valid hex bytes from address: {function_address}",
+            hint="Verify the address is valid and contains executable code"
+        )
+    
+    # 6. Format as YARA hex string (space-separated pairs)
+    formatted_bytes = ' '.join([hex_bytes[i:i+2] for i in range(0, len(hex_bytes), 2)])
+    
+    # 7. Generate YARA rule
+    file_name = Path(file_path).stem.replace('-', '_').replace('.', '_')
+    
+    yara_rule = f'''rule {rule_name} {{
+    meta:
+        description = "Auto-generated YARA rule for {file_name}"
+        address = "{function_address}"
+        byte_length = {byte_length}
+        author = "Reversecore_MCP"
+        
+    strings:
+        $code = {{ {formatted_bytes} }}
+        
+    condition:
+        $code
+}}'''
+    
+    # 8. Return YARA rule
+    return success(
+        yara_rule,
+        bytes_read=bytes_read,
+        function_address=function_address,
+        rule_name=rule_name,
+        byte_length=byte_length,
+        format="yara",
+        hex_bytes=formatted_bytes,
+        description=f"YARA rule '{rule_name}' generated from {byte_length} bytes at {function_address}"
     )

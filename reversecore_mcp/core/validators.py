@@ -27,6 +27,8 @@ def validate_tool_parameters(tool_name: str, params: Dict[str, Any]) -> None:
         "get_pseudo_code": _validate_pseudo_code_params,
         "generate_signature": _validate_signature_params,
         "extract_rtti_info": _validate_rtti_params,
+        "smart_decompile": _validate_decompile_params,
+        "generate_yara_rule": _validate_yara_generation_params,
     }
     
     if tool_name in validators:
@@ -144,3 +146,30 @@ def _validate_rtti_params(params: Dict[str, Any]) -> None:
     timeout = params.get("timeout", 300)
     if not isinstance(timeout, int) or timeout < 1:
         raise ValidationError("timeout must be a positive integer")
+
+
+def _validate_decompile_params(params: Dict[str, Any]) -> None:
+    """Validate smart_decompile parameters."""
+    if "function_address" in params:
+        if not isinstance(params["function_address"], str):
+            raise ValidationError("function_address must be a string")
+
+
+def _validate_yara_generation_params(params: Dict[str, Any]) -> None:
+    """Validate generate_yara_rule parameters."""
+    if "function_address" in params:
+        if not isinstance(params["function_address"], str):
+            raise ValidationError("function_address must be a string")
+    
+    if "byte_length" in params:
+        byte_length = params["byte_length"]
+        if not isinstance(byte_length, int):
+            raise ValidationError("byte_length must be a positive integer")
+        if byte_length < 1:
+            raise ValidationError("byte_length must be a positive integer")
+        if byte_length > 1024:
+            raise ValidationError("byte_length cannot exceed 1024")
+    
+    if "rule_name" in params:
+        if not isinstance(params["rule_name"], str):
+            raise ValidationError("rule_name must be a string")
