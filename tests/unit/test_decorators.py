@@ -123,3 +123,35 @@ class TestLogExecutionDecorator:
         # Check that function name was used as tool name
         first_call = mock_logger.info.call_args_list[0]
         assert "my_custom_function" in first_call[0][0]
+
+
+@pytest.mark.asyncio
+class TestLogExecutionDecoratorAsync:
+    """Test cases for log_execution decorator with async functions."""
+    
+    @patch('reversecore_mcp.core.decorators.logger')
+    async def test_async_successful_execution_logging(self, mock_logger):
+        """Test that async successful execution is logged correctly."""
+        @log_execution(tool_name="async_test_tool")
+        async def dummy_async_function(file_path: str) -> ToolResult:
+            return success("async success")
+        
+        result = await dummy_async_function("/tmp/async_test.bin")
+        
+        assert result.status == "success"
+        assert result.data == "async success"
+        assert mock_logger.info.call_count == 2
+    
+    @patch('reversecore_mcp.core.decorators.logger')
+    async def test_async_error_handling(self, mock_logger):
+        """Test that async errors are handled correctly."""
+        @log_execution(tool_name="async_test_tool")
+        async def dummy_async_function() -> str:
+            raise RuntimeError("Async error")
+        
+        result = await dummy_async_function()
+        
+        assert isinstance(result, ToolError)
+        assert result.status == "error"
+        assert "Async error" in result.message
+        assert mock_logger.error.called

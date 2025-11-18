@@ -202,6 +202,9 @@ def test_validate_yara_generation_params():
     with pytest.raises(ValidationError, match="byte_length must be a positive integer"):
         _validate_yara_generation_params({"byte_length": 0})
     
+    with pytest.raises(ValidationError, match="byte_length must be a positive integer"):
+        _validate_yara_generation_params({"byte_length": "large"})
+    
     with pytest.raises(ValidationError, match="cannot exceed 1024"):
         _validate_yara_generation_params({"byte_length": 2000})
     
