@@ -26,3 +26,7 @@ slowapi>=0.1.9
 fastapi>=0.100.0
 uvicorn>=0.23.0
 
+# Ghidra Python bindings (optional for enhanced decompilation)
+pyghidra>=4.0.0
+jpype1>=1.4.0  # PyGhidra dependency
+

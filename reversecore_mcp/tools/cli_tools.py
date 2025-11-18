@@ -910,22 +910,31 @@ async def smart_decompile(
     file_path: str,
     function_address: str,
     timeout: int = 300,
+    use_ghidra: bool = True,
 ) -> ToolResult:
     """
-    Decompile a function to pseudo C code using radare2.
+    Decompile a function to pseudo C code using Ghidra or radare2.
     
     This tool provides decompilation for a specific function in a binary,
     making it easier to understand the logic without reading raw assembly.
+    
+    **Decompiler Selection:**
+    - Ghidra (default): More accurate, better type recovery, industry-standard
+    - radare2 (fallback): Faster, lighter weight, good for quick analysis
     
     Args:
         file_path: Path to the binary file (must be in workspace)
         function_address: Function address to decompile (e.g., 'main', '0x401000')
         timeout: Execution timeout in seconds (default 300)
+        use_ghidra: Use Ghidra decompiler if available (default True)
         
     Returns:
         ToolResult with decompiled pseudo C code
     """
     from reversecore_mcp.core.result import failure
+    from reversecore_mcp.core.logging_config import get_logger
+    
+    logger = get_logger(__name__)
     
     # 1. Validate parameters
     validate_tool_parameters("smart_decompile", {"function_address": function_address})
@@ -939,7 +948,48 @@ async def smart_decompile(
             hint="Function address must contain only alphanumeric characters, dots, underscores, and '0x' prefix"
         )
     
-    # 3. Build radare2 command to decompile
+    # 3. Try Ghidra first if requested and available
+    if use_ghidra:
+        try:
+            from reversecore_mcp.core.ghidra_helper import (
+                ensure_ghidra_available,
+                decompile_function_with_ghidra
+            )
+            
+            if ensure_ghidra_available():
+                logger.info(f"Using Ghidra decompiler for {function_address}")
+                
+                # Run Ghidra decompilation
+                try:
+                    c_code, metadata = decompile_function_with_ghidra(
+                        validated_path,
+                        function_address,
+                        timeout
+                    )
+                    
+                    return success(
+                        c_code,
+                        function_address=function_address,
+                        format="pseudo_c",
+                        decompiler="ghidra",
+                        **metadata
+                    )
+                    
+                except Exception as ghidra_error:
+                    logger.warning(
+                        f"Ghidra decompilation failed: {ghidra_error}. "
+                        "Falling back to radare2"
+                    )
+                    # Fall through to radare2
+            else:
+                logger.info("Ghidra not available, using radare2")
+        
+        except ImportError:
+            logger.info("PyGhidra not installed, using radare2")
+    
+    # 4. Fallback to radare2 (original implementation)
+    logger.info(f"Using radare2 decompiler for {function_address}")
+    
     cmd = [
         "r2",
         "-q",
@@ -948,19 +998,20 @@ async def smart_decompile(
         str(validated_path)
     ]
     
-    # 4. Execute decompilation
+    # 5. Execute decompilation
     output, bytes_read = await execute_subprocess_async(
         cmd,
         max_output_size=10_000_000,
         timeout=timeout,
     )
     
-    # 5. Return result (even if empty or error message from radare2)
+    # 6. Return result
     return success(
         output,
         bytes_read=bytes_read,
         function_address=function_address,
         format="pseudo_c",
+        decompiler="radare2",
         description=f"Decompiled code from function {function_address}"
     )
 

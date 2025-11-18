@@ -23,6 +23,7 @@
 FROM python:3.11-slim-bookworm AS builder
 ARG YARA_VERSION=4.3.1
 ARG RADARE2_VERSION=6.0.4
+ARG GHIDRA_VERSION=11.2
 
 # Set working directory
 WORKDIR /app
@@ -45,6 +46,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xz-utils \
     curl \
     ca-certificates \
+    unzip \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
 # Build and install native YARA matching the pinned Python binding (4.3.1)
@@ -74,6 +77,17 @@ RUN curl -sSL "https://github.com/radareorg/radare2/releases/download/${RADARE2_
     && make -j"$(nproc)" \
     && make install \
     && rm -rf /tmp/radare2*
+
+# Download and install Ghidra for enhanced decompilation
+# Ghidra provides industry-standard decompilation with better type recovery
+RUN wget -q "https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_${GHIDRA_VERSION}_build/ghidra_${GHIDRA_VERSION}_PUBLIC_20240926.zip" -O /tmp/ghidra.zip \
+    && unzip -q /tmp/ghidra.zip -d /opt \
+    && mv /opt/ghidra_${GHIDRA_VERSION}_PUBLIC /opt/ghidra \
+    && rm /tmp/ghidra.zip \
+    # Remove unnecessary components to reduce image size
+    && rm -rf /opt/ghidra/docs \
+    && rm -rf /opt/ghidra/Extensions/Eclipse \
+    && rm -rf /opt/ghidra/Extensions/sample
 
 # Copy requirements file
 COPY requirements.txt .
@@ -111,6 +125,8 @@ RUN apt-get update \
         # Binwalk for firmware analysis and file carving
         # Version: 2.3.4+dfsg1-1 (Debian 12 Bookworm)
         binwalk=2.3.4+dfsg1-1 \
+        # OpenJDK 17 required for Ghidra and PyGhidra
+        openjdk-17-jre-headless \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy native tooling built in the builder stage so CLI tools match Python bindings
@@ -121,6 +137,7 @@ COPY --from=builder /usr/local/lib/libyara* /usr/local/lib/
 COPY --from=builder /usr/local/include/yara /usr/local/include/yara
 COPY --from=builder /usr/local/lib/pkgconfig/yara.pc /usr/local/lib/pkgconfig/yara.pc
 COPY --from=builder /opt/radare2 /opt/radare2
+COPY --from=builder /opt/ghidra /opt/ghidra
 RUN echo "/opt/radare2/lib" > /etc/ld.so.conf.d/radare2.conf && ldconfig
 
 # Copy Python virtual environment from builder stage
@@ -134,6 +151,7 @@ COPY server.py ./
 ENV PATH="/opt/radare2/bin:/opt/venv/bin:$PATH" \
     PYTHONPATH=/app \
     REVERSECORE_WORKSPACE=/app/workspace \
+    GHIDRA_INSTALL_DIR=/opt/ghidra \
     MCP_TRANSPORT=http \
     LOG_LEVEL=INFO \
     LOG_FILE=/var/log/reversecore/app.log \
