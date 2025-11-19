@@ -234,8 +234,6 @@ def recover_structures_with_ghidra(
     """
     try:
         import pyghidra
-        from ghidra.program.model.data import StructureDataType, DataTypeConflictHandler
-        from ghidra.program.model.listing import VariableUtilities
         from ghidra.program.model.pcode import HighFunction, HighVariable
     except ImportError as e:
         raise ImportError(
@@ -305,7 +303,6 @@ def recover_structures_with_ghidra(
                         )
                     
                     # Collect all data types used in the function
-                    data_type_manager = program.getDataTypeManager()
                     structures_found = {}
                     
                     # Analyze local variables for structure types
