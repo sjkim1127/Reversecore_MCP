@@ -111,6 +111,55 @@ result = run_radare2("file.exe", "aflj")
 # Parse JSON and filter in your code
 ```
 
+### 🥇 Priority Tools for Advanced Analysis
+
+#### 🥈 Priority 1: "What Changed?" — Binary Diffing (`diff_binaries`)
+
+**Use this when you need to compare two versions of the same binary:**
+
+- **Patch Analysis (1-day Exploits)**: Compare pre-patch vs post-patch binaries to find security fixes
+  - Example: `diff_binaries("/app/workspace/app_v1.0.dll", "/app/workspace/app_v1.1.dll")`
+  - Microsoft releases a security patch → hackers compare versions to find the vulnerability
+
+- **Game Hacking**: Find offset changes after game updates
+  - Example: `diff_binaries("/app/workspace/game_old.exe", "/app/workspace/game_new.exe", "Player::update")`
+  - Game updates → find where Player health offset moved to
+
+- **Malware Variant Analysis**: Compare malware samples to find what changed
+  - Example: `diff_binaries("/app/workspace/lazarus_v1.exe", "/app/workspace/lazarus_v2.exe")`
+  - "90% identical to known Lazarus malware, but C2 address generation changed"
+
+**Output includes:**
+- Similarity score (0.0-1.0)
+- List of code changes with addresses
+- Type of changes (new blocks, removed blocks, modified code)
+
+#### 🥈 Priority 2: "Skip the Noise" — Library Signature Matching (`match_libraries`)
+
+**Use this to focus on user code and skip standard library analysis:**
+
+- **Large Binary Analysis**: Filter out OpenSSL, zlib, MFC, etc. from 25MB+ files
+  - Example: `match_libraries("/app/workspace/huge_app.exe")`
+  - Reduces analysis scope by 80% → saves tokens and time
+
+- **Game Client Analysis**: Skip Unreal Engine/Unity standard library functions
+  - Example: `match_libraries("/app/workspace/game.exe")`
+  - Focus on game-specific logic, not engine code
+
+- **Malware Analysis**: Identify custom malware code vs Windows API wrappers
+  - Example: `match_libraries("/app/workspace/malware.exe")`
+  - Find the 20% of code that's actually malicious
+
+**Output includes:**
+- Total functions vs library functions vs user functions
+- Noise reduction percentage (typically 60-80%)
+- List of library matches (strcpy, malloc, etc.)
+- List of user functions to analyze
+
+**Why these tools matter:**
+- **Binary Diffing**: Essential for vulnerability research and patch analysis
+- **Library Matching**: Reduces analysis time from hours to minutes for large binaries
+
 ## Overview
 
 ### What is MCP?
@@ -878,6 +927,38 @@ AI Agent:
   - Example: `recover_structures("/app/workspace/game.exe", "Player::update")`
   - Example (radare2): `recover_structures("/app/workspace/binary", "main", use_ghidra=False)`
   - **Value**: One structure definition can clarify thousands of lines of code
+
+- **`diff_binaries`**: Compare two binary files to identify code changes
+  - **🥇 Priority 1: Binary Diffing for Patch Analysis**
+  - **Essential for vulnerability research and 1-day exploit development**
+  - Uses radare2's radiff2 to compare binaries
+  - Returns similarity score and detailed list of changes
+  - Supports whole-binary comparison or function-specific comparison
+  - Use cases:
+    - **Patch Analysis**: Compare pre-patch vs post-patch to find security fixes
+    - **Game Hacking**: Find offset changes after game updates
+    - **Malware Variant Analysis**: Identify what changed between malware samples
+    - **Firmware Diff**: Compare router firmware versions to find vulnerabilities
+  - Example (whole binary): `diff_binaries("/app/workspace/v1.exe", "/app/workspace/v2.exe")`
+  - Example (function): `diff_binaries("/app/workspace/old.exe", "/app/workspace/new.exe", "main")`
+  - **Output**: Similarity score, change types (new/removed/modified blocks), addresses
+  - **Value**: Automates the tedious process of finding what changed between versions
+
+- **`match_libraries`**: Identify and filter known library functions
+  - **🥈 Priority 2: Library Signature Matching for Noise Reduction**
+  - **Reduces analysis scope by 60-80% by filtering out standard libraries**
+  - Uses radare2's zignatures (FLIRT-compatible) to match known functions
+  - Automatically identifies strcpy, malloc, OpenSSL, zlib, MFC, etc.
+  - Returns list of library functions vs user functions
+  - Use cases:
+    - **Large Binary Analysis**: Skip analysis of 1000+ library functions in 25MB+ files
+    - **Game Client Analysis**: Filter out Unreal Engine/Unity standard library
+    - **Malware Analysis**: Focus on custom malware code, skip Windows API wrappers
+    - **Token Optimization**: Reduce AI token usage by focusing on relevant code
+  - Example: `match_libraries("/app/workspace/large_app.exe")`
+  - Example (custom DB): `match_libraries("/app/workspace/game.exe", "/app/rules/game_engine.sig")`
+  - **Output**: Noise reduction percentage, library matches, user function list
+  - **Value**: Transforms 25MB binary with 10,000 functions → 2,000 user functions to analyze
 
 ### Library Tools
 

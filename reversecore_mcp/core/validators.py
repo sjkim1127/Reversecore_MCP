@@ -29,6 +29,8 @@ def validate_tool_parameters(tool_name: str, params: Dict[str, Any]) -> None:
         "extract_rtti_info": _validate_rtti_params,
         "smart_decompile": _validate_decompile_params,
         "generate_yara_rule": _validate_yara_generation_params,
+        "diff_binaries": _validate_diff_binaries_params,
+        "match_libraries": _validate_match_libraries_params,
     }
     
     if tool_name in validators:
@@ -173,3 +175,29 @@ def _validate_yara_generation_params(params: Dict[str, Any]) -> None:
     if "rule_name" in params:
         if not isinstance(params["rule_name"], str):
             raise ValidationError("rule_name must be a string")
+
+
+def _validate_diff_binaries_params(params: Dict[str, Any]) -> None:
+    """Validate diff_binaries parameters."""
+    if "function_name" in params and params["function_name"] is not None:
+        if not isinstance(params["function_name"], str):
+            raise ValidationError("function_name must be a string")
+    
+    max_output_size = params.get("max_output_size", 10_000_000)
+    if not isinstance(max_output_size, int) or max_output_size < 1:
+        raise ValidationError("max_output_size must be a positive integer")
+    
+    timeout = params.get("timeout", 300)
+    if not isinstance(timeout, int) or timeout < 1:
+        raise ValidationError("timeout must be a positive integer")
+
+
+def _validate_match_libraries_params(params: Dict[str, Any]) -> None:
+    """Validate match_libraries parameters."""
+    max_output_size = params.get("max_output_size", 10_000_000)
+    if not isinstance(max_output_size, int) or max_output_size < 1:
+        raise ValidationError("max_output_size must be a positive integer")
+    
+    timeout = params.get("timeout", 300)
+    if not isinstance(timeout, int) or timeout < 1:
+        raise ValidationError("timeout must be a positive integer")
