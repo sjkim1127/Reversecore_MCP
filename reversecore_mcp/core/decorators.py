@@ -68,6 +68,13 @@ def log_execution(tool_name: Optional[str] = None) -> Callable[[F], F]:
                 try:
                     result = await func(*args, **kwargs)
                     execution_time = int((time.time() - start_time) * 1000)
+
+                    # Add execution time to metadata
+                    if hasattr(result, "metadata"):
+                        if result.metadata is None:
+                            result.metadata = {}
+                        result.metadata["execution_time_ms"] = execution_time
+
                     log_extra["execution_time_ms"] = execution_time
                     logger.info(
                         f"{actual_tool_name} completed successfully", extra=log_extra
@@ -115,6 +122,13 @@ def log_execution(tool_name: Optional[str] = None) -> Callable[[F], F]:
             try:
                 result = func(*args, **kwargs)
                 execution_time = int((time.time() - start_time) * 1000)
+
+                # Add execution time to metadata
+                if hasattr(result, "metadata"):
+                    if result.metadata is None:
+                        result.metadata = {}
+                    result.metadata["execution_time_ms"] = execution_time
+
                 log_extra["execution_time_ms"] = execution_time
                 logger.info(
                     f"{actual_tool_name} completed successfully", extra=log_extra
