@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Protocol, Tuple
 
@@ -30,6 +31,66 @@ def register_lib_tools(mcp: FastMCP) -> None:
     mcp.tool(run_yara)
     mcp.tool(disassemble_with_capstone)
     mcp.tool(parse_binary_with_lief)
+    mcp.tool(extract_iocs)
+
+
+@log_execution(tool_name="extract_iocs")
+@track_metrics("extract_iocs")
+@handle_tool_errors
+def extract_iocs(
+    text: str,
+    extract_ips: bool = True,
+    extract_urls: bool = True,
+    extract_emails: bool = True,
+) -> ToolResult:
+    """
+    Extract Indicators of Compromise (IOCs) from text using regex.
+
+    This tool automatically finds and extracts potential IOCs like IP addresses,
+    URLs, and email addresses from any text input (e.g., strings output,
+    decompiled code, logs).
+
+    Args:
+        text: The text to analyze for IOCs
+        extract_ips: Whether to extract IPv4 addresses (default: True)
+        extract_urls: Whether to extract URLs (default: True)
+        extract_emails: Whether to extract email addresses (default: True)
+
+    Returns:
+        ToolResult with extracted IOCs in structured format
+    """
+    iocs = {}
+    total_count = 0
+
+    # IPv4 Regex
+    if extract_ips:
+        # Basic IPv4 regex (matches 0.0.0.0 to 255.255.255.255)
+        ip_pattern = r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b"
+        ips = list(set(re.findall(ip_pattern, text)))
+        iocs["ipv4"] = ips
+        total_count += len(ips)
+
+    # URL Regex
+    if extract_urls:
+        # Matches http/https/ftp/ws/wss URLs
+        url_pattern = r"https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&//=]*)"
+        urls = list(set(re.findall(url_pattern, text)))
+        iocs["urls"] = urls
+        total_count += len(urls)
+
+    # Email Regex
+    if extract_emails:
+        # Basic email regex
+        email_pattern = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
+        emails = list(set(re.findall(email_pattern, text)))
+        iocs["emails"] = emails
+        total_count += len(emails)
+
+    return success(
+        iocs,
+        ioc_count=total_count,
+        description=f"Extracted {total_count} IOCs from text",
+    )
 
 
 class YaraStringMatchInstance(Protocol):

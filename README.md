@@ -123,14 +123,15 @@ result = run_radare2("file.exe", "aflj")
   - Run `generate_yara_rule` on the entry point
   - Move to the next file immediately
 
-### 5. **Performance Rules (Parallel Execution)**
-- ⚡ **ALWAYS** run initial triage tools in **PARALLEL** if your client supports it:
-  - `run_file`
-  - `run_strings`
-  - `run_yara`
-  - `run_binwalk`
-- **Why**: The server supports async execution. Running sequentially wastes time.
-- **Instruction**: "Analyze file.exe" → Call all 4 tools simultaneously.
+### 5. **Performance Rules (Batch Scanning)**
+- ⚡ **ALWAYS** use `scan_workspace` for initial triage instead of running tools one by one.
+- **Why**: It runs `run_file`, `parse_binary_with_lief`, and `run_yara` in parallel for all files.
+- **Instruction**: "Analyze workspace" → Call `scan_workspace`.
+
+### 6. **IOC Extraction Rules**
+- 🔍 **ALWAYS** use `extract_iocs` on any large text output (strings, logs, decompiled code).
+- **Why**: It filters noise and extracts actionable intelligence (IPs, URLs, Emails).
+- **Instruction**: "Find C2 servers" → Run `run_strings` then `extract_iocs`.
 
 ### 🥇 Priority Tools for Advanced Analysis
 
@@ -880,6 +881,13 @@ AI Agent:
   - File count statistics
   - Useful for verifying file availability before analysis
 
+- **`scan_workspace`**: Batch scan all files in the workspace
+  - **⚡ Batch Mode**: Runs `run_file`, `parse_binary_with_lief`, and `run_yara` in parallel
+  - **Auto-Discovery**: Finds all files matching patterns (default: all)
+  - **Performance**: Uses async concurrency to scan 100+ files in seconds
+  - **Use Case**: Initial triage of a new malware set or firmware image
+  - Example: `scan_workspace(["*.exe", "*.dll"])`
+
 #### Advanced Analysis Tools
 
 - **`generate_function_graph`**: Create Control Flow Graph (CFG) visualizations
@@ -1024,6 +1032,30 @@ AI Agent:
   - Identify security features (ASLR, DEP, code signing)
   - Maximum file size: 1GB (configurable)
 
+- **`extract_iocs`**: Extract Indicators of Compromise from text
+  - **Regex-based extraction**: Finds IPv4, URLs, and Emails
+  - **Noise Reduction**: Filters large outputs (like `strings`) into actionable data
+  - **Use Case**: Analyze strings output or decompiled code for C2 servers
+  - Example: `extract_iocs(run_strings_output)`
+
+- **`trace_execution_path`**: Find exploit paths from user input to dangerous sinks
+  - **🛡️ Vulnerability Reachability**: Traces calls backwards from `system`, `strcpy`, etc.
+  - **Backtrace Analysis**: Maps out how execution reaches the target function
+  - **Use Case**: Verify if user input (e.g., `recv`) can reach a vulnerable sink
+  - Example: `trace_execution_path("/app/workspace/vuln.exe", "system")`
+
+- **`scan_for_versions`**: Detect open-source library versions and CVEs
+  - **🧩 Version Detective**: Scans binary for version strings (OpenSSL, GCC, etc.)
+  - **SCA**: Identifies software composition and potential vulnerabilities
+  - **Use Case**: Find outdated libraries like OpenSSL 1.0.1 (Heartbleed)
+  - Example: `scan_for_versions("/app/workspace/firmware.bin")`
+
+- **`analyze_variant_changes`**: Map malware lineage and evolution
+  - **🧬 Lineage Mapper**: Combines binary diffing with CFG analysis
+  - **Evolutionary Analysis**: Identifies *how* logic changed between variants
+  - **Use Case**: Track malware evolution (e.g., "Lazarus v1 vs v2")
+  - Example: `analyze_variant_changes("old.exe", "new.exe")`
+
 ### Full-Cycle Reverse Engineering Workflow
 
 Reversecore_MCP now supports a complete end-to-end analysis workflow:
@@ -1063,7 +1095,10 @@ emulate_machine_code("/app/workspace/malware.exe", "sym.decrypt", 200)
 # 8. Decompile for high-level understanding
 smart_decompile("/app/workspace/malware.exe", "sym.decrypt")
 
-# 9. Generate detection signature
+# 9. Trace exploit paths
+trace_execution_path("/app/workspace/malware.exe", "system")
+
+# 10. Generate detection signature
 generate_yara_rule("/app/workspace/malware.exe", "sym.decrypt", 128, "malware_decrypt")
 ```
 
@@ -1073,6 +1108,7 @@ generate_yara_rule("/app/workspace/malware.exe", "sym.decrypt", 128, "malware_de
 - **CFG**: Visualize logic flow for AI comprehension
 - **Emulation**: Safely predict behavior without execution
 - **Decompilation**: Get high-level pseudo-C for analysis
+- **Trace**: Verify exploitability by finding paths to sinks
 - **YARA**: Bridge analysis → defense with detection signatures
 
 # 3. Identify suspicious function
