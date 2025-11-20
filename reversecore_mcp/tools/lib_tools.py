@@ -62,6 +62,17 @@ def extract_iocs(
     iocs = {}
     total_count = 0
 
+    # Handle file paths: if text is a valid file path, read its content
+    # This handles cases where users pass a file path instead of content
+    if len(text) < 260 and os.path.exists(text) and os.path.isfile(text):
+        try:
+            # Limit read to 10MB to prevent memory issues
+            with open(text, "r", encoding="utf-8", errors="ignore") as f:
+                text = f.read(10_000_000)
+        except Exception:
+            # If read fails, treat as normal text
+            pass
+
     # IPv4 Regex
     if extract_ips:
         # Basic IPv4 regex (matches 0.0.0.0 to 255.255.255.255)
@@ -74,7 +85,14 @@ def extract_iocs(
     if extract_urls:
         # Matches http/https/ftp/ws/wss URLs
         url_pattern = r"https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&//=]*)"
-        urls = list(set(re.findall(url_pattern, text)))
+        raw_urls = re.findall(url_pattern, text)
+        urls = []
+        for url in raw_urls:
+            # Strip common trailing punctuation that might be part of a sentence
+            while url and url[-1] in ".,:;?!":
+                url = url[:-1]
+            urls.append(url)
+        urls = list(set(urls))
         iocs["urls"] = urls
         total_count += len(urls)
 

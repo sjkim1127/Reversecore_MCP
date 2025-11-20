@@ -55,7 +55,6 @@ def decompile_function_with_ghidra(
     """
     try:
         import pyghidra
-        from ghidra.app.decompiler import DecompInterface, DecompileResults
     except ImportError as e:
         raise ImportError(
             "PyGhidra is not installed. Install with: pip install pyghidra"
@@ -76,6 +75,8 @@ def decompile_function_with_ghidra(
                 project_name=project_name,
                 analyze=True  # Run auto-analysis
             ) as flat_api:
+                # Import Ghidra classes here, after JVM is started
+                from ghidra.app.decompiler import DecompInterface, DecompileResults
                 
                 program = flat_api.getCurrentProgram()
                 
@@ -236,7 +237,6 @@ def recover_structures_with_ghidra(
     """
     try:
         import pyghidra
-        from ghidra.program.model.pcode import HighFunction, HighVariable
     except ImportError as e:
         raise ImportError(
             "PyGhidra is not installed. Install with: pip install pyghidra"
@@ -257,6 +257,9 @@ def recover_structures_with_ghidra(
                 project_name=project_name,
                 analyze=True  # Run auto-analysis for better structure detection
             ) as flat_api:
+                # Import Ghidra classes here
+                from ghidra.program.model.pcode import HighFunction, HighVariable
+                from ghidra.app.decompiler import DecompInterface, DecompileResults
                 
                 program = flat_api.getCurrentProgram()
                 
@@ -270,8 +273,6 @@ def recover_structures_with_ghidra(
                     )
                 
                 # Initialize decompiler for high-level analysis
-                from ghidra.app.decompiler import DecompInterface, DecompileResults
-                
                 decompiler = DecompInterface()
                 decompiler.openProgram(program)
                 

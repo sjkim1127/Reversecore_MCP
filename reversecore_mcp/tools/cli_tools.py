@@ -936,10 +936,8 @@ async def generate_function_graph(
         if ts and (time.time() - ts > 1.0):
             result.metadata["cache_hit"] = True
             # Update description to indicate cached result
-            if result.content and len(result.content) > 0:
-                # We can't easily modify the text content object directly without recreating it
-                # But we can update the metadata which is visible
-                pass
+            # Note: ToolSuccess has 'data' field, not 'content'
+            pass
                 
     return result
 
@@ -2560,6 +2558,14 @@ async def match_libraries(
             "summary": f"Filtered out {library_count} library functions ({noise_reduction:.1f}% noise reduction). Focus analysis on {user_count} user functions.",
             "signature_db_used": signature_db if signature_db else "built-in",
         }
+
+        if library_count == 0:
+            result_data["hint"] = (
+                "No library functions matched. This could mean: "
+                "1. No signatures loaded (check signature_db). "
+                "2. Binary uses statically linked libraries not in DB. "
+                "3. Binary is fully custom."
+            )
 
         return success(
             json.dumps(result_data, indent=2),
