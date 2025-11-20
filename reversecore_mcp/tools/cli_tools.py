@@ -7,6 +7,7 @@ import shutil
 import hashlib
 import os
 from pathlib import Path
+import time
 
 from async_lru import alru_cache
 from fastmcp import FastMCP
@@ -101,10 +102,9 @@ async def trace_execution_path(
         out, _ = await execute_subprocess_async(cmd, timeout=30)
         try:
             # Robust JSON extraction
-            json_start = out.find('[')
-            json_end = out.rfind(']') + 1
-            if json_start >= 0 and json_end > json_start:
-                symbols = json.loads(out[json_start:json_end])
+            json_str = _extract_first_json(out)
+            if json_str:
+                symbols = json.loads(json_str)
             else:
                 symbols = json.loads(out)
 
@@ -119,10 +119,9 @@ async def trace_execution_path(
         out, _ = await execute_subprocess_async(cmd, timeout=30)
         try:
             # Robust JSON extraction
-            json_start = out.find('[')
-            json_end = out.rfind(']') + 1
-            if json_start >= 0 and json_end > json_start:
-                funcs = json.loads(out[json_start:json_end])
+            json_str = _extract_first_json(out)
+            if json_str:
+                funcs = json.loads(json_str)
             else:
                 funcs = json.loads(out)
 
@@ -162,10 +161,9 @@ async def trace_execution_path(
         
         try:
             # Robust JSON extraction
-            json_start = out.find('[')
-            json_end = out.rfind(']') + 1
-            if json_start >= 0 and json_end > json_start:
-                xrefs = json.loads(out[json_start:json_end])
+            json_str = _extract_first_json(out)
+            if json_str:
+                xrefs = json.loads(json_str)
             else:
                 xrefs = json.loads(out)
         except:
@@ -329,10 +327,9 @@ async def analyze_variant_changes(
     
     try:
         # Robust JSON extraction
-        json_start = out.find('[')
-        json_end = out.rfind(']') + 1
-        if json_start >= 0 and json_end > json_start:
-            funcs_b = json.loads(out[json_start:json_end])
+        json_str = _extract_first_json(out)
+        if json_str:
+            funcs_b = json.loads(json_str)
         else:
             funcs_b = json.loads(out)
     except:
@@ -867,27 +864,22 @@ async def _generate_function_graph_impl(
         timeout=effective_timeout,
     )
 
-    # Clean output for JSON parsing (remove potential noise from 'aaa')
-    json_output = output
-    try:
-        json_start = output.find('[')
-        json_end = output.rfind(']') + 1
-        if json_start >= 0 and json_end > json_start:
-            json_output = output[json_start:json_end]
-    except:
-        pass
+    # Add timestamp for cache visibility
+    import time
+    timestamp = time.time()
 
     # 5. Format conversion and return
     if format.lower() == "json":
-        return success(json_output, bytes_read=bytes_read, format="json")
+        return success(output, bytes_read=bytes_read, format="json", timestamp=timestamp)
 
     elif format.lower() == "mermaid":
-        mermaid_code = _radare2_json_to_mermaid(json_output)
+        mermaid_code = _radare2_json_to_mermaid(output)
         return success(
             mermaid_code,
             bytes_read=bytes_read,
             format="mermaid",
             description="Render this using Mermaid to see the control flow.",
+            timestamp=timestamp
         )
 
     elif format.lower() == "dot":
@@ -927,9 +919,23 @@ async def generate_function_graph(
     Returns:
         ToolResult with CFG visualization or JSON data
     """
-    return await _generate_function_graph_impl(
+    import time
+    result = await _generate_function_graph_impl(
         file_path, function_address, format, timeout
     )
+    
+    # Check for cache hit
+    if not result.is_error and result.metadata:
+        ts = result.metadata.get("timestamp")
+        if ts and (time.time() - ts > 1.0):
+            result.metadata["cache_hit"] = True
+            # Update description to indicate cached result
+            if result.content and len(result.content) > 0:
+                # We can't easily modify the text content object directly without recreating it
+                # But we can update the metadata which is visible
+                pass
+                
+    return result
 
 
 def _parse_register_state(ar_output: str) -> dict:
@@ -1382,10 +1388,9 @@ async def extract_rtti_info(
     try:
         # Robust JSON extraction for classes
         if classes_output.strip():
-            json_start = classes_output.find('[')
-            json_end = classes_output.rfind(']') + 1
-            if json_start >= 0 and json_end > json_start:
-                classes = json.loads(classes_output[json_start:json_end])
+            json_str = _extract_first_json(classes_output)
+            if json_str:
+                classes = json.loads(json_str)
             else:
                 classes = json.loads(classes_output)
         else:
@@ -1393,10 +1398,9 @@ async def extract_rtti_info(
 
         # Robust JSON extraction for symbols
         if symbols_output.strip():
-            json_start = symbols_output.find('[')
-            json_end = symbols_output.rfind(']') + 1
-            if json_start >= 0 and json_end > json_start:
-                symbols = json.loads(symbols_output[json_start:json_end])
+            json_str = _extract_first_json(symbols_output)
+            if json_str:
+                symbols = json.loads(json_str)
             else:
                 symbols = json.loads(symbols_output)
         else:
@@ -1570,6 +1574,10 @@ async def _smart_decompile_impl(
             hint="Analysis failed. The binary might be packed or corrupted."
         )
 
+    # Add timestamp for cache visibility
+    import time
+    timestamp = time.time()
+
     # 6. Return result
     return success(
         output,
@@ -1578,6 +1586,7 @@ async def _smart_decompile_impl(
         format="pseudo_c",
         decompiler="radare2",
         description=f"Decompiled code from function {function_address}",
+        timestamp=timestamp
     )
 
 
@@ -1606,9 +1615,18 @@ async def smart_decompile(
     Returns:
         ToolResult with decompiled pseudo C code
     """
-    return await _smart_decompile_impl(
+    import time
+    result = await _smart_decompile_impl(
         file_path, function_address, timeout, use_ghidra
     )
+
+    # Check for cache hit
+    if not result.is_error and result.metadata:
+        ts = result.metadata.get("timestamp")
+        if ts and (time.time() - ts > 1.0):
+            result.metadata["cache_hit"] = True
+            
+    return result
 
 
 @log_execution(tool_name="generate_yara_rule")
@@ -1858,23 +1876,21 @@ async def analyze_xrefs(
 
         for line in lines:
             # Robust JSON extraction from line
-            json_start = line.find('[')
-            if json_start >= 0:
-                json_end = line.rfind(']') + 1
-                if json_end > json_start:
-                    try:
-                        refs = json.loads(line[json_start:json_end])
-                        if isinstance(refs, list) and len(refs) > 0:
-                            # Determine if this is "to" or "from" based on field names
-                            first_ref = refs[0]
-                            if "from" in first_ref:
-                                # This is xrefs TO (callers)
-                                xrefs_to = refs
-                            elif "addr" in first_ref or "fcn_addr" in first_ref:
-                                # This is xrefs FROM (callees)
-                                xrefs_from = refs
-                    except json.JSONDecodeError:
-                        continue
+            json_str = _extract_first_json(line)
+            if json_str:
+                try:
+                    refs = json.loads(json_str)
+                    if isinstance(refs, list) and len(refs) > 0:
+                        # Determine if this is "to" or "from" based on field names
+                        first_ref = refs[0]
+                        if "from" in first_ref:
+                            # This is xrefs TO (callers)
+                            xrefs_to = refs
+                        elif "addr" in first_ref or "fcn_addr" in first_ref:
+                            # This is xrefs FROM (callees)
+                            xrefs_from = refs
+                except json.JSONDecodeError:
+                    continue
 
         # 6. Format results
         result = {
@@ -2069,12 +2085,12 @@ async def recover_structures(
         # 5. Parse radare2 output
         try:
             if output.strip():
-                # Robust JSON extraction
-                json_start = output.find('[')
-                json_end = output.rfind(']') + 1
-                if json_start >= 0 and json_end > json_start:
-                    variables = json.loads(output[json_start:json_end])
+                # Robust JSON extraction using stack-based parser
+                json_str = _extract_first_json(output)
+                if json_str:
+                    variables = json.loads(json_str)
                 else:
+                    # Fallback to direct load if extraction failed (might be simple JSON)
                     variables = json.loads(output)
             else:
                 variables = []
@@ -2468,10 +2484,8 @@ async def match_libraries(
         try:
             # Attempt to find JSON array in output if direct parse fails
             # This handles cases where 'zg' or 'aaa' might produce non-JSON output before the JSON result
-            json_start = output.find('[')
-            json_end = output.rfind(']') + 1
-            if json_start >= 0 and json_end > json_start:
-                json_str = output[json_start:json_end]
+            json_str = _extract_first_json(output)
+            if json_str:
                 functions = json.loads(json_str)
             else:
                 functions = json.loads(output)
@@ -2647,6 +2661,41 @@ def _resolve_address(proj, addr_str):
         pass
         
     return None
+
+
+def _extract_first_json(text: str) -> str:
+    """
+    Extract the first valid JSON object or array from a string.
+    Handles nested structures and ignores surrounding garbage.
+    """
+    text = text.strip()
+    if not text:
+        return ""
+        
+    # Find start
+    start_idx = -1
+    stack = []
+    
+    for i, char in enumerate(text):
+        if char == '{' or char == '[':
+            if start_idx == -1:
+                start_idx = i
+            stack.append(char)
+        elif char == '}' or char == ']':
+            if not stack:
+                continue # Unmatched closing bracket, ignore
+            
+            last = stack[-1]
+            if (char == '}' and last == '{') or (char == ']' and last == '['):
+                stack.pop()
+                if not stack:
+                    # Found complete object
+                    return text[start_idx : i + 1]
+            else:
+                # Mismatched brackets (e.g. {]) - parsing error
+                return ""
+                
+    return ""
 
 
 @log_execution(tool_name="solve_path_constraints")
