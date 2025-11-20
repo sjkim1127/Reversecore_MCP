@@ -161,6 +161,11 @@ ENV PATH="/opt/radare2/bin:/opt/venv/bin:$PATH" \
 # Create log directory
 RUN mkdir -p /var/log/reversecore
 
+# Create a non-root user and switch to it
+RUN useradd -m -u 1000 appuser \
+    && chown -R appuser:appuser /app /var/log/reversecore
+USER appuser
+
 # Expose port for HTTP transport
 EXPOSE 8000
 

@@ -8,6 +8,7 @@ import hashlib
 import os
 from pathlib import Path
 
+from async_lru import alru_cache
 from fastmcp import FastMCP
 from reversecore_mcp.core.config import get_config
 
@@ -798,6 +799,7 @@ def _radare2_json_to_mermaid(json_str: str) -> str:
         return f"graph TD;\n    Error[Parse Error: {str(e)}]"
 
 
+@alru_cache(maxsize=32)
 @log_execution(tool_name="generate_function_graph")
 @track_metrics("generate_function_graph")
 @handle_tool_errors
@@ -1365,6 +1367,7 @@ async def extract_rtti_info(
     )
 
 
+@alru_cache(maxsize=32)
 @log_execution(tool_name="smart_decompile")
 @track_metrics("smart_decompile")
 @handle_tool_errors

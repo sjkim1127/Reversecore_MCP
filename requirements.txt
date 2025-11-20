@@ -21,6 +21,9 @@ lief>=0.13.0
 # Rate limiting for HTTP mode
 slowapi>=0.1.9
 
+# Caching for async functions
+async-lru>=2.0.4
+
 # Additional dependencies for HTTP transport mode
 # fastmcp may include these, but we need them explicitly for server.py
 fastapi>=0.100.0
