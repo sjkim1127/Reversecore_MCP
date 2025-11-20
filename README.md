@@ -367,7 +367,7 @@ docker run -d \
 1. Install system dependencies:
    ```bash
    # On Debian/Ubuntu
-   sudo apt-get install radare2 yara libyara-dev binutils
+   sudo apt-get install radare2 yara libyara-dev binutils openjdk-17-jre-headless
    ```
 
 2. Install Python dependencies:
@@ -375,7 +375,15 @@ docker run -d \
    pip install -r requirements.txt
    ```
 
-3. Run the server:
+3. Configure environment variables:
+   Create a `.env` file in the project root with the following content:
+   ```env
+   GHIDRA_INSTALL_DIR=/path/to/ghidra_11.4.2_PUBLIC
+   REVERSECORE_WORKSPACE=/path/to/workspace
+   ```
+   *Note: You must download and extract Ghidra 11.4.2 manually for local installation.*
+
+4. Run the server:
    ```bash
    # Stdio mode (Standard)
    MCP_TRANSPORT=stdio python server.py

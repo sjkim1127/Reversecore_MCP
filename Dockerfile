@@ -23,7 +23,8 @@
 FROM python:3.11-slim-bookworm AS builder
 ARG YARA_VERSION=4.3.1
 ARG RADARE2_VERSION=6.0.4
-ARG GHIDRA_VERSION=11.2
+ARG GHIDRA_VERSION=11.4.2
+ARG GHIDRA_DATE=20250826
 
 # Set working directory
 WORKDIR /app
@@ -80,7 +81,7 @@ RUN curl -sSL "https://github.com/radareorg/radare2/releases/download/${RADARE2_
 
 # Download and install Ghidra for enhanced decompilation
 # Ghidra provides industry-standard decompilation with better type recovery
-RUN wget -q "https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_${GHIDRA_VERSION}_build/ghidra_${GHIDRA_VERSION}_PUBLIC_20240926.zip" -O /tmp/ghidra.zip \
+RUN wget -q "https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_${GHIDRA_VERSION}_build/ghidra_${GHIDRA_VERSION}_PUBLIC_${GHIDRA_DATE}.zip" -O /tmp/ghidra.zip \
     && unzip -q /tmp/ghidra.zip -d /opt \
     && mv /opt/ghidra_${GHIDRA_VERSION}_PUBLIC /opt/ghidra \
     && rm /tmp/ghidra.zip \

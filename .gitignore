@@ -37,4 +37,7 @@ build/
 .env
 .python-version
 
+# Local tools
+tools/ghidra/
+
 

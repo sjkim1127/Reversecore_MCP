@@ -13,6 +13,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Tuple
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 def _parse_bool(value: str | None, default: bool) -> bool:
     if value is None:
