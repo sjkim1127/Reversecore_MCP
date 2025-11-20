@@ -120,7 +120,7 @@ def main():
                     status_code=500,
                     content={
                         "status": "error",
-                        "message": f"File upload failed: {str(e)}"
+                        "message": "File upload failed due to an internal error."
                     }
                 )
 
