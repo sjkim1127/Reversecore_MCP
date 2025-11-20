@@ -537,6 +537,12 @@ async def run_strings(
         "run_strings",
         {"min_length": min_length, "max_output_size": max_output_size},
     )
+    
+    # Enforce a reasonable minimum output size to prevent accidental truncation
+    # 1KB is too small for meaningful string analysis
+    if max_output_size < 1024 * 1024:  # Enforce 1MB minimum
+        max_output_size = 1024 * 1024
+        
     validated_path = validate_file_path(file_path)
     cmd = ["strings", "-n", str(min_length), str(validated_path)]
     output, bytes_read = await execute_subprocess_async(
@@ -925,7 +931,7 @@ async def generate_function_graph(
     )
     
     # Check for cache hit
-    if not result.is_error and result.metadata:
+    if result.status == "success" and result.metadata:
         ts = result.metadata.get("timestamp")
         if ts and (time.time() - ts > 1.0):
             result.metadata["cache_hit"] = True
@@ -1621,7 +1627,7 @@ async def smart_decompile(
     )
 
     # Check for cache hit
-    if not result.is_error and result.metadata:
+    if result.status == "success" and result.metadata:
         ts = result.metadata.get("timestamp")
         if ts and (time.time() - ts > 1.0):
             result.metadata["cache_hit"] = True
@@ -2503,7 +2509,8 @@ async def match_libraries(
 
         for func in functions:
             name = func.get("name", "")
-            offset = func.get("offset", 0)
+            # Support both 'offset' (aflj) and 'vaddr' (isj) keys
+            offset = func.get("offset", func.get("vaddr", 0))
 
             # Heuristic: library functions typically have names like:
             # - sym.imp.* (imports)
