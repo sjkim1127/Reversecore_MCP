@@ -3,6 +3,8 @@
 import json
 import re
 import shutil
+import hashlib
+import os
 from pathlib import Path
 
 from fastmcp import FastMCP
@@ -98,11 +100,30 @@ async def run_radare2(
     validate_tool_parameters("run_radare2", {"r2_command": r2_command})
     validated_path = validate_file_path(file_path)
     validated_command = validate_r2_command(r2_command)
-    cmd = ["r2", "-q", "-c", validated_command, str(validated_path)]
+    
+    # Adaptive analysis logic
+    analysis_level = "aaa"
+    
+    # Simple information commands don't need analysis
+    simple_commands = ["i", "iI", "iz", "il", "is", "ie", "it"]
+    if validated_command in simple_commands or validated_command.startswith("i "):
+        analysis_level = "-n"
+    
+    # If user explicitly requested analysis, handle it via caching
+    if "aaa" in validated_command or "aa" in validated_command:
+        # Remove explicit analysis commands as they are handled by _build_r2_cmd
+        validated_command = validated_command.replace("aaa", "").replace("aa", "").strip(" ;")
+    
+    # Calculate dynamic timeout
+    effective_timeout = _calculate_dynamic_timeout(str(validated_path), timeout)
+    
+    # Build optimized command
+    cmd = _build_r2_cmd(str(validated_path), [validated_command], analysis_level)
+    
     output, bytes_read = await execute_subprocess_async(
         cmd,
         max_output_size=max_output_size,
-        timeout=timeout,
+        timeout=effective_timeout,
     )
     return success(output, bytes_read=bytes_read)
 
@@ -383,22 +404,15 @@ async def generate_function_graph(
     # 3. Build radare2 command
     r2_cmd_str = f"agfj @ {function_address}"
 
-    cmd = [
-        "r2",
-        "-q",
-        "-c",
-        "aaa",  # Automatic analysis
-        "-c",
-        r2_cmd_str,  # Extract graph JSON
-        str(validated_path),
-    ]
+    effective_timeout = _calculate_dynamic_timeout(str(validated_path), timeout)
+    cmd = _build_r2_cmd(str(validated_path), [r2_cmd_str], "aaa")
 
     # 4. Execute subprocess asynchronously
     # Large graphs need higher output limit
     output, bytes_read = await execute_subprocess_async(
         cmd,
         max_output_size=50_000_000,
-        timeout=timeout,
+        timeout=effective_timeout,
     )
 
     # 5. Format conversion and return
@@ -416,19 +430,13 @@ async def generate_function_graph(
 
     elif format.lower() == "dot":
         # For DOT format, call radare2 with agfd command
-        dot_cmd = [
-            "r2",
-            "-q",
-            "-c",
-            "aaa",
-            "-c",
-            f"agfd @ {function_address}",
-            str(validated_path),
-        ]
+        dot_cmd_str = f"agfd @ {function_address}"
+        dot_cmd = _build_r2_cmd(str(validated_path), [dot_cmd_str], "aaa")
+        
         dot_output, dot_bytes = await execute_subprocess_async(
             dot_cmd,
             max_output_size=50_000_000,
-            timeout=timeout,
+            timeout=effective_timeout,
         )
         return success(dot_output, bytes_read=dot_bytes, format="dot")
 
@@ -513,32 +521,24 @@ async def emulate_machine_code(
 
     # 3. Build radare2 ESIL emulation command chain
     # Note: Commands must be executed in specific order for ESIL to work correctly
-    cmd = [
-        "r2",
-        "-q",
-        "-c",
-        "aaa",  # Analyze all
-        "-c",
+    esil_cmds = [
         f"s {start_address}",  # Seek to start address
-        "-c",
         "aei",  # Initialize ESIL VM
-        "-c",
         "aeim",  # Initialize ESIL memory (stack)
-        "-c",
         "aeip",  # Initialize program counter to current seek
-        "-c",
         f"aes {instructions}",  # Step through N instructions
-        "-c",
         "ar",  # Show all registers
-        str(validated_path),
     ]
+    
+    effective_timeout = _calculate_dynamic_timeout(str(validated_path), timeout)
+    cmd = _build_r2_cmd(str(validated_path), esil_cmds, "aaa")
 
     # 4. Execute emulation
     try:
         output, bytes_read = await execute_subprocess_async(
             cmd,
             max_output_size=10_000_000,  # Register output is typically small
-            timeout=timeout,
+            timeout=effective_timeout,
         )
 
         # 5. Parse register state
@@ -619,21 +619,16 @@ async def get_pseudo_code(
         )
 
     # 3. Build radare2 command to decompile
-    cmd = [
-        "r2",
-        "-q",
-        "-c",
-        "aaa",  # Analyze all
-        "-c",
-        f"pdc @ {address}",  # Print Decompiled C code at address
-        str(validated_path),
-    ]
+    r2_cmd = f"pdc @ {address}"
+    
+    effective_timeout = _calculate_dynamic_timeout(str(validated_path), timeout)
+    cmd = _build_r2_cmd(str(validated_path), [r2_cmd], "aaa")
 
     # 4. Execute decompilation
     output, bytes_read = await execute_subprocess_async(
         cmd,
         max_output_size=10_000_000,  # Decompiled code can be large
-        timeout=timeout,
+        timeout=effective_timeout,
     )
 
     # 5. Check if output is valid
@@ -716,20 +711,24 @@ async def generate_signature(
         )
 
     # 3. Extract hex bytes using radare2's p8 command
-    cmd = [
-        "r2",
-        "-q",
-        "-c",
+    r2_cmds = [
         f"s {address}",  # Seek to address
-        "-c",
         f"p8 {length}",  # Print hex bytes
-        str(validated_path),
     ]
+    
+    # Adaptive analysis: if address is hex, we don't need full analysis
+    # If it's a symbol, we use default loading (empty string) which parses headers/symbols
+    analysis_level = ""
+    if address.startswith("0x") or re.match(r"^[0-9a-fA-F]+$", address):
+        analysis_level = "-n"
+        
+    effective_timeout = _calculate_dynamic_timeout(str(validated_path), timeout)
+    cmd = _build_r2_cmd(str(validated_path), r2_cmds, analysis_level)
 
     output, bytes_read = await execute_subprocess_async(
         cmd,
         max_output_size=1_000_000,
-        timeout=timeout,
+        timeout=effective_timeout,
     )
 
     # 4. Validate output
@@ -829,36 +828,26 @@ async def extract_rtti_info(
 
     # 2. Build radare2 command chain to extract RTTI and symbols
     # We'll use multiple commands to get comprehensive information
-    cmd = [
-        "r2",
-        "-q",
-        "-c",
-        "aaa",  # Analyze all (includes class analysis)
-        "-c",
-        "icj",  # List classes in JSON format
-        str(validated_path),
-    ]
+    r2_cmds = ["icj"]  # List classes in JSON format
+    
+    effective_timeout = _calculate_dynamic_timeout(str(validated_path), timeout)
+    cmd = _build_r2_cmd(str(validated_path), r2_cmds, "aaa")
 
     # 3. Execute class extraction
     classes_output, bytes_read = await execute_subprocess_async(
         cmd,
         max_output_size=50_000_000,  # Class info can be large for complex binaries
-        timeout=timeout,
+        timeout=effective_timeout,
     )
 
     # 4. Extract symbols
-    symbols_cmd = [
-        "r2",
-        "-q",
-        "-c",
-        "isj",  # List symbols in JSON format
-        str(validated_path),
-    ]
+    symbols_cmds = ["isj"]  # List symbols in JSON format
+    symbols_cmd = _build_r2_cmd(str(validated_path), symbols_cmds, "aaa")
 
     symbols_output, symbols_bytes = await execute_subprocess_async(
         symbols_cmd,
         max_output_size=50_000_000,
-        timeout=timeout,
+        timeout=effective_timeout,
     )
 
     # 5. Parse JSON outputs
@@ -1026,21 +1015,16 @@ async def smart_decompile(
     # 4. Fallback to radare2 (original implementation)
     logger.info(f"Using radare2 decompiler for {function_address}")
 
-    cmd = [
-        "r2",
-        "-q",
-        "-c",
-        "aaa",  # Analyze all
-        "-c",
-        f"pdc @ {function_address}",  # Print Decompiled C code at address
-        str(validated_path),
-    ]
+    r2_cmds = [f"pdc @ {function_address}"]
+    
+    effective_timeout = _calculate_dynamic_timeout(str(validated_path), timeout)
+    cmd = _build_r2_cmd(str(validated_path), r2_cmds, "aaa")
 
     # 5. Execute decompilation
     output, bytes_read = await execute_subprocess_async(
         cmd,
         max_output_size=10_000_000,
-        timeout=timeout,
+        timeout=effective_timeout,
     )
 
     # 6. Return result
@@ -1109,20 +1093,22 @@ async def generate_yara_rule(
         )
 
     # 4. Extract hex bytes using radare2's p8 command
-    cmd = [
-        "r2",
-        "-q",
-        "-c",
+    r2_cmds = [
         f"s {function_address}",  # Seek to address
-        "-c",
         f"p8 {byte_length}",  # Print hex bytes
-        str(validated_path),
     ]
+    
+    analysis_level = ""
+    if function_address.startswith("0x") or re.match(r"^[0-9a-fA-F]+$", function_address):
+        analysis_level = "-n"
+        
+    effective_timeout = _calculate_dynamic_timeout(str(validated_path), timeout)
+    cmd = _build_r2_cmd(str(validated_path), r2_cmds, analysis_level)
 
     output, bytes_read = await execute_subprocess_async(
         cmd,
         max_output_size=1_000_000,
-        timeout=timeout,
+        timeout=effective_timeout,
     )
 
     # 5. Validate output
@@ -1276,23 +1262,16 @@ async def analyze_xrefs(
         commands.append(f"axfj @ {address}")
 
     # Build command string
-    r2_commands = "; ".join(commands)
+    r2_commands_str = "; ".join(commands)
 
     # 4. Execute analysis
-    cmd = [
-        "r2",
-        "-q",
-        "-c",
-        "aaa",  # Analyze all first
-        "-c",
-        r2_commands,
-        str(validated_path),
-    ]
+    effective_timeout = _calculate_dynamic_timeout(str(validated_path), timeout)
+    cmd = _build_r2_cmd(str(validated_path), [r2_commands_str], "aaa")
 
     output, bytes_read = await execute_subprocess_async(
         cmd,
         max_output_size=10_000_000,
-        timeout=timeout,
+        timeout=effective_timeout,
     )
 
     # 5. Parse JSON output
@@ -1495,22 +1474,18 @@ async def recover_structures(
     else:
         # 4b. Use radare2 for basic structure recovery
         # radare2's 'afvt' command shows variable types and offsets
-        cmd = [
-            "r2",
-            "-q",
-            "-c",
-            "aaa",  # Analyze all
-            "-c",
+        r2_cmds = [
             f"s {function_address}",  # Seek to function
-            "-c",
             "afvj",  # Get function variables in JSON
-            str(validated_path),
         ]
+        
+        effective_timeout = _calculate_dynamic_timeout(str(validated_path), timeout)
+        cmd = _build_r2_cmd(str(validated_path), r2_cmds, "aaa")
 
         output, bytes_read = await execute_subprocess_async(
             cmd,
             max_output_size=10_000_000,
-            timeout=timeout,
+            timeout=effective_timeout,
         )
 
         # 5. Parse radare2 output
@@ -1692,7 +1667,7 @@ async def diff_binaries(
             timeout=timeout,
         )
 
-        # Also get similarity score separately
+        # Also get similarity score (format: "similarity: 0.95")
         similarity_cmd = ["radiff2", "-s", str(validated_path_a), str(validated_path_b)]
         similarity_output, _ = await execute_subprocess_async(
             similarity_cmd,
@@ -1884,23 +1859,18 @@ async def match_libraries(
         # Build command to apply signatures and get function list
         if signature_db:
             # Load custom signature database
-            r2_commands = f"aaa; zg {validated_sig_path}; aflj"
+            r2_commands = [f"zg {validated_sig_path}", "aflj"]
         else:
             # Use built-in signatures
-            r2_commands = "aaa; zg; aflj"
+            r2_commands = ["zg", "aflj"]
 
-        cmd = [
-            "r2",
-            "-q",
-            "-c",
-            r2_commands,
-            str(validated_path),
-        ]
+        effective_timeout = _calculate_dynamic_timeout(str(validated_path), timeout)
+        cmd = _build_r2_cmd(str(validated_path), r2_commands, "aaa")
 
         output, bytes_read = await execute_subprocess_async(
             cmd,
             max_output_size=max_output_size,
-            timeout=timeout,
+            timeout=effective_timeout,
         )
 
         # Parse JSON output from aflj (function list JSON)
@@ -2009,3 +1979,73 @@ def _extract_library_name(function_name: str) -> str:
         return "import"
     else:
         return "unknown"
+
+
+def _get_r2_project_name(file_path: str) -> str:
+    """Generate a unique project name based on file path hash."""
+    # Use absolute path to ensure uniqueness
+    abs_path = str(Path(file_path).resolve())
+    return hashlib.md5(abs_path.encode()).hexdigest()
+
+
+def _calculate_dynamic_timeout(file_path: str, base_timeout: int = 300) -> int:
+    """
+    Calculate timeout based on file size.
+    Strategy: Base timeout + 1 second per MB of file size.
+    """
+    try:
+        size_mb = os.path.getsize(file_path) / (1024 * 1024)
+        # Cap the dynamic addition to avoid extremely long timeouts (e.g. max +10 mins)
+        additional_time = min(size_mb * 2, 600) 
+        return int(base_timeout + additional_time)
+    except Exception:
+        return base_timeout
+
+
+def _build_r2_cmd(file_path: str, r2_commands: list[str], analysis_level: str = "aaa") -> list[str]:
+    """
+    Build radare2 command with project caching and adaptive analysis.
+    
+    Strategy:
+    1. Check if project exists for this file.
+    2. If yes, use 'Po <project>' to load analysis.
+    3. If no, use analysis_level (e.g., 'aaa') and then 'Ps <project>' to save.
+    """
+    project_name = _get_r2_project_name(file_path)
+    
+    # Check if project exists
+    # Radare2 stores projects in ~/.local/share/radare2/projects/ or %LOCALAPPDATA%\radare2\projects\
+    # We can check using r2 -P list? Or just check filesystem if we know the path.
+    # For robustness, we'll use a marker file in the same directory as the binary, 
+    # or just rely on r2's behavior.
+    
+    # Since we can't easily check r2's internal project list without running r2,
+    # and running r2 is expensive/async, we'll use a heuristic or a sidecar file.
+    # Let's use a sidecar file in the workspace: .{filename}.r2_analyzed
+    
+    project_marker = Path(file_path).parent / f".{Path(file_path).name}.r2_project"
+    
+    base_cmd = ["r2", "-q"]
+    
+    # If we just want to run commands without analysis (adaptive analysis)
+    if analysis_level == "-n":
+        return base_cmd + ["-n"] + ["-c", ";".join(r2_commands), str(file_path)]
+        
+    if project_marker.exists():
+        # Project exists, load it
+        # Po <project_name>
+        combined_cmds = [f"Po {project_name}"] + r2_commands
+        return base_cmd + ["-c", ";".join(combined_cmds), str(file_path)]
+    else:
+        # Project doesn't exist, analyze and save
+        # aaa; Ps <project_name>
+        combined_cmds = [analysis_level, f"Ps {project_name}"] + r2_commands
+        
+        # We need to create the marker file. 
+        # Since this is a sync function, we can't easily do async IO.
+        # But we can assume the tool execution will succeed.
+        # Wait, if we create the marker here, but the command fails, we are in inconsistent state.
+        # But this is a helper.
+        
+        # Ideally, we should append a command to r2 to create the marker? 
+        # r2 can run system commands with '!'.

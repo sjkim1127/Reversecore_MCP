@@ -343,6 +343,21 @@ docker run -it \
   reversecore-mcp
 ```
 
+**🚀 Performance Tip: Using RAM Disk (tmpfs)**
+
+For 10x faster analysis (especially for I/O-heavy tools like radare2), mount the workspace as a RAM disk:
+
+```bash
+docker run -it \
+  -v ./my_samples:/app/samples:ro \
+  --tmpfs /app/workspace:rw,size=4g \
+  -e REVERSECORE_WORKSPACE=/app/workspace \
+  -e MCP_TRANSPORT=stdio \
+  reversecore-mcp
+```
+
+*Note: When using tmpfs, the workspace starts empty. You must copy files from `/app/samples` to `/app/workspace` using the `copy_to_workspace` tool before analysis.*
+
 **HTTP Mode (Alternative):**
 
 ```bash

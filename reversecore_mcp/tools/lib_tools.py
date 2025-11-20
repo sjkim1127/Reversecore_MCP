@@ -1,7 +1,9 @@
 """Library-backed MCP tools that emit structured ToolResult payloads."""
 
 import json
-from typing import Any, Dict, List, Optional, Protocol
+import os
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Protocol, Tuple
 
 from fastmcp import FastMCP
 
@@ -12,6 +14,10 @@ from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.result import ToolResult, failure, success
 from reversecore_mcp.core.security import validate_file_path
 from reversecore_mcp.core.validators import validate_tool_parameters
+
+
+# Global cache for compiled YARA rules: {file_path: (timestamp, compiled_rules)}
+_YARA_RULES_CACHE: Dict[str, Tuple[float, Any]] = {}
 
 
 def register_lib_tools(mcp: FastMCP) -> None:
@@ -141,12 +147,26 @@ def run_yara(
 
     timeout_error = getattr(yara, "TimeoutError", None)
     generic_error = getattr(yara, "Error", None)
-    try:
-        rules = yara.compile(filepath=str(validated_rule))
-    except Exception as exc:  # noqa: BLE001 - need yara-specific surface area
-        if generic_error and isinstance(exc, generic_error):
-            return failure("YARA_ERROR", f"YARA error: {exc}")
-        raise
+    
+    # Check cache for compiled rules
+    rule_path_str = str(validated_rule)
+    current_mtime = validated_rule.stat().st_mtime
+    
+    rules = None
+    if rule_path_str in _YARA_RULES_CACHE:
+        cached_mtime, cached_rules = _YARA_RULES_CACHE[rule_path_str]
+        if cached_mtime == current_mtime:
+            rules = cached_rules
+            
+    if rules is None:
+        try:
+            rules = yara.compile(filepath=rule_path_str)
+            # Update cache
+            _YARA_RULES_CACHE[rule_path_str] = (current_mtime, rules)
+        except Exception as exc:  # noqa: BLE001 - need yara-specific surface area
+            if generic_error and isinstance(exc, generic_error):
+                return failure("YARA_ERROR", f"YARA error: {exc}")
+            raise
 
     try:
         matches = rules.match(str(validated_file), timeout=timeout)
