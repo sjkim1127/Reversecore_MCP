@@ -142,7 +142,7 @@ result = run_radare2("file.exe", "aflj")
 
 - **Large Binary Analysis**: Filter out OpenSSL, zlib, MFC, etc. from 25MB+ files
   - Example: `match_libraries("/app/workspace/huge_app.exe")`
-  - Reduces analysis scope by 80% → saves tokens and time
+  - Reduces analysis scope significantly → saves tokens and time
 
 - **Game Client Analysis**: Skip Unreal Engine/Unity standard library functions
   - Example: `match_libraries("/app/workspace/game.exe")`
@@ -150,11 +150,11 @@ result = run_radare2("file.exe", "aflj")
 
 - **Malware Analysis**: Identify custom malware code vs Windows API wrappers
   - Example: `match_libraries("/app/workspace/malware.exe")`
-  - Find the 20% of code that's actually malicious
+  - Focus on code that's actually malicious
 
 **Output includes:**
 - Total functions vs library functions vs user functions
-- Noise reduction percentage (typically 60-80%)
+- Noise reduction percentage
 - List of library matches (strcpy, malloc, etc.)
 - List of user functions to analyze
 
@@ -404,7 +404,7 @@ Reversecore_MCP works with MCP-compatible clients. This guide focuses on Cursor 
       "command": "docker",
       "args": [
         "run", "-i", "--rm",
-        "-v", "E:/Reversecore_Workspace:/app/workspace",
+        "-v", "C:/Reversecore_Workspace:/app/workspace",
         "-e", "REVERSECORE_WORKSPACE=/app/workspace",
         "-e", "MCP_TRANSPORT=stdio",
         "reversecore-mcp"
@@ -848,7 +848,7 @@ AI Agent:
     - `dot`: Graphviz format for external rendering
   - Uses radare2's `agfj` command internally
   - Example: `generate_function_graph("/app/workspace/sample.exe", "main", "mermaid")`
-  - **Value**: Reduces 500 lines of assembly → 20-node visual graph
+  - **Value**: Transforms complex assembly into visual graphs
 
 - **`emulate_machine_code`**: Safe code execution simulation with ESIL
   - **Predict code behavior without running it**
@@ -866,7 +866,7 @@ AI Agent:
   - **Decompiler Options:**
     - **Ghidra (default)**: Industry-standard decompiler with superior type recovery
     - **radare2 (fallback)**: Lightweight alternative for quick analysis
-  - **500 lines of assembly → 20 lines of clean C**
+  - **Transforms assembly into clean C-like code**
   - Uses Ghidra's DecompInterface engine or radare2's `pdc` command
   - Extracts function metadata (variables, arguments, complexity, signature)
   - Shows logical structure (if/else, loops, calls)
@@ -879,7 +879,7 @@ AI Agent:
     - Software auditing: Review closed-source components
   - Example: `smart_decompile("/app/workspace/sample.exe", "main")`
   - Example with radare2: `smart_decompile("/app/workspace/sample.exe", "main", use_ghidra=False)`
-  - **Value**: Exponentially faster analysis than raw assembly with better type information
+  - **Value**: Faster analysis than raw assembly with better type information
 
 - **`generate_yara_rule`**: Automatic malware signature generation
   - **Analysis → Defense pipeline automation**
@@ -918,7 +918,7 @@ AI Agent:
   - Uses Ghidra's powerful data type propagation (or radare2 fallback)
   - Recovers structure layouts from memory access patterns
   - Generates C structure definitions with field names and types
-  - Essential for C++ binaries (99% of game clients and commercial apps)
+  - Essential for C++ binaries (Many game clients and commercial apps)
   - Use cases:
     - Game hacking: Recover Player, Entity, Weapon structures
     - Malware analysis: Understand malware configuration structures
@@ -928,7 +928,7 @@ AI Agent:
   - Supports both Ghidra (superior) and radare2 (faster) backends
   - Example: `recover_structures("/app/workspace/game.exe", "Player::update")`
   - Example (radare2): `recover_structures("/app/workspace/binary", "main", use_ghidra=False)`
-  - **Value**: One structure definition can clarify thousands of lines of code
+  - **Value**: Structure definitions clarify code understanding
 
 - **`diff_binaries`**: Compare two binary files to identify code changes
   - **🥇 Priority 1: Binary Diffing for Patch Analysis**
@@ -948,7 +948,7 @@ AI Agent:
 
 - **`match_libraries`**: Identify and filter known library functions
   - **🥈 Priority 2: Library Signature Matching for Noise Reduction**
-  - **Reduces analysis scope by 60-80% by filtering out standard libraries**
+  - **Reduces analysis scope significantly by filtering out standard libraries**
   - Uses radare2's zignatures (FLIRT-compatible) to match known functions
   - Automatically identifies strcpy, malloc, OpenSSL, zlib, MFC, etc.
   - Returns list of library functions vs user functions
@@ -960,7 +960,7 @@ AI Agent:
   - Example: `match_libraries("/app/workspace/large_app.exe")`
   - Example (custom DB): `match_libraries("/app/workspace/game.exe", "/app/rules/game_engine.sig")`
   - **Output**: Noise reduction percentage, library matches, user function list
-  - **Value**: Transforms 25MB binary with 10,000 functions → 2,000 user functions to analyze
+  - **Value**: Filters out library functions to focus on user code
 
 ### Library Tools
 
@@ -1062,22 +1062,22 @@ Reversecore_MCP is optimized for production workloads and large-scale analysis:
 - Default max output: 10MB per tool invocation
 
 #### ⚡ Adaptive Polling (Windows)
-- Reduces CPU usage by 50% for long-running operations
+- Reduces CPU usage for long-running operations
 - Starts at 50ms polling interval, adapts to 100ms max
 - Resets to 50ms when data is received
 - Maintains responsiveness while minimizing resource usage
 
 #### 🎯 Optimized Path Validation
-- 75% reduction in path conversion overhead
+- Significant reduction in path conversion overhead
 - Cached string conversions for repeated validations
 - Early returns for common cases
 - Efficient directory checks with minimal filesystem calls
 
 #### 📊 YARA Processing Improvements
-- 60% faster match processing for large result sets
+- Faster match processing for large result sets
 - Eliminates redundant attribute lookups
 - Optimized type checking with `isinstance()`
-- Can process 2,500+ string matches in under 1 second
+- Optimized for large result sets
 
 #### 💾 Memory-Efficient Operations
 - Enumerate-based iteration instead of list slicing
