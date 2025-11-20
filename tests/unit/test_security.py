@@ -46,7 +46,10 @@ class TestValidateFilePath:
         
         # Create symlink in workspace pointing outside
         symlink = workspace_dir / "symlink"
-        symlink.symlink_to(outside_file)
+        try:
+            symlink.symlink_to(outside_file)
+        except OSError:
+            pytest.skip("Symlinks not supported or insufficient privileges")
         
         # Should be blocked because resolved path is outside workspace
         with pytest.raises(ValidationError, match="outside allowed"):

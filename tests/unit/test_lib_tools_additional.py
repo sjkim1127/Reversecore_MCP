@@ -82,10 +82,25 @@ def test_run_yara_formatter(
 
 
 def test_disassemble_invalid_arch_mode(
+    monkeypatch,
     workspace_dir,
     patched_workspace_config,
 ):
     test_file = _create_workspace_binary(workspace_dir, "t.bin", b"\x90\x90\x90\x90")
+
+    # Mock capstone
+    fake_capstone = types.ModuleType("capstone")
+    fake_capstone.CS_ARCH_X86 = 0
+    fake_capstone.CS_ARCH_ARM = 1
+    fake_capstone.CS_ARCH_ARM64 = 2
+    fake_capstone.CS_MODE_32 = 0
+    fake_capstone.CS_MODE_64 = 1
+    fake_capstone.CS_MODE_ARM = 2
+    fake_capstone.CS_MODE_THUMB = 3
+    fake_capstone.Cs = lambda *args: None
+    fake_capstone.CsError = Exception
+
+    monkeypatch.setitem(sys.modules, "capstone", fake_capstone)
 
     # Invalid arch
     out1 = lib_tools.disassemble_with_capstone(str(test_file), arch="badarch", mode="64")
@@ -229,6 +244,7 @@ def test_run_yara_formatter_with_none_values(
 
 
 def test_disassemble_no_data_at_offset(
+    monkeypatch,
     workspace_dir,
     patched_workspace_config,
 ):
@@ -236,6 +252,20 @@ def test_disassemble_no_data_at_offset(
     # Create a very small file
     test_file = _create_workspace_binary(workspace_dir, "tiny.bin", b"\x90")
     
+    # Mock capstone
+    fake_capstone = types.ModuleType("capstone")
+    fake_capstone.CS_ARCH_X86 = 0
+    fake_capstone.CS_ARCH_ARM = 1
+    fake_capstone.CS_ARCH_ARM64 = 2
+    fake_capstone.CS_MODE_32 = 0
+    fake_capstone.CS_MODE_64 = 1
+    fake_capstone.CS_MODE_ARM = 2
+    fake_capstone.CS_MODE_THUMB = 3
+    fake_capstone.Cs = lambda *args: None
+    fake_capstone.CsError = Exception
+
+    monkeypatch.setitem(sys.modules, "capstone", fake_capstone)
+
     # Try to read from an offset beyond the file
     out = lib_tools.disassemble_with_capstone(str(test_file), arch="x86", mode="64", offset=100, size=1024)
     assert out.status == "error"

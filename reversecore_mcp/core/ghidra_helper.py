@@ -176,7 +176,9 @@ def _resolve_function(flat_api: "FlatProgramAPI", address_str: str) -> Optional[
         # Remove 0x prefix if present
         addr_str = address_str.replace("0x", "").replace("0X", "")
         address = flat_api.toAddr(int(addr_str, 16))
-        return function_manager.getFunctionAt(address)
+        func = function_manager.getFunctionAt(address)
+        if func is not None:
+            return func
     except (ValueError, Exception):
         pass
     

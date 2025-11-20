@@ -1479,7 +1479,7 @@ async def recover_structures(
             )
 
             return success(
-                structures,
+                {"structures": structures},
                 **metadata,
                 function_address=function_address,
                 method="ghidra",
