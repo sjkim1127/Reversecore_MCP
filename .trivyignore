@@ -1,0 +1,24 @@
+# Vulnerabilities bundled with Ghidra 11.4.2
+# These are third-party dependencies inside the Ghidra installation.
+# We accept the risk until a new Ghidra version is released.
+
+# jackson-core
+CVE-2025-52999
+
+# protobuf-java
+CVE-2024-7254
+
+# commons-beanutils
+CVE-2025-48734
+
+# commons-io
+CVE-2024-47554
+
+# netty-handler
+CVE-2025-24970
+
+# commons-vfs2
+CVE-2025-27553
+
+# postgresql
+CVE-2025-49146
