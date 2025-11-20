@@ -96,10 +96,18 @@ async def trace_execution_path(
     # Helper to get address of a function name
     async def get_address(func_name):
         # Try to find exact match first
-        cmd = _build_r2_cmd(str(validated_path), [f"isj~{func_name}"], "aaa")
+        # Note: We cannot use ~grep with json output (isj~name) as it breaks JSON syntax
+        cmd = _build_r2_cmd(str(validated_path), ["isj"], "aaa")
         out, _ = await execute_subprocess_async(cmd, timeout=30)
         try:
-            symbols = json.loads(out)
+            # Robust JSON extraction
+            json_start = out.find('[')
+            json_end = out.rfind(']') + 1
+            if json_start >= 0 and json_end > json_start:
+                symbols = json.loads(out[json_start:json_end])
+            else:
+                symbols = json.loads(out)
+
             for sym in symbols:
                 if sym.get("name") == func_name or sym.get("realname") == func_name:
                     return sym.get("vaddr")
@@ -107,10 +115,17 @@ async def trace_execution_path(
             pass
         
         # If not found, try aflj
-        cmd = _build_r2_cmd(str(validated_path), [f"aflj~{func_name}"], "aaa")
+        cmd = _build_r2_cmd(str(validated_path), ["aflj"], "aaa")
         out, _ = await execute_subprocess_async(cmd, timeout=30)
         try:
-            funcs = json.loads(out)
+            # Robust JSON extraction
+            json_start = out.find('[')
+            json_end = out.rfind(']') + 1
+            if json_start >= 0 and json_end > json_start:
+                funcs = json.loads(out[json_start:json_end])
+            else:
+                funcs = json.loads(out)
+
             for f in funcs:
                 if f.get("name") == func_name:
                     return f.get("offset")
@@ -146,7 +161,13 @@ async def trace_execution_path(
         out, _ = await execute_subprocess_async(cmd, timeout=30)
         
         try:
-            xrefs = json.loads(out)
+            # Robust JSON extraction
+            json_start = out.find('[')
+            json_end = out.rfind(']') + 1
+            if json_start >= 0 and json_end > json_start:
+                xrefs = json.loads(out[json_start:json_end])
+            else:
+                xrefs = json.loads(out)
         except:
             xrefs = []
 
@@ -307,7 +328,13 @@ async def analyze_variant_changes(
     out, _ = await execute_subprocess_async(cmd, timeout=60)
     
     try:
-        funcs_b = json.loads(out)
+        # Robust JSON extraction
+        json_start = out.find('[')
+        json_end = out.rfind(']') + 1
+        if json_start >= 0 and json_end > json_start:
+            funcs_b = json.loads(out[json_start:json_end])
+        else:
+            funcs_b = json.loads(out)
     except:
         funcs_b = []
         
@@ -840,12 +867,22 @@ async def _generate_function_graph_impl(
         timeout=effective_timeout,
     )
 
+    # Clean output for JSON parsing (remove potential noise from 'aaa')
+    json_output = output
+    try:
+        json_start = output.find('[')
+        json_end = output.rfind(']') + 1
+        if json_start >= 0 and json_end > json_start:
+            json_output = output[json_start:json_end]
+    except:
+        pass
+
     # 5. Format conversion and return
     if format.lower() == "json":
-        return success(output, bytes_read=bytes_read, format="json")
+        return success(json_output, bytes_read=bytes_read, format="json")
 
     elif format.lower() == "mermaid":
-        mermaid_code = _radare2_json_to_mermaid(output)
+        mermaid_code = _radare2_json_to_mermaid(json_output)
         return success(
             mermaid_code,
             bytes_read=bytes_read,
@@ -1205,6 +1242,32 @@ async def generate_signature(
             hint="Verify the address is valid and contains executable code",
         )
 
+    # Check for all 0xFF or 0x00 (likely unmapped memory)
+    if re.match(r"^(ff)+$", hex_bytes, re.IGNORECASE) or re.match(r"^(00)+$", hex_bytes):
+        # If we used -n, try again without it to force mapping
+        if analysis_level == "-n":
+             cmd = _build_r2_cmd(str(validated_path), r2_cmds, "aaa")
+             output, _ = await execute_subprocess_async(
+                cmd,
+                max_output_size=1_000_000,
+                timeout=effective_timeout,
+            )
+             hex_bytes = output.strip()
+             
+             # Re-check
+             if re.match(r"^(ff)+$", hex_bytes, re.IGNORECASE) or re.match(r"^(00)+$", hex_bytes):
+                 return failure(
+                    "SIGNATURE_ERROR",
+                    f"Extracted bytes are all 0xFF or 0x00 at {address}. The memory might be unmapped or empty.",
+                    hint="Try a different address or ensure the binary is loaded correctly."
+                )
+        else:
+             return failure(
+                "SIGNATURE_ERROR",
+                f"Extracted bytes are all 0xFF or 0x00 at {address}. The memory might be unmapped or empty.",
+                hint="Try a different address or ensure the binary is loaded correctly."
+            )
+
     # 5. Format as YARA hex string (space-separated pairs)
     # Convert: "4883ec20" -> "48 83 ec 20"
     formatted_bytes = " ".join(
@@ -1317,8 +1380,28 @@ async def extract_rtti_info(
 
     # 5. Parse JSON outputs
     try:
-        classes = json.loads(classes_output) if classes_output.strip() else []
-        symbols = json.loads(symbols_output) if symbols_output.strip() else []
+        # Robust JSON extraction for classes
+        if classes_output.strip():
+            json_start = classes_output.find('[')
+            json_end = classes_output.rfind(']') + 1
+            if json_start >= 0 and json_end > json_start:
+                classes = json.loads(classes_output[json_start:json_end])
+            else:
+                classes = json.loads(classes_output)
+        else:
+            classes = []
+
+        # Robust JSON extraction for symbols
+        if symbols_output.strip():
+            json_start = symbols_output.find('[')
+            json_end = symbols_output.rfind(']') + 1
+            if json_start >= 0 and json_end > json_start:
+                symbols = json.loads(symbols_output[json_start:json_end])
+            else:
+                symbols = json.loads(symbols_output)
+        else:
+            symbols = []
+
     except json.JSONDecodeError as e:
         return failure(
             "PARSE_ERROR",
@@ -1774,20 +1857,24 @@ async def analyze_xrefs(
         xrefs_from = []
 
         for line in lines:
-            if line.startswith("["):
-                try:
-                    refs = json.loads(line)
-                    if isinstance(refs, list) and len(refs) > 0:
-                        # Determine if this is "to" or "from" based on field names
-                        first_ref = refs[0]
-                        if "from" in first_ref:
-                            # This is xrefs TO (callers)
-                            xrefs_to = refs
-                        elif "addr" in first_ref or "fcn_addr" in first_ref:
-                            # This is xrefs FROM (callees)
-                            xrefs_from = refs
-                except json.JSONDecodeError:
-                    continue
+            # Robust JSON extraction from line
+            json_start = line.find('[')
+            if json_start >= 0:
+                json_end = line.rfind(']') + 1
+                if json_end > json_start:
+                    try:
+                        refs = json.loads(line[json_start:json_end])
+                        if isinstance(refs, list) and len(refs) > 0:
+                            # Determine if this is "to" or "from" based on field names
+                            first_ref = refs[0]
+                            if "from" in first_ref:
+                                # This is xrefs TO (callers)
+                                xrefs_to = refs
+                            elif "addr" in first_ref or "fcn_addr" in first_ref:
+                                # This is xrefs FROM (callees)
+                                xrefs_from = refs
+                    except json.JSONDecodeError:
+                        continue
 
         # 6. Format results
         result = {
@@ -1930,38 +2017,39 @@ async def recover_structures(
 
     # 3. Check if Ghidra is available when requested
     if use_ghidra:
+        # Check availability and fallback if needed
         if not ensure_ghidra_available():
-            return failure(
-                "DEPENDENCY_MISSING",
-                "Ghidra (PyGhidra) is not available",
-                hint="Install with: pip install pyghidra. Alternatively, set use_ghidra=False to use radare2 (basic recovery).",
-            )
+            # Instead of failing, let's fallback to radare2 with a warning in the description
+            # This improves UX when Ghidra is optional but requested by default
+            use_ghidra = False
+            # We will append a note to the result description later
+            fallback_note = " (Ghidra not available, fell back to radare2)"
+        else:
+            fallback_note = ""
+            # 4a. Use Ghidra for advanced structure recovery
+            try:
+                from reversecore_mcp.core.ghidra_helper import (
+                    recover_structures_with_ghidra,
+                )
 
-        # 4a. Use Ghidra for advanced structure recovery
-        try:
-            from reversecore_mcp.core.ghidra_helper import (
-                recover_structures_with_ghidra,
-            )
+                structures, metadata = recover_structures_with_ghidra(
+                    validated_path, function_address, timeout
+                )
 
-            structures, metadata = recover_structures_with_ghidra(
-                validated_path, function_address, timeout
-            )
+                return success(
+                    {"structures": structures},
+                    **metadata,
+                    function_address=function_address,
+                    method="ghidra",
+                    description=f"Structures recovered from {function_address} using Ghidra",
+                )
 
-            return success(
-                {"structures": structures},
-                **metadata,
-                function_address=function_address,
-                method="ghidra",
-                description=f"Structures recovered from {function_address} using Ghidra",
-            )
+            except Exception as e:
+                # If Ghidra fails during execution, also fallback
+                use_ghidra = False
+                fallback_note = f" (Ghidra failed: {str(e)}, fell back to radare2)"
 
-        except Exception as e:
-            return failure(
-                "STRUCTURE_RECOVERY_ERROR",
-                f"Ghidra structure recovery failed: {str(e)}",
-                hint="Try with use_ghidra=False for basic radare2 recovery, or verify Ghidra installation.",
-            )
-    else:
+    if not use_ghidra:
         # 4b. Use radare2 for basic structure recovery
         # radare2's 'afvt' command shows variable types and offsets
         r2_cmds = [
@@ -1980,7 +2068,16 @@ async def recover_structures(
 
         # 5. Parse radare2 output
         try:
-            variables = json.loads(output) if output.strip() else []
+            if output.strip():
+                # Robust JSON extraction
+                json_start = output.find('[')
+                json_end = output.rfind(']') + 1
+                if json_start >= 0 and json_end > json_start:
+                    variables = json.loads(output[json_start:json_end])
+                else:
+                    variables = json.loads(output)
+            else:
+                variables = []
 
             # Extract structure-like patterns
             # Group variables by their base pointer (e.g., rbp, rsp)
@@ -2028,6 +2125,10 @@ async def recover_structures(
                 "c_definitions": "\n\n".join(c_definitions),
                 "count": len(structures),
             }
+            
+            desc = f"Basic structure recovery from {function_address} using radare2 (found {len(structures)} structure(s))"
+            if 'fallback_note' in locals():
+                desc += fallback_note
 
             return success(
                 result,
@@ -2035,7 +2136,7 @@ async def recover_structures(
                 function_address=function_address,
                 method="radare2",
                 structure_count=len(structures),
-                description=f"Basic structure recovery from {function_address} using radare2 (found {len(structures)} structure(s))",
+                description=desc,
             )
 
         except json.JSONDecodeError as e:
@@ -2365,7 +2466,15 @@ async def match_libraries(
 
         # Parse JSON output from aflj (function list JSON)
         try:
-            functions = json.loads(output)
+            # Attempt to find JSON array in output if direct parse fails
+            # This handles cases where 'zg' or 'aaa' might produce non-JSON output before the JSON result
+            json_start = output.find('[')
+            json_end = output.rfind(']') + 1
+            if json_start >= 0 and json_end > json_start:
+                json_str = output[json_start:json_end]
+                functions = json.loads(json_str)
+            else:
+                functions = json.loads(output)
         except json.JSONDecodeError:
             # If JSON parsing fails, fall back to text parsing
             return failure(
