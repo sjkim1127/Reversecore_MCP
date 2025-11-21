@@ -13,9 +13,9 @@ def test_extract_iocs_basic():
     email_list = data_dict.get("emails", [])
     url_list = data_dict.get("urls", [])
 
-    assert "192.168.1.1" in ipv4_list
-    assert "test@example.com" in email_list
-    assert "https://example.com" in url_list
+    assert any(ip == "192.168.1.1" for ip in ipv4_list)
+    assert any(email == "test@example.com" for email in email_list)
+    assert any(url == "https://example.com" for url in url_list)
 
 def test_extract_iocs_empty():
     result = extract_iocs("nothing here")
