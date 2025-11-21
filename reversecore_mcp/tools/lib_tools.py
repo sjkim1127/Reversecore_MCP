@@ -243,13 +243,22 @@ def run_yara(
             # Update cache
             _YARA_RULES_CACHE[rule_path_str] = (current_mtime, rules)
         except Exception as exc:  # noqa: BLE001 - need yara-specific surface area
-            if generic_error and isinstance(exc, generic_error):
-                return failure("YARA_ERROR", f"YARA error: {exc}")
-            raise
+            # Try fallback for non-ASCII paths on Windows
+            try:
+                # Read rule content and compile from source
+                rule_content = validated_rule.read_text(encoding="utf-8")
+                rules = yara.compile(source=rule_content)
+                _YARA_RULES_CACHE[rule_path_str] = (current_mtime, rules)
+            except Exception:
+                # If fallback fails, report original error
+                if generic_error and isinstance(exc, generic_error):
+                    return failure("YARA_ERROR", f"YARA error: {exc}")
+                raise
 
     try:
         matches = rules.match(str(validated_file), timeout=timeout)
     except Exception as exc:  # noqa: BLE001 - need to inspect yara-specific errors
+        # Check for timeout first
         if timeout_error and isinstance(exc, timeout_error):
             return failure(
                 "TIMEOUT",
@@ -257,9 +266,28 @@ def run_yara(
                 timeout_seconds=timeout,
                 details={"error": str(exc)},
             )
-        if generic_error and isinstance(exc, generic_error):
-            return failure("YARA_ERROR", f"YARA error: {exc}")
-        raise
+
+        # For any other error (including "Illegal byte sequence" on Windows),
+        # try fallback to memory scan if file size permits
+        file_size = 0
+        try:
+            file_size = validated_file.stat().st_size
+        except Exception:
+            pass
+
+        if file_size < 100 * 1024 * 1024:
+            try:
+                data = validated_file.read_bytes()
+                matches = rules.match(data=data, timeout=timeout)
+            except Exception as fallback_exc:
+                # If fallback fails, return the original error
+                if generic_error and isinstance(exc, generic_error):
+                    return failure("YARA_ERROR", f"Fallback failed: {fallback_exc}. Original: {exc}")
+                raise
+        else:
+            if generic_error and isinstance(exc, generic_error):
+                return failure("YARA_ERROR", f"YARA error: {exc}")
+            raise
 
     if not matches:
         return success({"matches": [], "match_count": 0})

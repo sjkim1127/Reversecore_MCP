@@ -167,11 +167,22 @@ class TestCliToolsMocked:
         test_file = workspace_dir / "test.exe"
         test_file.write_bytes(b"FAKE")
         
-        with patch("reversecore_mcp.core.ghidra_helper.ensure_ghidra_available", return_value=False):
+        # Mock radare2 output for fallback
+        vars_json = json.dumps([
+            {"type": "int", "name": "field1", "delta": 0, "ref": {"base": "rbp"}}
+        ])
+
+        with patch("reversecore_mcp.core.ghidra_helper.ensure_ghidra_available", return_value=False), \
+             patch("reversecore_mcp.tools.cli_tools.execute_subprocess_async", new_callable=AsyncMock) as mock_exec:
+            
+            mock_exec.return_value = (vars_json, len(vars_json))
+            
             result = await cli_tools.recover_structures(str(test_file), "main", use_ghidra=True)
             
-            assert result.status == "error"
-            assert "Ghidra (PyGhidra) is not available" in result.message
+            # Should succeed via fallback
+            assert result.status == "success"
+            assert result.metadata["method"] == "radare2"
+            assert "Ghidra not available" in result.metadata["description"]
 
     async def test_diff_binaries_success(self, workspace_dir, patched_workspace_config):
         file_a = workspace_dir / "v1.exe"

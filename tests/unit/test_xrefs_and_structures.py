@@ -277,7 +277,7 @@ class TestRecoverStructures:
     async def test_recover_structures_ghidra_not_available(
         self, monkeypatch, workspace_dir, patched_workspace_config
     ):
-        """Test when Ghidra is requested but not available."""
+        """Test when Ghidra is requested but not available (should fallback)."""
         mocked_path = _create_workspace_file(workspace_dir, "test_binary")
         
         # Mock ensure_ghidra_available to return False
@@ -288,6 +288,20 @@ class TestRecoverStructures:
             "reversecore_mcp.core.ghidra_helper.ensure_ghidra_available",
             mock_ghidra_check,
         )
+
+        # Mock radare2 output for fallback
+        variables_output = json.dumps([
+            {"type": "int", "name": "var_10h", "delta": -16, "ref": {"base": "rbp"}}
+        ])
+        
+        async def mock_exec(cmd, **kw):
+            return (variables_output, 100)
+        
+        monkeypatch.setattr(
+            cli_tools,
+            "execute_subprocess_async",
+            mock_exec,
+        )
         
         result = await cli_tools.recover_structures(
             str(mocked_path),
@@ -295,8 +309,9 @@ class TestRecoverStructures:
             use_ghidra=True
         )
         
-        assert result.status == "error"
-        assert result.error_code == "DEPENDENCY_MISSING"
+        assert result.status == "success"
+        assert result.metadata["method"] == "radare2"
+        assert "Ghidra not available" in result.metadata["description"]
 
     @pytest.mark.asyncio
     async def test_recover_structures_radare2_malformed_json(

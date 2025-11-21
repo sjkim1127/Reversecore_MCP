@@ -25,6 +25,8 @@ class TestRunYara:
             pytest.skip("yara-python not installed")
 
         result = lib_tools.run_yara(str(test_file), str(rule_file))
+        if result.status == "error":
+            pytest.fail(f"YARA scan failed: {result.message}")
         assert result.status == "success"
         assert isinstance(result.data, dict)
         assert "match_count" in result.data
