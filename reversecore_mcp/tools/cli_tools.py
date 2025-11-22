@@ -2731,8 +2731,6 @@ def _extract_first_json(text: str) -> str:
     """
     Extract the first valid JSON object or array from a string.
     Handles nested structures and ignores surrounding garbage.
-    
-    Cached to avoid re-parsing the same text multiple times.
     """
     text = text.strip()
     if not text:
