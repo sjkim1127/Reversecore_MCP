@@ -596,6 +596,20 @@ MCP 클라이언트에서 `full_analysis_mode` 프롬프트를 선택하고 파�
 **언어 지원:**
 프롬프트는 기술 용어를 유지하면서 사용자의 언어(한국어, 영어, 중국어 등)에 자동으로 적응합니다.
 
+### 기본 분석 프롬프트 (신속 모드)
+
+빠른 분류를 위해 `basic_analysis_mode` 프롬프트를 사용하세요.
+
+**사용 방법:**
+`basic_analysis_mode` 프롬프트를 선택하고 파일 이름을 제공하세요.
+
+**SOP 워크플로우:**
+1. **식별 (Identification)**: 파일 유형 식별(`run_file`) 및 패킹 확인(`parse_binary_with_lief`).
+2. **문자열 및 IOC (Strings & IOCs)**: 문자열 추출(`run_strings`) 및 IOC 식별(`extract_iocs`).
+3. **기능 (Capabilities)**: 임포트 목록을 빠르게 조회(`run_radare2` "ii")하여 행위 추론.
+4. **신속 분류 보고 (Quick Triage Report)**: 발견 사항 요약 및 악성 확률 추정.
+
+
 ### API 예제
 
 서버는 MCP 프로토콜을 통해 AI 에이전트가 호출할 수 있는 도구를 노출합니다. 다음은 각 도구를 사용하는 방법의 예입니다:

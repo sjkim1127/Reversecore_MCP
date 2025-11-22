@@ -596,6 +596,20 @@ Select the `full_analysis_mode` prompt in your MCP client and provide the filena
 **Language Support:**
 The prompt automatically adapts to the user's language (English, Korean, Chinese, etc.) while keeping technical terms intact.
 
+### Basic Analysis Prompt (Rapid Mode)
+
+For quick triage, use the `basic_analysis_mode` prompt.
+
+**How to use:**
+Select the `basic_analysis_mode` prompt and provide the filename.
+
+**SOP Workflow:**
+1. **Identification**: Identify file type (`run_file`) and check for packing (`parse_binary_with_lief`).
+2. **Strings & IOCs**: Extract strings (`run_strings`) and identify IOCs (`extract_iocs`).
+3. **Capabilities**: Quickly list imports (`run_radare2` with "ii") to infer behavior.
+4. **Quick Triage Report**: Summarize findings and estimate malicious probability.
+
+
 ### API Examples
 
 The server exposes tools that can be called by AI agents via the MCP protocol. Below are examples of how to use each tool:
