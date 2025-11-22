@@ -580,6 +580,22 @@ AI Agent: "What file systems are embedded in this firmware image?"
 → Uses run_binwalk to identify embedded file systems, bootloaders, etc.
 ```
 
+### Analysis Prompts (Expert Mode)
+
+Reversecore_MCP provides a built-in expert mode prompt (`full_analysis_mode`) that enforces a Standard Operating Procedure (SOP) for comprehensive analysis.
+
+**How to use:**
+Select the `full_analysis_mode` prompt in your MCP client and provide the filename.
+
+**SOP Workflow:**
+1. **Reconnaissance**: Identify file type (`run_file`), extract IOCs (`run_strings` + `extract_iocs`), check for packers.
+2. **Filtering**: Filter out standard library functions (`match_libraries`) to focus on user code.
+3. **Deep Analysis**: Analyze suspicious functions using X-Refs (`analyze_xrefs`), structure recovery (`recover_structures`), and smart decompilation (`smart_decompile`). Safely emulate code if needed (`emulate_machine_code`).
+4. **Reporting**: Generate YARA rules (`generate_yara_rule`) and write a final comprehensive report.
+
+**Language Support:**
+The prompt automatically adapts to the user's language (English, Korean, Chinese, etc.) while keeping technical terms intact.
+
 ### API Examples
 
 The server exposes tools that can be called by AI agents via the MCP protocol. Below are examples of how to use each tool:

@@ -580,6 +580,22 @@ AI 에이전트: "이 펌웨어 이미지에 어떤 파일 시스템이 포함�
 → run_binwalk를 사용하여 임베디드 파일 시스템, 부트로더 등 식별
 ```
 
+### 분석 프롬프트 (전문가 모드)
+
+Reversecore_MCP는 포괄적인 분석을 위한 표준 운영 절차(SOP)를 강제하는 내장 전문가 모드 프롬프트(`full_analysis_mode`)를 제공합니다.
+
+**사용 방법:**
+MCP 클라이언트에서 `full_analysis_mode` 프롬프트를 선택하고 파일 이름을 제공하세요.
+
+**SOP 워크플로우:**
+1. **정찰 (Reconnaissance)**: 파일 유형 식별(`run_file`), IOC 추출(`run_strings` + `extract_iocs`), 패커 확인.
+2. **필터링 (Filtering)**: 표준 라이브러리 함수를 필터링(`match_libraries`)하여 사용자 코드에 집중.
+3. **심층 분석 (Deep Analysis)**: X-Refs(`analyze_xrefs`), 구조 복구(`recover_structures`), 스마트 디컴파일(`smart_decompile`)을 사용하여 의심스러운 함수 분석. 필요 시 안전하게 코드 에뮬레이션(`emulate_machine_code`).
+4. **보고 (Reporting)**: YARA 규칙 생성(`generate_yara_rule`) 및 최종 종합 보고서 작성.
+
+**언어 지원:**
+프롬프트는 기술 용어를 유지하면서 사용자의 언어(한국어, 영어, 중국어 등)에 자동으로 적응합니다.
+
 ### API 예제
 
 서버는 MCP 프로토콜을 통해 AI 에이전트가 호출할 수 있는 도구를 노출합니다. 다음은 각 도구를 사용하는 방법의 예입니다:
