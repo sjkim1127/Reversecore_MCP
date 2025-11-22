@@ -108,8 +108,6 @@ async def trace_execution_path(
     Returns:
         ToolResult with a list of execution paths (call chains).
     """
-    from reversecore_mcp.core.result import failure
-
     validated_path = validate_file_path(file_path)
     effective_timeout = _calculate_dynamic_timeout(str(validated_path), timeout)
 
@@ -356,13 +354,14 @@ async def analyze_variant_changes(
     
     # OPTIMIZATION: Pre-sort functions by offset for binary search
     # This reduces O(n*m) to O(n*log(m)) complexity
-    # Further optimized to avoid redundant dict.get() calls
+    # Further optimized to minimize redundant dict.get() calls
     sorted_funcs = []
     for f in funcs_b:
         offset = f.get("offset")
         size = f.get("size")
+        name = f.get("name", "unknown")
         if offset is not None and size is not None:
-            sorted_funcs.append((offset, offset + size, f.get("name", "unknown")))
+            sorted_funcs.append((offset, offset + size, name))
     sorted_funcs.sort(key=lambda x: x[0])
     
     # Map changes to functions using binary search
@@ -1038,7 +1037,6 @@ async def generate_function_graph(
                     pass
                     
         except Exception as e:
-            from reversecore_mcp.core.result import failure
             return failure(
                 "IMAGE_GENERATION_ERROR",
                 f"Failed to generate PNG image: {str(e)}",
@@ -1125,8 +1123,6 @@ async def emulate_machine_code(
     Returns:
         ToolResult with register states and emulation summary
     """
-    from reversecore_mcp.core.result import failure
-
     # 1. Parameter validation
     validate_tool_parameters(
         "emulate_machine_code",
@@ -1224,8 +1220,6 @@ async def get_pseudo_code(
         get_pseudo_code("/app/workspace/sample.exe", "main")
         # Returns C-like code representation of the main function
     """
-    from reversecore_mcp.core.result import failure
-
     # 1. Validate file path
     validated_path = validate_file_path(file_path)
 
@@ -1305,8 +1299,6 @@ async def generate_signature(
         generate_signature("/app/workspace/malware.exe", "0x401000", 48)
         # Returns a YARA rule with extracted byte pattern
     """
-    from reversecore_mcp.core.result import failure
-
     # 1. Validate parameters
     validated_path = validate_file_path(file_path)
 
@@ -1472,8 +1464,6 @@ async def extract_rtti_info(
         extract_rtti_info("/app/workspace/game.exe")
         # Returns JSON with class hierarchy and method information
     """
-    from reversecore_mcp.core.result import failure
-
     # 1. Validate file path
     validated_path = validate_file_path(file_path)
 
@@ -1756,8 +1746,6 @@ async def generate_yara_rule(
     Returns:
         ToolResult with YARA rule string
     """
-    from reversecore_mcp.core.result import failure
-
     # 1. Validate parameters
     validate_tool_parameters(
         "generate_yara_rule",
@@ -1915,8 +1903,6 @@ async def analyze_xrefs(
         # Get complete relationship map
         analyze_xrefs("/app/workspace/malware.exe", "main", "all")
     """
-    from reversecore_mcp.core.result import failure
-
     # 1. Validate parameters
     validated_path = validate_file_path(file_path)
 
@@ -2111,7 +2097,6 @@ async def recover_structures(
         # Use radare2 for quick analysis
         recover_structures("/app/workspace/binary", "0x401000", use_ghidra=False)
     """
-    from reversecore_mcp.core.result import failure
     from reversecore_mcp.core.ghidra_helper import ensure_ghidra_available
 
     # 1. Validate parameters
@@ -2319,8 +2304,6 @@ async def diff_binaries(
           "total_changes": 2
         }
     """
-    from reversecore_mcp.core.result import failure
-
     # Validate both file paths
     validated_path_a = validate_file_path(file_path_a)
     validated_path_b = validate_file_path(file_path_b)
@@ -2533,8 +2516,6 @@ async def match_libraries(
           ]
         }
     """
-    from reversecore_mcp.core.result import failure
-
     # Validate file path
     validated_path = validate_file_path(file_path)
 
@@ -3087,8 +3068,6 @@ async def solve_path_constraints(
     Returns:
         ToolResult with the solution (input) that satisfies the path constraints.
     """
-    from reversecore_mcp.core.result import failure
-    
     # 1. Validate parameters
     validate_tool_parameters(
         "solve_path_constraints",
@@ -3222,8 +3201,6 @@ async def analyze_with_ai(
     Returns:
         ToolResult with AI's analysis
     """
-    from reversecore_mcp.core.result import failure
-    
     validated_path = validate_file_path(file_path)
     
     if not ctx:
@@ -3307,8 +3284,6 @@ async def suggest_function_name(
     Returns:
         ToolResult with suggested function name and reasoning
     """
-    from reversecore_mcp.core.result import failure
-    
     validated_path = validate_file_path(file_path)
     
     if not ctx:
