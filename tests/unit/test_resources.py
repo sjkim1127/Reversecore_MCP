@@ -273,9 +273,10 @@ class TestDynamicResources:
              patch('reversecore_mcp.tools.lib_tools.extract_iocs', return_value=mock_ioc_result):
             result = await iocs_func("malware.exe")
             assert "# IOC Report for malware.exe" in result
-            assert "192.168.1.1" in result
-            assert "http://malicious.com" in result
-            assert "test@example.com" in result
+            # Check that IOCs appear in the proper list format (not just as substring)
+            assert "- 192.168.1.1" in result
+            assert "- http://malicious.com" in result
+            assert "- test@example.com" in result
 
     @pytest.mark.asyncio
     async def test_get_decompiled_code_success(self, mock_mcp):
