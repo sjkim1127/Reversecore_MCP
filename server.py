@@ -27,6 +27,11 @@ lib_tools.register_lib_tools(mcp)
 from reversecore_mcp import prompts
 prompts.register_prompts(mcp)
 
+# Register resources
+from reversecore_mcp import resources
+resources.register_resources(mcp)
+
+
 
 def main():
     """Run the MCP server."""

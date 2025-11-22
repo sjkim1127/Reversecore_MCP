@@ -153,6 +153,10 @@ COPY --from=builder /opt/venv /opt/venv
 COPY reversecore_mcp/ ./reversecore_mcp/
 COPY server.py ./
 
+# Copy resources (AI knowledge base)
+COPY resources/ /app/resources/
+
+
 # Set Python path to use the venv and configure application
 ENV PATH="/opt/radare2/bin:/opt/venv/bin:$PATH" \
     PYTHONPATH=/app \
