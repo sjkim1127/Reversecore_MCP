@@ -592,16 +592,13 @@ async def run_radare2(
         # Remove explicit analysis commands as they are handled by _build_r2_cmd
         validated_command = validated_command.replace("aaa", "").replace("aa", "").strip(" ;")
     
-    # Calculate dynamic timeout
-    effective_timeout = _calculate_dynamic_timeout(str(validated_path), timeout)
-    
-    # Build optimized command
-    cmd = _build_r2_cmd(str(validated_path), [validated_command], analysis_level)
-    
-    output, bytes_read = await execute_subprocess_async(
-        cmd,
+    # Use helper function to execute radare2 command
+    output, bytes_read = await _execute_r2_command(
+        validated_path,
+        [validated_command],
+        analysis_level=analysis_level,
         max_output_size=max_output_size,
-        timeout=effective_timeout,
+        base_timeout=timeout,
     )
     return success(output, bytes_read=bytes_read)
 
@@ -864,10 +861,9 @@ async def _generate_function_graph_impl(
     validated_path = validate_file_path(file_path)
 
     # 2. Security check for function address (prevent shell injection)
-    try:
-        validate_address_format(function_address, "function_address")
-    except Exception as e:
-        return failure("VALIDATION_ERROR", str(e))
+    validation_error = _validate_address_or_fail(function_address, "function_address")
+    if validation_error:
+        return validation_error
 
     # 3. Build radare2 command
     r2_cmd_str = f"agfj @ {function_address}"
@@ -1032,10 +1028,9 @@ async def emulate_machine_code(
     validated_path = validate_file_path(file_path)
 
     # 2. Security check for start address (prevent shell injection)
-    try:
-        validate_address_format(start_address, "start_address")
-    except Exception as e:
-        return failure("VALIDATION_ERROR", str(e))
+    validation_error = _validate_address_or_fail(start_address, "start_address")
+    if validation_error:
+        return validation_error
 
     # 3. Build radare2 ESIL emulation command chain
     # Note: Commands must be executed in specific order for ESIL to work correctly
@@ -1128,14 +1123,9 @@ async def get_pseudo_code(
     validated_path = validate_file_path(file_path)
 
     # 2. Security check for address (prevent shell injection)
-    try:
-        validate_address_format(address, "address")
-    except Exception as e:
-        return failure(
-            "VALIDATION_ERROR",
-            str(e),
-            hint="Address must contain only alphanumeric characters, dots, underscores, and '0x' prefix",
-        )
+    validation_error = _validate_address_or_fail(address, "address")
+    if validation_error:
+        return validation_error
 
     # 3. Build radare2 command to decompile
     r2_cmd = f"pdc @ {address}"
@@ -1221,14 +1211,9 @@ async def generate_signature(
         )
 
     # 2. Security check for address
-    try:
-        validate_address_format(address, "address")
-    except Exception as e:
-        return failure(
-            "VALIDATION_ERROR",
-            str(e),
-            hint="Address must contain only alphanumeric characters, dots, underscores, and '0x' prefix",
-        )
+    validation_error = _validate_address_or_fail(address, "address")
+    if validation_error:
+        return validation_error
 
     # 3. Extract hex bytes using radare2's p8 command
     r2_cmds = [
@@ -1389,25 +1374,24 @@ async def extract_rtti_info(
     # 2. Build radare2 command chain to extract RTTI and symbols
     # We'll use multiple commands to get comprehensive information
     r2_cmds = ["icj"]  # List classes in JSON format
-    
-    effective_timeout = _calculate_dynamic_timeout(str(validated_path), timeout)
-    cmd = _build_r2_cmd(str(validated_path), r2_cmds, "aaa")
 
-    # 3. Execute class extraction
-    classes_output, bytes_read = await execute_subprocess_async(
-        cmd,
+    # 3. Execute class extraction using helper
+    classes_output, bytes_read = await _execute_r2_command(
+        validated_path,
+        r2_cmds,
+        analysis_level="aaa",
         max_output_size=50_000_000,  # Class info can be large for complex binaries
-        timeout=effective_timeout,
+        base_timeout=timeout,
     )
 
-    # 4. Extract symbols
+    # 4. Extract symbols using helper
     symbols_cmds = ["isj"]  # List symbols in JSON format
-    symbols_cmd = _build_r2_cmd(str(validated_path), symbols_cmds, "aaa")
-
-    symbols_output, symbols_bytes = await execute_subprocess_async(
-        symbols_cmd,
+    symbols_output, symbols_bytes = await _execute_r2_command(
+        validated_path,
+        symbols_cmds,
+        analysis_level="aaa",
         max_output_size=50_000_000,
-        timeout=effective_timeout,
+        base_timeout=timeout,
     )
 
     # 5. Parse JSON outputs
@@ -1523,14 +1507,9 @@ async def _smart_decompile_impl(
     validated_path = validate_file_path(file_path)
 
     # 2. Security check for function address (prevent shell injection)
-    try:
-        validate_address_format(function_address, "function_address")
-    except Exception as e:
-        return failure(
-            "VALIDATION_ERROR",
-            str(e),
-            hint="Function address must contain only alphanumeric characters, dots, underscores, and '0x' prefix",
-        )
+    validation_error = _validate_address_or_fail(function_address, "function_address")
+    if validation_error:
+        return validation_error
 
     # 3. Try Ghidra first if requested and available
     if use_ghidra:
@@ -1694,14 +1673,9 @@ async def generate_yara_rule(
         )
 
     # 3. Security check for function address (prevent shell injection)
-    try:
-        validate_address_format(function_address, "function_address")
-    except Exception as e:
-        return failure(
-            "VALIDATION_ERROR",
-            str(e),
-            hint="Function address must contain only alphanumeric characters, dots, underscores, and '0x' prefix",
-        )
+    validation_error = _validate_address_or_fail(function_address, "function_address")
+    if validation_error:
+        return validation_error
 
     # 4. Extract hex bytes using radare2's p8 command
     r2_cmds = [
@@ -2091,14 +2065,14 @@ async def recover_structures(
             f"s {function_address}",  # Seek to function
             "afvj",  # Get function variables in JSON
         ]
-        
-        effective_timeout = _calculate_dynamic_timeout(str(validated_path), timeout)
-        cmd = _build_r2_cmd(str(validated_path), r2_cmds, "aaa")
 
-        output, bytes_read = await execute_subprocess_async(
-            cmd,
+        # Execute using helper
+        output, bytes_read = await _execute_r2_command(
+            validated_path,
+            r2_cmds,
+            analysis_level="aaa",
             max_output_size=10_000_000,
-            timeout=effective_timeout,
+            base_timeout=timeout,
         )
 
         # 5. Parse radare2 output
@@ -2484,13 +2458,13 @@ async def match_libraries(
             # Use built-in signatures
             r2_commands = ["zg", "aflj"]
 
-        effective_timeout = _calculate_dynamic_timeout(str(validated_path), timeout)
-        cmd = _build_r2_cmd(str(validated_path), r2_commands, "aaa")
-
-        output, bytes_read = await execute_subprocess_async(
-            cmd,
+        # Execute using helper
+        output, bytes_read = await _execute_r2_command(
+            validated_path,
+            r2_commands,
+            analysis_level="aaa",
             max_output_size=max_output_size,
-            timeout=effective_timeout,
+            base_timeout=timeout,
         )
 
         # Parse JSON output from aflj (function list JSON)
@@ -2926,6 +2900,27 @@ def _parse_json_output(output: str):
     # No valid JSON structure found via extraction, try parsing entire output as-is
     # This handles cases where output is pure JSON without any prefix/suffix
     return json.loads(output)
+
+
+def _validate_address_or_fail(address: str, param_name: str = "address") -> ToolResult:
+    """
+    Validate address format and return failure ToolResult if invalid.
+    
+    This helper consolidates the repeated pattern of address validation
+    with try-except and failure return.
+    
+    Args:
+        address: Address string to validate
+        param_name: Parameter name for error messages
+        
+    Returns:
+        None if validation passes, or ToolResult failure if invalid
+    """
+    try:
+        validate_address_format(address, param_name)
+        return None  # Validation passed
+    except Exception as e:
+        return failure("VALIDATION_ERROR", str(e))
 
 
 @log_execution(tool_name="solve_path_constraints")
