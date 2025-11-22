@@ -18,6 +18,7 @@ from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.command_spec import validate_r2_command
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
+from reversecore_mcp.core.exceptions import ValidationError
 from reversecore_mcp.core.execution import execute_subprocess_async
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.result import ToolResult, success, failure
@@ -2916,11 +2917,14 @@ def _validate_address_or_fail(address: str, param_name: str = "address") -> Opti
         
     Returns:
         None if validation passes, or ToolResult failure if invalid
+        
+    Raises:
+        No exceptions - all validation errors are converted to ToolResult failures
     """
     try:
         validate_address_format(address, param_name)
         return None  # Validation passed
-    except Exception as e:
+    except ValidationError as e:
         return failure("VALIDATION_ERROR", str(e))
 
 
