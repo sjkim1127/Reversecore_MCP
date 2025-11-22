@@ -1,5 +1,11 @@
 from fastmcp import FastMCP
 from pathlib import Path
+from collections import deque
+import json
+
+# Import tools at module level for better performance
+# These imports are used by resource functions below
+from reversecore_mcp.tools import cli_tools, lib_tools
 
 # Resources 폴더 경로 (AI용 데이터)
 RESOURCES_PATH = Path("/app/resources")
@@ -35,7 +41,6 @@ def register_resources(mcp: FastMCP):
             try:
                 # OPTIMIZED: Use deque to read only last N lines efficiently
                 # This avoids loading the entire log file into memory
-                from collections import deque
                 with open(log_file, 'r', encoding='utf-8', errors='replace') as f:
                     # deque with maxlen automatically keeps only last N items
                     last_lines = deque(f, maxlen=100)
@@ -51,8 +56,6 @@ def register_resources(mcp: FastMCP):
     @mcp.resource("reversecore://{filename}/strings")
     async def get_file_strings(filename: str) -> str:
         """Extract all strings from a binary file"""
-        from reversecore_mcp.tools import cli_tools
-        
         try:
             result = await cli_tools.run_strings(f"/app/workspace/{filename}")
             if result.status == "success":
@@ -66,8 +69,6 @@ def register_resources(mcp: FastMCP):
     @mcp.resource("reversecore://{filename}/iocs")
     async def get_file_iocs(filename: str) -> str:
         """Extract IOCs (IPs, URLs, Emails) from a binary file"""
-        from reversecore_mcp.tools import cli_tools, lib_tools
-        
         try:
             # 1. Extract strings
             strings_res = await cli_tools.run_strings(f"/app/workspace/{filename}")
@@ -103,8 +104,6 @@ def register_resources(mcp: FastMCP):
     @mcp.resource("reversecore://{filename}/func/{address}/code")
     async def get_decompiled_code(filename: str, address: str) -> str:
         """Get decompiled pseudo-C code for a specific function"""
-        from reversecore_mcp.tools import cli_tools
-        
         try:
             result = await cli_tools.smart_decompile(
                 f"/app/workspace/{filename}", 
@@ -127,8 +126,6 @@ def register_resources(mcp: FastMCP):
     @mcp.resource("reversecore://{filename}/func/{address}/asm")
     async def get_disassembly(filename: str, address: str) -> str:
         """Get disassembly for a specific function"""
-        from reversecore_mcp.tools import cli_tools
-        
         try:
             result = await cli_tools.run_radare2(
                 f"/app/workspace/{filename}", 
@@ -150,8 +147,6 @@ def register_resources(mcp: FastMCP):
     @mcp.resource("reversecore://{filename}/func/{address}/cfg")
     async def get_function_cfg(filename: str, address: str) -> str:
         """Get Control Flow Graph (Mermaid) for a specific function"""
-        from reversecore_mcp.tools import cli_tools
-        
         try:
             result = await cli_tools.generate_function_graph(
                 f"/app/workspace/{filename}", 
@@ -172,8 +167,6 @@ def register_resources(mcp: FastMCP):
     @mcp.resource("reversecore://{filename}/functions")
     async def get_function_list(filename: str) -> str:
         """Get list of all functions in the binary"""
-        from reversecore_mcp.tools import cli_tools
-        
         try:
             result = await cli_tools.run_radare2(
                 f"/app/workspace/{filename}", 
@@ -181,7 +174,6 @@ def register_resources(mcp: FastMCP):
             )
             
             if result.status == "success":
-                import json
                 content = result.content[0].text if result.content else result.data
                 
                 try:
