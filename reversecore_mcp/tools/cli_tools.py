@@ -12,7 +12,7 @@ import time
 
 from async_lru import alru_cache
 from functools import lru_cache
-from fastmcp import FastMCP
+from fastmcp import FastMCP, Context, Image
 from reversecore_mcp.core.config import get_config
 
 from reversecore_mcp.core.command_spec import validate_r2_command
@@ -399,6 +399,7 @@ async def analyze_variant_changes(
 async def scan_workspace(
     file_patterns: list[str] = None,
     timeout: int = 600,
+    ctx: Context = None,
 ) -> ToolResult:
     """
     Batch scan all files in the workspace using multiple tools in parallel.
@@ -418,6 +419,7 @@ async def scan_workspace(
         file_patterns: List of glob patterns to include (e.g., ["*.exe", "*.dll"]).
                       Default is ["*"] (all files).
         timeout: Global timeout for the batch operation in seconds.
+        ctx: FastMCP Context for progress reporting (auto-injected)
 
     Returns:
         ToolResult with aggregated scan results for all files.
@@ -445,10 +447,14 @@ async def scan_workspace(
             file_count=0
         )
 
+    total_files = len(files_to_scan)
+
     # 2. Define scan tasks
     results = {}
+    completed_count = 0
     
-    async def scan_single_file(file_path: Path):
+    async def scan_single_file(file_path: Path, index: int):
+        nonlocal completed_count
         path_str = str(file_path)
         file_name = file_path.name
         file_result = {"name": file_name, "path": path_str}
@@ -462,7 +468,7 @@ async def scan_workspace(
             file_result["file_type_error"] = str(e)
 
         # Task 2: LIEF (sync, run in thread)
-        # Only for likely binaries
+        #Only for likely binaries
         if "executable" in str(file_result.get("file_type", "")).lower() or file_path.suffix.lower() in [".exe", ".dll", ".so", ".dylib", ".bin", ".elf"]:
             try:
                 # Run sync function in thread pool
@@ -484,17 +490,22 @@ async def scan_workspace(
         # To keep it simple and robust, we'll skip YARA for now in this initial implementation 
         # unless we want to scan against a specific rule file which isn't passed here.
         
+        # Report progress
+        completed_count += 1
+        if ctx:
+            await ctx.report_progress(completed_count, total_files)
+        
         return file_name, file_result
 
     # 3. Run scans in parallel
     # Limit concurrency to avoid overwhelming the system
     semaphore = asyncio.Semaphore(5) # Process 5 files at a time
     
-    async def sem_scan(file_path):
+    async def sem_scan(file_path, index):
         async with semaphore:
-            return await scan_single_file(file_path)
+            return await scan_single_file(file_path, index)
 
-    tasks = [sem_scan(f) for f in files_to_scan]
+    tasks = [sem_scan(f, i) for i, f in enumerate(files_to_scan)]
     
     # Wait for all tasks with global timeout
     try:
