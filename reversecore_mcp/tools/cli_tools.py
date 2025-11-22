@@ -12,7 +12,8 @@ import time
 
 from async_lru import alru_cache
 from functools import lru_cache
-from fastmcp import FastMCP, Context, Image
+from fastmcp import FastMCP, Context
+from fastmcp.utilities.types import Image
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.logging_config import get_logger
 
