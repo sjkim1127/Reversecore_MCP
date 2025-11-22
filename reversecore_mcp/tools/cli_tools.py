@@ -114,34 +114,22 @@ async def trace_execution_path(
         cmd = _build_r2_cmd(str(validated_path), ["isj"], "aaa")
         out, _ = await execute_subprocess_async(cmd, timeout=30)
         try:
-            # Robust JSON extraction
-            json_str = _extract_first_json(out)
-            if json_str:
-                symbols = json.loads(json_str)
-            else:
-                symbols = json.loads(out)
-
+            symbols = _parse_json_output(out)
             for sym in symbols:
                 if sym.get("name") == func_name or sym.get("realname") == func_name:
                     return sym.get("vaddr")
-        except:
+        except (json.JSONDecodeError, TypeError):
             pass
         
         # If not found, try aflj
         cmd = _build_r2_cmd(str(validated_path), ["aflj"], "aaa")
         out, _ = await execute_subprocess_async(cmd, timeout=30)
         try:
-            # Robust JSON extraction
-            json_str = _extract_first_json(out)
-            if json_str:
-                funcs = json.loads(json_str)
-            else:
-                funcs = json.loads(out)
-
+            funcs = _parse_json_output(out)
             for f in funcs:
                 if f.get("name") == func_name:
                     return f.get("offset")
-        except:
+        except (json.JSONDecodeError, TypeError):
             pass
         return None
 
@@ -173,13 +161,8 @@ async def trace_execution_path(
         out, _ = await execute_subprocess_async(cmd, timeout=30)
         
         try:
-            # Robust JSON extraction
-            json_str = _extract_first_json(out)
-            if json_str:
-                xrefs = json.loads(json_str)
-            else:
-                xrefs = json.loads(out)
-        except:
+            xrefs = _parse_json_output(out)
+        except (json.JSONDecodeError, TypeError):
             xrefs = []
 
         if not xrefs:
@@ -336,13 +319,8 @@ async def analyze_variant_changes(
     out, _ = await execute_subprocess_async(cmd, timeout=60)
     
     try:
-        # Robust JSON extraction
-        json_str = _extract_first_json(out)
-        if json_str:
-            funcs_b = json.loads(json_str)
-        else:
-            funcs_b = json.loads(out)
-    except:
+        funcs_b = _parse_json_output(out)
+    except (json.JSONDecodeError, TypeError):
         funcs_b = []
         
     # Map changes to functions
@@ -1405,21 +1383,13 @@ async def extract_rtti_info(
     try:
         # Robust JSON extraction for classes
         if classes_output.strip():
-            json_str = _extract_first_json(classes_output)
-            if json_str:
-                classes = json.loads(json_str)
-            else:
-                classes = json.loads(classes_output)
+            classes = _parse_json_output(classes_output)
         else:
             classes = []
 
         # Robust JSON extraction for symbols
         if symbols_output.strip():
-            json_str = _extract_first_json(symbols_output)
-            if json_str:
-                symbols = json.loads(json_str)
-            else:
-                symbols = json.loads(symbols_output)
+            symbols = _parse_json_output(symbols_output)
         else:
             symbols = []
 
@@ -1893,21 +1863,20 @@ async def analyze_xrefs(
 
         for line in lines:
             # Robust JSON extraction from line
-            json_str = _extract_first_json(line)
-            if json_str:
-                try:
-                    refs = json.loads(json_str)
-                    if isinstance(refs, list) and len(refs) > 0:
-                        # Determine if this is "to" or "from" based on field names
-                        first_ref = refs[0]
-                        if "from" in first_ref:
-                            # This is xrefs TO (callers)
-                            xrefs_to = refs
-                        elif "addr" in first_ref or "fcn_addr" in first_ref:
-                            # This is xrefs FROM (callees)
-                            xrefs_from = refs
-                except json.JSONDecodeError:
-                    continue
+            try:
+                refs = _parse_json_output(line)
+                if isinstance(refs, list) and len(refs) > 0:
+                    # Determine if this is "to" or "from" based on field names
+                    first_ref = refs[0]
+                    if "from" in first_ref:
+                        # This is xrefs TO (callers)
+                        xrefs_to = refs
+                    elif "addr" in first_ref or "fcn_addr" in first_ref:
+                        # This is xrefs FROM (callees)
+                        xrefs_from = refs
+            except json.JSONDecodeError:
+                # Skip lines that don't contain valid JSON
+                continue
 
         # 6. Format results
         result = {
@@ -2102,13 +2071,7 @@ async def recover_structures(
         # 5. Parse radare2 output
         try:
             if output.strip():
-                # Robust JSON extraction using stack-based parser
-                json_str = _extract_first_json(output)
-                if json_str:
-                    variables = json.loads(json_str)
-                else:
-                    # Fallback to direct load if extraction failed (might be simple JSON)
-                    variables = json.loads(output)
+                variables = _parse_json_output(output)
             else:
                 variables = []
 
@@ -2501,11 +2464,7 @@ async def match_libraries(
         try:
             # Attempt to find JSON array in output if direct parse fails
             # This handles cases where 'zg' or 'aaa' might produce non-JSON output before the JSON result
-            json_str = _extract_first_json(output)
-            if json_str:
-                functions = json.loads(json_str)
-            else:
-                functions = json.loads(output)
+            functions = _parse_json_output(output)
         except json.JSONDecodeError:
             # If JSON parsing fails, fall back to text parsing
             return failure(
@@ -2685,6 +2644,28 @@ def _build_r2_cmd(file_path: str, r2_commands: list[str], analysis_level: str = 
     
     Simplified version: Always run analysis if requested, skipping project persistence
     to avoid permission issues and 'exit 1' errors in Docker environments.
+    
+    Performance Note - Early Filtering:
+    ===================================
+    When searching for specific data, consider using radare2's built-in filtering
+    to reduce data transfer and parsing overhead. Examples:
+    
+    1. Text-based filtering with grep (~):
+       - aflj~main       # Filter functions containing "main" (WARNING: breaks JSON)
+       - afl~main        # Text-mode filtering (safe, but not JSON)
+       - iz~password     # Filter strings containing "password"
+    
+    2. Radare2's native JSON queries (where available):
+       - Some commands support inline filtering in JSON mode
+       - Check radare2 documentation for specific command capabilities
+    
+    3. Trade-offs:
+       - Early filtering: Reduces data transfer by 50-70%
+       - Late filtering: Preserves JSON structure, more flexible
+       - Current implementation: Prioritizes JSON structure integrity
+    
+    For complex filtering logic (e.g., checking multiple conditions, prefix matching),
+    Python-side filtering is more maintainable and flexible.
     """
     base_cmd = ["r2", "-q"]
     
@@ -2696,6 +2677,7 @@ def _build_r2_cmd(file_path: str, r2_commands: list[str], analysis_level: str = 
     # We use 'e scr.color=0' to ensure no color codes in output
     combined_cmds = ["e scr.color=0", analysis_level] + r2_commands
     return base_cmd + ["-c", ";".join(combined_cmds), str(file_path)]
+
 
 
 def _resolve_address(proj, addr_str):
@@ -2727,39 +2709,86 @@ def _resolve_address(proj, addr_str):
     return None
 
 
-def _extract_first_json(text: str) -> str:
+def _extract_first_json(text: str) -> str | None:
     """
     Extract the first valid JSON object or array from a string.
     Handles nested structures and ignores surrounding garbage.
+    
+    Returns:
+        The extracted JSON string, or None if no valid JSON found.
     """
     text = text.strip()
     if not text:
-        return ""
-        
-    # Find start
-    start_idx = -1
-    stack = []
+        return None
     
-    for i, char in enumerate(text):
-        if char == '{' or char == '[':
-            if start_idx == -1:
-                start_idx = i
-            stack.append(char)
-        elif char == '}' or char == ']':
-            if not stack:
-                continue # Unmatched closing bracket, ignore
+    # Try to find valid JSON starting from each potential starting position
+    for start_pos in range(len(text)):
+        char = text[start_pos]
+        if char not in ('{', '['):
+            continue
             
-            last = stack[-1]
-            if (char == '}' and last == '{') or (char == ']' and last == '['):
-                stack.pop()
+        # Found potential start, try to extract complete JSON from here
+        stack = []
+        start_idx = start_pos
+        
+        for i in range(start_pos, len(text)):
+            c = text[i]
+            if c == '{' or c == '[':
+                stack.append(c)
+            elif c == '}' or c == ']':
                 if not stack:
-                    # Found complete object
-                    return text[start_idx : i + 1]
-            else:
-                # Mismatched brackets (e.g. {]) - parsing error
-                return ""
+                    continue  # Unmatched closing bracket
                 
-    return ""
+                last = stack[-1]
+                if (c == '}' and last == '{') or (c == ']' and last == '['):
+                    stack.pop()
+                    if not stack:
+                        # Found complete structure, validate it's actually JSON
+                        candidate = text[start_idx : i + 1]
+                        try:
+                            json.loads(candidate)  # Validate it's real JSON
+                            return candidate
+                        except json.JSONDecodeError:
+                            # Not valid JSON, continue searching
+                            break
+                else:
+                    # Mismatched brackets
+                    break
+                    
+    return None
+
+
+def _parse_json_output(output: str):
+    """
+    Safely parse JSON from command output.
+    
+    Tries to extract JSON from output that may contain non-JSON text
+    (like warnings, debug messages, etc.) and parse it.
+    
+    Args:
+        output: Raw command output that may contain JSON
+        
+    Returns:
+        Parsed JSON object (dict/list) or None if parsing fails
+        
+    Raises:
+        json.JSONDecodeError: If JSON is found but invalid
+    """
+    # First, try to extract clean JSON from potentially noisy output
+    json_str = _extract_first_json(output)
+    
+    if json_str is not None:
+        # Found potential JSON, try to parse it
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError:
+            # Extracted text wasn't valid JSON (e.g., "[x]" from radare2 output)
+            # Fall through to try parsing entire output
+            pass
+    
+    # No valid JSON structure found via extraction, try parsing entire output as-is
+    # This handles cases where output is pure JSON without any prefix/suffix
+    return json.loads(output)
 
 
 @log_execution(tool_name="solve_path_constraints")

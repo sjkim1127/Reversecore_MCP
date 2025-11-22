@@ -182,12 +182,12 @@ def test_extract_first_json_optimization():
     result3 = _extract_first_json(text3)
     assert result3 == '{"outer": {"inner": [1, 2, 3]}}'
     
-    # Test empty input
-    assert _extract_first_json("") == ""
-    assert _extract_first_json("   ") == ""
+    # Test empty input - now returns None instead of ""
+    assert _extract_first_json("") is None
+    assert _extract_first_json("   ") is None
     
-    # Test invalid input
-    assert _extract_first_json("no json here") == ""
+    # Test invalid input - now returns None instead of ""
+    assert _extract_first_json("no json here") is None
 
 
 def test_caching_improves_batch_operations(workspace_dir):
