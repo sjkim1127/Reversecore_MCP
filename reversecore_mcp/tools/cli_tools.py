@@ -2749,6 +2749,8 @@ def _extract_first_json(text: str) -> str | None:
         # Found potential JSON start
         # Quick heuristic: Skip obvious false starts (isolated brackets)
         # This prevents pathological O(n²) behavior with "{ { { { {..." patterns
+        # Note: We only check for same bracket type to avoid false positives.
+        # Mixed brackets like "{ [" could be valid JSON like `{"arr": [...]}`
         if i + 1 < text_len and text[i + 1] in (' ', '\t'):
             # Bracket followed by whitespace - check if next non-whitespace is also a bracket
             next_idx = i + 2
@@ -2806,6 +2808,8 @@ def _extract_first_json(text: str) -> str | None:
                                 return candidate
                             except json.JSONDecodeError:
                                 # Not valid JSON, skip past this failed attempt
+                                # Optimization: Jump to position j+1 (where extraction stopped)
+                                # instead of just i+1, avoiding re-processing characters
                                 i = j + 1
                                 break
                     else:

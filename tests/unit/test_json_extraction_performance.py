@@ -236,12 +236,6 @@ class TestJSONExtractionPerformance:
             f"Optimized version too slow: {optimized_duration*1000:.1f}ms per call. "
             f"Expected < 50ms for O(n) algorithm on 100KB input."
         )
-        
-        print(f"\nOptimized JSON extraction performance:")
-        print(f"  Input size: {len(text):,} bytes")
-        print(f"  JSON position: {len(prefix):,} bytes from start")
-        print(f"  Average time: {optimized_duration*1000:.2f}ms per call")
-        print(f"  Throughput: {len(text)/optimized_duration/1024/1024:.1f} MB/s")
 
 
 class TestJSONExtractionCorrectness:
