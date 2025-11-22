@@ -387,7 +387,8 @@ async def analyze_variant_changes(
             
             if found_func:
                 changed_funcs[found_func] = changed_funcs.get(found_func, 0) + 1
-        except (ValueError, IndexError):
+        except ValueError:
+            # Invalid hex address format
             pass
             
     # Sort by number of changes
