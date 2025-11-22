@@ -1230,10 +1230,11 @@ async def generate_signature(
         analysis_level = "-n"
         
     # Extract hex bytes using helper
+    # Note: analysis_level may be "" (empty) which means default r2 behavior (parse headers/symbols)
     output, bytes_read = await _execute_r2_command(
         validated_path,
         r2_cmds,
-        analysis_level=analysis_level if analysis_level else "aaa",
+        analysis_level=analysis_level or "aaa",
         max_output_size=1_000_000,
         base_timeout=timeout,
     )
@@ -1687,10 +1688,11 @@ async def generate_yara_rule(
         analysis_level = "-n"
         
     # 4. Extract hex bytes using helper
+    # Note: analysis_level may be "" (empty) which means default r2 behavior (parse headers/symbols)
     output, bytes_read = await _execute_r2_command(
         validated_path,
         r2_cmds,
-        analysis_level=analysis_level if analysis_level else "aaa",
+        analysis_level=analysis_level or "aaa",
         max_output_size=1_000_000,
         base_timeout=timeout,
     )
