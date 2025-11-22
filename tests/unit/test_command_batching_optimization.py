@@ -233,3 +233,87 @@ def test_command_batching_already_implemented():
     # Verify all are documented
     assert len(optimized_functions) == 4
     assert all(f["status"].startswith("✅") for f in optimized_functions.values())
+
+
+@pytest.mark.asyncio
+async def test_get_address_robust_error_handling():
+    """
+    Test that get_address helper handles malformed output gracefully.
+    
+    Verifies the improved error handling from code review feedback:
+    - Validates JSON structure before parsing
+    - Handles non-list responses
+    - Handles missing lines
+    - Handles error messages instead of JSON
+    """
+    from reversecore_mcp.tools.cli_tools import trace_execution_path
+    
+    # Test case 1: First command returns error, second returns valid JSON
+    mock_output = "Error: binary not analyzed\n" + json.dumps([{"name": "fcn.00401500", "offset": 0x401500}])
+    
+    with patch('reversecore_mcp.tools.cli_tools.validate_file_path') as mock_validate, \
+         patch('reversecore_mcp.tools.cli_tools._build_r2_cmd') as mock_build_cmd, \
+         patch('reversecore_mcp.tools.cli_tools.execute_subprocess_async', new_callable=AsyncMock) as mock_execute:
+        
+        mock_validate.return_value = "/app/workspace/test.exe"
+        mock_build_cmd.return_value = ["r2", "-q", "-c", "aaa; isj; aflj", "/app/workspace/test.exe"]
+        
+        mock_execute.side_effect = [
+            (mock_output, 100),  # get_address call with partial error
+            ("[]", 50),           # xref lookup
+        ]
+        
+        result = await trace_execution_path(
+            file_path="/app/workspace/test.exe",
+            target_function="fcn.00401500",
+            max_depth=1
+        )
+        
+        # Should handle gracefully without crashing
+        assert hasattr(result, 'status')
+    
+    # Test case 2: Both commands return non-JSON error messages
+    mock_output_errors = "Error: file not found\nError: analysis failed"
+    
+    with patch('reversecore_mcp.tools.cli_tools.validate_file_path') as mock_validate, \
+         patch('reversecore_mcp.tools.cli_tools._build_r2_cmd') as mock_build_cmd, \
+         patch('reversecore_mcp.tools.cli_tools.execute_subprocess_async', new_callable=AsyncMock) as mock_execute:
+        
+        mock_validate.return_value = "/app/workspace/test.exe"
+        mock_build_cmd.return_value = ["r2", "-q", "-c", "aaa; isj; aflj", "/app/workspace/test.exe"]
+        
+        mock_execute.side_effect = [
+            (mock_output_errors, 50),  # get_address call with errors
+            ("[]", 50),                 # xref lookup
+        ]
+        
+        result = await trace_execution_path(
+            file_path="/app/workspace/test.exe",
+            target_function="nonexistent",
+            max_depth=1
+        )
+        
+        # Should handle gracefully without crashing
+        assert hasattr(result, 'status')
+    
+    # Test case 3: Empty output
+    with patch('reversecore_mcp.tools.cli_tools.validate_file_path') as mock_validate, \
+         patch('reversecore_mcp.tools.cli_tools._build_r2_cmd') as mock_build_cmd, \
+         patch('reversecore_mcp.tools.cli_tools.execute_subprocess_async', new_callable=AsyncMock) as mock_execute:
+        
+        mock_validate.return_value = "/app/workspace/test.exe"
+        mock_build_cmd.return_value = ["r2", "-q", "-c", "aaa; isj; aflj", "/app/workspace/test.exe"]
+        
+        mock_execute.side_effect = [
+            ("", 0),     # get_address call with empty output
+            ("[]", 50),  # xref lookup
+        ]
+        
+        result = await trace_execution_path(
+            file_path="/app/workspace/test.exe",
+            target_function="func",
+            max_depth=1
+        )
+        
+        # Should handle gracefully without crashing
+        assert hasattr(result, 'status')

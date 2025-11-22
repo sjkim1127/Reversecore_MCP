@@ -114,27 +114,42 @@ async def trace_execution_path(
         cmd = _build_r2_cmd(str(validated_path), ["isj", "aflj"], "aaa")
         out, _ = await execute_subprocess_async(cmd, timeout=30)
         
-        # Parse output: first JSON is from isj, second is from aflj
+        # Parse output: radare2 outputs one JSON per command line
+        # We expect 2 lines: first from isj (symbols), second from aflj (functions)
         lines = [line.strip() for line in out.strip().split("\n") if line.strip()]
         
+        # Validate we have at least one line with potential JSON
+        if not lines:
+            return None
+        
         # Try symbols first (isj output)
-        if lines:
+        # Use robust parsing that handles both JSON arrays and error messages
+        if len(lines) >= 1:
             try:
                 symbols = _parse_json_output(lines[0])
-                for sym in symbols:
-                    if sym.get("name") == func_name or sym.get("realname") == func_name:
-                        return sym.get("vaddr")
+                # Validate it's a list (not an error dict or string)
+                if isinstance(symbols, list):
+                    for sym in symbols:
+                        if isinstance(sym, dict):
+                            if sym.get("name") == func_name or sym.get("realname") == func_name:
+                                return sym.get("vaddr")
             except (json.JSONDecodeError, TypeError, IndexError):
+                # First line wasn't valid JSON or wasn't in expected format
+                # This is OK - fall through to try functions
                 pass
         
         # If not found in symbols, try functions (aflj output)
-        if len(lines) > 1:
+        if len(lines) >= 2:
             try:
                 funcs = _parse_json_output(lines[1])
-                for f in funcs:
-                    if f.get("name") == func_name:
-                        return f.get("offset")
+                # Validate it's a list (not an error dict or string)
+                if isinstance(funcs, list):
+                    for f in funcs:
+                        if isinstance(f, dict) and f.get("name") == func_name:
+                            return f.get("offset")
             except (json.JSONDecodeError, TypeError, IndexError):
+                # Second line wasn't valid JSON or wasn't in expected format
+                # This is OK - just means function not found
                 pass
         
         return None
