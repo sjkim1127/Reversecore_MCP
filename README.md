@@ -13,7 +13,7 @@ An enterprise-grade MCP (Model Context Protocol) server that empowers AI agents 
 
 | Category | Minimum Specification | Recommended Specification |
 |----------|----------------------|---------------------------|
-| **Use Case** | Single file analysis, basic CLI tools (file, strings), lightweight YARA scanning | Large-scale parallel scanning, Ghidra decompilation, Angr symbolic execution, Docker builds |
+| **Use Case** | Single file analysis, basic CLI tools (file, strings), lightweight YARA scanning | Large-scale parallel scanning, Ghidra decompilation, angr symbolic execution, Docker builds |
 | **CPU** | 4+ cores (Intel i5 / Ryzen 5 equivalent) | 8+ cores with P-cores (M3/M4 Pro, Ryzen 7/9, Intel i7/i9) |
 | **RAM** | 16 GB | 32 GB+ (or 24 GB unified memory on Mac) |
 | **Storage** | 512 GB SSD (SATA3 or faster) | 1 TB NVMe SSD (PCIe 4.0+ recommended) |
