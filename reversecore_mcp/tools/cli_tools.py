@@ -176,10 +176,13 @@ async def trace_execution_path(
         if depth >= max_depth or len(paths) >= max_paths:
             return
 
-        if current_addr in visited and current_addr not in [p["addr"] for p in current_path]:
+        # OPTIMIZATION: Pre-compute addresses in current path to avoid repeated list comprehensions
+        current_path_addrs = {p["addr"] for p in current_path}
+        
+        if current_addr in visited and current_addr not in current_path_addrs:
              # Allow revisiting if it's a different path, but prevent cycles in current path
              pass
-        elif current_addr in [p["addr"] for p in current_path]:
+        elif current_addr in current_path_addrs:
             return # Cycle detected
 
         # Get xrefs TO this address
@@ -348,24 +351,44 @@ async def analyze_variant_changes(
         funcs_b = _parse_json_output(out)
     except (json.JSONDecodeError, TypeError):
         funcs_b = []
-        
-    # Map changes to functions
+    
+    # OPTIMIZATION: Pre-sort functions by offset for binary search
+    # This reduces O(n*m) to O(n*log(m)) complexity
+    sorted_funcs = sorted(
+        [(f.get("offset", 0), f.get("offset", 0) + f.get("size", 0), f.get("name", "unknown"))
+         for f in funcs_b if f.get("offset") is not None and f.get("size") is not None],
+        key=lambda x: x[0]
+    )
+    
+    # Map changes to functions using binary search
     changed_funcs = {} # {func_name: count}
     
     for change in changes:
         addr_str = change.get("address")
-        if not addr_str: continue
+        if not addr_str: 
+            continue
         try:
             addr = int(addr_str, 16)
-            # Find which function contains this address
-            for f in funcs_b:
-                f_offset = f.get("offset")
-                f_size = f.get("size")
-                if f_offset <= addr < f_offset + f_size:
-                    fname = f.get("name")
-                    changed_funcs[fname] = changed_funcs.get(fname, 0) + 1
+            # Binary search to find the function containing this address
+            left, right = 0, len(sorted_funcs) - 1
+            found_func = None
+            
+            while left <= right:
+                mid = (left + right) // 2
+                func_start, func_end, func_name = sorted_funcs[mid]
+                
+                if func_start <= addr < func_end:
+                    found_func = func_name
                     break
-        except:
+                elif addr < func_start:
+                    right = mid - 1
+                else:
+                    left = mid + 1
+            
+            if found_func:
+                changed_funcs[found_func] = changed_funcs.get(found_func, 0) + 1
+        except ValueError:
+            # Invalid hex address format
             pass
             
     # Sort by number of changes

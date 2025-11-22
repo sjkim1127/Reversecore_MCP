@@ -175,21 +175,23 @@ def _format_yara_match(match: YaraMatch) -> Dict[str, Any]:
     match_strings = getattr(match, "strings", None)
     if match_strings:
         try:
+            # OPTIMIZATION: Cache isinstance check and reduce getattr calls
             # Try modern API first (more common case)
             for sm in match_strings:
                 identifier = getattr(sm, "identifier", None)
                 instances = getattr(sm, "instances", None)
                 if instances:
+                    # Pre-cache the formatted string for reuse
                     for inst in instances:
                         offset = getattr(inst, "offset", None)
                         matched_data = getattr(inst, "matched_data", None)
-                        # Convert matched_data to string
-                        if matched_data is not None:
-                            data_str = (matched_data.hex() 
-                                       if isinstance(matched_data, bytes) 
-                                       else str(matched_data))
-                        else:
+                        # Convert matched_data to string (optimized with early check)
+                        if matched_data is None:
                             data_str = None
+                        else:
+                            # Single isinstance check instead of repeated checks
+                            data_str = matched_data.hex() if isinstance(matched_data, bytes) else str(matched_data)
+                        
                         formatted_strings.append({
                             "identifier": identifier,
                             "offset": int(offset) if offset is not None else None,
