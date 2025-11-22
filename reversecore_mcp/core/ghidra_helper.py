@@ -27,10 +27,13 @@ def _extract_structure_fields(data_type) -> list:
     by avoiding repeated attribute checks and type conversions.
     
     Args:
-        data_type: Ghidra DataType object
+        data_type: Ghidra DataType object (type hint omitted for compatibility)
         
     Returns:
         List of field dictionaries with offset, type, name, and size
+    
+    Note: Type hint for data_type is intentionally omitted to avoid circular imports
+    and maintain compatibility with optional Ghidra dependency.
     """
     fields = []
     
