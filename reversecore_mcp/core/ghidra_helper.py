@@ -19,6 +19,43 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+def _extract_structure_fields(data_type) -> list:
+    """
+    Extract fields from a Ghidra data type structure.
+    
+    OPTIMIZATION: Helper function to reduce code duplication and improve performance
+    by avoiding repeated attribute checks and type conversions.
+    
+    Args:
+        data_type: Ghidra DataType object
+        
+    Returns:
+        List of field dictionaries with offset, type, name, and size
+    """
+    fields = []
+    
+    if not hasattr(data_type, 'getNumComponents'):
+        return fields
+    
+    num_components = data_type.getNumComponents()
+    
+    for j in range(num_components):
+        component = data_type.getComponent(j)
+        field_name = component.getFieldName()
+        field_type = component.getDataType().getName()
+        field_offset = component.getOffset()
+        field_size = component.getLength()
+        
+        fields.append({
+            "offset": f"0x{field_offset:x}",
+            "type": field_type,
+            "name": field_name if field_name else f"field_{field_offset:x}",
+            "size": field_size
+        })
+    
+    return fields
+
+
 def ensure_ghidra_available() -> bool:
     """
     Check if Ghidra and PyGhidra are available.
@@ -334,25 +371,8 @@ def recover_structures_with_ghidra(
                                     struct_name = actual_type.getName()
                                     
                                     if struct_name not in structures_found:
-                                        # Extract structure fields
-                                        fields = []
-                                        
-                                        if hasattr(actual_type, 'getNumComponents'):
-                                            num_components = actual_type.getNumComponents()
-                                            
-                                            for j in range(num_components):
-                                                component = actual_type.getComponent(j)
-                                                field_name = component.getFieldName()
-                                                field_type = component.getDataType().getName()
-                                                field_offset = component.getOffset()
-                                                field_size = component.getLength()
-                                                
-                                                fields.append({
-                                                    "offset": f"0x{field_offset:x}",
-                                                    "type": field_type,
-                                                    "name": field_name if field_name else f"field_{field_offset:x}",
-                                                    "size": field_size
-                                                })
+                                        # OPTIMIZATION: Use helper function to extract fields
+                                        fields = _extract_structure_fields(actual_type)
                                         
                                         structures_found[struct_name] = {
                                             "name": struct_name,
@@ -368,25 +388,8 @@ def recover_structures_with_ghidra(
                             type_name = param_type.getName()
                             
                             if "struct" in type_name.lower() and type_name not in structures_found:
-                                # Extract parameter structure info
-                                fields = []
-                                
-                                if hasattr(param_type, 'getNumComponents'):
-                                    num_components = param_type.getNumComponents()
-                                    
-                                    for j in range(num_components):
-                                        component = param_type.getComponent(j)
-                                        field_name = component.getFieldName()
-                                        field_type = component.getDataType().getName()
-                                        field_offset = component.getOffset()
-                                        field_size = component.getLength()
-                                        
-                                        fields.append({
-                                            "offset": f"0x{field_offset:x}",
-                                            "type": field_type,
-                                            "name": field_name if field_name else f"field_{field_offset:x}",
-                                            "size": field_size
-                                        })
+                                # OPTIMIZATION: Use helper function to extract fields
+                                fields = _extract_structure_fields(param_type)
                                 
                                 structures_found[type_name] = {
                                     "name": type_name,
