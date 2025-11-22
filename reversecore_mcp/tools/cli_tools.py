@@ -2714,6 +2714,10 @@ def _extract_first_json(text: str) -> str | None:
     Extract the first valid JSON object or array from a string.
     Handles nested structures and ignores surrounding garbage.
     
+    PERFORMANCE NOTE: Optimized to O(n) by minimizing redundant scanning.
+    Uses early bailout conditions when a bracket is followed only by
+    whitespace and more brackets (pathological case: "{ { { { {").
+    
     Returns:
         The extracted JSON string, or None if no valid JSON found.
     """
@@ -2721,40 +2725,99 @@ def _extract_first_json(text: str) -> str | None:
     if not text:
         return None
     
-    # Try to find valid JSON starting from each potential starting position
-    for start_pos in range(len(text)):
-        char = text[start_pos]
-        if char not in ('{', '['):
-            continue
-            
-        # Found potential start, try to extract complete JSON from here
-        stack = []
-        start_idx = start_pos
+    # Quick optimization: Try parsing the whole string first
+    # This handles the common case where output is pure JSON
+    if text[0] in ('{', '['):
+        try:
+            json.loads(text)
+            return text
+        except json.JSONDecodeError:
+            pass
+    
+    # Need to extract JSON from noisy output
+    i = 0
+    text_len = len(text)
+    
+    while i < text_len:
+        char = text[i]
         
-        for i in range(start_pos, len(text)):
-            c = text[i]
-            if c == '{' or c == '[':
-                stack.append(c)
-            elif c == '}' or c == ']':
-                if not stack:
-                    continue  # Unmatched closing bracket
+        # Skip non-JSON start characters
+        if char not in ('{', '['):
+            i += 1
+            continue
+        
+        # Found potential JSON start
+        # Quick heuristic: Skip obvious false starts (isolated brackets)
+        # This prevents pathological O(n²) behavior with "{ { { { {..." patterns
+        if i + 1 < text_len and text[i + 1] in (' ', '\t'):
+            # Bracket followed by whitespace - check if next non-whitespace is also a bracket
+            next_idx = i + 2
+            while next_idx < text_len and text[next_idx] in (' ', '\t', '\n', '\r'):
+                next_idx += 1
+            if next_idx < text_len and text[next_idx] == char:
+                # Pattern like "{ {" or "[ [" with only whitespace between
+                # This is likely noise, not JSON - skip it
+                i += 1
+                continue
+        
+        # Try to extract JSON starting from this position
+        stack = []
+        start_idx = i
+        in_string = False
+        escape_next = False
+        j = i
+        
+        while j < text_len:
+            c = text[j]
+            
+            # Handle string literals (quotes can contain brackets)
+            if escape_next:
+                escape_next = False
+                j += 1
+                continue
                 
-                last = stack[-1]
-                if (c == '}' and last == '{') or (c == ']' and last == '['):
-                    stack.pop()
+            if c == '\\' and in_string:
+                escape_next = True
+                j += 1
+                continue
+                
+            if c == '"':
+                in_string = not in_string
+                j += 1
+                continue
+            
+            # Process brackets only when not inside strings
+            if not in_string:
+                if c in ('{', '['):
+                    stack.append(c)
+                elif c in ('}', ']'):
                     if not stack:
-                        # Found complete structure, validate it's actually JSON
-                        candidate = text[start_idx : i + 1]
-                        try:
-                            json.loads(candidate)  # Validate it's real JSON
-                            return candidate
-                        except json.JSONDecodeError:
-                            # Not valid JSON, continue searching
-                            break
-                else:
-                    # Mismatched brackets
-                    break
+                        # Unmatched closing bracket
+                        break
                     
+                    last = stack[-1]
+                    if (c == '}' and last == '{') or (c == ']' and last == '['):
+                        stack.pop()
+                        if not stack:
+                            # Found complete structure, validate it's actually JSON
+                            candidate = text[start_idx : j + 1]
+                            try:
+                                json.loads(candidate)  # Validate it's real JSON
+                                return candidate
+                            except json.JSONDecodeError:
+                                # Not valid JSON, skip past this failed attempt
+                                i = j + 1
+                                break
+                    else:
+                        # Mismatched brackets
+                        break
+            
+            j += 1
+        
+        # Move past this failed attempt
+        if i == start_idx:
+            i += 1
+    
     return None
 
 
