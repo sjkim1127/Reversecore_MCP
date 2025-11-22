@@ -14,6 +14,7 @@ from async_lru import alru_cache
 from functools import lru_cache
 from fastmcp import FastMCP, Context, Image
 from reversecore_mcp.core.config import get_config
+from reversecore_mcp.core.logging_config import get_logger
 
 from reversecore_mcp.core.command_spec import validate_r2_command
 from reversecore_mcp.core.decorators import log_execution
@@ -354,11 +355,14 @@ async def analyze_variant_changes(
     
     # OPTIMIZATION: Pre-sort functions by offset for binary search
     # This reduces O(n*m) to O(n*log(m)) complexity
-    sorted_funcs = sorted(
-        [(f.get("offset", 0), f.get("offset", 0) + f.get("size", 0), f.get("name", "unknown"))
-         for f in funcs_b if f.get("offset") is not None and f.get("size") is not None],
-        key=lambda x: x[0]
-    )
+    # Further optimized to avoid redundant dict.get() calls
+    sorted_funcs = []
+    for f in funcs_b:
+        offset = f.get("offset")
+        size = f.get("size")
+        if offset is not None and size is not None:
+            sorted_funcs.append((offset, offset + size, f.get("name", "unknown")))
+    sorted_funcs.sort(key=lambda x: x[0])
     
     # Map changes to functions using binary search
     changed_funcs = {} # {func_name: count}
@@ -795,8 +799,6 @@ def list_workspace() -> ToolResult:
     Returns:
         ToolResult with list of files in workspace
     """
-    from reversecore_mcp.core.config import get_config
-
     config = get_config()
     workspace = config.workspace
 
@@ -897,8 +899,6 @@ async def _generate_function_graph_impl(
     """
     Internal implementation of generate_function_graph with caching.
     """
-    from reversecore_mcp.core.result import failure
-
     # 1. Parameter validation
     validate_tool_parameters(
         "generate_function_graph",
@@ -1602,9 +1602,6 @@ async def _smart_decompile_impl(
     """
     Internal implementation of smart_decompile with caching.
     """
-    from reversecore_mcp.core.result import failure
-    from reversecore_mcp.core.logging_config import get_logger
-
     logger = get_logger(__name__)
 
     # 1. Validate parameters
