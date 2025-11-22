@@ -3,6 +3,7 @@
 import json
 import os
 import re
+from itertools import islice
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Protocol, Tuple
 
@@ -19,6 +20,17 @@ from reversecore_mcp.core.validators import validate_tool_parameters
 
 # Global cache for compiled YARA rules: {file_path: (timestamp, compiled_rules)}
 _YARA_RULES_CACHE: Dict[str, Tuple[float, Any]] = {}
+
+# Pre-compile IOC extraction patterns for better performance
+_IOC_IPV4_PATTERN = re.compile(
+    r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b"
+)
+_IOC_URL_PATTERN = re.compile(
+    r"https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&//=]*)"
+)
+_IOC_EMAIL_PATTERN = re.compile(
+    r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
+)
 
 
 def register_lib_tools(mcp: FastMCP) -> None:
@@ -93,34 +105,23 @@ def extract_iocs(
             # If read fails, treat as normal text
             pass
 
-    # IPv4 Regex
+    # IPv4 Regex - use pre-compiled pattern
     if extract_ips:
-        # Basic IPv4 regex (matches 0.0.0.0 to 255.255.255.255)
-        ip_pattern = r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b"
-        ips = list(set(re.findall(ip_pattern, text)))
+        ips = list(set(_IOC_IPV4_PATTERN.findall(text)))
         iocs["ipv4"] = ips
         total_count += len(ips)
 
-    # URL Regex
+    # URL Regex - use pre-compiled pattern
     if extract_urls:
-        # Matches http/https/ftp/ws/wss URLs
-        url_pattern = r"https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&//=]*)"
-        raw_urls = re.findall(url_pattern, text)
-        urls = []
-        for url in raw_urls:
-            # Strip common trailing punctuation that might be part of a sentence
-            while url and url[-1] in ".,:;?!":
-                url = url[:-1]
-            urls.append(url)
-        urls = list(set(urls))
+        raw_urls = _IOC_URL_PATTERN.findall(text)
+        # Use set comprehension for better performance
+        urls = list({url.rstrip(".,:;?!") for url in raw_urls})
         iocs["urls"] = urls
         total_count += len(urls)
 
-    # Email Regex
+    # Email Regex - use pre-compiled pattern
     if extract_emails:
-        # Basic email regex
-        email_pattern = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
-        emails = list(set(re.findall(email_pattern, text)))
+        emails = list(set(_IOC_EMAIL_PATTERN.findall(text)))
         iocs["emails"] = emails
         total_count += len(emails)
 
@@ -427,31 +428,34 @@ def _extract_symbols(binary: Any) -> Dict[str, Any]:
     symbols: Dict[str, Any] = {}
 
     if hasattr(binary, "imported_functions") and binary.imported_functions:
-        symbols["imported_functions"] = [str(func) for func in binary.imported_functions[:100]]
+        # Use islice to avoid creating full list before slicing
+        symbols["imported_functions"] = [str(func) for func in islice(binary.imported_functions, 100)]
 
     if hasattr(binary, "exported_functions") and binary.exported_functions:
-        symbols["exported_functions"] = [str(func) for func in binary.exported_functions[:100]]
+        # Use islice to avoid creating full list before slicing
+        symbols["exported_functions"] = [str(func) for func in islice(binary.exported_functions, 100)]
 
     # PE-specific imports/exports
     if hasattr(binary, "imports") and binary.imports:
-        imports_iterable = list(binary.imports)
+        # Use islice to avoid creating intermediate list
         formatted_imports: List[Dict[str, Any]] = []
-        for imp in imports_iterable[:20]:
+        for imp in islice(binary.imports, 20):
             entries = getattr(imp, "entries", [])
-            entry_list = list(entries) if entries else []
+            # Convert entries to list only if necessary for slicing
+            entry_list = list(islice(entries, 20)) if entries else []
             formatted_imports.append(
                 {
                     "name": getattr(imp, "name", "unknown"),
-                    "functions": [str(f) for f in entry_list[:20]],
+                    "functions": [str(f) for f in entry_list],
                 }
             )
         if formatted_imports:
             symbols["imports"] = formatted_imports
 
     if hasattr(binary, "exports") and binary.exports:
-        exports_iterable = list(binary.exports)
+        # Use islice to avoid creating intermediate list
         formatted_exports: List[Dict[str, Any]] = []
-        for exp in exports_iterable[:100]:
+        for exp in islice(binary.exports, 100):
             formatted_exports.append(
                 {
                     "name": getattr(exp, "name", "unknown"),
