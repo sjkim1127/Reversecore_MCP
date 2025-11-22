@@ -21,13 +21,12 @@ from reversecore_mcp.core.execution import execute_subprocess_async
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.result import ToolResult, success
 from reversecore_mcp.core.security import validate_file_path
-from reversecore_mcp.core.validators import validate_tool_parameters
+from reversecore_mcp.core.validators import validate_tool_parameters, validate_address_format
 
 # Load default timeout from configuration
 DEFAULT_TIMEOUT = get_config().default_tool_timeout
 
 # Pre-compile regex patterns for performance optimization
-_FUNCTION_ADDRESS_PATTERN = re.compile(r"^[a-zA-Z0-9_.]+$")
 _VERSION_PATTERNS = {
     "OpenSSL": re.compile(r"(OpenSSL|openssl)\s+(\d+\.\d+\.\d+[a-z]?)", re.IGNORECASE),
     "GCC": re.compile(r"GCC:\s+\(.*\)\s+(\d+\.\d+\.\d+)"),
@@ -843,9 +842,11 @@ async def _generate_function_graph_impl(
     validated_path = validate_file_path(file_path)
 
     # 2. Security check for function address (prevent shell injection)
-    # Use pre-compiled pattern for better performance
-    if not _FUNCTION_ADDRESS_PATTERN.match(function_address.replace("0x", "")):
-        return failure("VALIDATION_ERROR", "Invalid function address format")
+    try:
+        validate_address_format(function_address, "function_address")
+    except Exception as e:
+        from reversecore_mcp.core.result import failure
+        return failure("VALIDATION_ERROR", str(e))
 
     # 3. Build radare2 command
     r2_cmd_str = f"agfj @ {function_address}"
@@ -1006,8 +1007,11 @@ async def emulate_machine_code(
     validated_path = validate_file_path(file_path)
 
     # 2. Security check for start address (prevent shell injection)
-    if not re.match(r"^[a-zA-Z0-9_.]+$", start_address.replace("0x", "")):
-        return failure("VALIDATION_ERROR", "Invalid start address format")
+    try:
+        validate_address_format(start_address, "start_address")
+    except Exception as e:
+        from reversecore_mcp.core.result import failure
+        return failure("VALIDATION_ERROR", str(e))
 
     # 3. Build radare2 ESIL emulation command chain
     # Note: Commands must be executed in specific order for ESIL to work correctly
@@ -1101,10 +1105,12 @@ async def get_pseudo_code(
     validated_path = validate_file_path(file_path)
 
     # 2. Security check for address (prevent shell injection)
-    if not re.match(r"^[a-zA-Z0-9_.]+$", address.replace("0x", "")):
+    try:
+        validate_address_format(address, "address")
+    except Exception as e:
         return failure(
             "VALIDATION_ERROR",
-            "Invalid address format",
+            str(e),
             hint="Address must contain only alphanumeric characters, dots, underscores, and '0x' prefix",
         )
 
@@ -1193,10 +1199,12 @@ async def generate_signature(
         )
 
     # 2. Security check for address
-    if not re.match(r"^[a-zA-Z0-9_.]+$", address.replace("0x", "")):
+    try:
+        validate_address_format(address, "address")
+    except Exception as e:
         return failure(
             "VALIDATION_ERROR",
-            "Invalid address format",
+            str(e),
             hint="Address must contain only alphanumeric characters, dots, underscores, and '0x' prefix",
         )
 
@@ -1492,10 +1500,12 @@ async def _smart_decompile_impl(
     validated_path = validate_file_path(file_path)
 
     # 2. Security check for function address (prevent shell injection)
-    if not re.match(r"^[a-zA-Z0-9_.]+$", function_address.replace("0x", "")):
+    try:
+        validate_address_format(function_address, "function_address")
+    except Exception as e:
         return failure(
             "VALIDATION_ERROR",
-            "Invalid function address format",
+            str(e),
             hint="Function address must contain only alphanumeric characters, dots, underscores, and '0x' prefix",
         )
 
@@ -1663,10 +1673,12 @@ async def generate_yara_rule(
         )
 
     # 3. Security check for function address (prevent shell injection)
-    if not re.match(r"^[a-zA-Z0-9_.]+$", function_address.replace("0x", "")):
+    try:
+        validate_address_format(function_address, "function_address")
+    except Exception as e:
         return failure(
             "VALIDATION_ERROR",
-            "Invalid function address format",
+            str(e),
             hint="Function address must contain only alphanumeric characters, dots, underscores, and '0x' prefix",
         )
 

@@ -2,8 +2,36 @@
 Input validators for tool-specific parameters.
 """
 
+import re
 from typing import Dict, Any
 from reversecore_mcp.core.exceptions import ValidationError
+
+# Pre-compile address validation pattern for performance
+_ADDRESS_PATTERN = re.compile(r"^[a-zA-Z0-9_.]+$")
+
+
+def validate_address_format(address: str, param_name: str = "address") -> None:
+    """
+    Validate address format to prevent shell injection.
+    
+    Ensures the address contains only safe characters: alphanumeric, dots, 
+    underscores, and optional '0x' prefix.
+    
+    Args:
+        address: The address string to validate (e.g., 'main', '0x401000', 'sym.decrypt')
+        param_name: Name of the parameter for error messages (default: 'address')
+        
+    Raises:
+        ValidationError: If address format is invalid
+    """
+    # Remove '0x' prefix if present before validation
+    clean_address = address.replace("0x", "")
+    
+    if not _ADDRESS_PATTERN.match(clean_address):
+        raise ValidationError(
+            f"{param_name} must contain only alphanumeric characters, dots, "
+            "underscores, and '0x' prefix"
+        )
 
 
 def validate_tool_parameters(tool_name: str, params: Dict[str, Any]) -> None:

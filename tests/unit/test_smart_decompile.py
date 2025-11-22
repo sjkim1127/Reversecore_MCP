@@ -44,7 +44,8 @@ class TestSmartDecompile:
             result = await cli_tools.smart_decompile(str(test_file), "main; rm -rf /")
             
             assert result.status == "error"
-            assert "Invalid function address format" in result.message
+            # Updated to match the new error message from validate_address_format
+            assert "must contain only alphanumeric characters" in result.message
     
     async def test_smart_decompile_no_function(self, tmp_path):
         """Test decompilation when function doesn't exist."""
@@ -133,7 +134,8 @@ class TestGenerateYaraRule:
             result = await cli_tools.generate_yara_rule(str(test_file), "main; echo hacked")
             
             assert result.status == "error"
-            assert "Invalid function address format" in result.message
+            # Updated to match the new error message from validate_address_format
+            assert "must contain only alphanumeric characters" in result.message
     
     async def test_generate_yara_rule_custom_byte_length(self, tmp_path):
         """Test YARA rule generation with custom byte length."""
