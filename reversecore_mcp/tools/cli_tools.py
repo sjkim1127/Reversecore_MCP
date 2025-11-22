@@ -1231,13 +1231,13 @@ async def generate_signature(
         # Actually, let's use 'e io.cache=true' to ensure we can read? No.
         analysis_level = "-n"
         
-    effective_timeout = _calculate_dynamic_timeout(str(validated_path), timeout)
-    cmd = _build_r2_cmd(str(validated_path), r2_cmds, analysis_level)
-
-    output, bytes_read = await execute_subprocess_async(
-        cmd,
+    # Extract hex bytes using helper
+    output, bytes_read = await _execute_r2_command(
+        validated_path,
+        r2_cmds,
+        analysis_level=analysis_level if analysis_level else "aaa",
         max_output_size=1_000_000,
-        timeout=effective_timeout,
+        base_timeout=timeout,
     )
 
     # 4. Validate output
@@ -1688,13 +1688,13 @@ async def generate_yara_rule(
     if function_address.startswith("0x") or re.match(r"^[0-9a-fA-F]+$", function_address):
         analysis_level = "-n"
         
-    effective_timeout = _calculate_dynamic_timeout(str(validated_path), timeout)
-    cmd = _build_r2_cmd(str(validated_path), r2_cmds, analysis_level)
-
-    output, bytes_read = await execute_subprocess_async(
-        cmd,
+    # 4. Extract hex bytes using helper
+    output, bytes_read = await _execute_r2_command(
+        validated_path,
+        r2_cmds,
+        analysis_level=analysis_level if analysis_level else "aaa",
         max_output_size=1_000_000,
-        timeout=effective_timeout,
+        base_timeout=timeout,
     )
 
     # 5. Validate output
@@ -1850,14 +1850,13 @@ async def analyze_xrefs(
     # Build command string
     r2_commands_str = "; ".join(commands)
 
-    # 4. Execute analysis
-    effective_timeout = _calculate_dynamic_timeout(str(validated_path), timeout)
-    cmd = _build_r2_cmd(str(validated_path), [r2_commands_str], "aaa")
-
-    output, bytes_read = await execute_subprocess_async(
-        cmd,
+    # 4. Execute analysis using helper
+    output, bytes_read = await _execute_r2_command(
+        validated_path,
+        [r2_commands_str],
+        analysis_level="aaa",
         max_output_size=10_000_000,
-        timeout=effective_timeout,
+        base_timeout=timeout,
     )
 
     # 5. Parse JSON output
