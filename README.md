@@ -609,8 +609,17 @@ Select the `basic_analysis_mode` prompt and provide the filename.
 3. **Capabilities**: Quickly list imports (`run_radare2` with "ii") to infer behavior.
 4. **Quick Triage Report**: Summarize findings and estimate malicious probability.
 
+### Specialized Analysis Prompts
+
+Reversecore_MCP offers domain-specific prompts for targeted analysis:
+
+- **`game_analysis_mode`**: Focuses on Game Logic, Anti-Cheat, and Network Protocol.
+- **`firmware_analysis_mode`**: Focuses on File System Extraction, Architecture ID, and Hardcoded Secrets.
+- **`vulnerability_research_mode`**: Focuses on Bug Hunting, Dangerous API usage, and Mitigation checks.
+- **`crypto_analysis_mode`**: Focuses on Cryptographic Constants, Algorithms, and Key Management.
 
 ### API Examples
+
 
 The server exposes tools that can be called by AI agents via the MCP protocol. Below are examples of how to use each tool:
 

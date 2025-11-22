@@ -609,8 +609,17 @@ MCP 클라이언트에서 `full_analysis_mode` 프롬프트를 선택하고 파�
 3. **기능 (Capabilities)**: 임포트 목록을 빠르게 조회(`run_radare2` "ii")하여 행위 추론.
 4. **신속 분류 보고 (Quick Triage Report)**: 발견 사항 요약 및 악성 확률 추정.
 
+### 전문 분석 프롬프트 (Specialized Analysis Prompts)
+
+Reversecore_MCP는 특정 도메인에 특화된 분석을 위한 프롬프트를 제공합니다:
+
+- **`game_analysis_mode`**: 게임 로직, 안티치트, 네트워크 프로토콜 분석에 중점.
+- **`firmware_analysis_mode`**: 파일 시스템 추출, 아키텍처 식별, 하드코딩된 비밀 찾기에 중점.
+- **`vulnerability_research_mode`**: 버그 헌팅, 위험한 API 사용, 보호 기법(Mitigation) 확인에 중점.
+- **`crypto_analysis_mode`**: 암호화 상수, 알고리즘 식별, 키 관리 취약점 분석에 중점.
 
 ### API 예제
+
 
 서버는 MCP 프로토콜을 통해 AI 에이전트가 호출할 수 있는 도구를 노출합니다. 다음은 각 도구를 사용하는 방법의 예입니다:
 
