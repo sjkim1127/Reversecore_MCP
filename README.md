@@ -21,20 +21,20 @@ An enterprise-grade MCP (Model Context Protocol) server that empowers AI agents 
 
 **Full-Cycle Capabilities**: Upload → Analysis → X-Refs (Context) → Structures (C++ Recovery) → Visualization (CFG) → Emulation (ESIL) → Decompilation (Pseudo-C) → Defense (YARA Rules)
 
-## 🌟 Key Features
+## Key Features
 
-- **🔒 Security-First Design**: No shell=True, comprehensive input validation, path sanitization
-- **⚡ High Performance**: Streaming output for large files, configurable limits, adaptive polling
-- **🛠️ Comprehensive Toolset**: Ghidra, Radare2, strings, binwalk, YARA, Capstone, LIEF support
-- **🔮 Advanced Analysis**: CFG visualization, ESIL emulation, smart decompilation
-- **🏗️ C++ Structure Recovery**: Transform "this + 0x4" → "Player.health" with Ghidra data type propagation
-- **🔗 Cross-Reference Analysis**: Discover code context - who calls what, understand program flow
-- **🛡️ Defense Integration**: Automatic YARA rule generation from analysis
-- **🐳 Docker Ready**: Pre-configured containerized deployment with all dependencies
-- **🔌 MCP Compatible**: Works with Cursor AI, Claude Desktop, and other MCP clients
-- **📊 Production Ready**: Extensive error handling, logging, rate limiting, and monitoring
-- **🧵 Thread-Safe**: Concurrent-safe metrics collection with async/sync support
-- **🎯 AI-Optimized**: Full-cycle workflow from upload to defense signature generation
+- **Security-First Design**: No shell=True, comprehensive input validation, path sanitization
+- **High Performance**: Streaming output for large files, configurable limits, adaptive polling
+- **Comprehensive Toolset**: Ghidra, Radare2, strings, binwalk, YARA, Capstone, LIEF support
+- **Advanced Analysis**: CFG visualization, ESIL emulation, smart decompilation
+- **C++ Structure Recovery**: Transform "this + 0x4" → "Player.health" with Ghidra data type propagation
+- **Cross-Reference Analysis**: Discover code context - who calls what, understand program flow
+- **Defense Integration**: Automatic YARA rule generation from analysis
+- **Docker Ready**: Pre-configured containerized deployment with all dependencies
+- **MCP Compatible**: Works with Cursor AI, Claude Desktop, and other MCP clients
+- **Production Ready**: Extensive error handling, logging, rate limiting, and monitoring
+- **Thread-Safe**: Concurrent-safe metrics collection with async/sync support
+- **AI-Optimized**: Full-cycle workflow from upload to defense signature generation
 
 ## 📑 Table of Contents
 
@@ -70,11 +70,11 @@ An enterprise-grade MCP (Model Context Protocol) server that empowers AI agents 
 
 This project is a toy project created with the assistance of AI. It was developed for analyzing C++ files and serves as an educational exploration of reverse engineering tools integrated with the Model Context Protocol (MCP). While designed as a learning project, it demonstrates production-ready practices in security, performance, and architecture.
 
-## 🚨 AI Usage Guide (Rules for AI)
+## AI Usage Guide (Rules for AI)
 
 When using this tool, **AI agents MUST follow these 3 absolute rules**:
 
-### 1. **File Path Rules**
+### 1. File Path Rules
 - ❌ **DO NOT** use host absolute paths (e.g., `E:\...`, `/home/user/...`)
 - ✅ **ALWAYS** use Docker container paths: `/app/workspace/filename`
 - All samples must be in the mounted workspace directory
@@ -88,7 +88,7 @@ When using this tool, **AI agents MUST follow these 3 absolute rules**:
 {"file_path": "/app/workspace/malware.exe"}
 ```
 
-### 2. **Address Specification Rules (VA vs Offset)**
+### 2. Address Specification Rules (VA vs Offset)
 - **Virtual Address (VA)**: Use `run_radare2` with commands like `pd @ <VA>`
   - Example: `run_radare2("file.exe", "pdf @ 0x401000")`
 - **File Offset**: Use `disassemble_with_capstone` 
@@ -100,7 +100,7 @@ When using this tool, **AI agents MUST follow these 3 absolute rules**:
 - Capstone works directly on file bytes at specific offsets
 - Mixing them causes errors
 
-### 3. **Filtering Rules**
+### 3. Filtering Rules
 - ❌ **PROHIBITED**: Shell metacharacters (`|`, `;`, `&&`, `||`, `` ` ``, `$()`)
   - These are **security risks** (command injection)
 - ✅ **ALLOWED**: Radare2 internal filter (`~`)
@@ -123,7 +123,7 @@ result = run_radare2("file.exe", "aflj")
 # Parse JSON and filter in your code
 ```
 
-### 4. **Fail Fast Rules (Packed/Scripted Binaries)**
+### 4. Fail Fast Rules (Packed/Scripted Binaries)
 - 🛑 **STOP** deep analysis if `run_strings` reveals packer signatures:
   - "AutoIt", "Nullsoft", "PyInstaller", "MEI" (PyInstaller temp dir)
 - ⛔ **DO NOT RUN**: `analyze_xrefs`, `match_libraries`, `emulate_machine_code`, `generate_function_graph`
@@ -133,19 +133,19 @@ result = run_radare2("file.exe", "aflj")
   - Run `generate_yara_rule` on the entry point
   - Move to the next file immediately
 
-### 5. **Performance Rules (Batch Scanning)**
+### 5. Performance Rules (Batch Scanning)
 - ⚡ **ALWAYS** use `scan_workspace` for initial triage instead of running tools one by one.
 - **Why**: It runs `run_file`, `parse_binary_with_lief`, and `run_yara` in parallel for all files.
 - **Instruction**: "Analyze workspace" → Call `scan_workspace`.
 
-### 6. **IOC Extraction Rules**
+### 6. IOC Extraction Rules
 - 🔍 **ALWAYS** use `extract_iocs` on any large text output (strings, logs, decompiled code).
 - **Why**: It filters noise and extracts actionable intelligence (IPs, URLs, Emails).
 - **Instruction**: "Find C2 servers" → Run `run_strings` then `extract_iocs`.
 
-### 🥇 Priority Tools for Advanced Analysis
+### Priority Tools for Advanced Analysis
 
-#### 🥈 Priority 1: "What Changed?" — Binary Diffing (`diff_binaries`)
+#### Priority 1: "What Changed?" — Binary Diffing (`diff_binaries`)
 
 **Use this when you need to compare two versions of the same binary:**
 
@@ -166,7 +166,7 @@ result = run_radare2("file.exe", "aflj")
 - List of code changes with addresses
 - Type of changes (new blocks, removed blocks, modified code)
 
-#### 🥈 Priority 2: "Skip the Noise" — Library Signature Matching (`match_libraries`)
+#### Priority 2: "Skip the Noise" — Library Signature Matching (`match_libraries`)
 
 **Use this to focus on user code and skip standard library analysis:**
 
@@ -550,28 +550,28 @@ Reversecore_MCP is designed to enable AI agents to perform reverse engineering t
 
 ### Real-World Use Cases
 
-#### 🔍 Malware Triage
+#### Malware Triage
 Quickly identify suspicious files and extract indicators of compromise (IOCs):
 ```
 AI Agent: "Analyze sample.exe in my workspace. What type of file is it and does it contain any suspicious strings?"
 → Uses run_file + run_strings to identify PE executable and extract URLs, IPs, suspicious API calls
 ```
 
-#### 🛡️ Security Research
+#### Security Research
 Automate detection of known malware families using YARA rules:
 ```
 AI Agent: "Scan all files in workspace with my malware detection rules"
 → Uses run_yara to match against custom rulesets and identify threats
 ```
 
-#### 🔬 Binary Analysis
+#### Binary Analysis
 Deep dive into executable structure and behavior:
 ```
 AI Agent: "Disassemble the main function and identify what APIs it calls"
 → Uses run_radare2 to disassemble code and extract function calls
 ```
 
-#### 📊 Firmware Analysis
+#### Firmware Analysis
 Analyze embedded systems and extract firmware components:
 ```
 AI Agent: "What file systems are embedded in this firmware image?"
@@ -984,7 +984,7 @@ AI Agent:
   - **Value**: Bridges gap between analysis and defense
 
 - **`analyze_xrefs`**: Analyze cross-references (X-Refs) for functions and data
-  - **🥈 Priority 2: Code Context Discovery**
+  - **Priority 2: Code Context Discovery**
   - **Find WHO calls this and WHAT it calls** - Essential for understanding behavior
   - Identifies all references TO and FROM a given address
   - Provides critical context: callers, callees, data references
@@ -1000,7 +1000,7 @@ AI Agent:
   - **Value**: Reduces hallucination by providing real code relationships
 
 - **`recover_structures`**: Recover C++ class structures and data types
-  - **🥇 Priority 1: The C++ Analysis Game-Changer**
+  - **Priority 1: The C++ Analysis Game-Changer**
   - **Transform "this + 0x4" → "Player.health"** - Make code meaningful
   - Uses Ghidra's powerful data type propagation (or radare2 fallback)
   - Recovers structure layouts from memory access patterns
@@ -1018,7 +1018,7 @@ AI Agent:
   - **Value**: Structure definitions clarify code understanding
 
 - **`diff_binaries`**: Compare two binary files to identify code changes
-  - **🥇 Priority 1: Binary Diffing for Patch Analysis**
+  - **Priority 1: Binary Diffing for Patch Analysis**
   - **Essential for vulnerability research and 1-day exploit development**
   - Uses radare2's radiff2 to compare binaries
   - Returns similarity score and detailed list of changes
@@ -1034,7 +1034,7 @@ AI Agent:
   - **Value**: Automates the tedious process of finding what changed between versions
 
 - **`match_libraries`**: Identify and filter known library functions
-  - **🥈 Priority 2: Library Signature Matching for Noise Reduction**
+  - **Priority 2: Library Signature Matching for Noise Reduction**
   - **Reduces analysis scope significantly by filtering out standard libraries**
   - Uses radare2's zignatures (FLIRT-compatible) to match known functions
   - Automatically identifies strcpy, malloc, OpenSSL, zlib, MFC, etc.
@@ -1076,19 +1076,19 @@ AI Agent:
   - Example: `extract_iocs(run_strings_output)`
 
 - **`trace_execution_path`**: Find exploit paths from user input to dangerous sinks
-  - **🛡️ Vulnerability Reachability**: Traces calls backwards from `system`, `strcpy`, etc.
+  - **Vulnerability Reachability**: Traces calls backwards from `system`, `strcpy`, etc.
   - **Backtrace Analysis**: Maps out how execution reaches the target function
   - **Use Case**: Verify if user input (e.g., `recv`) can reach a vulnerable sink
   - Example: `trace_execution_path("/app/workspace/vuln.exe", "system")`
 
 - **`scan_for_versions`**: Detect open-source library versions and CVEs
-  - **🧩 Version Detective**: Scans binary for version strings (OpenSSL, GCC, etc.)
+  - **Version Detective**: Scans binary for version strings (OpenSSL, GCC, etc.)
   - **SCA**: Identifies software composition and potential vulnerabilities
   - **Use Case**: Find outdated libraries like OpenSSL 1.0.1 (Heartbleed)
   - Example: `scan_for_versions("/app/workspace/firmware.bin")`
 
 - **`analyze_variant_changes`**: Map malware lineage and evolution
-  - **🧬 Lineage Mapper**: Combines binary diffing with CFG analysis
+  - **Lineage Mapper**: Combines binary diffing with CFG analysis
   - **Evolutionary Analysis**: Identifies *how* logic changed between variants
   - **Use Case**: Track malware evolution (e.g., "Lazarus v1 vs v2")
   - Example: `analyze_variant_changes("old.exe", "new.exe")`
@@ -1170,31 +1170,31 @@ Reversecore_MCP is optimized for production workloads and large-scale analysis:
 
 ### Key Performance Features
 
-#### 🚀 Streaming Output Processing
+#### Streaming Output Processing
 - Handles files up to GB scale without memory issues
 - 8KB chunk-based reading with configurable limits
 - Automatic truncation with warnings when limits exceeded
 - Default max output: 10MB per tool invocation
 
-#### ⚡ Adaptive Polling (Windows)
+#### Adaptive Polling (Windows)
 - Reduces CPU usage for long-running operations
 - Starts at 50ms polling interval, adapts to 100ms max
 - Resets to 50ms when data is received
 - Maintains responsiveness while minimizing resource usage
 
-#### 🎯 Optimized Path Validation
+#### Optimized Path Validation
 - Significant reduction in path conversion overhead
 - Cached string conversions for repeated validations
 - Early returns for common cases
 - Efficient directory checks with minimal filesystem calls
 
-#### 📊 YARA Processing Improvements
+#### YARA Processing Improvements
 - Faster match processing for large result sets
 - Eliminates redundant attribute lookups
 - Optimized type checking with `isinstance()`
 - Optimized for large result sets
 
-#### 💾 Memory-Efficient Operations
+#### Memory-Efficient Operations
 - Enumerate-based iteration instead of list slicing
 - No intermediate list creation for large datasets
 - Lazy evaluation where possible
@@ -1239,7 +1239,7 @@ For detailed performance optimization documentation, see [docs/PERFORMANCE_OPTIM
 
 Security is a top priority in Reversecore_MCP. The server implements multiple layers of protection:
 
-### 🔒 Security Features
+### Security Features
 
 #### Command Injection Prevention
 - **No shell=True**: All subprocess calls use list-based arguments
@@ -1356,13 +1356,6 @@ Clients should always branch on `status`, inspect `error_code`, and surface `hin
 
 ## Development
 
-### System Requirements
-
-- **Python**: 3.11 or higher
-- **Operating System**: Linux (recommended), macOS, or Windows
-- **Memory**: 4GB minimum, 8GB+ recommended for large files
-- **Disk**: 2GB for dependencies, plus space for analysis files
-
 ### Adding New Tools
 
 1. **Create tool function** in the appropriate module:
@@ -1475,7 +1468,7 @@ docker run --rm reversecore-mcp:dev pytest /app/tests/
 
 ### Common Issues and Solutions
 
-#### 🔴 "Connection failed" in MCP client
+#### "Connection failed" in MCP client
 
 **Symptoms**: Claude Desktop or Cursor shows connection error
 
@@ -1493,7 +1486,7 @@ MCP_TRANSPORT=stdio python -m reversecore_mcp.server
 # Should not exit immediately, wait for input
 ```
 
-#### 🔴 "File not found" when analyzing files
+#### "File not found" when analyzing files
 
 **Symptoms**: Tool returns file not found error
 
@@ -1514,7 +1507,7 @@ MCP_TRANSPORT=stdio python -m reversecore_mcp.server
    docker exec reversecore-mcp env | grep REVERSECORE
    ```
 
-#### 🔴 "Permission denied" errors
+#### "Permission denied" errors
 
 **Symptoms**: Cannot access files or directories
 
@@ -1534,7 +1527,7 @@ MCP_TRANSPORT=stdio python -m reversecore_mcp.server
    -v ./samples:/app/workspace:z
    ```
 
-#### 🔴 High CPU usage
+#### High CPU usage
 
 **Symptoms**: Container consuming excessive CPU
 
@@ -1557,7 +1550,7 @@ MCP_TRANSPORT=stdio python -m reversecore_mcp.server
    docker logs reversecore-mcp --tail 100
    ```
 
-#### 🔴 "Module not found" errors
+#### "Module not found" errors
 
 **Symptoms**: Import errors when starting server
 
@@ -1576,7 +1569,7 @@ MCP_TRANSPORT=stdio python -m reversecore_mcp.server
    ```
    See [docs/pythonpath_setup.md](docs/pythonpath_setup.md) for details.
 
-#### 🔴 Radare2 command failures
+#### Radare2 command failures
 
 **Symptoms**: r2 commands return errors or unexpected output
 
@@ -1597,7 +1590,7 @@ MCP_TRANSPORT=stdio python -m reversecore_mcp.server
    {"timeout": 600}
    ```
 
-#### 🔴 YARA scanning issues
+#### YARA scanning issues
 
 **Symptoms**: YARA returns no matches or errors
 
@@ -1618,7 +1611,7 @@ MCP_TRANSPORT=stdio python -m reversecore_mcp.server
    ls -la /path/to/rules.yar
    ```
 
-#### 🔴 Large file processing slow
+#### Large file processing slow
 
 **Symptoms**: Tools timeout or hang on large files
 
@@ -1832,15 +1825,6 @@ A: Configurable via LOG_LEVEL:
 
 ### Troubleshooting
 
-**Q: Claude Desktop won't connect, what should I check?**
-
-A: Follow this checklist:
-1. Is Docker running? (`docker ps`)
-2. Is the container running? (`docker ps | grep reversecore`)
-3. Can you access http://127.0.0.1:8000/docs in a browser?
-4. Is the config file correct? (check `claude_desktop_config.json`)
-5. Did you restart Claude Desktop after config change?
-
 **Q: I get "file not found" but the file exists**
 
 A: Check path mapping:
@@ -1893,12 +1877,12 @@ We welcome contributions to Reversecore_MCP! Here's how you can help:
 
 ### Ways to Contribute
 
-- 🐛 **Report Bugs**: Open an issue with detailed reproduction steps
-- 💡 **Suggest Features**: Propose new tools or enhancements
-- 📝 **Improve Documentation**: Fix typos, add examples, clarify instructions
-- 🔧 **Submit Code**: Add new tools, fix bugs, optimize performance
-- 🧪 **Write Tests**: Improve test coverage and quality
-- 🔒 **Security**: Report security issues responsibly (see security policy)
+- **Report Bugs**: Open an issue with detailed reproduction steps
+- **Suggest Features**: Propose new tools or enhancements
+- **Improve Documentation**: Fix typos, add examples, clarify instructions
+- **Submit Code**: Add new tools, fix bugs, optimize performance
+- **Write Tests**: Improve test coverage and quality
+- **Security**: Report security issues responsibly (see security policy)
 
 ### Contribution Guidelines
 
@@ -1999,26 +1983,6 @@ Please review and comply with each dependency's license terms.
 
 ---
 
-## Additional Resources
-
-### Documentation
-- [Performance Optimizations](docs/PERFORMANCE_OPTIMIZATIONS.md) - Detailed performance benchmarks and optimization techniques
-- [Python Path Setup](docs/pythonpath_setup.md) - Configuration guide for local development
-- [Performance Summary](PERFORMANCE_SUMMARY.md) - Recent performance improvements and impact
-
-### External Links
-- [Model Context Protocol](https://modelcontextprotocol.io/) - Official MCP specification
-- [FastMCP Documentation](https://github.com/jlowin/fastmcp) - FastMCP framework docs
-- [Radare2 Book](https://book.rada.re/) - Comprehensive radare2 guide
-- [YARA Documentation](https://yara.readthedocs.io/) - YARA rule writing guide
-
-### Community
-- [GitHub Repository](https://github.com/sjkim1127/Reversecore_MCP) - Source code and issues
-- [GitHub Discussions](https://github.com/sjkim1127/Reversecore_MCP/discussions) - Questions and ideas
-- [Issue Tracker](https://github.com/sjkim1127/Reversecore_MCP/issues) - Bug reports and feature requests
-
----
-
 ## Acknowledgments
 
 Special thanks to:
@@ -2031,106 +1995,9 @@ Special thanks to:
 
 ---
 
-## 🔬 Sample Analysis Reports
+## Sample Analysis Reports
 
-### Malware Sample Analysis: 8bdc6cdcad8477122d419a0959b9beda78050818cb52f76d5c58826111e2cacc
-
-**Analysis Date**: 2025-11-17  
-**Sample Source**: [MalwareBazaar](https://bazaar.abuse.ch/sample/8bdc6cdcad8477122d419a0959b9beda78050818cb52f76d5c58826111e2cacc/)  
-**File Hash**: MD5: `3d0ec70fe7ed5f7245fad8b87d9451d7`  
-**Risk Level**: 🔴 **High**
-
-#### Executive Summary
-
-This file is a **PyInstaller-packaged Python malware** (12.8 MB PE32+ executable) exhibiting multiple high-risk behaviors including anti-debugging, process manipulation, privilege escalation attempts, and network communication capabilities. The analysis confirms it is likely an **Information Stealer** or **Remote Access Trojan (RAT)**.
-
-#### Key Findings
-
-**Malicious Indicators:**
-- ✅ Anti-debugging techniques (`IsDebuggerPresent`)
-- ✅ Process manipulation (`CreateProcessW`, `K32EnumProcessModules`)
-- ✅ Privilege escalation (`OpenProcessToken`, `GetTokenInformation`)
-- ✅ Dynamic code execution (`LoadLibraryExW`, `GetProcAddress`, `VirtualProtect`)
-- ✅ System shutdown blocking (`ShutdownBlockReasonCreate`)
-- ✅ Network capabilities (HTTP, WebSocket, SOCKS proxy)
-- ✅ System information gathering (`psutil`, process enumeration)
-
-**Technical Details:**
-- **File Type**: PE32+ x86-64 Windows GUI executable
-- **Compilation**: Future date (2025-11-15) - suspicious timestamp
-- **Packer**: PyInstaller with Python 3.13 runtime
-- **Security Features**: NX, ASLR, Canary enabled
-- **Overlay**: Present (suspicious additional data)
-- **Entry Point**: `0x14000da30` with anti-debugging checks
-
-**Network Components:**
-```
-- HTTP/HTTPS client (requests, urllib3)
-- WebSocket support (websocket)
-- SOCKS proxy (python_socks)
-- SSL/TLS (certifi)
-- HTTP/2 support (h2)
-```
-
-**System Manipulation:**
-```python
-# Key Python libraries found:
-- psutil          # System information gathering
-- subprocess      # Process execution
-- multiprocessing # Multi-process control
-- ctypes          # Windows API access
-- win32con, winrt # Windows Runtime
-```
-
-#### Analysis Methodology
-
-All analysis performed using **Reversecore_MCP** tools in strict compliance with analysis rules:
-
-1. **File Identification**: `run_file` - Basic metadata extraction
-2. **PE Structure**: `parse_binary_with_lief` - Section analysis, imports, security features
-3. **String Analysis**: `run_strings` - Extracted 1095.1 KB of strings
-4. **Disassembly**: `run_radare2` - Entry point analysis, import functions
-5. **Embedded Patterns**: `run_binwalk` - Detected suspicious ARM instructions
-6. **Binary Info**: `run_radare2 iI/iS/ii/iz` - Comprehensive binary metadata
-
-**Rule Compliance:**
-- ✅ **Rule 1**: All file paths used `/app/workspace/` prefix
-- ✅ **Rule 2**: Used radare2 `pd @ VA` instead of Capstone for VA-based disassembly
-- ✅ **Rule 3**: No radare2 filter syntax (`~`, `|`) used
-
-#### Recommended Actions
-
-**Immediate:**
-1. 🚨 Isolate system from network
-2. 🚫 Block all network traffic
-3. 🔍 Monitor API calls and file changes
-4. 🧹 Full system malware scan
-
-**Further Analysis:**
-1. **Dynamic Analysis**: Execute in sandbox, capture network traffic
-2. **PyInstaller Unpacking**: Extract Python bytecode, restore source
-3. **Network Analysis**: Identify C2 servers, analyze protocols
-4. **Memory Analysis**: Dump during execution, analyze injected code
-
-#### IOC Summary
-
-| Indicator Type | Details |
-|----------------|---------|
-| File Hash (MD5) | `3d0ec70fe7ed5f7245fad8b87d9451d7` |
-| File Hash (SHA256) | `8bdc6cdcad8477122d419a0959b9beda78050818cb52f76d5c58826111e2cacc` |
-| File Size | 13,378,431 bytes |
-| Entry Point | `0x14000da30` |
-| Suspicious APIs | `IsDebuggerPresent`, `CreateProcessW`, `VirtualProtect`, `OpenProcessToken` |
-| Network Libs | `requests`, `urllib3`, `websocket`, `python_socks` |
-| Timestamp | 2025-11-15 20:47:37 (future date) |
-
-**Estimated Threat Types:**
-- Information Stealer
-- Remote Access Trojan (RAT)
-- Backdoor
-- Downloader
-
-📄 **[View Full Analysis Report](docs/sample_reports/8bdc6cdcad8477122d419a0959b9beda78050818cb52f76d5c58826111e2cacc_analysis.md)**
+For detailed malware analysis examples and case studies, please visit our [Wiki](https://github.com/sjkim1127/Reversecore_MCP/wiki).
 
 ---
 
