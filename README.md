@@ -9,6 +9,16 @@
 
 An enterprise-grade MCP (Model Context Protocol) server that empowers AI agents to perform comprehensive reverse engineering workflows through natural language commands. From basic triage to advanced decompilation, structure recovery, cross-reference analysis, and defense signature generation, Reversecore_MCP provides a secure, performant interface to industry-standard reverse engineering tools, enabling AI assistants to conduct end-to-end malware analysis and security research.
 
+## 💻 System Requirements
+
+| Category | Minimum Specification | Recommended Specification |
+|----------|----------------------|---------------------------|
+| **Use Case** | Single file analysis, basic CLI tools (file, strings), lightweight YARA scanning | Large-scale parallel scanning, Ghidra decompilation, Angr symbolic execution, Docker builds |
+| **CPU** | 4+ cores (Intel i5 / Ryzen 5 equivalent) | 8+ cores with P-cores (M3/M4 Pro, Ryzen 7/9, Intel i7/i9) |
+| **RAM** | 16 GB | 32 GB+ (or 24 GB unified memory on Mac) |
+| **Storage** | 512 GB SSD (SATA3 or faster) | 1 TB NVMe SSD (PCIe 4.0+ recommended) |
+| **OS** | Linux / macOS (Docker required) | Linux / macOS (Unix-based systems recommended) |
+
 **Full-Cycle Capabilities**: Upload → Analysis → X-Refs (Context) → Structures (C++ Recovery) → Visualization (CFG) → Emulation (ESIL) → Decompilation (Pseudo-C) → Defense (YARA Rules)
 
 ## 🌟 Key Features
@@ -224,21 +234,48 @@ Reversecore_MCP handles all of this automatically, allowing AI agents to focus o
 
 ```
 Reversecore_MCP/
-├── reversecore_mcp/
+├── reversecore_mcp/           # Main package directory
 │   ├── __init__.py
-│   ├── server.py              # FastMCP server initialization
-│   ├── tools/                 # Tool definitions
+│   ├── tools/                 # Tool definitions (MCP tools)
 │   │   ├── __init__.py
-│   │   ├── cli_tools.py       # CLI tool wrappers
-│   │   └── lib_tools.py       # Library wrappers
-│   └── core/                  # Core utilities
+│   │   ├── cli_tools.py       # CLI tool wrappers (radare2, strings, file, binwalk)
+│   │   └── lib_tools.py       # Library wrappers (YARA, Capstone, LIEF, IOC extraction)
+│   └── core/                  # Core utilities and infrastructure
 │       ├── __init__.py
-│       ├── security.py        # Input validation
+│       ├── command_spec.py    # Command specifications and validation
+│       ├── config.py          # Configuration management
+│       ├── decorators.py      # Function decorators (logging, metrics)
+│       ├── error_formatting.py # Error message formatting
+│       ├── error_handling.py  # Error handling decorators
+│       ├── exceptions.py      # Custom exception classes
 │       ├── execution.py       # Safe subprocess execution
-│       └── exceptions.py      # Custom exceptions
-├── Dockerfile                 # Containerized deployment
+│       ├── ghidra_helper.py   # Ghidra integration utilities
+│       ├── logging_config.py  # Logging configuration
+│       ├── metrics.py         # Performance metrics collection
+│       ├── result.py          # Tool result models (ToolSuccess, ToolError)
+│       ├── security.py        # Input validation and path sanitization
+│       └── validators.py      # Input validators
+├── docs/                      # Documentation
+│   ├── FILE_COPY_TOOL_GUIDE.md
+│   ├── PERFORMANCE_IMPROVEMENT_REPORT.md
+│   ├── PERFORMANCE_IMPROVEMENT_REPORT_V2.md
+│   ├── XREFS_AND_STRUCTURES_IMPLEMENTATION.md
+│   └── sample_reports/        # Sample malware analysis reports
+├── tests/                     # Test suite
+│   ├── __init__.py
+│   ├── conftest.py            # Pytest configuration and fixtures
+│   ├── fixtures/              # Test data and fixtures
+│   ├── integration/           # Integration tests
+│   └── unit/                  # Unit tests
+├── server.py                  # Server entry point (FastMCP initialization)
+├── Dockerfile                 # Containerized deployment configuration
 ├── requirements.txt           # Python dependencies
-└── README.md
+├── requirements-dev.txt       # Development dependencies
+├── pytest.ini                 # Pytest configuration
+├── .gitignore                 # Git ignore patterns
+├── .trivyignore              # Trivy security scanner ignore patterns
+├── LICENSE                    # MIT License
+└── README.md                  # This file
 ```
 
 ### Design Principles
