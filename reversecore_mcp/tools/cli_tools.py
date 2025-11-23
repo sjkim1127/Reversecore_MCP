@@ -238,7 +238,8 @@ async def trace_execution_path(
     await recursive_backtrace(target_addr, [root_node], 0)
 
     # Format results
-    # OPTIMIZATION: Use generator expression instead of list comprehension to reduce memory
+    # OPTIMIZATION: Use list comprehension with generator expression in join
+    # This reduces memory by avoiding intermediate list creation in the join
     formatted_paths = [
         " -> ".join(f"{n['name']} ({n['addr']})" for n in p[::-1])
         for p in paths
@@ -869,13 +870,18 @@ def _radare2_json_to_mermaid(json_str: str) -> str:
 
             # 2. Generate node label from assembly opcodes
             ops = block.get("ops", [])
-            # OPTIMIZATION: Use islice to efficiently get first 6 items to check if truncation needed
-            # This avoids materializing the entire ops list for blocks with 100+ instructions
-            first_six = list(islice(ops, 6))
-            op_codes = [op.get("opcode", "") for op in first_six[:5]]
-
-            # Add ellipsis if there are more operations (indicated by getting 6 items)
-            if len(first_six) > 5:
+            # OPTIMIZATION: Use enumerate with early break to avoid processing all ops
+            # For token efficiency, we limit to 5 instructions per block
+            op_codes = []
+            has_more = False
+            for i, op in enumerate(ops):
+                if i < 5:
+                    op_codes.append(op.get("opcode", ""))
+                elif i == 5:
+                    has_more = True
+                    break
+            
+            if has_more:
                 op_codes.append("...")
 
             # Escape Mermaid special characters
