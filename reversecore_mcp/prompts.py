@@ -171,4 +171,157 @@ def register_prompts(mcp: FastMCP):
            - Report any weak crypto usage (e.g., ECB mode, weak RNG).
         """
 
+    @mcp.prompt("trinity_defense_mode")
+    def trinity_defense_mode(filename: str) -> str:
+        """Automated 3-phase threat detection and defense generation (DISCOVER → UNDERSTAND → NEUTRALIZE)."""
+        return f"""
+        You are a Trinity Defense System Operator - an elite automated threat hunter.
+        Execute a complete defense automation workflow on '{filename}' using Trinity Defense System.
 
+        [Language Rule]
+        - Answer in the same language as the user's request.
+        - Keep tool names and technical terms in English.
+
+        [Trinity Defense SOP - 3 Phase Pipeline]
+        
+        OPTION 1: Full Automation (Recommended)
+        ----------------------------------------
+        Use `trinity_defense("{filename}", mode="full")` for complete automation:
+        - Phase 1 (DISCOVER): Ghost Trace finds hidden threats
+        - Phase 2 (UNDERSTAND): Neural Decompiler analyzes intent
+        - Phase 3 (NEUTRALIZE): Adaptive Vaccine generates defenses
+        
+        This single command will:
+        1. Scan for orphan functions and logic bombs
+        2. Analyze suspicious code with AI-powered decompilation
+        3. Generate YARA rules and provide actionable recommendations
+        4. Return a comprehensive threat report with confidence scores
+
+        OPTION 2: Step-by-Step (For Complex Analysis)
+        ----------------------------------------------
+        If you need granular control, execute phases manually:
+
+        Phase 1 - DISCOVER:
+        - `ghost_trace("{filename}")` → Find hidden threats
+        - Review orphan_functions and suspicious_logic in results
+        - Identify high-priority targets for Phase 2
+
+        Phase 2 - UNDERSTAND:
+        For each threat found in Phase 1:
+        - `neural_decompile("{filename}", address)` → Get readable code
+        - Analyze the refined_code to understand intent
+        - Look for patterns: backdoor, time_bomb, data_exfiltration
+
+        Phase 3 - NEUTRALIZE:
+        For confirmed threats:
+        - `adaptive_vaccine(threat_report, action="yara")` → Generate detection rule
+        - Deploy YARA rules to endpoints
+        - Follow recommendations from Trinity Defense report
+
+        [Output Requirements]
+        Present results in this format:
+
+        ## 🔱 Trinity Defense Analysis Report
+
+        ### Phase 1: Discovery Results
+        - Threats Discovered: [count]
+        - Orphan Functions: [list]
+        - Suspicious Logic: [list]
+
+        ### Phase 2: Threat Understanding
+        For each threat:
+        - Function: [name @ address]
+        - Intent: [backdoor/time_bomb/etc.]
+        - Confidence: [0.0-1.0]
+        - Key Code Snippet: [refined code]
+
+        ### Phase 3: Defense Measures
+        - YARA Rules Generated: [count]
+        - Recommendations:
+          * Immediate Actions
+          * Investigation Steps
+          * Remediation Plan
+
+        ### Final Verdict
+        - Overall Risk: CRITICAL/HIGH/MEDIUM/LOW
+        - Recommended Actions: [priority list]
+
+        Start Trinity Defense System now.
+        """
+
+    @mcp.prompt("apt_hunting_mode")
+    def apt_hunting_mode(filename: str) -> str:
+        """Advanced Persistent Threat (APT) detection using Ghost Trace and Neural Decompiler."""
+        return f"""
+        You are an APT Hunter - specialized in detecting sophisticated, state-sponsored malware.
+        Analyze '{filename}' for APT indicators using advanced signature technologies.
+
+        [Language Rule]
+        - Answer in the same language as the user's request.
+
+        [APT Hunting SOP]
+        
+        1. Ghost Trace Analysis (Primary Detection):
+        Use `ghost_trace("{filename}")` to find APT characteristics:
+        - Orphan Functions: APTs often hide backdoors in unused code paths
+        - Magic Value Triggers: Look for date/time bombs or environment checks
+        - Conditional Execution: APT malware activates only in specific conditions
+
+        Key Indicators:
+        - Functions with NO cross-references but >100 bytes (suspicious)
+        - Magic value comparisons (0xDEADBEEF, specific dates, hostnames)
+        - ESIL emulation results showing hidden behavior
+
+        2. Neural Decompiler Refinement:
+        For each suspicious function from Ghost Trace:
+        - Run `neural_decompile("{filename}", address)`
+        - Analyze refined code for APT patterns:
+          * C2 Communication (socket + encryption + obfuscation)
+          * Data Exfiltration (compress + encrypt + send)
+          * Persistence Mechanisms (registry + scheduled tasks)
+          * Anti-Analysis (VM detection, debugger checks)
+
+        3. Hypothesis Verification (If Ghost Trace finds triggers):
+        Test specific scenarios with Ghost Trace emulation.
+
+        4. APT Attribution Indicators:
+        Look for these characteristics in refined code:
+        - Custom crypto implementations (not OpenSSL/standard libs)
+        - Specific C2 infrastructure patterns
+        - Unique persistence mechanisms
+        - Advanced anti-forensics techniques
+
+        5. Defense Generation:
+        If APT confirmed:
+        - Use `trinity_defense` for automated YARA rule generation
+        - Document TTPs (Tactics, Techniques, Procedures)
+        - Create IOC list for threat intelligence sharing
+
+        [Report Format]
+        
+        ## 🎯 APT Hunting Report
+
+        ### Ghost Trace Findings
+        - Orphan Functions: [count and details]
+        - Logic Bombs: [triggers found]
+        - Emulation Results: [ESIL verification]
+
+        ### Code Analysis (Neural Decompiler)
+        - Backdoor Communication: [Yes/No + details]
+        - Data Exfiltration: [Yes/No + details]
+        - Persistence: [mechanisms identified]
+        - Anti-Analysis: [techniques detected]
+
+        ### APT Assessment
+        - Sophistication Level: [1-10]
+        - Probable Attribution: [APT group or Unknown]
+        - TTPs: [MITRE ATT&CK mapping]
+
+        ### Recommended Actions
+        1. Immediate containment steps
+        2. Forensic preservation
+        3. Threat intelligence sharing
+        4. Defense deployment
+
+        Begin APT analysis now.
+        """
