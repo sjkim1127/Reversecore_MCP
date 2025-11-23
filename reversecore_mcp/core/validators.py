@@ -9,6 +9,9 @@ from reversecore_mcp.core.exceptions import ValidationError
 # Pre-compile address validation pattern for performance
 _ADDRESS_PATTERN = re.compile(r"^[a-zA-Z0-9_.]+$")
 
+# OPTIMIZATION: Pre-compile pattern for hex prefix removal
+_HEX_PREFIX_PATTERN = re.compile(r'^0[xX]')
+
 
 def validate_address_format(address: str, param_name: str = "address") -> None:
     """
@@ -24,8 +27,8 @@ def validate_address_format(address: str, param_name: str = "address") -> None:
     Raises:
         ValidationError: If address format is invalid
     """
-    # Remove '0x' prefix if present before validation
-    clean_address = address.replace("0x", "")
+    # OPTIMIZATION: Use pre-compiled regex pattern instead of replace
+    clean_address = _HEX_PREFIX_PATTERN.sub('', address)
     
     if not _ADDRESS_PATTERN.match(clean_address):
         raise ValidationError(

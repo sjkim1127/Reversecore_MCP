@@ -46,6 +46,25 @@ _VERSION_PATTERNS = {
 # OPTIMIZATION: Pre-compile pattern for stripping address prefixes
 _ADDRESS_PREFIX_PATTERN = re.compile(r'(0x|sym\.|fcn\.)')
 
+# OPTIMIZATION: Pre-compile pattern for removing 0x/0X prefix (case insensitive)
+_HEX_PREFIX_PATTERN = re.compile(r'^0[xX]')
+
+# OPTIMIZATION: Pre-compile pattern for Mermaid special character escaping
+_MERMAID_ESCAPE_CHARS = str.maketrans({
+    '"': "'",
+    '(': '[',
+    ')': ']'
+})
+
+# OPTIMIZATION: Pre-compile pattern for removing radare2 analysis commands
+_R2_ANALYSIS_PATTERN = re.compile(r'\b(aaa|aa)\b')
+
+# OPTIMIZATION: Character translation table for filename sanitization
+_FILENAME_SANITIZE_TRANS = str.maketrans({
+    '-': '_',
+    '.': '_'
+})
+
 
 def _strip_address_prefixes(address: str) -> str:
     """
@@ -54,6 +73,24 @@ def _strip_address_prefixes(address: str) -> str:
     This is faster than chained .replace() calls for multiple patterns.
     """
     return _ADDRESS_PREFIX_PATTERN.sub('', address)
+
+
+def _strip_hex_prefix(hex_str: str) -> str:
+    """
+    Efficiently strip 0x/0X prefix from hex strings using regex.
+    
+    This is faster than chained .replace() calls.
+    """
+    return _HEX_PREFIX_PATTERN.sub('', hex_str)
+
+
+def _escape_mermaid_chars(text: str) -> str:
+    """
+    Efficiently escape Mermaid special characters using str.translate().
+    
+    This is faster than chained .replace() calls for multiple characters.
+    """
+    return text.translate(_MERMAID_ESCAPE_CHARS)
 
 
 def register_cli_tools(mcp: FastMCP) -> None:
@@ -652,7 +689,8 @@ async def run_radare2(
     # If user explicitly requested analysis, handle it via caching
     if "aaa" in validated_command or "aa" in validated_command:
         # Remove explicit analysis commands as they are handled by _build_r2_cmd
-        validated_command = validated_command.replace("aaa", "").replace("aa", "").strip(" ;")
+        # OPTIMIZATION: Use pre-compiled regex pattern instead of chained replace
+        validated_command = _R2_ANALYSIS_PATTERN.sub('', validated_command).strip(" ;")
     
     # Use helper function to execute radare2 command
     try:
@@ -884,13 +922,8 @@ def _radare2_json_to_mermaid(json_str: str) -> str:
             if has_more:
                 op_codes.append("...")
 
-            # Escape Mermaid special characters
-            label_content = (
-                "\\n".join(op_codes)
-                .replace('"', "'")
-                .replace("(", "[")
-                .replace(")", "]")
-            )
+            # Escape Mermaid special characters using optimized function
+            label_content = _escape_mermaid_chars("\\n".join(op_codes))
 
             # Define node
             mermaid_lines.append(f'    {node_id}["{label_content}"]')
@@ -2755,7 +2788,8 @@ def _sanitize_filename_for_rule(file_path: str) -> str:
     Returns:
         Sanitized filename with special characters replaced
     """
-    return Path(file_path).stem.replace("-", "_").replace(".", "_")
+    # OPTIMIZATION: Use str.translate() instead of chained replace()
+    return Path(file_path).stem.translate(_FILENAME_SANITIZE_TRANS)
 
 
 @lru_cache(maxsize=128)
