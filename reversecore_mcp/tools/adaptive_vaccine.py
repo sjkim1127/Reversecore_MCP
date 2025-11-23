@@ -85,7 +85,7 @@ async def adaptive_vaccine(
     # Generate binary patch
     if action in ["patch", "both"]:
         if not file_path:
-            return failure("file_path is required for patch action")
+            return failure("MISSING_FILE_PATH", "file_path is required for patch action")
 
         validated_path = validate_file_path(file_path)
         
@@ -103,7 +103,7 @@ async def adaptive_vaccine(
                 else:
                     await ctx.info("✅ Patch applied successfully")
         except Exception as e:
-            return failure(f"Patch generation failed: {e}")
+            return failure("PATCH_FAILED", f"Patch generation failed: {e}")
 
     return success(result)
 

@@ -133,3 +133,33 @@ class TestJSONUtils:
         # Log whether we're using orjson or fallback
         print(f"\nUsing orjson: {json_utils.is_orjson_available()}")
         print(f"Serialization time for 100 iterations: {duration:.3f}s")
+
+    def test_json_decode_error_import(self):
+        """Test that JSONDecodeError is properly exposed."""
+        # Verify JSONDecodeError is accessible
+        assert hasattr(json_utils, 'JSONDecodeError')
+        assert json_utils.JSONDecodeError is not None
+        
+    def test_invalid_json_raises_error(self):
+        """Test that invalid JSON raises JSONDecodeError."""
+        with pytest.raises(json_utils.JSONDecodeError):
+            json_utils.loads("invalid json {]")
+    
+    def test_dumps_none(self):
+        """Test dumps() with None value."""
+        result = json_utils.dumps(None)
+        assert result == "null"
+        assert json_utils.loads(result) is None
+    
+    def test_dumps_boolean_values(self):
+        """Test dumps() with boolean values."""
+        assert json_utils.loads(json_utils.dumps(True)) is True
+        assert json_utils.loads(json_utils.dumps(False)) is False
+    
+    def test_dumps_numeric_types(self):
+        """Test dumps() with various numeric types."""
+        result = json_utils.dumps({"int": 42, "float": 3.14, "negative": -10})
+        parsed = json_utils.loads(result)
+        assert parsed["int"] == 42
+        assert abs(parsed["float"] - 3.14) < 0.001
+        assert parsed["negative"] == -10
