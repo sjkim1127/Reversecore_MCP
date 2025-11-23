@@ -163,3 +163,31 @@ class TestJSONUtils:
         assert parsed["int"] == 42
         assert abs(parsed["float"] - 3.14) < 0.001
         assert parsed["negative"] == -10
+    
+    def test_large_nested_structure(self):
+        """Test with large nested data structure."""
+        large_obj = {
+            "level1": {
+                "level2": {
+                    "level3": {
+                        "data": list(range(100)),
+                        "strings": [f"item_{i}" for i in range(50)]
+                    }
+                }
+            }
+        }
+        json_str = json_utils.dumps(large_obj)
+        parsed = json_utils.loads(json_str)
+        assert parsed == large_obj
+    
+    def test_special_characters_in_strings(self):
+        """Test handling of special characters."""
+        obj = {
+            "newline": "line1\nline2",
+            "tab": "col1\tcol2",
+            "quote": 'He said "hello"',
+            "backslash": "path\\to\\file"
+        }
+        json_str = json_utils.dumps(obj)
+        parsed = json_utils.loads(json_str)
+        assert parsed == obj
