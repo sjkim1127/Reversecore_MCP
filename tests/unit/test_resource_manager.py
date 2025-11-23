@@ -1,12 +1,30 @@
 """Unit tests for ResourceManager."""
 
 import asyncio
+import os
 import time
 from pathlib import Path
 
 import pytest
 
+from reversecore_mcp.core.config import Config
 from reversecore_mcp.core.resource_manager import ResourceManager, resource_manager
+
+
+def _create_mock_config(workspace: Path) -> Config:
+    """Helper to create a mock Config instance."""
+    return Config(
+        workspace=workspace,
+        read_only_dirs=(),
+        log_level="INFO",
+        log_file=Path("/tmp/test.log"),
+        log_format="human",
+        structured_errors=False,
+        rate_limit=60,
+        lief_max_file_size=1000000000,
+        mcp_transport="stdio",
+        default_tool_timeout=60,
+    )
 
 
 class TestResourceManager:
@@ -78,24 +96,11 @@ class TestResourceManager:
         old_r2.touch()
         
         # Mock config
-        from reversecore_mcp.core.config import Config
-        mock_config = Config(
-            workspace=workspace,
-            read_only_dirs=(),
-            log_level="INFO",
-            log_file=Path("/tmp/test.log"),
-            log_format="human",
-            structured_errors=False,
-            rate_limit=60,
-            lief_max_file_size=1000000000,
-            mcp_transport="stdio",
-            default_tool_timeout=60,
-        )
+        mock_config = _create_mock_config(workspace)
         
         monkeypatch.setattr("reversecore_mcp.core.resource_manager.get_config", lambda: mock_config)
         
         # Manually set old mtime using os
-        import os
         os.utime(old_tmp, (old_time, old_time))
         os.utime(old_r2, (old_time, old_time))
         
@@ -119,19 +124,7 @@ class TestResourceManager:
         recent_tmp.write_text("recent")
         
         # Mock config
-        from reversecore_mcp.core.config import Config
-        mock_config = Config(
-            workspace=workspace,
-            read_only_dirs=(),
-            log_level="INFO",
-            log_file=Path("/tmp/test.log"),
-            log_format="human",
-            structured_errors=False,
-            rate_limit=60,
-            lief_max_file_size=1000000000,
-            mcp_transport="stdio",
-            default_tool_timeout=60,
-        )
+        mock_config = _create_mock_config(workspace)
         
         monkeypatch.setattr("reversecore_mcp.core.resource_manager.get_config", lambda: mock_config)
         
@@ -150,19 +143,7 @@ class TestResourceManager:
         workspace.mkdir()
         
         # Mock config
-        from reversecore_mcp.core.config import Config
-        mock_config = Config(
-            workspace=workspace,
-            read_only_dirs=(),
-            log_level="INFO",
-            log_file=Path("/tmp/test.log"),
-            log_format="human",
-            structured_errors=False,
-            rate_limit=60,
-            lief_max_file_size=1000000000,
-            mcp_transport="stdio",
-            default_tool_timeout=60,
-        )
+        mock_config = _create_mock_config(workspace)
         
         monkeypatch.setattr("reversecore_mcp.core.resource_manager.get_config", lambda: mock_config)
         
@@ -178,19 +159,7 @@ class TestResourceManager:
         workspace.mkdir()
         
         # Mock config
-        from reversecore_mcp.core.config import Config
-        mock_config = Config(
-            workspace=workspace,
-            read_only_dirs=(),
-            log_level="INFO",
-            log_file=Path("/tmp/test.log"),
-            log_format="human",
-            structured_errors=False,
-            rate_limit=60,
-            lief_max_file_size=1000000000,
-            mcp_transport="stdio",
-            default_tool_timeout=60,
-        )
+        mock_config = _create_mock_config(workspace)
         
         monkeypatch.setattr("reversecore_mcp.core.resource_manager.get_config", lambda: mock_config)
         
@@ -238,23 +207,10 @@ class TestResourceManager:
         for f in files:
             f.write_text("old")
             f.touch()
-            import os
             os.utime(f, (old_time, old_time))
         
         # Mock config
-        from reversecore_mcp.core.config import Config
-        mock_config = Config(
-            workspace=workspace,
-            read_only_dirs=(),
-            log_level="INFO",
-            log_file=Path("/tmp/test.log"),
-            log_format="human",
-            structured_errors=False,
-            rate_limit=60,
-            lief_max_file_size=1000000000,
-            mcp_transport="stdio",
-            default_tool_timeout=60,
-        )
+        mock_config = _create_mock_config(workspace)
         
         monkeypatch.setattr("reversecore_mcp.core.resource_manager.get_config", lambda: mock_config)
         
@@ -279,19 +235,7 @@ class TestResourceManager:
         workspace.mkdir()
         
         # Mock config that will work
-        from reversecore_mcp.core.config import Config
-        mock_config = Config(
-            workspace=workspace,
-            read_only_dirs=(),
-            log_level="INFO",
-            log_file=Path("/tmp/test.log"),
-            log_format="human",
-            structured_errors=False,
-            rate_limit=60,
-            lief_max_file_size=1000000000,
-            mcp_transport="stdio",
-            default_tool_timeout=60,
-        )
+        mock_config = _create_mock_config(workspace)
         
         monkeypatch.setattr("reversecore_mcp.core.resource_manager.get_config", lambda: mock_config)
         

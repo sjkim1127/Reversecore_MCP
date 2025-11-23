@@ -9,9 +9,18 @@ from reversecore_mcp.core.resilience import (
     CircuitState,
     get_circuit_breaker,
     circuit_breaker,
-    _breakers,
 )
 from reversecore_mcp.core.exceptions import ToolExecutionError
+
+
+@pytest.fixture(autouse=True)
+def clear_breaker_registry():
+    """Clear the circuit breaker registry before each test."""
+    # Import the private variable only in the fixture
+    from reversecore_mcp.core import resilience
+    resilience._breakers.clear()
+    yield
+    resilience._breakers.clear()
 
 
 class TestCircuitBreaker:
@@ -149,7 +158,6 @@ class TestGetCircuitBreaker:
     def test_creates_new_breaker(self):
         """Test that get_circuit_breaker creates a new breaker."""
         # Clear registry
-        _breakers.clear()
         
         breaker = get_circuit_breaker("test_tool", failure_threshold=5)
         assert breaker.name == "test_tool"
@@ -157,7 +165,6 @@ class TestGetCircuitBreaker:
 
     def test_returns_existing_breaker(self):
         """Test that get_circuit_breaker returns existing breaker."""
-        _breakers.clear()
         
         breaker1 = get_circuit_breaker("test_tool")
         breaker2 = get_circuit_breaker("test_tool")
@@ -171,7 +178,6 @@ class TestCircuitBreakerDecorator:
     @pytest.mark.asyncio
     async def test_decorator_allows_request_when_closed(self):
         """Test that decorator allows request when circuit is closed."""
-        _breakers.clear()
         
         @circuit_breaker("test_tool", failure_threshold=3)
         async def test_func():
@@ -183,7 +189,6 @@ class TestCircuitBreakerDecorator:
     @pytest.mark.asyncio
     async def test_decorator_records_success(self):
         """Test that decorator records successful execution."""
-        _breakers.clear()
         
         @circuit_breaker("test_tool", failure_threshold=3)
         async def test_func():
@@ -197,7 +202,6 @@ class TestCircuitBreakerDecorator:
     @pytest.mark.asyncio
     async def test_decorator_records_failure(self):
         """Test that decorator records failed execution."""
-        _breakers.clear()
         
         @circuit_breaker("test_tool", failure_threshold=3)
         async def test_func():
@@ -212,7 +216,6 @@ class TestCircuitBreakerDecorator:
     @pytest.mark.asyncio
     async def test_decorator_blocks_when_open(self):
         """Test that decorator blocks requests when circuit is open."""
-        _breakers.clear()
         
         @circuit_breaker("test_tool", failure_threshold=2, recovery_timeout=60)
         async def test_func():
@@ -231,7 +234,6 @@ class TestCircuitBreakerDecorator:
     @pytest.mark.asyncio
     async def test_decorator_recovers_after_success(self):
         """Test that circuit recovers after successful execution."""
-        _breakers.clear()
         
         call_count = [0]
         
