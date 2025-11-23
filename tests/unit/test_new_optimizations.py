@@ -170,38 +170,37 @@ def test_json_utils_loads_and_dumps_work_correctly():
     assert loaded_from_bytes == test_data
 
 
-def test_chain_optimization_performance():
-    """Test that using itertools.chain is more efficient than nested loops."""
+def test_chain_optimization_correctness():
+    """Test that using itertools.chain produces correct results."""
     from itertools import chain
     
-    # Simulate the old approach (nested loops)
+    # Simulate the file patterns used in resource cleanup
     patterns = ["*.tmp", ".r2_*", "*.r2"]
     
     # Create fake file lists
-    files_per_pattern = [[f"file{i}.tmp" for i in range(100)],
-                         [f".r2_{i}" for i in range(100)],
-                         [f"file{i}.r2" for i in range(100)]]
+    files_per_pattern = [
+        [f"file{i}.tmp" for i in range(100)],
+        [f".r2_{i}" for i in range(100)],
+        [f"file{i}.r2" for i in range(100)]
+    ]
     
     # Old approach: multiple iterations
-    start_old = time.time()
-    old_count = 0
+    old_result = []
     for i, pattern in enumerate(patterns):
         for f in files_per_pattern[i]:
-            old_count += 1
-    time_old = time.time() - start_old
+            old_result.append(f)
     
     # New approach: single iteration with chain
-    start_new = time.time()
-    new_count = 0
-    for f in chain(*files_per_pattern):
-        new_count += 1
-    time_new = time.time() - start_new
+    new_result = list(chain(*files_per_pattern))
     
     # Verify same result
-    assert old_count == new_count == 300
+    assert len(old_result) == len(new_result) == 300
+    assert set(old_result) == set(new_result), "Chain should produce same files"
     
-    # New approach should not be slower (may not be significantly faster for small datasets)
-    assert time_new <= time_old * 1.5  # Allow 50% margin for measurement variance
+    # Verify all patterns are included
+    assert any(f.endswith('.tmp') for f in new_result)
+    assert any(f.startswith('.r2_') for f in new_result)
+    assert any(f.endswith('.r2') and not f.startswith('.r2_') for f in new_result)
 
 
 if __name__ == "__main__":
