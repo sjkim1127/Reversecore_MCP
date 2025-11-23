@@ -440,8 +440,8 @@ def _extract_symbols(binary: Any) -> Dict[str, Any]:
     # PE-specific imports/exports
     if hasattr(binary, "imports") and binary.imports:
         # Use islice to avoid creating intermediate list
-        # OPTIMIZATION: Extract function list creation outside the dict to avoid
-        # nested comprehension inside loop
+        # OPTIMIZATION: Extract function list creation outside the dict literal
+        # to avoid list comprehension inside loop iteration
         formatted_imports: List[Dict[str, Any]] = []
         for imp in islice(binary.imports, 20):
             entries = getattr(imp, "entries", [])

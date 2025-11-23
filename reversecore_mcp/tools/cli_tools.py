@@ -46,6 +46,9 @@ _VERSION_PATTERNS = {
 # OPTIMIZATION: Pre-compile pattern for stripping address prefixes
 _ADDRESS_PREFIX_PATTERN = re.compile(r'(0x|sym\.|fcn\.)')
 
+# Configuration constants for readability and maintainability
+MAX_OPCODES_PER_BLOCK = 5  # Maximum instructions to show in CFG nodes
+
 
 def _strip_address_prefixes(address: str) -> str:
     """
@@ -871,13 +874,13 @@ def _radare2_json_to_mermaid(json_str: str) -> str:
             # 2. Generate node label from assembly opcodes
             ops = block.get("ops", [])
             # OPTIMIZATION: Use enumerate with early break to avoid processing all ops
-            # For token efficiency, we limit to 5 instructions per block
+            # For token efficiency, we limit instructions per block using constant
             op_codes = []
             has_more = False
             for i, op in enumerate(ops):
-                if i < 5:
+                if i < MAX_OPCODES_PER_BLOCK:
                     op_codes.append(op.get("opcode", ""))
-                elif i == 5:
+                else:
                     has_more = True
                     break
             
