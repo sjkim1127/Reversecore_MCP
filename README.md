@@ -5,18 +5,6 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/)
 [![FastMCP](https://img.shields.io/badge/FastMCP-2.13.1-green)](https://github.com/jlowin/fastmcp)
-[![Docker](https://img.shields.io/badge/docker-ready-blue)](https://www.docker.com/)
-
-[🇰🇷 한국어 (Korean)](README_KR.md)
-
-An enterprise-grade MCP (Model Context Protocol) server that empowers AI agents to perform comprehensive reverse engineering workflows through natural language commands. From basic triage to advanced decompilation, structure recovery, cross-reference analysis, and defense signature generation, Reversecore_MCP provides a secure, performant interface to industry-standard reverse engineering tools, enabling AI assistants to conduct end-to-end malware analysis and security research.
-
-## � Reversecore Signature: Ghost Trace
-
-**"Detecting the Undetectable"**
-
-Ghost Trace is a proprietary hybrid analysis technology exclusive to Reversecore_MCP that transcends the limits of traditional static and dynamic analysis. It identifies "Logic Bombs" and "Dormant Malware" that evade sandbox detection by combining static code analysis with AI-driven partial emulation.
-
 | **RAM** | 16 GB | 32 GB+ (or 24 GB unified memory on Mac) |
 | **Storage** | 512 GB SSD (SATA3 or faster) | 1 TB NVMe SSD (PCIe 4.0+ recommended) |
 | **OS** | Linux / macOS (Docker required) | Linux / macOS (Unix-based systems recommended) |
