@@ -2,6 +2,21 @@ import unittest
 from unittest.mock import AsyncMock, patch, MagicMock
 import sys
 import asyncio
+import pytest
+
+# Save original modules to restore after tests
+_original_modules = {}
+_mocked_module_names = [
+    "fastmcp",
+    "fastmcp.Context",
+    "dotenv",
+    "pydantic",
+    "pydantic.BaseModel",
+]
+
+for name in _mocked_module_names:
+    if name in sys.modules:
+        _original_modules[name] = sys.modules[name]
 
 # Mock fastmcp before importing ghost_trace
 sys.modules["fastmcp"] = MagicMock()
@@ -11,6 +26,19 @@ sys.modules["pydantic"] = MagicMock()
 sys.modules["pydantic.BaseModel"] = MagicMock()
 
 from reversecore_mcp.tools.ghost_trace import ghost_trace
+
+
+@pytest.fixture(scope="module", autouse=True)
+def cleanup_mocked_modules():
+    """Ensure mocked modules are cleaned up after this test module."""
+    yield
+    # Clean up mocked modules
+    for name in _mocked_module_names:
+        if name in sys.modules and isinstance(sys.modules[name], MagicMock):
+            del sys.modules[name]
+    # Restore original modules
+    for name, module in _original_modules.items():
+        sys.modules[name] = module
 
 class TestGhostTrace(unittest.IsolatedAsyncioTestCase):
     

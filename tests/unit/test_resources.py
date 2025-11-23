@@ -13,7 +13,7 @@ class TestStaticResources:
     @pytest.fixture
     def mock_mcp(self):
         """Create a mock FastMCP instance."""
-        mcp = Mock(spec=FastMCP)
+        mcp = Mock()
         mcp.resource = Mock()
         return mcp
 
@@ -182,7 +182,7 @@ class TestDynamicResources:
     @pytest.fixture
     def mock_mcp(self):
         """Create a mock FastMCP instance."""
-        mcp = Mock(spec=FastMCP)
+        mcp = Mock()
         mcp.resource = Mock()
         return mcp
 

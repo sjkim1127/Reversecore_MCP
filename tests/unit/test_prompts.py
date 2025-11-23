@@ -12,7 +12,8 @@ class TestPromptsRegistration:
     @pytest.fixture
     def mock_mcp(self):
         """Create a mock FastMCP instance."""
-        mcp = Mock(spec=FastMCP)
+        # Don't use spec=FastMCP to avoid issues with module mocking in other tests
+        mcp = Mock()
         mcp.prompt = Mock()
         return mcp
 
@@ -20,8 +21,8 @@ class TestPromptsRegistration:
         """Test that register_prompts registers handlers with MCP."""
         register_prompts(mock_mcp)
         
-        # Should register 6 prompts (full, basic, game, firmware, vulnerability, crypto)
-        assert mock_mcp.prompt.call_count == 6
+        # Should register 8 prompts (full, basic, game, firmware, vulnerability, crypto, trinity_defense, apt_hunting)
+        assert mock_mcp.prompt.call_count == 8
 
     def test_full_analysis_mode_registered(self, mock_mcp):
         """Test full_analysis_mode prompt is registered."""
@@ -167,7 +168,7 @@ class TestPromptContent:
 
     def test_full_analysis_mode_content(self):
         """Test full_analysis_mode generates comprehensive instructions."""
-        mock_mcp = Mock(spec=FastMCP)
+        mock_mcp = Mock()
         registered_prompts = {}
         
         def capture_prompt(name):
@@ -201,7 +202,7 @@ class TestPromptContent:
 
     def test_basic_analysis_mode_content(self):
         """Test basic_analysis_mode generates lightweight analysis instructions."""
-        mock_mcp = Mock(spec=FastMCP)
+        mock_mcp = Mock()
         registered_prompts = {}
         
         def capture_prompt(name):
@@ -229,7 +230,7 @@ class TestPromptContent:
 
     def test_game_analysis_mode_content(self):
         """Test game_analysis_mode generates game-specific instructions."""
-        mock_mcp = Mock(spec=FastMCP)
+        mock_mcp = Mock()
         registered_prompts = {}
         
         def capture_prompt(name):
@@ -253,7 +254,7 @@ class TestPromptContent:
 
     def test_firmware_analysis_mode_content(self):
         """Test firmware_analysis_mode generates firmware-specific instructions."""
-        mock_mcp = Mock(spec=FastMCP)
+        mock_mcp = Mock()
         registered_prompts = {}
         
         def capture_prompt(name):
@@ -277,7 +278,7 @@ class TestPromptContent:
 
     def test_vulnerability_research_mode_content(self):
         """Test vulnerability_research_mode generates vuln-specific instructions."""
-        mock_mcp = Mock(spec=FastMCP)
+        mock_mcp = Mock()
         registered_prompts = {}
         
         def capture_prompt(name):
@@ -301,7 +302,7 @@ class TestPromptContent:
 
     def test_crypto_analysis_mode_content(self):
         """Test crypto_analysis_mode generates crypto-specific instructions."""
-        mock_mcp = Mock(spec=FastMCP)
+        mock_mcp = Mock()
         registered_prompts = {}
         
         def capture_prompt(name):
@@ -330,7 +331,7 @@ class TestPromptParameterization:
 
     def test_all_prompts_use_filename(self):
         """Test that all prompts properly incorporate the filename parameter."""
-        mock_mcp = Mock(spec=FastMCP)
+        mock_mcp = Mock()
         registered_prompts = {}
         
         def capture_prompt(name):

@@ -1,6 +1,23 @@
 import unittest
 from unittest.mock import AsyncMock, patch, MagicMock
 import sys
+import pytest
+
+# Save original modules to restore after tests
+_original_modules = {}
+_mocked_module_names = [
+    "fastmcp",
+    "fastmcp.Context",
+    "reversecore_mcp.core.logging_config",
+    "reversecore_mcp.core.result",
+    "reversecore_mcp.core.decorators",
+    "reversecore_mcp.core.security",
+    "reversecore_mcp.core",
+]
+
+for name in _mocked_module_names:
+    if name in sys.modules:
+        _original_modules[name] = sys.modules[name]
 
 # Mock dependencies
 sys.modules["fastmcp"] = MagicMock()
@@ -28,6 +45,19 @@ sys.modules["reversecore_mcp.core.result"].failure = failure
 
 # Import tool
 from reversecore_mcp.tools.neural_decompiler import _refine_code, neural_decompile
+
+
+@pytest.fixture(scope="module", autouse=True)
+def cleanup_mocked_modules():
+    """Ensure mocked modules are cleaned up after this test module."""
+    yield
+    # Clean up mocked modules
+    for name in _mocked_module_names:
+        if name in sys.modules and isinstance(sys.modules[name], MagicMock):
+            del sys.modules[name]
+    # Restore original modules
+    for name, module in _original_modules.items():
+        sys.modules[name] = module
 
 class TestNeuralDecompiler(unittest.IsolatedAsyncioTestCase):
     
