@@ -79,12 +79,17 @@ async def trinity_defense(
     try:
         ghost_result = await ghost_trace(file_path=str(validated_path), ctx=ctx)
         
-        if "error" in ghost_result:
-            return failure(f"Phase 1 failed: {ghost_result['error']}")
+        # Check if ghost_trace returned an error
+        if ghost_result.status == "error":
+            return failure(
+                error_code="GHOST_TRACE_FAILED",
+                message=f"Phase 1 failed: {ghost_result.message}"
+            )
         
-        # Extract threats
-        orphan_functions = ghost_result.get("orphan_functions", [])
-        suspicious_logic = ghost_result.get("suspicious_logic", [])
+        # Extract threats from ToolResult.data
+        ghost_data = ghost_result.data
+        orphan_functions = ghost_data.get("orphan_functions", [])
+        suspicious_logic = ghost_data.get("suspicious_logic", [])
         all_threats = orphan_functions + suspicious_logic
         
         if not all_threats:
@@ -105,7 +110,10 @@ async def trinity_defense(
             })
     
     except Exception as e:
-        return failure(f"Phase 1 (Ghost Trace) failed: {e}")
+        return failure(
+            error_code="GHOST_TRACE_ERROR",
+            message=f"Phase 1 (Ghost Trace) failed: {str(e)}"
+        )
 
     # ============================================================
     # PHASE 2: UNDERSTAND - Neural Decompiler
@@ -179,7 +187,10 @@ async def trinity_defense(
             })
     
     except Exception as e:
-        return failure(f"Phase 2 (Neural Decompiler) failed: {e}")
+        return failure(
+            error_code="NEURAL_DECOMPILER_ERROR",
+            message=f"Phase 2 (Neural Decompiler) failed: {str(e)}"
+        )
 
     # ============================================================
     # PHASE 3: NEUTRALIZE - Adaptive Vaccine
@@ -211,7 +222,10 @@ async def trinity_defense(
         logger.info(f"Phase 3 complete: {len(defenses)} defenses generated")
     
     except Exception as e:
-        return failure(f"Phase 3 (Adaptive Vaccine) failed: {e}")
+        return failure(
+            error_code="ADAPTIVE_VACCINE_ERROR",
+            message=f"Phase 3 (Adaptive Vaccine) failed: {str(e)}"
+        )
 
     # ============================================================
     # FINAL REPORT

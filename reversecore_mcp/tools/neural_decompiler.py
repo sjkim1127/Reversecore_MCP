@@ -50,13 +50,16 @@ async def neural_decompile(
     if ctx:
         await ctx.info(f"🧠 Neural Decompiler: Analyzing {function_address}...")
 
-    # 1. Decompile with Ghidra
     try:
         raw_code, metadata = ghidra_helper.decompile_function_with_ghidra(
             validated_path, function_address, timeout
         )
     except Exception as e:
-        return failure(f"Ghidra decompilation failed: {e}")
+        return failure(
+            error_code="GHIDRA_DECOMPILATION_FAILED",
+            message=f"Ghidra decompilation failed:{str(e)}",
+            hint="Ensure Ghidra is properly installed and JAVA_HOME is set correctly"
+        )
 
     if ctx:
         await ctx.info("🧠 Neural Decompiler: Refining code structure and semantics...")
@@ -65,6 +68,7 @@ async def neural_decompile(
     refined_code = _refine_code(raw_code)
     
     return success({
+        "ghidra_code": raw_code,  # Full original code for comparison
         "original_code_snippet": raw_code[:200] + "...",
         "neural_code": refined_code,
         "metadata": metadata,
