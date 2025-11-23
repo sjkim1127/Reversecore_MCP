@@ -98,7 +98,11 @@ class TestResourceManager:
         # Mock config
         mock_config = _create_mock_config(workspace)
         
-        monkeypatch.setattr("reversecore_mcp.core.resource_manager.get_config", lambda: mock_config)
+        from unittest.mock import MagicMock
+        from reversecore_mcp.core import resource_manager
+        mock_config_module = MagicMock()
+        mock_config_module.get_config = lambda: mock_config
+        monkeypatch.setattr(resource_manager, "config", mock_config_module)
         
         # Manually set old mtime using os
         os.utime(old_tmp, (old_time, old_time))
@@ -126,7 +130,11 @@ class TestResourceManager:
         # Mock config
         mock_config = _create_mock_config(workspace)
         
-        monkeypatch.setattr("reversecore_mcp.core.resource_manager.get_config", lambda: mock_config)
+        from unittest.mock import MagicMock
+        from reversecore_mcp.core import resource_manager
+        mock_config_module = MagicMock()
+        mock_config_module.get_config = lambda: mock_config
+        monkeypatch.setattr(resource_manager, "config", mock_config_module)
         
         # Run cleanup
         manager = ResourceManager()
@@ -145,7 +153,11 @@ class TestResourceManager:
         # Mock config
         mock_config = _create_mock_config(workspace)
         
-        monkeypatch.setattr("reversecore_mcp.core.resource_manager.get_config", lambda: mock_config)
+        from unittest.mock import MagicMock
+        from reversecore_mcp.core import resource_manager
+        mock_config_module = MagicMock()
+        mock_config_module.get_config = lambda: mock_config
+        monkeypatch.setattr(resource_manager, "config", mock_config_module)
         
         # Run cleanup (should not raise)
         manager = ResourceManager()
@@ -161,7 +173,11 @@ class TestResourceManager:
         # Mock config
         mock_config = _create_mock_config(workspace)
         
-        monkeypatch.setattr("reversecore_mcp.core.resource_manager.get_config", lambda: mock_config)
+        from unittest.mock import MagicMock
+        from reversecore_mcp.core import resource_manager
+        mock_config_module = MagicMock()
+        mock_config_module.get_config = lambda: mock_config
+        monkeypatch.setattr(resource_manager, "config", mock_config_module)
         
         # Create manager with short interval
         manager = ResourceManager(cleanup_interval=1)
@@ -212,7 +228,11 @@ class TestResourceManager:
         # Mock config
         mock_config = _create_mock_config(workspace)
         
-        monkeypatch.setattr("reversecore_mcp.core.resource_manager.get_config", lambda: mock_config)
+        from unittest.mock import MagicMock
+        from reversecore_mcp.core import resource_manager
+        mock_config_module = MagicMock()
+        mock_config_module.get_config = lambda: mock_config
+        monkeypatch.setattr(resource_manager, "config", mock_config_module)
         
         # Run cleanup
         manager = ResourceManager()
@@ -237,7 +257,11 @@ class TestResourceManager:
         # Mock config that will work
         mock_config = _create_mock_config(workspace)
         
-        monkeypatch.setattr("reversecore_mcp.core.resource_manager.get_config", lambda: mock_config)
+        from unittest.mock import MagicMock
+        from reversecore_mcp.core import resource_manager
+        mock_config_module = MagicMock()
+        mock_config_module.get_config = lambda: mock_config
+        monkeypatch.setattr(resource_manager, "config", mock_config_module)
         
         # Create manager with short interval
         manager = ResourceManager(cleanup_interval=0.5)

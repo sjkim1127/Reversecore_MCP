@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 from reversecore_mcp.core.logging_config import get_logger
-from reversecore_mcp.core.config import get_config
+from reversecore_mcp.core import config
 from reversecore_mcp.core.binary_cache import binary_cache
 from reversecore_mcp.core.r2_pool import r2_pool
 
@@ -70,8 +70,8 @@ class ResourceManager:
         # binary_cache.clear() # Too aggressive?
         
         # 2. Clean up temporary files
-        config = get_config()
-        workspace = config.workspace
+        cfg = config.get_config()
+        workspace = cfg.workspace
         
         try:
             # Clean .tmp files older than 24 hours
