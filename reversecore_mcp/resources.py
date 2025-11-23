@@ -1,11 +1,11 @@
 from fastmcp import FastMCP
 from pathlib import Path
 from collections import deque
-import json
 
 # Import tools at module level for better performance
 # These imports are used by resource functions below
 from reversecore_mcp.tools import cli_tools, lib_tools
+from reversecore_mcp.core import json_utils as json  # Use optimized JSON (3-5x faster)
 
 # Resources 폴더 경로 (AI용 데이터)
 RESOURCES_PATH = Path("/app/resources")

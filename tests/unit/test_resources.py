@@ -386,7 +386,7 @@ class TestDynamicResources:
         mock_result.content = [Mock(text=str(functions_json))]
         
         with patch('reversecore_mcp.tools.cli_tools.run_radare2', return_value=mock_result), \
-             patch('json.loads', return_value=functions_json):
+             patch('reversecore_mcp.resources.json.loads', return_value=functions_json):
             result = await func_list("test.exe")
             assert "# Functions in test.exe" in result
             assert "Total functions: 2" in result

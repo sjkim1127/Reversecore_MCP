@@ -5,7 +5,6 @@ This tool combines static analysis and partial emulation to detect hidden malici
 (Logic Bombs, Dormant Malware) that are often missed by traditional dynamic analysis.
 """
 
-import json
 import asyncio
 import re
 from typing import Dict, Any, List, Optional
@@ -19,7 +18,7 @@ from reversecore_mcp.core.result import ToolResult, success, failure
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.security import validate_file_path
 from reversecore_mcp.core.command_spec import validate_r2_command
-from reversecore_mcp.core import json_utils as json  # Use optimized JSON
+from reversecore_mcp.core import json_utils as json  # Use optimized JSON (3-5x faster)
 
 logger = get_logger(__name__)
 
