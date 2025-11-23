@@ -1130,6 +1130,79 @@ AI Agent:
   - **Output**: Noise reduction percentage, library matches, user function list
   - **Value**: Filters out library functions to focus on user code
 
+### Reversecore Signature Tools (Preview)
+
+Reversecore's proprietary signature technologies that transcend traditional reverse engineering:
+
+- **`ghost_trace`**: Hybrid analysis for detecting dormant malware and logic bombs
+  - **"Detecting the Undetectable"** - Find threats that evade sandbox detection
+  - Combines static analysis with AI-driven partial emulation
+  - Discovers orphan functions (never-called code blocks)
+  - Identifies magic value triggers (time bombs, backdoor activators)
+  - Uses ESIL emulation to verify malicious behavior without execution
+  - Use cases:
+    - **Logic Bomb Detection**: Find time-based or trigger-based malware
+    - **Backdoor Discovery**: Identify hidden functionality in binaries
+    - **Dormant Malware**: Detect conditional threats that sandbox misses
+    - **APT Analysis**: Uncover sophisticated, context-aware threats
+  - Example: `ghost_trace("/app/workspace/suspicious.exe")`
+  - Example (verify hypothesis): `ghost_trace("/app/workspace/malware.exe", focus_function="sym.hidden", hypothesis={"registers": {"eax": "0xDEADBEEF"}})`
+  - **Value**: Predicts future malicious behavior that hasn't happened yet
+
+- **`neural_decompile`**: AI-simulated code refinement for human-readable output
+  - **"Restoring Developer Intent"** - Transform mechanical code into natural code
+  - Refines raw Ghidra output into human-like C code
+  - Automatic semantic variable renaming (iVar1 → sock_fd, buffer_ptr)
+  - Structure inference from pointer arithmetic (*(ptr + 4) → ptr->field_4)
+  - Smart annotation with explanatory comments for magic values
+  - Use cases:
+    - **Malware Analysis**: Quickly understand complex malicious logic
+    - **Vulnerability Research**: Identify security flaws efficiently
+    - **Code Understanding**: Make reverse-engineered code readable
+    - **Documentation**: Generate understandable documentation from binaries
+  - Example: `neural_decompile("/app/workspace/binary.exe", "0x401000")`
+  - **Value**: Bridges the gap between assembly and developer's original intent
+
+- **`adaptive_vaccine`**: Automated defense generation from threat analysis
+  - **"Turn Analysis into Defense"** - Generate YARA rules and binary patches
+  - Auto-generates production-ready YARA detection rules
+  - Creates binary patches with VA → file offset conversion
+  - Architecture-aware (x86, x86_64, ARM) with proper endianness
+  - Automatic file backups before patching
+  - Dry-run mode for safe preview
+  - Use cases:
+    - **Incident Response**: Rapidly deploy detection rules
+    - **Threat Hunting**: Create IoCs from analysis findings
+    - **Malware Neutralization**: Patch out malicious functionality
+    - **Defense Automation**: Bridge analysis → protection gap
+  - Example (YARA): `adaptive_vaccine(threat_report, action="yara")`
+  - Example (patch preview): `adaptive_vaccine(threat_report, action="patch", file_path="/app/workspace/malware.exe", dry_run=True)`
+  - **Value**: Automates the defensive response workflow
+
+- **`trinity_defense`**: Integrated 3-phase automated threat detection and neutralization
+  - **"Complete Defense Automation"** - Ghost Trace finds, Neural Decompiler understands, Adaptive Vaccine stops
+  - **Phase 1 (DISCOVER)**: Ghost Trace scans for hidden threats
+  - **Phase 2 (UNDERSTAND)**: Neural Decompiler analyzes intent with confidence scoring
+  - **Phase 3 (NEUTRALIZE)**: Adaptive Vaccine generates defenses
+  - Parallel processing for 10x performance improvement
+  - Confidence-based intent inference (reduces false positives)
+  - Detailed actionable recommendations:
+    - Immediate actions (ISOLATE, BLOCK, MONITOR, DEPLOY)
+    - Investigation procedures
+    - Remediation strategies
+  - Modes:
+    - `"discover"`: Phase 1 only (quick scan)
+    - `"analyze"`: Phase 1+2 (full understanding)
+    - `"full"`: All 3 phases (complete automation)
+  - Use cases:
+    - **Automated Incident Response**: Full analysis in one command
+    - **APT Detection**: Coordinate detection across all phases
+    - **Security Operations**: Reduce analyst workload with automation
+    - **Threat Intelligence**: Generate comprehensive threat reports
+  - Example (full analysis): `trinity_defense("/app/workspace/apt.exe", mode="full")`
+  - Example (quick scan): `trinity_defense("/app/workspace/sample.bin", mode="discover")`
+  - **Value**: End-to-end automated defense from detection to neutralization
+
 ### Library Tools
 
 - **`run_yara`**: Scan files using YARA rules
