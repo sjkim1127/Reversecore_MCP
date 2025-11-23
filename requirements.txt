@@ -42,4 +42,5 @@ jpype1>=1.4.0  # PyGhidra dependency
 python-dotenv>=1.0.0
 
 # High-performance JSON parsing (3-5x faster than standard json)
-orjson>=3.9.0
+# Note: Using >=3.9.15 to avoid recursion depth vulnerability (CVE in <3.9.15)
+orjson>=3.9.15
