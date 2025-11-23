@@ -20,17 +20,13 @@ from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.command_spec import validate_r2_command
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
-from reversecore_mcp.core.exceptions import ValidationError, ToolExecutionError
+from reversecore_mcp.core.exceptions import ValidationError
 from reversecore_mcp.core.execution import execute_subprocess_async
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.resilience import circuit_breaker
 from reversecore_mcp.core.result import ToolResult, success, failure
 from reversecore_mcp.core.security import validate_file_path
 from reversecore_mcp.core.validators import validate_tool_parameters, validate_address_format
-
-from reversecore_mcp.core.r2_pool import r2_pool
-from reversecore_mcp.core.ghidra_manager import ghidra_manager
-from reversecore_mcp.core.binary_cache import binary_cache
 
 # Load default timeout from configuration
 DEFAULT_TIMEOUT = get_config().default_tool_timeout
@@ -45,6 +41,1545 @@ _VERSION_PATTERNS = {
     "Generic_Version": re.compile(r"[vV]er(?:sion)?\s?[:.]?\s?(\d+\.\d+\.\d+)"),
     "Copyright": re.compile(r"Copyright.*(19|20)\d{2}"),
 }
+
+
+def register_cli_tools(mcp: FastMCP) -> None:
+    """
+    Register all CLI tool wrappers with the FastMCP server.
+
+    Args:
+        mcp: The FastMCP server instance to register tools with
+    """
+    mcp.tool(run_file)
+    mcp.tool(run_strings)
+    mcp.tool(run_radare2)
+    mcp.tool(run_binwalk)
+    mcp.tool(copy_to_workspace)
+    mcp.tool(list_workspace)
+    mcp.tool(generate_function_graph)
+    mcp.tool(emulate_machine_code)
+    mcp.tool(get_pseudo_code)
+    mcp.tool(generate_signature)
+    mcp.tool(extract_rtti_info)
+    mcp.tool(smart_decompile)
+    mcp.tool(generate_yara_rule)
+    mcp.tool(analyze_xrefs)
+    mcp.tool(recover_structures)
+    mcp.tool(diff_binaries)
+    mcp.tool(match_libraries)
+    mcp.tool(scan_workspace)
+    mcp.tool(trace_execution_path)
+    mcp.tool(scan_for_versions)
+    mcp.tool(analyze_variant_changes)
+    mcp.tool(solve_path_constraints)
+    # AI-powered tools (using LLM sampling)
+    mcp.tool(analyze_with_ai)
+    mcp.tool(suggest_function_name)
+
+
+@log_execution(tool_name="trace_execution_path")
+@track_metrics("trace_execution_path")
+@handle_tool_errors
+async def trace_execution_path(
+    file_path: str,
+    target_function: str,
+    max_depth: int = 3,
+    max_paths: int = 5,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> ToolResult:
+    """
+    Trace function calls backwards from a target function (Sink) to find potential execution paths.
+
+    This tool helps identify "Exploit Paths" by finding which functions call a dangerous
+    target function (like 'system', 'strcpy', 'execve'). It performs a recursive
+    cross-reference analysis (backtrace) to map out how execution reaches the target.
+
+    **Use Cases:**
+    - **Vulnerability Analysis**: Check if user input (main/recv) reaches 'system'
+    - **Reachability Analysis**: Verify if a vulnerable function is actually called
+    - **Taint Analysis Helper**: Provide the path for AI to perform manual taint checking
+
+    Args:
+        file_path: Path to the binary file
+        target_function: Name or address of the target function (e.g., 'sym.imp.system', '0x401000')
+        max_depth: Maximum depth of backtrace (default: 3)
+        max_paths: Maximum number of paths to return (default: 5)
+        timeout: Execution timeout in seconds
+
+    Returns:
+        ToolResult with a list of execution paths (call chains).
+    """
+    validated_path = validate_file_path(file_path)
+    effective_timeout = _calculate_dynamic_timeout(str(validated_path), timeout)
+
+    # Helper to get address of a function name
+    async def get_address(func_name):
+        # OPTIMIZATION: Batch both symbol and function lookups in one r2 call
+        # This eliminates the overhead of a second subprocess call when the symbol
+        # isn't found in the first lookup (common for stripped binaries)
+        cmd = _build_r2_cmd(str(validated_path), ["isj", "aflj"], "aaa")
+        out, _ = await execute_subprocess_async(cmd, timeout=30)
+        
+        # Parse output: radare2 outputs one JSON per command line
+        # We expect 2 lines: first from isj (symbols), second from aflj (functions)
+        lines = [line.strip() for line in out.strip().split("\n") if line.strip()]
+        
+        # Validate we have at least one line with potential JSON
+        if not lines:
+            return None
+        
+        # Try symbols first (isj output)
+        # Use robust parsing that handles both JSON arrays and error messages
+        if len(lines) >= 1:
+            try:
+                symbols = _parse_json_output(lines[0])
+                # Validate it's a list (not an error dict or string)
+                if isinstance(symbols, list):
+                    for sym in symbols:
+                        if isinstance(sym, dict):
+                            if sym.get("name") == func_name or sym.get("realname") == func_name:
+                                return sym.get("vaddr")
+            except (json.JSONDecodeError, TypeError, IndexError):
+                # First line wasn't valid JSON or wasn't in expected format
+                # This is OK - fall through to try functions
+                pass
+        
+        # If not found in symbols, try functions (aflj output)
+        if len(lines) >= 2:
+            try:
+                funcs = _parse_json_output(lines[1])
+                # Validate it's a list (not an error dict or string)
+                if isinstance(funcs, list):
+                    for f in funcs:
+                        if isinstance(f, dict) and f.get("name") == func_name:
+                            return f.get("offset")
+            except (json.JSONDecodeError, TypeError, IndexError):
+                # Second line wasn't valid JSON or wasn't in expected format
+                # This is OK - just means function not found
+                pass
+        
+        return None
+
+    # Resolve target address
+    target_addr = target_function
+    if not target_function.startswith("0x"):
+        addr = await get_address(target_function)
+        if addr:
+            target_addr = hex(addr)
+        else:
+            # If we can't resolve it, try using it directly if it looks like a symbol
+            pass
+
+    paths = []
+    visited = set()
+
+    async def recursive_backtrace(current_addr, current_path, depth):
+        if depth >= max_depth or len(paths) >= max_paths:
+            return
+
+        # OPTIMIZATION: Pre-compute addresses in current path to avoid repeated list comprehensions
+        current_path_addrs = {p["addr"] for p in current_path}
+        
+        if current_addr in visited and current_addr not in current_path_addrs:
+             # Allow revisiting if it's a different path, but prevent cycles in current path
+             pass
+        elif current_addr in current_path_addrs:
+            return # Cycle detected
+
+        # Get xrefs TO this address
+        cmd = _build_r2_cmd(str(validated_path), [f"axtj @ {current_addr}"], "aaa")
+        out, _ = await execute_subprocess_async(cmd, timeout=30)
+        
+        try:
+            xrefs = _parse_json_output(out)
+        except (json.JSONDecodeError, TypeError):
+            xrefs = []
+
+        if not xrefs:
+            # End of chain (root caller found or no xrefs)
+            if len(current_path) > 1:
+                paths.append(current_path)
+            return
+
+        for xref in xrefs:
+            if len(paths) >= max_paths:
+                break
+            
+            caller_addr = hex(xref.get("fcn_addr", 0))
+            caller_name = xref.get("fcn_name", "unknown")
+            type_ref = xref.get("type", "call")
+            
+            if type_ref not in ["call", "jump"]:
+                continue
+
+            new_node = {"addr": caller_addr, "name": caller_name, "type": type_ref}
+            
+            # If we reached main or entry, this is a complete path
+            if "main" in caller_name or "entry" in caller_name:
+                paths.append(current_path + [new_node])
+            else:
+                await recursive_backtrace(caller_addr, current_path + [new_node], depth + 1)
+
+    # Start trace
+    root_node = {"addr": target_addr, "name": target_function, "type": "target"}
+    await recursive_backtrace(target_addr, [root_node], 0)
+
+    # Format results
+    formatted_paths = []
+    for p in paths:
+        # Reverse to show flow from Source -> Sink
+        chain = p[::-1]
+        formatted_paths.append(" -> ".join([f"{n['name']} ({n['addr']})" for n in chain]))
+
+    return success(
+        {"paths": formatted_paths, "raw_paths": paths},
+        path_count=len(paths),
+        target=target_function,
+        description=f"Found {len(paths)} execution paths to {target_function}"
+    )
+
+
+@log_execution(tool_name="scan_for_versions")
+@track_metrics("scan_for_versions")
+@handle_tool_errors
+async def scan_for_versions(
+    file_path: str,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> ToolResult:
+    """
+    Extract library version strings and CVE clues from a binary.
+
+    This tool acts as a "Version Detective", scanning the binary for strings that
+    look like version numbers or library identifiers (e.g., "OpenSSL 1.0.2g",
+    "GCC 5.4.0"). It helps identify outdated components and potential CVEs.
+
+    **Use Cases:**
+    - **SCA (Software Composition Analysis)**: Identify open source components
+    - **Vulnerability Scanning**: Find outdated libraries (e.g., Heartbleed-vulnerable OpenSSL)
+    - **Firmware Analysis**: Determine OS and toolchain versions
+
+    Args:
+        file_path: Path to the binary file
+        timeout: Execution timeout in seconds
+
+    Returns:
+        ToolResult with detected libraries and versions.
+    """
+    validated_path = validate_file_path(file_path)
+    
+    # Run strings command
+    cmd = ["strings", str(validated_path)]
+    output, bytes_read = await execute_subprocess_async(
+        cmd,
+        max_output_size=10_000_000,
+        timeout=timeout,
+    )
+    
+    text = output
+    
+    # Use pre-compiled patterns for better performance
+    detected = {}
+    
+    # Process all version patterns
+    for name, pattern in _VERSION_PATTERNS.items():
+        matches = []
+        for match in pattern.finditer(text):
+            # Extract version from appropriate group (1 or 2 depending on pattern)
+            if name in ["OpenSSL", "Python"]:
+                matches.append(match.group(2))
+            else:
+                matches.append(match.group(1))
+        if matches:
+            detected[name] = list(set(matches))
+    
+    return success(
+        detected,
+        bytes_read=bytes_read,
+        description=f"Detected {len(detected)} potential library versions"
+    )
+
+
+@log_execution(tool_name="analyze_variant_changes")
+@track_metrics("analyze_variant_changes")
+@handle_tool_errors
+async def analyze_variant_changes(
+    file_path_a: str,
+    file_path_b: str,
+    top_n: int = 3,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> ToolResult:
+    """
+    Analyze structural changes between two binary variants (Lineage Mapper).
+
+    This tool combines binary diffing with control flow analysis to understand
+    *how* a binary has evolved. It identifies the most modified functions and
+    generates their Control Flow Graphs (CFG) for comparison.
+
+    **Use Cases:**
+    - **Malware Lineage**: "How did Lazarus Group modify their backdoor?"
+    - **Patch Diffing**: "What logic changed in the vulnerable function?"
+    - **Variant Analysis**: "Is this a new version of the same malware?"
+
+    Args:
+        file_path_a: Path to the original binary
+        file_path_b: Path to the variant binary
+        top_n: Number of top changed functions to analyze in detail (default: 3)
+        timeout: Execution timeout in seconds
+
+    Returns:
+        ToolResult with diff summary and CFG data for top changed functions.
+    """
+    # 1. Run diff_binaries
+    diff_result = await diff_binaries(file_path_a, file_path_b, timeout=timeout)
+    
+    if diff_result.is_error:
+        return diff_result
+        
+    diff_data = json.loads(diff_result.content[0].text)
+    changes = diff_data.get("changes", [])
+    
+    # 2. Identify changed functions (heuristic: group changes by address proximity or use explicit function diff if available)
+    # Since diff_binaries returns a flat list of changes, we'll try to map them to functions.
+    # For this advanced tool, we'll assume we want to analyze the functions where changes occurred.
+    
+    # Get function list for file B (variant) to map addresses to names
+    # We use a simple r2 command to get functions
+    validated_path_b = validate_file_path(file_path_b)
+    cmd = _build_r2_cmd(str(validated_path_b), ["aflj"], "aaa")
+    out, _ = await execute_subprocess_async(cmd, timeout=60)
+    
+    try:
+        funcs_b = _parse_json_output(out)
+    except (json.JSONDecodeError, TypeError):
+        funcs_b = []
+    
+    # OPTIMIZATION: Pre-sort functions by offset for binary search
+    # This reduces O(n*m) to O(n*log(m)) complexity
+    # Further optimized to minimize redundant dict.get() calls
+    sorted_funcs = []
+    for f in funcs_b:
+        offset = f.get("offset")
+        size = f.get("size")
+        name = f.get("name", "unknown")
+        if offset is not None and size is not None:
+            sorted_funcs.append((offset, offset + size, name))
+    sorted_funcs.sort(key=lambda x: x[0])
+    
+    # Map changes to functions using binary search
+    changed_funcs = {} # {func_name: count}
+    
+    for change in changes:
+        addr_str = change.get("address")
+        if not addr_str: 
+            continue
+        try:
+            addr = int(addr_str, 16)
+            # Binary search to find the function containing this address
+            left, right = 0, len(sorted_funcs) - 1
+            found_func = None
+            
+            while left <= right:
+                mid = (left + right) // 2
+                func_start, func_end, func_name = sorted_funcs[mid]
+                
+                if func_start <= addr < func_end:
+                    found_func = func_name
+                    break
+                elif addr < func_start:
+                    right = mid - 1
+                else:
+                    left = mid + 1
+            
+            if found_func:
+                changed_funcs[found_func] = changed_funcs.get(found_func, 0) + 1
+        except ValueError:
+            # Invalid hex address format
+            pass
+            
+    # Sort by number of changes
+    sorted_funcs = sorted(changed_funcs.items(), key=lambda x: x[1], reverse=True)[:top_n]
+    
+    detailed_analysis = []
+    
+    # 3. Generate CFG for top changed functions
+    for func_name, count in sorted_funcs:
+        # Get CFG for variant
+        cfg_result = await generate_function_graph(file_path_b, func_name, format="mermaid")
+        cfg_mermaid = cfg_result.content[0].text if not cfg_result.is_error else "Error generating CFG"
+        
+        detailed_analysis.append({
+            "function": func_name,
+            "change_count": count,
+            "cfg_mermaid": cfg_mermaid,
+            "analysis_hint": f"Function {func_name} has {count} modifications. Compare its logic with the original."
+        })
+        
+    return success(
+        {
+            "similarity": diff_data.get("similarity"),
+            "total_changes": diff_data.get("total_changes"),
+            "top_modified_functions": detailed_analysis
+        },
+        description=f"Analyzed variants. Similarity: {diff_data.get('similarity')}. Detailed analysis for {len(detailed_analysis)} functions."
+    )
+
+
+@log_execution(tool_name="scan_workspace")
+@track_metrics("scan_workspace")
+@handle_tool_errors
+async def scan_workspace(
+    file_patterns: list[str] = None,
+    timeout: int = 600,
+    ctx: Context = None,
+) -> ToolResult:
+    """
+    Batch scan all files in the workspace using multiple tools in parallel.
+
+    This tool performs a comprehensive scan of the workspace to identify files,
+    analyze binaries, and detect threats. It runs 'run_file', 'parse_binary_with_lief',
+    and 'run_yara' (if rules exist) on all matching files concurrently.
+
+    **Workflow:**
+    1. Identify files matching patterns (default: all files)
+    2. Run 'file' command on all files
+    3. Run 'LIEF' analysis on executable files
+    4. Run 'YARA' scan if rules are available
+    5. Aggregate results into a single report
+
+    Args:
+        file_patterns: List of glob patterns to include (e.g., ["*.exe", "*.dll"]).
+                      Default is ["*"] (all files).
+        timeout: Global timeout for the batch operation in seconds.
+        ctx: FastMCP Context for progress reporting (auto-injected)
+
+    Returns:
+        ToolResult with aggregated scan results for all files.
+    """
+    from reversecore_mcp.core.config import get_config
+    from reversecore_mcp.tools.lib_tools import parse_binary_with_lief, run_yara
+
+    config = get_config()
+    workspace = config.workspace
+    
+    if not file_patterns:
+        file_patterns = ["*"]
+
+    # 1. Collect files
+    files_to_scan = []
+    for pattern in file_patterns:
+        files_to_scan.extend(workspace.glob(pattern))
+    
+    # Remove duplicates and directories
+    files_to_scan = list(set([f for f in files_to_scan if f.is_file()]))
+    
+    if not files_to_scan:
+        return success(
+            {"files": [], "summary": "No files found matching patterns"},
+            file_count=0
+        )
+
+    total_files = len(files_to_scan)
+
+    # 2. Define scan tasks
+    results = {}
+    completed_count = 0
+    
+    async def scan_single_file(file_path: Path, index: int):
+        nonlocal completed_count
+        path_str = str(file_path)
+        file_name = file_path.name
+        file_result = {"name": file_name, "path": path_str}
+        
+        # Task 1: run_file (async)
+        # We call the tool function directly. Since it's async, we await it.
+        try:
+            file_cmd_result = await run_file(path_str)
+            file_result["file_type"] = file_cmd_result.content[0].text if file_cmd_result.content else "unknown"
+        except Exception as e:
+            file_result["file_type_error"] = str(e)
+
+        # Task 2: LIEF (sync, run in thread)
+        #Only for likely binaries
+        if "executable" in str(file_result.get("file_type", "")).lower() or file_path.suffix.lower() in [".exe", ".dll", ".so", ".dylib", ".bin", ".elf"]:
+            try:
+                # Run sync function in thread pool
+                lief_result = await asyncio.to_thread(parse_binary_with_lief, path_str)
+                if not lief_result.is_error:
+                     # Parse JSON content if available
+                    content = lief_result.content[0].text
+                    try:
+                        file_result["lief_metadata"] = json.loads(content) if isinstance(content, str) else content
+                    except:
+                        file_result["lief_metadata"] = content
+            except Exception as e:
+                file_result["lief_error"] = str(e)
+
+        # Task 3: YARA (sync, run in thread)
+        # Check if we have a default yara rule file or if user provided one (not supported in this batch mode yet, skipping for now or using default)
+        # For now, we skip YARA in batch mode unless we have a default rule path in config, 
+        # but let's assume we might want to add it later. 
+        # To keep it simple and robust, we'll skip YARA for now in this initial implementation 
+        # unless we want to scan against a specific rule file which isn't passed here.
+        
+        # Report progress
+        completed_count += 1
+        if ctx:
+            await ctx.report_progress(completed_count, total_files)
+        
+        return file_name, file_result
+
+    # 3. Run scans in parallel
+    # Limit concurrency to avoid overwhelming the system
+    semaphore = asyncio.Semaphore(5) # Process 5 files at a time
+    
+    async def sem_scan(file_path, index):
+        async with semaphore:
+            return await scan_single_file(file_path, index)
+
+    tasks = [sem_scan(f, i) for i, f in enumerate(files_to_scan)]
+    
+    # Wait for all tasks with global timeout
+    try:
+        scan_results = await asyncio.wait_for(asyncio.gather(*tasks), timeout=timeout)
+        for name, res in scan_results:
+            results[name] = res
+    except asyncio.TimeoutError:
+        return success(
+            {"partial_results": results, "error": "Scan timed out"},
+            file_count=len(files_to_scan),
+            scanned_count=len(results),
+            status="timeout"
+        )
+
+    return success(
+        {"files": results},
+        file_count=len(files_to_scan),
+        status="completed",
+        description=f"Batch scan completed for {len(files_to_scan)} files"
+    )
+
+
+@log_execution(tool_name="run_file")
+@track_metrics("run_file")
+@handle_tool_errors
+async def run_file(file_path: str, timeout: int = DEFAULT_TIMEOUT) -> ToolResult:
+    """Identify file metadata using the ``file`` CLI utility."""
+
+    validated_path = validate_file_path(file_path)
+    cmd = ["file", str(validated_path)]
+    output, bytes_read = await execute_subprocess_async(
+        cmd,
+        max_output_size=1_000_000,
+        timeout=timeout,
+    )
+    return success(output.strip(), bytes_read=bytes_read)
+
+
+@log_execution(tool_name="run_strings")
+@track_metrics("run_strings")
+@handle_tool_errors
+async def run_strings(
+    file_path: str,
+    min_length: int = 4,
+    max_output_size: int = 10_000_000,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> ToolResult:
+    """Extract printable strings using the ``strings`` CLI."""
+
+    validate_tool_parameters(
+        "run_strings",
+        {"min_length": min_length, "max_output_size": max_output_size},
+    )
+    
+    # Enforce a reasonable minimum output size to prevent accidental truncation
+    # 1KB is too small for meaningful string analysis
+    if max_output_size < 1024 * 1024:  # Enforce 1MB minimum
+        max_output_size = 1024 * 1024
+        
+    validated_path = validate_file_path(file_path)
+    cmd = ["strings", "-n", str(min_length), str(validated_path)]
+    output, bytes_read = await execute_subprocess_async(
+        cmd,
+        max_output_size=max_output_size,
+        timeout=timeout,
+    )
+    return success(output, bytes_read=bytes_read)
+
+
+@log_execution(tool_name="run_radare2")
+@track_metrics("run_radare2")
+@circuit_breaker("run_radare2", failure_threshold=5, recovery_timeout=60)
+@handle_tool_errors
+async def run_radare2(
+    file_path: str,
+    r2_command: str,
+    max_output_size: int = 10_000_000,
+    timeout: int = DEFAULT_TIMEOUT,
+    ctx: Context = None,
+) -> ToolResult:
+    """Execute vetted radare2 commands for binary triage."""
+
+    validate_tool_parameters("run_radare2", {"r2_command": r2_command})
+    validated_path = validate_file_path(file_path)
+    validated_command = validate_r2_command(r2_command)
+    
+    # Adaptive analysis logic
+    # Use 'aa' (basic analysis) instead of 'aaa' (advanced analysis) for better performance
+    # 'aaa' is often overkill for automated tasks and causes timeouts on large binaries
+    analysis_level = "aa"
+    
+    # Simple information commands don't need analysis
+    simple_commands = ["i", "iI", "iz", "il", "is", "ie", "it"]
+    if validated_command in simple_commands or validated_command.startswith("i "):
+        analysis_level = "-n"
+    
+    # If user explicitly requested analysis, handle it via caching
+    if "aaa" in validated_command or "aa" in validated_command:
+        # Remove explicit analysis commands as they are handled by _build_r2_cmd
+        validated_command = validated_command.replace("aaa", "").replace("aa", "").strip(" ;")
+    
+    # Use helper function to execute radare2 command
+    try:
+        output, bytes_read = await _execute_r2_command(
+            validated_path,
+            [validated_command],
+            analysis_level=analysis_level,
+            max_output_size=max_output_size,
+            base_timeout=timeout,
+        )
+        return success(output, bytes_read=bytes_read)
+    except Exception as e:
+        # Log error to client if context is available
+        if ctx:
+            await ctx.error(f"radare2 command '{validated_command}' failed: {str(e)}")
+        raise
+
+
+@log_execution(tool_name="run_binwalk")
+@track_metrics("run_binwalk")
+@handle_tool_errors
+async def run_binwalk(
+    file_path: str,
+    depth: int = 8,
+    max_output_size: int = 10_000_000,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> ToolResult:
+    """Analyze binaries for embedded content using binwalk."""
+
+    validated_path = validate_file_path(file_path)
+    cmd = ["binwalk", "-A", "-d", str(depth), str(validated_path)]
+    output, bytes_read = await execute_subprocess_async(
+        cmd,
+        max_output_size=max_output_size,
+        timeout=timeout,
+    )
+    return success(output, bytes_read=bytes_read)
+
+
+@log_execution(tool_name="copy_to_workspace")
+@track_metrics("copy_to_workspace")
+@handle_tool_errors
+def copy_to_workspace(
+    source_path: str,
+    destination_name: str = None,
+) -> ToolResult:
+    """
+    Copy any accessible file to the workspace directory.
+
+    This tool allows copying files from any location (including AI agent upload directories)
+    to the workspace where other reverse engineering tools can access them.
+
+    Supports files from:
+    - Claude Desktop uploads (/mnt/user-data/uploads)
+    - Cursor uploads
+    - Windsurf uploads
+    - Local file paths
+    - Any other accessible location
+
+    Args:
+        source_path: Absolute or relative path to the source file
+        destination_name: Optional custom filename in workspace (defaults to original name)
+
+    Returns:
+        ToolResult with the new file path in workspace
+    """
+    from reversecore_mcp.core.config import get_config
+    from reversecore_mcp.core.exceptions import ValidationError
+
+    # Convert to Path and resolve (but don't require strict=True for external files)
+    try:
+        source = Path(source_path).expanduser().resolve()
+    except Exception as e:
+        raise ValidationError(
+            f"Invalid source path: {source_path}",
+            details={"source_path": source_path, "error": str(e)},
+        )
+
+    # Validate source exists and is a file
+    if not source.exists():
+        raise ValidationError(
+            f"Source file does not exist: {source}",
+            details={"source_path": str(source)},
+        )
+
+    if not source.is_file():
+        raise ValidationError(
+            f"Source path is not a file: {source}", details={"source_path": str(source)}
+        )
+
+    # Check file size (prevent copying extremely large files)
+    max_file_size = 5 * 1024 * 1024 * 1024  # 5GB
+    file_size = source.stat().st_size
+    if file_size > max_file_size:
+        raise ValidationError(
+            f"File too large to copy: {file_size} bytes (max: {max_file_size} bytes)",
+            details={"file_size": file_size, "max_size": max_file_size},
+        )
+
+    # Determine destination filename
+    if destination_name:
+        # Sanitize destination name (remove path separators and dangerous chars)
+        dest_name = Path(destination_name).name
+        # Additional sanitization for security - check if sanitization changed the name
+        if dest_name != destination_name or not dest_name:
+            raise ValidationError(
+                f"Invalid destination name: {destination_name}",
+                details={"destination_name": destination_name},
+            )
+    else:
+        dest_name = source.name
+
+    # Build destination path in workspace
+    config = get_config()
+    destination = config.workspace / dest_name
+
+    # Check if file already exists
+    if destination.exists():
+        raise ValidationError(
+            f"File already exists in workspace: {dest_name}",
+            details={
+                "destination": str(destination),
+                "hint": "Use a different destination_name or remove the existing file first",
+            },
+        )
+
+    # Copy file to workspace
+    try:
+        shutil.copy2(source, destination)
+        copied_size = destination.stat().st_size
+
+        return success(
+            str(destination),
+            source_path=str(source),
+            destination_path=str(destination),
+            file_size=copied_size,
+            message=f"File copied successfully to workspace: {dest_name}",
+        )
+    except PermissionError as e:
+        raise ValidationError(
+            f"Permission denied when copying file: {e}",
+            details={"source": str(source), "destination": str(destination)},
+        )
+    except Exception as e:
+        raise ValidationError(
+            f"Failed to copy file: {e}",
+            details={
+                "source": str(source),
+                "destination": str(destination),
+                "error": str(e),
+            },
+        )
+
+
+@log_execution(tool_name="list_workspace")
+@track_metrics("list_workspace")
+@handle_tool_errors
+def list_workspace() -> ToolResult:
+    """
+    List all files in the workspace directory.
+
+    Returns:
+        ToolResult with list of files in workspace
+    """
+    config = get_config()
+    workspace = config.workspace
+
+    if not workspace.exists():
+        return success(
+            {"files": [], "message": "Workspace is empty"},
+            file_count=0,
+            workspace_path=str(workspace),
+        )
+
+    files = []
+    for item in workspace.iterdir():
+        if item.is_file():
+            files.append(
+                {"name": item.name, "size": item.stat().st_size, "path": str(item)}
+            )
+
+    return success(
+        {"files": files}, file_count=len(files), workspace_path=str(workspace)
+    )
+
+
+def _radare2_json_to_mermaid(json_str: str) -> str:
+    """
+    Convert Radare2 'agfj' JSON output to Mermaid Flowchart syntax.
+    Optimized for LLM context efficiency.
+
+    Args:
+        json_str: JSON output from radare2 agfj command
+
+    Returns:
+        Mermaid flowchart syntax string
+    """
+    try:
+        graph_data = json.loads(json_str)
+        if not graph_data:
+            return "graph TD;\n    Error[No graph data found]"
+
+        # agfj returns list format for function graph
+        blocks = (
+            graph_data[0].get("blocks", [])
+            if isinstance(graph_data, list)
+            else graph_data.get("blocks", [])
+        )
+
+        mermaid_lines = ["graph TD"]
+
+        for block in blocks:
+            # 1. Generate node ID from offset
+            node_id = f"N_{hex(block.get('offset', 0))}"
+
+            # 2. Generate node label from assembly opcodes
+            ops = block.get("ops", [])
+            op_codes = [op.get("opcode", "") for op in ops]
+
+            # Token efficiency: limit to 5 lines per block
+            if len(op_codes) > 5:
+                op_codes = op_codes[:5] + ["..."]
+
+            # Escape Mermaid special characters
+            label_content = (
+                "\\n".join(op_codes)
+                .replace('"', "'")
+                .replace("(", "[")
+                .replace(")", "]")
+            )
+
+            # Define node
+            mermaid_lines.append(f'    {node_id}["{label_content}"]')
+
+            # 3. Create edges
+            # True branch (jump)
+            if "jump" in block:
+                target_id = f"N_{hex(block['jump'])}"
+                mermaid_lines.append(f"    {node_id} -->|True| {target_id}")
+
+            # False branch (fail)
+            if "fail" in block:
+                target_id = f"N_{hex(block['fail'])}"
+                mermaid_lines.append(f"    {node_id} -.->|False| {target_id}")
+
+        return "\n".join(mermaid_lines)
+
+    except Exception as e:
+        return f"graph TD;\n    Error[Parse Error: {str(e)}]"
+
+
+@alru_cache(maxsize=32)
+@log_execution(tool_name="generate_function_graph")
+@track_metrics("generate_function_graph")
+@handle_tool_errors
+async def _generate_function_graph_impl(
+    file_path: str,
+    function_address: str,
+    format: str = "mermaid",
+    timeout: int = DEFAULT_TIMEOUT,
+) -> ToolResult:
+    """
+    Internal implementation of generate_function_graph with caching.
+    """
+    # 1. Parameter validation
+    validate_tool_parameters(
+        "generate_function_graph",
+        {"function_address": function_address, "format": format},
+    )
+    validated_path = validate_file_path(file_path)
+
+    # 2. Security check for function address (prevent shell injection)
+    validation_error = _validate_address_or_fail(function_address, "function_address")
+    if validation_error:
+        return validation_error
+
+    # 3. Build radare2 command
+    r2_cmd_str = f"agfj @ {function_address}"
+
+    # 4. Execute subprocess asynchronously using helper
+    # Large graphs need higher output limit
+    output, bytes_read = await _execute_r2_command(
+        validated_path,
+        [r2_cmd_str],
+        analysis_level="aaa",
+        max_output_size=50_000_000,
+        base_timeout=timeout,
+    )
+
+    # Add timestamp for cache visibility
+    import time
+    timestamp = time.time()
+
+    # 5. Format conversion and return
+    if format.lower() == "json":
+        return success(output, bytes_read=bytes_read, format="json", timestamp=timestamp)
+
+    elif format.lower() == "mermaid":
+        mermaid_code = _radare2_json_to_mermaid(output)
+        return success(
+            mermaid_code,
+            bytes_read=bytes_read,
+            format="mermaid",
+            description="Render this using Mermaid to see the control flow.",
+            timestamp=timestamp
+        )
+
+    elif format.lower() == "dot":
+        # For DOT format, call radare2 with agfd command
+        # NOTE: This is a separate call from agfj above, but this is optimal because:
+        # - DOT format requires a different command (agfd vs agfj)
+        # - Batching both would waste resources since we only need one format
+        # - DOT format is rarely used (mermaid and json are preferred)
+        dot_cmd_str = f"agfd @ {function_address}"
+        
+        dot_output, dot_bytes = await _execute_r2_command(
+            validated_path,
+            [dot_cmd_str],
+            analysis_level="aaa",
+            max_output_size=50_000_000,
+            base_timeout=timeout,
+        )
+        return success(dot_output, bytes_read=dot_bytes, format="dot")
+
+    return failure("INVALID_FORMAT", f"Unsupported format: {format}")
+
+
+async def generate_function_graph(
+    file_path: str,
+    function_address: str,
+    format: str = "mermaid",
+    timeout: int = DEFAULT_TIMEOUT,
+) -> ToolResult:
+    """
+    Generate a Control Flow Graph (CFG) for a specific function.
+
+    This tool uses radare2 to analyze the function structure and returns
+    a visualization code (Mermaid by default) or PNG image that helps AI understand
+    the code flow without reading thousands of lines of assembly.
+
+    Args:
+        file_path: Path to the binary file (must be in workspace)
+        function_address: Function address (e.g., 'main', '0x140001000', 'sym.foo')
+        format: Output format ('mermaid', 'json', 'dot', or 'png'). Default is 'mermaid'.
+        timeout: Execution timeout in seconds
+
+    Returns:
+        ToolResult with CFG visualization, JSON data, or PNG image
+    """
+    import time
+    
+    # If PNG format requested, generate DOT first then convert
+    if format.lower() == "png":
+        # Get DOT format first
+        result = await _generate_function_graph_impl(
+            file_path, function_address, "dot", timeout
+        )
+        
+        if result.is_error:
+            return result
+            
+        # Convert DOT to PNG using graphviz
+        try:
+            import subprocess
+            import tempfile
+            from pathlib import Path as PathlibPath
+            
+            # Get DOT content from result
+            dot_content = result.content[0].text if result.content else ""
+            
+            # Create temp files
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.dot', delete=False) as dot_file:
+                dot_file.write(dot_content)
+                dot_path = dot_file.name
+            
+            png_path = dot_path.replace('.dot', '.png')
+            
+            try:
+                # Use graphviz's dot command to convert DOT to PNG
+                subprocess.run(
+                    ['dot', '-Tpng', dot_path, '-o', png_path],
+                    check=True,
+                    timeout=30,
+                    capture_output=True
+                )
+                
+                # Read PNG file
+                png_data = PathlibPath(png_path).read_bytes()
+                
+                # Return Image object
+                return Image(data=png_data, mime_type="image/png")
+                
+            finally:
+                # Cleanup temp files
+                try:
+                    PathlibPath(dot_path).unlink()
+                    if PathlibPath(png_path).exists():
+                        PathlibPath(png_path).unlink()
+                except:
+                    pass
+                    
+        except Exception as e:
+            return failure(
+                "IMAGE_GENERATION_ERROR",
+                f"Failed to generate PNG image: {str(e)}",
+                hint="Ensure graphviz is installed in the container"
+            )
+    
+    # For other formats, use existing implementation
+    result = await _generate_function_graph_impl(
+        file_path, function_address, format, timeout
+    )
+    
+    # Check for cache hit
+    if result.status == "success" and result.metadata:
+        ts = result.metadata.get("timestamp")
+        if ts and (time.time() - ts > 1.0):
+            result.metadata["cache_hit"] = True
+            # Update description to indicate cached result
+            # Note: ToolSuccess has 'data' field, not 'content'
+            pass
+                
+    return result
+
+
+def _parse_register_state(ar_output: str) -> dict:
+    """
+    Parse radare2 'ar' command output into structured register state.
+
+    Args:
+        ar_output: Raw output from 'ar' command
+
+    Returns:
+        Dictionary mapping register names to values
+
+    Example output from 'ar':
+        rax = 0x00000000
+        rbx = 0x00401000
+        ...
+    """
+    registers = {}
+
+    for line in ar_output.strip().split("\n"):
+        if "=" in line:
+            parts = line.split("=")
+            if len(parts) == 2:
+                reg_name = parts[0].strip()
+                reg_value = parts[1].strip()
+                registers[reg_name] = reg_value
+
+    return registers
+
+
+@log_execution(tool_name="emulate_machine_code")
+@track_metrics("emulate_machine_code")
+@handle_tool_errors
+async def emulate_machine_code(
+    file_path: str,
+    start_address: str,
+    instructions: int = 50,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> ToolResult:
+    """
+    Emulate machine code execution using radare2 ESIL (Evaluable Strings Intermediate Language).
+
+    This tool provides safe, sandboxed emulation of binary code without actual execution.
+    Perfect for analyzing obfuscated code, understanding register states, and predicting
+    execution outcomes without security risks.
+
+    **Key Use Cases:**
+    - De-obfuscation: Reveal hidden strings by emulating XOR/shift operations
+    - Register Analysis: See final register values after code execution
+    - Safe Malware Analysis: Predict behavior without running malicious code
+
+    **Safety Features:**
+    - Virtual CPU simulation (no real execution)
+    - Instruction count limit (max 1000) prevents infinite loops
+    - Memory sandboxing (changes don't affect host system)
+
+    Args:
+        file_path: Path to the binary file (must be in workspace)
+        start_address: Address to start emulation (e.g., 'main', '0x401000', 'sym.decrypt')
+        instructions: Number of instructions to execute (default 50, max 1000)
+        timeout: Execution timeout in seconds
+
+    Returns:
+        ToolResult with register states and emulation summary
+    """
+    # 1. Parameter validation
+    validate_tool_parameters(
+        "emulate_machine_code",
+        {"start_address": start_address, "instructions": instructions},
+    )
+    validated_path = validate_file_path(file_path)
+
+    # 2. Security check for start address (prevent shell injection)
+    validation_error = _validate_address_or_fail(start_address, "start_address")
+    if validation_error:
+        return validation_error
+
+    # 3. Build radare2 ESIL emulation command chain
+    # Note: Commands must be executed in specific order for ESIL to work correctly
+    esil_cmds = [
+        f"s {start_address}",  # Seek to start address
+        "aei",  # Initialize ESIL VM
+        "aeim",  # Initialize ESIL memory (stack)
+        "aeip",  # Initialize program counter to current seek
+        f"aes {instructions}",  # Step through N instructions
+        "ar",  # Show all registers
+    ]
+    
+    # 4. Execute emulation using helper
+    try:
+        output, bytes_read = await _execute_r2_command(
+            validated_path,
+            esil_cmds,
+            analysis_level="aaa",
+            max_output_size=10_000_000,
+            base_timeout=timeout,
+        )
+
+        # 5. Parse register state
+        register_state = _parse_register_state(output)
+
+        if not register_state:
+            return failure(
+                "EMULATION_ERROR",
+                "Failed to extract register state from emulation output",
+                hint="The binary may not be compatible with ESIL emulation, or the start address is invalid",
+            )
+
+        # 6. Build result with metadata
+        return success(
+            register_state,
+            bytes_read=bytes_read,
+            format="register_state",
+            instructions_executed=instructions,
+            start_address=start_address,
+            description=f"Emulated {instructions} instructions starting at {start_address}",
+        )
+
+    except Exception as e:
+        return failure(
+            "EMULATION_ERROR",
+            f"ESIL emulation failed: {str(e)}",
+            hint="Check that the binary architecture is supported and the start address is valid",
+        )
+
+
+@log_execution(tool_name="get_pseudo_code")
+@track_metrics("get_pseudo_code")
+@handle_tool_errors
+async def get_pseudo_code(
+    file_path: str,
+    address: str = "main",
+    timeout: int = DEFAULT_TIMEOUT,
+) -> ToolResult:
+    """
+    Generate pseudo C code (decompilation) for a function using radare2's pdc command.
+
+    This tool decompiles binary code into C-like pseudocode, making it much easier
+    to understand program logic compared to raw assembly. The output can be further
+    refined by AI for better readability.
+
+    **Use Cases:**
+    - Quick function understanding without reading assembly
+    - AI-assisted code analysis and refactoring
+    - Documentation generation from binaries
+    - Reverse engineering workflow optimization
+
+    **Note:** The output is "pseudo C" - it may not be syntactically perfect C,
+    but provides a high-level representation of the function logic.
+
+    Args:
+        file_path: Path to the binary file (must be in workspace)
+        address: Function address to decompile (e.g., 'main', '0x401000', 'sym.foo')
+        timeout: Execution timeout in seconds (default 300)
+
+    Returns:
+        ToolResult with pseudo C code string
+
+    Example:
+        get_pseudo_code("/app/workspace/sample.exe", "main")
+        # Returns C-like code representation of the main function
+    """
+    # 1. Validate file path
+    validated_path = validate_file_path(file_path)
+
+    # 2. Security check for address (prevent shell injection)
+    validation_error = _validate_address_or_fail(address, "address")
+    if validation_error:
+        return validation_error
+
+    # 3. Build radare2 command to decompile
+    r2_cmd = f"pdc @ {address}"
+    
+    # 4. Execute decompilation using helper
+    output, bytes_read = await _execute_r2_command(
+        validated_path,
+        [r2_cmd],
+        analysis_level="aaa",
+        max_output_size=10_000_000,
+        base_timeout=timeout,
+    )
+
+    # 5. Check if output is valid
+    if not output or output.strip() == "":
+        return failure(
+            "DECOMPILATION_ERROR",
+            f"No decompilation output for address: {address}",
+            hint="Verify the address exists and points to a valid function. Try analyzing with 'afl' first.",
+        )
+
+    # 6. Return pseudo C code
+    return success(
+        output,
+        bytes_read=bytes_read,
+        address=address,
+        format="pseudo_c",
+        description=f"Pseudo C code decompiled from address {address}",
+    )
+
+
+@log_execution(tool_name="generate_signature")
+@track_metrics("generate_signature")
+@handle_tool_errors
+async def generate_signature(
+    file_path: str,
+    address: str,
+    length: int = 32,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> ToolResult:
+    """
+    Generate a YARA signature from opcode bytes at a specific address.
+
+    This tool extracts opcode bytes from a function or code section and formats
+    them as a YARA rule, enabling automated malware detection. It attempts to
+    mask variable values (addresses, offsets) to create more flexible signatures.
+
+    **Use Cases:**
+    - Generate detection signatures for malware samples
+    - Create YARA rules for threat hunting
+    - Automate IOC (Indicator of Compromise) generation
+    - Build malware family signatures
+
+    **Workflow:**
+    1. Extract opcode bytes from specified address
+    2. Apply basic masking for variable values (optional)
+    3. Format as YARA rule template
+    4. Return ready-to-use YARA rule
+
+    Args:
+        file_path: Path to the binary file (must be in workspace)
+        address: Start address for signature extraction (e.g., 'main', '0x401000')
+        length: Number of bytes to extract (default 32, recommended 16-64)
+        timeout: Execution timeout in seconds (default 300)
+
+    Returns:
+        ToolResult with YARA rule string
+
+    Example:
+        generate_signature("/app/workspace/malware.exe", "0x401000", 48)
+        # Returns a YARA rule with extracted byte pattern
+    """
+    # 1. Validate parameters
+    validated_path = validate_file_path(file_path)
+
+    if not isinstance(length, int) or length < 1 or length > 1024:
+        return failure(
+            "VALIDATION_ERROR",
+            "Length must be between 1 and 1024 bytes",
+            hint="Typical signature lengths are 16-64 bytes for good detection accuracy",
+        )
+
+    # 2. Security check for address
+    validation_error = _validate_address_or_fail(address, "address")
+    if validation_error:
+        return validation_error
+
+    # 3. Extract hex bytes using radare2's p8 command
+    r2_cmds = [
+        f"s {address}",  # Seek to address
+        f"p8 {length}",  # Print hex bytes
+    ]
+    
+    # Adaptive analysis: if address is hex, we don't need full analysis
+    # If it's a symbol, we use default loading (empty string) which parses headers/symbols
+    # NOTE: For p8 (print bytes), we must ensure we are reading from the correct map.
+    # 'io.maps' might be needed if sections aren't mapped.
+    # But usually r2 maps sections automatically.
+    # If we get all FF, it might be unmapped.
+    # Let's force mapping if possible, or just rely on standard loading.
+    
+    analysis_level = ""
+    if address.startswith("0x") or re.match(r"^[0-9a-fA-F]+$", address):
+        # Even for hex addresses, we might need basic header parsing to map sections correctly
+        # -n skips everything. Let's try without -n if we suspect mapping issues,
+        # but -n is faster.
+        # If the user reports 0xFF, maybe we are reading from file offset instead of virtual address?
+        # r2 default is virtual address.
+        # Let's stick to -n for speed, but if it fails, we might need to revisit.
+        # Actually, let's use 'e io.cache=true' to ensure we can read? No.
+        analysis_level = "-n"
+        
+    # Extract hex bytes using helper
+    # Note: analysis_level may be "" (empty) which means default r2 behavior (parse headers/symbols)
+    output, bytes_read = await _execute_r2_command(
+        validated_path,
+        r2_cmds,
+        analysis_level=analysis_level or "aaa",
+        max_output_size=1_000_000,
+        base_timeout=timeout,
+    )
+
+    # 4. Validate output
+    hex_bytes = output.strip()
+    if not hex_bytes or not re.match(r"^[0-9a-fA-F]+$", hex_bytes):
+        return failure(
+            "SIGNATURE_ERROR",
+            f"Failed to extract valid hex bytes from address: {address}",
+            hint="Verify the address is valid and contains executable code",
+        )
+
+    # Check for all 0xFF or 0x00 (likely unmapped memory)
+    if re.match(r"^(ff)+$", hex_bytes, re.IGNORECASE) or re.match(r"^(00)+$", hex_bytes):
+        # If we used -n, try again without it to force mapping
+        if analysis_level == "-n":
+             cmd = _build_r2_cmd(str(validated_path), r2_cmds, "aaa")
+             output, _ = await execute_subprocess_async(
+                cmd,
+                max_output_size=1_000_000,
+                timeout=effective_timeout,
+            )
+             hex_bytes = output.strip()
+             
+             # Re-check
+             if re.match(r"^(ff)+$", hex_bytes, re.IGNORECASE) or re.match(r"^(00)+$", hex_bytes):
+                 return failure(
+                    "SIGNATURE_ERROR",
+                    f"Extracted bytes are all 0xFF or 0x00 at {address}. The memory might be unmapped or empty.",
+                    hint="Try a different address or ensure the binary is loaded correctly."
+                )
+        else:
+             return failure(
+                "SIGNATURE_ERROR",
+                f"Extracted bytes are all 0xFF or 0x00 at {address}. The memory might be unmapped or empty.",
+                hint="Try a different address or ensure the binary is loaded correctly."
+            )
+
+    # 5. Format as YARA hex string (space-separated pairs)
+    # Convert: "4883ec20" -> "48 83 ec 20"
+    # OPTIMIZED: Use generator expression to avoid intermediate list
+    formatted_bytes = _format_hex_bytes(hex_bytes)
+
+    # 6. Generate YARA rule template
+    # Extract filename for rule name using cached helper
+    file_name = _sanitize_filename_for_rule(file_path)
+    rule_name = f"suspicious_{file_name}_{address.replace('0x', 'x')}"
+
+    yara_rule = f"""rule {rule_name} {{
+    meta:
+        description = "Auto-generated signature for {file_name}"
+        address = "{address}"
+        length = {length}
+        author = "Reversecore_MCP"
+        date = "auto-generated"
+        
+    strings:
+        $code = {{ {formatted_bytes} }}
+        
+    condition:
+        $code
+}}"""
+
+    # 7. Return YARA rule
+    return success(
+        yara_rule,
+        bytes_read=bytes_read,
+        address=address,
+        length=length,
+        format="yara",
+        hex_bytes=formatted_bytes,
+        description=f"YARA signature generated from {length} bytes at {address}",
+    )
+
+
+@log_execution(tool_name="extract_rtti_info")
+@track_metrics("extract_rtti_info")
+@handle_tool_errors
+async def extract_rtti_info(
+    file_path: str,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> ToolResult:
+    """
+    Extract C++ RTTI (Run-Time Type Information) and class structure information.
+
+    This tool analyzes C++ binaries to recover class names, methods, and inheritance
+    hierarchies using RTTI metadata and symbol tables. Essential for reverse engineering
+    large C++ applications like games and commercial software.
+
+    **Use Cases:**
+    - Recover class structure from C++ binaries
+    - Map out object hierarchies in games/applications
+    - Identify virtual function tables (vtables)
+    - Understand C++ software architecture
+    - Generate class diagrams from binaries
+
+    **Extracted Information:**
+    - Class names and namespaces
+    - Virtual methods and vtables
+    - Type descriptors
+    - Symbol information
+    - Import/export functions
+
+    **Note:** RTTI recovery works best with binaries compiled with RTTI enabled
+    (typically the default). Stripped or heavily obfuscated binaries may have
+    limited RTTI information.
+
+    Args:
+        file_path: Path to the binary file (must be in workspace)
+        timeout: Execution timeout in seconds (default 300)
+
+    Returns:
+        ToolResult with structured RTTI information including classes, symbols, and methods
+
+    Example:
+        extract_rtti_info("/app/workspace/game.exe")
+        # Returns JSON with class hierarchy and method information
+    """
+    # 1. Validate file path
+    validated_path = validate_file_path(file_path)
+
+    # 2. Build radare2 command chain to extract RTTI and symbols
+    # We'll use multiple commands to get comprehensive information
+    r2_cmds = ["icj"]  # List classes in JSON format
+
+    # 3. Execute class extraction using helper
+    classes_output, bytes_read = await _execute_r2_command(
+        validated_path,
+        r2_cmds,
+        analysis_level="aaa",
+        max_output_size=50_000_000,  # Class info can be large for complex binaries
+        base_timeout=timeout,
+    )
+
+    # 4. Extract symbols using helper
+    symbols_cmds = ["isj"]  # List symbols in JSON format
+    symbols_output, symbols_bytes = await _execute_r2_command(
+        validated_path,
+        symbols_cmds,
+        analysis_level="aaa",
+        max_output_size=50_000_000,
+        base_timeout=timeout,
+    )
+
+    # 5. Parse JSON outputs
+    try:
+        # Robust JSON extraction for classes
+        if classes_output.strip():
+            classes = _parse_json_output(classes_output)
+        else:
+            classes = []
+
+        # Robust JSON extraction for symbols
+        if symbols_output.strip():
+            symbols = _parse_json_output(symbols_output)
+        else:
+            symbols = []
+
+    except json.JSONDecodeError as e:
+        return failure(
+            "PARSE_ERROR",
+            f"Failed to parse RTTI output: {str(e)}",
+            hint="The binary may not contain valid RTTI information or is not a C++ binary",
+        )
+
+    # 6. Filter and organize C++ specific symbols
+    cpp_classes = []
+    cpp_methods = []
+    vtables = []
+
+    # Process classes
+    for cls in classes:
+        if isinstance(cls, dict):
+            cpp_classes.append(
+                {
+                    "name": cls.get("classname", "unknown"),
+                    "address": cls.get("addr", "0x0"),
+                    "methods": cls.get("methods", []),
+                    "vtable": cls.get("vtable", None),
+                }
+            )
+
+    # Process symbols to find C++ related items
+    for sym in symbols:
+        if isinstance(sym, dict):
+            name = sym.get("name", "")
+            sym_type = sym.get("type", "")
+
+            # Detect C++ mangled names (start with _Z or ??)
+            if name.startswith("_Z") or name.startswith("??"):
+                cpp_methods.append(
+                    {
+                        "name": name,
+                        "address": sym.get("vaddr", sym.get("paddr", "0x0")),
+                        "type": sym_type,
+                        "size": sym.get("size", 0),
+                    }
+                )
+
+            # Detect vtables
+            if "vtable" in name.lower() or name.startswith("vtable"):
+                vtables.append(
+                    {"name": name, "address": sym.get("vaddr", sym.get("paddr", "0x0"))}
+                )
+
+    # 7. Build comprehensive RTTI report
+    rtti_info = {
+        "classes": cpp_classes,
+        "class_count": len(cpp_classes),
+        "methods": cpp_methods[:100],  # Limit to first 100 for readability
+        "method_count": len(cpp_methods),
+        "vtables": vtables,
+        "vtable_count": len(vtables),
+        "has_rtti": len(cpp_classes) > 0 or len(vtables) > 0,
+        "binary_type": (
+            "C++" if (len(cpp_classes) > 0 or len(cpp_methods) > 0) else "Unknown"
+        ),
+    }
+
+    # 8. Add summary message
+    if not rtti_info["has_rtti"]:
+        description = "No RTTI information found. Binary may be stripped, not C++, or compiled without RTTI."
+    else:
+        description = f"Found {rtti_info['class_count']} classes, {rtti_info['method_count']} methods, {rtti_info['vtable_count']} vtables"
+
+    # 9. Return structured RTTI information
+    return success(
+        rtti_info,
+        bytes_read=bytes_read + symbols_bytes,
+        format="rtti_info",
+        description=description,
+    )
 
 
 @alru_cache(maxsize=32)
@@ -75,27 +1610,39 @@ async def _smart_decompile_impl(
     # 3. Try Ghidra first if requested and available
     if use_ghidra:
         try:
-            # Use GhidraManager for persistent JVM
-            logger.info(f"Using Ghidra decompiler for {function_address}")
-            
-            c_code = await ghidra_manager.decompile_async(
-                str(validated_path), function_address
+            from reversecore_mcp.core.ghidra_helper import (
+                ensure_ghidra_available,
+                decompile_function_with_ghidra,
             )
 
-            return success(
-                c_code,
-                function_address=function_address,
-                format="pseudo_c",
-                decompiler="ghidra",
-                description=f"Decompiled {function_address} using Ghidra (JVM reused)"
-            )
+            if ensure_ghidra_available():
+                logger.info(f"Using Ghidra decompiler for {function_address}")
 
-        except Exception as ghidra_error:
-            logger.warning(
-                f"Ghidra decompilation failed: {ghidra_error}. "
-                "Falling back to radare2"
-            )
-            # Fall through to radare2
+                # Run Ghidra decompilation
+                try:
+                    c_code, metadata = decompile_function_with_ghidra(
+                        validated_path, function_address, timeout
+                    )
+
+                    return success(
+                        c_code,
+                        function_address=function_address,
+                        format="pseudo_c",
+                        decompiler="ghidra",
+                        **metadata,
+                    )
+
+                except Exception as ghidra_error:
+                    logger.warning(
+                        f"Ghidra decompilation failed: {ghidra_error}. "
+                        "Falling back to radare2"
+                    )
+                    # Fall through to radare2
+            else:
+                logger.info("Ghidra not available, using radare2")
+
+        except ImportError:
+            logger.info("PyGhidra not installed, using radare2")
 
     # 4. Fallback to radare2 (original implementation)
     logger.info(f"Using radare2 decompiler for {function_address}")
@@ -112,6 +1659,8 @@ async def _smart_decompile_impl(
             base_timeout=timeout,
         )
     except Exception as e:
+        # If 'aaa' fails, try lighter analysis 'aa' or just '-n' if desperate,
+        # but pdc requires analysis.
         return failure(
             "DECOMPILATION_ERROR",
             f"Radare2 decompilation failed: {str(e)}",
@@ -1218,51 +2767,33 @@ async def _execute_r2_command(
     base_timeout: int = 300,
 ) -> tuple[str, int]:
     """
-    Execute radare2 commands using the persistent connection pool.
+    Execute radare2 commands with common pattern.
+    
+    This helper consolidates the repeated pattern of:
+    1. Calculate dynamic timeout
+    2. Build r2 command
+    3. Execute subprocess
+    
+    Args:
+        file_path: Path to the binary file (already validated)
+        r2_commands: List of radare2 commands to execute
+        analysis_level: Analysis level ("aaa", "aa", "-n")
+        max_output_size: Maximum output size in bytes
+        base_timeout: Base timeout in seconds
+        
+    Returns:
+        Tuple of (output, bytes_read)
     """
-    logger = get_logger(__name__)
     effective_timeout = _calculate_dynamic_timeout(str(file_path), base_timeout)
+    cmd = _build_r2_cmd(str(file_path), r2_commands, analysis_level)
     
-    # Prepare commands
-    cmds = []
-    if analysis_level and analysis_level != "-n":
-        # Check if already analyzed
-        if r2_pool.is_analyzed(str(file_path)):
-            # Skip 'aaa' if already analyzed
-            pass
-        else:
-            # Run analysis and mark as analyzed
-            cmds.append(analysis_level)
-            # We can't easily mark it here because we haven't run it yet.
-            # But we can assume if this command succeeds, it will be analyzed.
-            # However, r2_pool.execute runs it.
-            # We'll mark it after successful execution.
-            
-    cmds.extend(r2_commands)
-    full_cmd = ";".join(cmds)
+    output, bytes_read = await execute_subprocess_async(
+        cmd,
+        max_output_size=max_output_size,
+        timeout=effective_timeout,
+    )
     
-    try:
-        # Execute via pool with timeout
-        output = await asyncio.wait_for(
-            r2_pool.execute_async(str(file_path), full_cmd),
-            timeout=effective_timeout
-        )
-        
-        # Mark analyzed if we ran analysis
-        if analysis_level and analysis_level != "-n" and not r2_pool.is_analyzed(str(file_path)):
-             r2_pool.mark_analyzed(str(file_path))
-        
-        # Handle output size limit
-        if len(output) > max_output_size:
-            output = output[:max_output_size] + "... (truncated)"
-            
-        return output, len(output)
-        
-    except asyncio.TimeoutError:
-        raise ToolExecutionError(f"Radare2 command timed out after {effective_timeout}s")
-    except Exception as e:
-        logger.error(f"R2 execution failed: {e}")
-        raise ToolExecutionError(f"Radare2 execution failed: {str(e)}")
+    return output, bytes_read
 
 
 def _build_r2_cmd(file_path: str, r2_commands: list[str], analysis_level: str = "aaa") -> list[str]:
@@ -1817,37 +3348,3 @@ Reason: <why this name>
             f"Failed to suggest function name: {str(e)}",
             hint="Ensure the function can be decompiled and client supports sampling"
         )
-
-
-def register_cli_tools(mcp: FastMCP) -> None:
-    """
-    Register all CLI tool wrappers with the FastMCP server.
-
-    Args:
-        mcp: The FastMCP server instance to register tools with
-    """
-    mcp.tool(run_file)
-    mcp.tool(run_strings)
-    mcp.tool(run_radare2)
-    mcp.tool(run_binwalk)
-    mcp.tool(copy_to_workspace)
-    mcp.tool(list_workspace)
-    mcp.tool(generate_function_graph)
-    mcp.tool(emulate_machine_code)
-    mcp.tool(get_pseudo_code)
-    mcp.tool(generate_signature)
-    mcp.tool(extract_rtti_info)
-    mcp.tool(smart_decompile)
-    mcp.tool(generate_yara_rule)
-    mcp.tool(analyze_xrefs)
-    mcp.tool(recover_structures)
-    mcp.tool(diff_binaries)
-    mcp.tool(match_libraries)
-    mcp.tool(scan_workspace)
-    mcp.tool(trace_execution_path)
-    mcp.tool(scan_for_versions)
-    mcp.tool(analyze_variant_changes)
-    mcp.tool(solve_path_constraints)
-    # AI-powered tools (using LLM sampling)
-    mcp.tool(analyze_with_ai)
-    mcp.tool(suggest_function_name)
