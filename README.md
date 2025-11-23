@@ -11,7 +11,19 @@
 
 An enterprise-grade MCP (Model Context Protocol) server that empowers AI agents to perform comprehensive reverse engineering workflows through natural language commands. From basic triage to advanced decompilation, structure recovery, cross-reference analysis, and defense signature generation, Reversecore_MCP provides a secure, performant interface to industry-standard reverse engineering tools, enabling AI assistants to conduct end-to-end malware analysis and security research.
 
-## 💻 System Requirements
+## � Reversecore Signature: Ghost Trace
+
+**"Detecting the Undetectable"**
+
+Ghost Trace is a proprietary hybrid analysis technology exclusive to Reversecore_MCP that transcends the limits of traditional static and dynamic analysis. It identifies "Logic Bombs" and "Dormant Malware" that evade sandbox detection by combining static code analysis with AI-driven partial emulation.
+
+- **🕵️‍♂️ Orphan Function Detection**: Identifies hidden code blocks that are never called during normal execution but exist in the binary (potential backdoors).
+- **💣 Logic Bomb Hunter**: Scans for "Magic Value" triggers (e.g., specific dates, hardcoded keys) that activate malicious payloads.
+- **👻 Hybrid Emulation**: Uses `radare2` ESIL to surgically emulate only the suspicious code paths with AI-injected context, verifying malicious behavior without running the full program.
+
+> *Ghost Trace allows you to predict future malicious behavior that hasn't happened yet.*
+
+## �💻 System Requirements
 
 | Category | Minimum Specification | Recommended Specification |
 |----------|----------------------|---------------------------|
