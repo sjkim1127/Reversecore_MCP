@@ -7,6 +7,9 @@ DecompInterface API through PyGhidra.
 
 import re
 import tempfile
+import os
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple, TYPE_CHECKING
 
@@ -77,6 +80,29 @@ def ensure_ghidra_available() -> bool:
         return False
 
 
+def _configure_ghidra_environment():
+    """
+    Attempt to configure Ghidra environment variables to prevent launch errors.
+    
+    This tries to locate JAVA_HOME if not set, which is required for PyGhidra
+    to launch Ghidra successfully without permission errors.
+    """
+    # 1. Try to set JAVA_HOME if missing
+    if not os.environ.get("JAVA_HOME"):
+        java_path = shutil.which("java")
+        if java_path:
+            try:
+                # Resolve symlinks to find real path
+                real_path = Path(java_path).resolve()
+                # Usually java is in bin/java, so JDK home is parent of bin
+                if real_path.name == "java" and real_path.parent.name == "bin":
+                    java_home = real_path.parent.parent
+                    os.environ["JAVA_HOME"] = str(java_home)
+                    logger.info(f"Set JAVA_HOME to {java_home}")
+            except Exception as e:
+                logger.warning(f"Failed to resolve JAVA_HOME: {e}")
+
+
 def decompile_function_with_ghidra(
     file_path: Path,
     function_address: str,
@@ -99,6 +125,7 @@ def decompile_function_with_ghidra(
     """
     try:
         import pyghidra
+        _configure_ghidra_environment()
     except ImportError as e:
         raise ImportError(
             "PyGhidra is not installed. Install with: pip install pyghidra"
@@ -188,6 +215,14 @@ def decompile_function_with_ghidra(
                     # Always dispose of decompiler resources
                     decompiler.dispose()
                     
+        except subprocess.CalledProcessError as e:
+            if "LaunchSupport" in str(e.cmd):
+                logger.error("Ghidra LaunchSupport failed. Check JAVA_HOME and permissions.")
+                raise ValidationError(
+                    "Ghidra failed to launch. Please ensure JAVA_HOME is set correctly and the user has write permissions to Ghidra installation.",
+                    details={"error": str(e), "command": str(e.cmd)}
+                )
+            raise
         except Exception as e:
             logger.error(f"Ghidra decompilation failed: {e}", exc_info=True)
             raise
@@ -247,6 +282,7 @@ def get_ghidra_version() -> Optional[str]:
     """
     try:
         import pyghidra
+        _configure_ghidra_environment()
         pyghidra.start()
         
         from ghidra import framework
@@ -281,6 +317,7 @@ def recover_structures_with_ghidra(
     """
     try:
         import pyghidra
+        _configure_ghidra_environment()
     except ImportError as e:
         raise ImportError(
             "PyGhidra is not installed. Install with: pip install pyghidra"
@@ -445,6 +482,14 @@ def recover_structures_with_ghidra(
                     # Always dispose of decompiler resources
                     decompiler.dispose()
                     
+        except subprocess.CalledProcessError as e:
+            if "LaunchSupport" in str(e.cmd):
+                logger.error("Ghidra LaunchSupport failed. Check JAVA_HOME and permissions.")
+                raise ValidationError(
+                    "Ghidra failed to launch. Please ensure JAVA_HOME is set correctly and the user has write permissions to Ghidra installation.",
+                    details={"error": str(e), "command": str(e.cmd)}
+                )
+            raise
         except Exception as e:
             logger.error(f"Ghidra structure recovery failed: {e}", exc_info=True)
             raise
