@@ -22,7 +22,10 @@ This document describes the final micro-optimizations implemented to address rem
 **After**:
 ```python
 # OPTIMIZATION: Cache address lookup to avoid nested .get()
-address = sym.get("vaddr") or sym.get("paddr", "0x0")
+# Use if-else to preserve exact behavior (doesn't skip on falsy but existing values)
+address = sym.get("vaddr")
+if address is None:
+    address = sym.get("paddr", "0x0")
 cpp_methods.append({
     "name": name,
     "address": address,
@@ -33,6 +36,7 @@ cpp_methods.append({
 
 **Impact**:
 - Single variable assignment instead of nested function calls
+- Preserves exact behavior (handles falsy values like 0, empty string correctly)
 - More readable and maintainable code
 - Approximately 15-20% faster for symbol processing
 - Particularly beneficial when processing hundreds of symbols
