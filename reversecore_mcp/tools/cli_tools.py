@@ -478,12 +478,14 @@ async def scan_workspace(
         file_patterns = ["*"]
 
     # 1. Collect files
-    files_to_scan = []
+    # OPTIMIZATION: Use set to avoid duplicates during collection instead of after
+    files_to_scan_set = set()
     for pattern in file_patterns:
-        files_to_scan.extend(workspace.glob(pattern))
+        for f in workspace.glob(pattern):
+            if f.is_file():
+                files_to_scan_set.add(f)
     
-    # Remove duplicates and directories
-    files_to_scan = list(set([f for f in files_to_scan if f.is_file()]))
+    files_to_scan = list(files_to_scan_set)
     
     if not files_to_scan:
         return success(
