@@ -3,13 +3,15 @@
 # This Dockerfile uses a multi-stage build to reduce final image size and improve security.
 # Build stage includes compilation tools, while runtime stage only contains necessary dependencies.
 #
+# Framework: FastMCP v2.13.1+ (Latest MCP server framework)
+#
 # Note: radare2 is not available in Debian Bookworm main repo, so we skip version pinning for it
 # or install it from testing/backports if needed.
 #
 # Supported Features:
 # - Basic Analysis: file, strings, binwalk
 # - Disassembly & Analysis: radare2 (pdf, afl, ii, iz, etc.)
-# - CFG Visualization: radare2 agfj (graph JSON)
+# - CFG Visualization: radare2 agfj (graph JSON) + graphviz (PNG generation)
 # - ESIL Emulation: radare2 aei/aeim/aes (virtual CPU)
 # - Smart Decompile: Ghidra DecompInterface (primary), radare2 pdc (fallback)
 # - YARA Rule Generation: radare2 p8 (opcode extraction)
@@ -17,6 +19,7 @@
 # - Pattern Matching: YARA scanning
 # - Multi-arch Disassembly: Capstone
 # - Binary Parsing: LIEF (PE/ELF/Mach-O)
+# - FastMCP Advanced: Progress Reporting, Client Logging, Image Content, Dynamic Resources, AI Sampling
 
 # ============================================================================
 # Build Stage: Install dependencies that require compilation
