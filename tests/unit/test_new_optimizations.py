@@ -76,6 +76,7 @@ def test_resource_manager_cleanup_uses_chain():
     """Test that resource manager uses itertools.chain for efficient cleanup."""
     from reversecore_mcp.core.resource_manager import ResourceManager
     import tempfile
+    import inspect
     
     # Create a temporary workspace with test files
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -99,9 +100,6 @@ def test_resource_manager_cleanup_uses_chain():
         # Verify chain is used in the code by checking the cleanup logic
         # The optimization uses itertools.chain to combine multiple glob patterns
         # This test verifies the pattern exists in the code
-        import inspect
-        from reversecore_mcp.core.resource_manager import ResourceManager
-        
         source = inspect.getsource(ResourceManager.cleanup)
         assert "chain" in source, "Resource manager should use itertools.chain for optimization"
 

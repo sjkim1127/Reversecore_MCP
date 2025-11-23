@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from reversecore_mcp.core import config
 from reversecore_mcp.core.config import Config
 from reversecore_mcp.core.resource_manager import ResourceManager, resource_manager
 
@@ -98,7 +99,6 @@ class TestResourceManager:
         # Mock config
         mock_config = _create_mock_config(workspace)
         
-        from reversecore_mcp.core import config
         monkeypatch.setattr(config, "get_config", lambda: mock_config)
         
         # Manually set old mtime using os
@@ -127,7 +127,6 @@ class TestResourceManager:
         # Mock config
         mock_config = _create_mock_config(workspace)
         
-        from reversecore_mcp.core import config
         monkeypatch.setattr(config, "get_config", lambda: mock_config)
         
         # Run cleanup
@@ -147,7 +146,6 @@ class TestResourceManager:
         # Mock config
         mock_config = _create_mock_config(workspace)
         
-        from reversecore_mcp.core import config
         monkeypatch.setattr(config, "get_config", lambda: mock_config)
         
         # Run cleanup (should not raise)
@@ -164,7 +162,6 @@ class TestResourceManager:
         # Mock config
         mock_config = _create_mock_config(workspace)
         
-        from reversecore_mcp.core import config
         monkeypatch.setattr(config, "get_config", lambda: mock_config)
         
         # Create manager with short interval
@@ -216,7 +213,6 @@ class TestResourceManager:
         # Mock config
         mock_config = _create_mock_config(workspace)
         
-        from reversecore_mcp.core import config
         monkeypatch.setattr(config, "get_config", lambda: mock_config)
         
         # Run cleanup
@@ -242,7 +238,6 @@ class TestResourceManager:
         # Mock config that will work
         mock_config = _create_mock_config(workspace)
         
-        from reversecore_mcp.core import config
         monkeypatch.setattr(config, "get_config", lambda: mock_config)
         
         # Create manager with short interval
