@@ -7,6 +7,7 @@ import pytest
 
 from reversecore_mcp.core.exceptions import ValidationError
 from reversecore_mcp.tools import cli_tools
+from reversecore_mcp.tools import r2_analysis
 
 
 def test_radare2_json_to_mermaid_basic():
@@ -25,7 +26,7 @@ def test_radare2_json_to_mermaid_basic():
         ]
     }])
     
-    result = cli_tools._radare2_json_to_mermaid(test_json)
+    result = r2_analysis._radare2_json_to_mermaid(test_json)
     
     assert "graph TD" in result
     assert "N_0x400000" in result
@@ -38,14 +39,14 @@ def test_radare2_json_to_mermaid_empty():
     """Test Mermaid conversion with empty data."""
     test_json = json.dumps([])
     
-    result = cli_tools._radare2_json_to_mermaid(test_json)
+    result = r2_analysis._radare2_json_to_mermaid(test_json)
     
     assert "Error[No graph data found]" in result
 
 
 def test_radare2_json_to_mermaid_invalid_json():
     """Test Mermaid conversion with invalid JSON."""
-    result = cli_tools._radare2_json_to_mermaid("invalid json{]")
+    result = r2_analysis._radare2_json_to_mermaid("invalid json{]")
     
     assert "Error[Parse Error:" in result
 
@@ -55,7 +56,7 @@ def test_radare2_json_to_mermaid_long_block():
     ops = [{"opcode": f"instruction_{i}"} for i in range(10)]
     test_json = json.dumps([{"blocks": [{"offset": 0x1000, "ops": ops}]}])
     
-    result = cli_tools._radare2_json_to_mermaid(test_json)
+    result = r2_analysis._radare2_json_to_mermaid(test_json)
     
     # Should only show first 5 instructions + "..."
     assert "..." in result
@@ -104,7 +105,7 @@ async def test_generate_function_graph_json_format(
         }])
         return (mock_output, len(mock_output))
     
-    monkeypatch.setattr(cli_tools, "execute_subprocess_async", mock_exec)
+    monkeypatch.setattr(r2_analysis, "execute_subprocess_async", mock_exec)
     
     result = await cli_tools.generate_function_graph(
         file_path=str(test_file),
@@ -136,7 +137,7 @@ async def test_generate_function_graph_mermaid_format(
         }])
         return (mock_output, len(mock_output))
     
-    monkeypatch.setattr(cli_tools, "execute_subprocess_async", mock_exec)
+    monkeypatch.setattr(r2_analysis, "execute_subprocess_async", mock_exec)
     
     result = await cli_tools.generate_function_graph(
         file_path=str(test_file),
@@ -182,7 +183,7 @@ async def test_generate_function_graph_dot_format(
         mock_dot = "digraph G {\\n  node_1000 -> node_1010;\\n}"
         return (mock_dot, len(mock_dot))
     
-    monkeypatch.setattr(cli_tools, "execute_subprocess_async", mock_exec)
+    monkeypatch.setattr(r2_analysis, "execute_subprocess_async", mock_exec)
     
     result = await cli_tools.generate_function_graph(
         file_path=str(test_file),

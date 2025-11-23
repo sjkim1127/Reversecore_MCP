@@ -79,10 +79,7 @@ def patched_config(config, monkeypatch):
     monkeypatch.setattr("reversecore_mcp.core.config._CONFIG", config)
     monkeypatch.setattr("reversecore_mcp.core.config.get_config", lambda: config)
 
-    # Modules like reversecore_mcp.tools.lib_tools import get_config at module load
-    # time, so patch their reference as well for consistency.
-    from reversecore_mcp.tools import lib_tools
-
-    monkeypatch.setattr(lib_tools, "get_config", lambda: config)
+    # Note: lib_tools no longer imports get_config at module level
+    # Individual tool modules import it directly from core.config
     return config
 

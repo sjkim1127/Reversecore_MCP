@@ -4,6 +4,7 @@ import json
 import pytest
 
 from reversecore_mcp.tools import cli_tools
+from reversecore_mcp.tools import r2_analysis
 
 
 def _create_workspace_file(workspace_dir, name: str, data: str | bytes = "stub"):
@@ -34,7 +35,7 @@ class TestAnalyzeXrefs:
             return (xrefs_output, 100)
         
         monkeypatch.setattr(
-            cli_tools,
+            r2_analysis,
             "execute_subprocess_async",
             mock_exec,
         )
@@ -66,7 +67,7 @@ class TestAnalyzeXrefs:
             return (xrefs_output, 50)
         
         monkeypatch.setattr(
-            cli_tools,
+            r2_analysis,
             "execute_subprocess_async",
             mock_exec,
         )
@@ -94,7 +95,7 @@ class TestAnalyzeXrefs:
             return (xrefs_output, 50)
         
         monkeypatch.setattr(
-            cli_tools,
+            r2_analysis,
             "execute_subprocess_async",
             mock_exec,
         )
@@ -120,7 +121,7 @@ class TestAnalyzeXrefs:
             return ("[]", 10)
         
         monkeypatch.setattr(
-            cli_tools,
+            r2_analysis,
             "execute_subprocess_async",
             mock_exec,
         )
@@ -179,7 +180,7 @@ class TestAnalyzeXrefs:
             return ("{not valid json}", 10)
         
         monkeypatch.setattr(
-            cli_tools,
+            r2_analysis,
             "execute_subprocess_async",
             mock_exec,
         )
@@ -215,7 +216,7 @@ class TestRecoverStructures:
             return (variables_output, 100)
         
         monkeypatch.setattr(
-            cli_tools,
+            r2_analysis,
             "execute_subprocess_async",
             mock_exec,
         )
@@ -243,7 +244,7 @@ class TestRecoverStructures:
             return ("[]", 10)
         
         monkeypatch.setattr(
-            cli_tools,
+            r2_analysis,
             "execute_subprocess_async",
             mock_exec,
         )
@@ -298,7 +299,7 @@ class TestRecoverStructures:
             return (variables_output, 100)
         
         monkeypatch.setattr(
-            cli_tools,
+            r2_analysis,
             "execute_subprocess_async",
             mock_exec,
         )
@@ -324,7 +325,7 @@ class TestRecoverStructures:
             return ("{not valid json", 10)
         
         monkeypatch.setattr(
-            cli_tools,
+            r2_analysis,
             "execute_subprocess_async",
             mock_exec,
         )
@@ -353,7 +354,7 @@ class TestRecoverStructures:
             return (variables_output, 50)
         
         monkeypatch.setattr(
-            cli_tools,
+            r2_analysis,
             "execute_subprocess_async",
             mock_exec,
         )

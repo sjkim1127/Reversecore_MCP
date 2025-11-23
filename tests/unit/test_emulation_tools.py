@@ -4,6 +4,8 @@ import pytest
 
 from reversecore_mcp.core.exceptions import ValidationError
 from reversecore_mcp.tools import cli_tools
+from reversecore_mcp.tools import decompilation
+from reversecore_mcp.tools import r2_analysis
 
 
 def test_parse_register_state_basic():
@@ -13,7 +15,7 @@ rbx = 0x00401000
 rcx = 0xdeadbeef
 rip = 0x00401234"""
     
-    result = cli_tools._parse_register_state(ar_output)
+    result = decompilation._parse_register_state(ar_output)
     
     assert result["rax"] == "0x00000000"
     assert result["rbx"] == "0x00401000"
@@ -24,7 +26,7 @@ rip = 0x00401234"""
 
 def test_parse_register_state_empty():
     """Test register parsing with empty output."""
-    result = cli_tools._parse_register_state("")
+    result = decompilation._parse_register_state("")
     assert result == {}
 
 
@@ -34,7 +36,7 @@ def test_parse_register_state_malformed():
 no equals sign here
 rax = 0x123"""
     
-    result = cli_tools._parse_register_state(ar_output)
+    result = decompilation._parse_register_state(ar_output)
     
     # Should only parse the valid line
     assert result["rax"] == "0x123"
@@ -47,7 +49,7 @@ def test_parse_register_state_with_spaces():
 rbx=0x00401000
   rcx   =   0xdeadbeef  """
     
-    result = cli_tools._parse_register_state(ar_output)
+    result = decompilation._parse_register_state(ar_output)
     
     assert result["rax"] == "0x00000000"
     assert result["rbx"] == "0x00401000"
@@ -109,7 +111,7 @@ rsp = 0x7fff0000
 rip = 0x00401234"""
         return (mock_output, len(mock_output))
     
-    monkeypatch.setattr(cli_tools, "execute_subprocess_async", mock_exec)
+    monkeypatch.setattr(r2_analysis, "execute_subprocess_async", mock_exec)
     
     result = await cli_tools.emulate_machine_code(
         file_path=str(test_file),
@@ -137,7 +139,7 @@ async def test_emulate_machine_code_empty_registers(
         # Empty output indicates emulation failure
         return ("", 0)
     
-    monkeypatch.setattr(cli_tools, "execute_subprocess_async", mock_exec)
+    monkeypatch.setattr(r2_analysis, "execute_subprocess_async", mock_exec)
     
     result = await cli_tools.emulate_machine_code(
         file_path=str(test_file),
@@ -164,7 +166,7 @@ async def test_emulate_machine_code_default_instructions(
         mock_output = "rax = 0x00000000"
         return (mock_output, len(mock_output))
     
-    monkeypatch.setattr(cli_tools, "execute_subprocess_async", mock_exec)
+    monkeypatch.setattr(r2_analysis, "execute_subprocess_async", mock_exec)
     
     result = await cli_tools.emulate_machine_code(
         file_path=str(test_file),
@@ -188,7 +190,7 @@ async def test_emulate_machine_code_hex_address(
         mock_output = "rip = 0x00401000"
         return (mock_output, len(mock_output))
     
-    monkeypatch.setattr(cli_tools, "execute_subprocess_async", mock_exec)
+    monkeypatch.setattr(r2_analysis, "execute_subprocess_async", mock_exec)
     
     result = await cli_tools.emulate_machine_code(
         file_path=str(test_file),
@@ -212,7 +214,7 @@ async def test_emulate_machine_code_symbol_address(
         mock_output = "rax = 0x12345678"
         return (mock_output, len(mock_output))
     
-    monkeypatch.setattr(cli_tools, "execute_subprocess_async", mock_exec)
+    monkeypatch.setattr(r2_analysis, "execute_subprocess_async", mock_exec)
     
     result = await cli_tools.emulate_machine_code(
         file_path=str(test_file),

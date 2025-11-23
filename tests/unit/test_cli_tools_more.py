@@ -6,6 +6,7 @@ import pytest
 
 from reversecore_mcp.core.exceptions import ValidationError
 from reversecore_mcp.tools import cli_tools
+from reversecore_mcp.core import command_spec
 
 
 @pytest.mark.asyncio
@@ -20,7 +21,7 @@ async def test_run_radare2_invalid_command_sanitization(
     def _validate(cmd):
         raise ValidationError("invalid command")
 
-    monkeypatch.setattr(cli_tools, "validate_r2_command", _validate)
+    monkeypatch.setattr(command_spec, "validate_r2_command", _validate)
     out = await cli_tools.run_radare2(str(path), "bad")
     assert out.status == "error" and out.error_code == "VALIDATION_ERROR"
 

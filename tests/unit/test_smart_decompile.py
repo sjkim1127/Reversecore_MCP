@@ -12,9 +12,9 @@ from reversecore_mcp.tools import cli_tools
 class TestSmartDecompile:
     """Test suite for smart_decompile function."""
     
-    async def test_smart_decompile_success(self, tmp_path):
+    async def test_smart_decompile_success(self, workspace_dir, patched_workspace_config):
         """Test successful decompilation."""
-        test_file = tmp_path / "test.exe"
+        test_file = workspace_dir / "test.exe"
         test_file.write_bytes(b"FAKE_BINARY")
         
         mock_output = """void main(int argc, char **argv) {
@@ -25,8 +25,7 @@ class TestSmartDecompile:
     return result;
 }"""
         
-        with patch("reversecore_mcp.tools.cli_tools.validate_file_path", return_value=test_file), \
-             patch("reversecore_mcp.tools.cli_tools.execute_subprocess_async", 
+        with patch("reversecore_mcp.tools.r2_analysis.execute_subprocess_async", 
                    new_callable=AsyncMock, return_value=(mock_output, len(mock_output))):
             
             result = await cli_tools.smart_decompile(str(test_file), "main")
@@ -35,27 +34,25 @@ class TestSmartDecompile:
             assert "void main" in result.data
             assert "process_args" in result.data
     
-    async def test_smart_decompile_invalid_address(self, tmp_path):
+    async def test_smart_decompile_invalid_address(self, workspace_dir, patched_workspace_config):
         """Test decompilation with invalid function address."""
-        test_file = tmp_path / "test.exe"
+        test_file = workspace_dir / "test.exe"
         test_file.write_bytes(b"FAKE_BINARY")
         
-        with patch("reversecore_mcp.tools.cli_tools.validate_file_path", return_value=test_file):
-            result = await cli_tools.smart_decompile(str(test_file), "main; rm -rf /")
-            
-            assert result.status == "error"
-            # Updated to match the new error message from validate_address_format
-            assert "must contain only alphanumeric characters" in result.message
+        result = await cli_tools.smart_decompile(str(test_file), "main; rm -rf /")
+        
+        assert result.status == "error"
+        # Updated to match the new error message from validate_address_format
+        assert "must contain only alphanumeric characters" in result.message
     
-    async def test_smart_decompile_no_function(self, tmp_path):
+    async def test_smart_decompile_no_function(self, workspace_dir, patched_workspace_config):
         """Test decompilation when function doesn't exist."""
-        test_file = tmp_path / "test.exe"
+        test_file = workspace_dir / "test.exe"
         test_file.write_bytes(b"FAKE_BINARY")
         
         mock_output = "Cannot find function at nonexistent_func"
         
-        with patch("reversecore_mcp.tools.cli_tools.validate_file_path", return_value=test_file), \
-             patch("reversecore_mcp.tools.cli_tools.execute_subprocess_async",
+        with patch("reversecore_mcp.tools.r2_analysis.execute_subprocess_async",
                    new_callable=AsyncMock, return_value=(mock_output, len(mock_output))):
             
             result = await cli_tools.smart_decompile(str(test_file), "nonexistent_func")
@@ -63,15 +60,14 @@ class TestSmartDecompile:
             assert result.status == "success"
             assert "Cannot find function" in result.data
     
-    async def test_smart_decompile_hex_address(self, tmp_path):
+    async def test_smart_decompile_hex_address(self, workspace_dir, patched_workspace_config):
         """Test decompilation with hex address."""
-        test_file = tmp_path / "test.exe"
+        test_file = workspace_dir / "test.exe"
         test_file.write_bytes(b"FAKE_BINARY")
         
         mock_output = "void fcn_401000() { return; }"
         
-        with patch("reversecore_mcp.tools.cli_tools.validate_file_path", return_value=test_file), \
-             patch("reversecore_mcp.tools.cli_tools.execute_subprocess_async",
+        with patch("reversecore_mcp.tools.r2_analysis.execute_subprocess_async",
                    new_callable=AsyncMock, return_value=(mock_output, len(mock_output))):
             
             result = await cli_tools.smart_decompile(str(test_file), "0x401000")
@@ -84,15 +80,14 @@ class TestSmartDecompile:
 class TestGenerateYaraRule:
     """Test suite for generate_yara_rule function."""
     
-    async def test_generate_yara_rule_success(self, tmp_path):
+    async def test_generate_yara_rule_success(self, workspace_dir, patched_workspace_config):
         """Test successful YARA rule generation."""
-        test_file = tmp_path / "test.exe"
+        test_file = workspace_dir / "test.exe"
         test_file.write_bytes(b"FAKE_BINARY")
         
         mock_output = "554889e54883ec10897dfc488b45fc"
         
-        with patch("reversecore_mcp.tools.cli_tools.validate_file_path", return_value=test_file), \
-             patch("reversecore_mcp.tools.cli_tools.execute_subprocess_async",
+        with patch("reversecore_mcp.tools.r2_analysis.execute_subprocess_async",
                    new_callable=AsyncMock, return_value=(mock_output, len(mock_output))):
             
             result = await cli_tools.generate_yara_rule(str(test_file), "main", rule_name="test_rule")
@@ -103,49 +98,45 @@ class TestGenerateYaraRule:
             assert "condition:" in result.data
             assert "$code" in result.data
     
-    async def test_generate_yara_rule_invalid_name(self, tmp_path):
+    async def test_generate_yara_rule_invalid_name(self, workspace_dir, patched_workspace_config):
         """Test YARA rule generation with invalid rule name."""
-        test_file = tmp_path / "test.exe"
+        test_file = workspace_dir / "test.exe"
         test_file.write_bytes(b"FAKE_BINARY")
         
-        with patch("reversecore_mcp.tools.cli_tools.validate_file_path", return_value=test_file):
-            result = await cli_tools.generate_yara_rule(str(test_file), "main", rule_name="123-invalid")
-            
-            assert result.status == "error"
-            assert "rule_name must start with a letter" in result.message
+        result = await cli_tools.generate_yara_rule(str(test_file), "main", rule_name="123-invalid")
+        
+        assert result.status == "error"
+        assert "rule_name must start with a letter" in result.message
     
-    async def test_generate_yara_rule_invalid_byte_length(self, tmp_path):
+    async def test_generate_yara_rule_invalid_byte_length(self, workspace_dir, patched_workspace_config):
         """Test YARA rule generation with invalid byte_length."""
-        test_file = tmp_path / "test.exe"
+        test_file = workspace_dir / "test.exe"
         test_file.write_bytes(b"FAKE_BINARY")
         
-        with patch("reversecore_mcp.tools.cli_tools.validate_file_path", return_value=test_file):
-            result = await cli_tools.generate_yara_rule(str(test_file), "main", byte_length=2000)
-            
-            assert result.status == "error"
-            assert "cannot exceed 1024" in result.message
+        result = await cli_tools.generate_yara_rule(str(test_file), "main", byte_length=2000)
+        
+        assert result.status == "error"
+        assert "cannot exceed 1024" in result.message
     
-    async def test_generate_yara_rule_invalid_address(self, tmp_path):
+    async def test_generate_yara_rule_invalid_address(self, workspace_dir, patched_workspace_config):
         """Test YARA rule generation with invalid function address."""
-        test_file = tmp_path / "test.exe"
+        test_file = workspace_dir / "test.exe"
         test_file.write_bytes(b"FAKE_BINARY")
         
-        with patch("reversecore_mcp.tools.cli_tools.validate_file_path", return_value=test_file):
-            result = await cli_tools.generate_yara_rule(str(test_file), "main; echo hacked")
-            
-            assert result.status == "error"
-            # Updated to match the new error message from validate_address_format
-            assert "must contain only alphanumeric characters" in result.message
+        result = await cli_tools.generate_yara_rule(str(test_file), "main; echo hacked")
+        
+        assert result.status == "error"
+        # Updated to match the new error message from validate_address_format
+        assert "must contain only alphanumeric characters" in result.message
     
-    async def test_generate_yara_rule_custom_byte_length(self, tmp_path):
+    async def test_generate_yara_rule_custom_byte_length(self, workspace_dir, patched_workspace_config):
         """Test YARA rule generation with custom byte length."""
-        test_file = tmp_path / "test.exe"
+        test_file = workspace_dir / "test.exe"
         test_file.write_bytes(b"FAKE_BINARY")
         
         mock_output = "554889e5"
         
-        with patch("reversecore_mcp.tools.cli_tools.validate_file_path", return_value=test_file), \
-             patch("reversecore_mcp.tools.cli_tools.execute_subprocess_async",
+        with patch("reversecore_mcp.tools.r2_analysis.execute_subprocess_async",
                    new_callable=AsyncMock, return_value=(mock_output, len(mock_output))):
             
             result = await cli_tools.generate_yara_rule(
@@ -158,15 +149,14 @@ class TestGenerateYaraRule:
             assert result.status == "success"
             assert "rule custom_rule" in result.data
     
-    async def test_generate_yara_rule_hex_address(self, tmp_path):
+    async def test_generate_yara_rule_hex_address(self, workspace_dir, patched_workspace_config):
         """Test YARA rule generation with hex address."""
-        test_file = tmp_path / "test.exe"
+        test_file = workspace_dir / "test.exe"
         test_file.write_bytes(b"FAKE_BINARY")
         
         mock_output = "554889e54883ec10"
         
-        with patch("reversecore_mcp.tools.cli_tools.validate_file_path", return_value=test_file), \
-             patch("reversecore_mcp.tools.cli_tools.execute_subprocess_async",
+        with patch("reversecore_mcp.tools.r2_analysis.execute_subprocess_async",
                    new_callable=AsyncMock, return_value=(mock_output, len(mock_output))):
             
             result = await cli_tools.generate_yara_rule(str(test_file), "0x401000")

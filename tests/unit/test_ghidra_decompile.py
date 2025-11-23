@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 
 from reversecore_mcp.tools import cli_tools
+from reversecore_mcp.tools import r2_analysis
 
 
 @pytest.mark.asyncio
@@ -56,7 +57,7 @@ class TestGhidraDecompile:
         # Mock radare2 execution
         mock_output = "void main() { return 0; }"
         
-        with patch("reversecore_mcp.tools.cli_tools.execute_subprocess_async", 
+        with patch("reversecore_mcp.tools.r2_analysis.execute_subprocess_async", 
                    new_callable=AsyncMock, return_value=(mock_output, len(mock_output))):
             
             result = await cli_tools.smart_decompile(str(test_file), "main", use_ghidra=False)
@@ -75,7 +76,7 @@ class TestGhidraDecompile:
         mock_r2_output = "radare2 pseudo-c output"
         
         with patch("reversecore_mcp.core.ghidra_helper.ensure_ghidra_available", return_value=False), \
-             patch("reversecore_mcp.tools.cli_tools.execute_subprocess_async",
+             patch("reversecore_mcp.tools.r2_analysis.execute_subprocess_async",
                    new_callable=AsyncMock, return_value=(mock_r2_output, len(mock_r2_output))):
             
             result = await cli_tools.smart_decompile(str(test_file), "main", use_ghidra=True)
@@ -96,7 +97,7 @@ class TestGhidraDecompile:
         
         with patch("reversecore_mcp.core.ghidra_helper.ensure_ghidra_available", return_value=True), \
              patch("reversecore_mcp.core.ghidra_helper.decompile_function_with_ghidra", mock_decompile), \
-             patch("reversecore_mcp.tools.cli_tools.execute_subprocess_async",
+             patch("reversecore_mcp.tools.r2_analysis.execute_subprocess_async",
                    new_callable=AsyncMock, return_value=(mock_r2_output, len(mock_r2_output))):
             
             result = await cli_tools.smart_decompile(str(test_file), "main", use_ghidra=True)
@@ -114,7 +115,7 @@ class TestGhidraDecompile:
         mock_r2_output = "radare2 output"
         
         # Simulate ImportError when trying to import ghidra_helper
-        with patch("reversecore_mcp.tools.cli_tools.execute_subprocess_async",
+        with patch("reversecore_mcp.tools.r2_analysis.execute_subprocess_async",
                    new_callable=AsyncMock, return_value=(mock_r2_output, len(mock_r2_output))):
             
             # The import should work (we're not testing actual import failure),
