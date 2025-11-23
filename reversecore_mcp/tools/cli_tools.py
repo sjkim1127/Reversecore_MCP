@@ -67,6 +67,8 @@ _FILENAME_SANITIZE_TRANS = str.maketrans({
     '.': '_'
 })
 
+logger = get_logger(__name__)
+
 
 def _strip_address_prefixes(address: str) -> str:
     """
@@ -1251,7 +1253,7 @@ async def emulate_machine_code(
 async def get_pseudo_code(
     file_path: str,
     address: str = "main",
-    timeout: int = DEFAULT_TIMEOUT,
+    timeout: int = 300,
 ) -> ToolResult:
     """
     Generate pseudo C code (decompilation) for a function using radare2's pdc command.
@@ -1289,7 +1291,7 @@ async def get_pseudo_code(
     if validation_error:
         return validation_error
 
-    # 3. Build radare2 command to decompile
+    # 3. Build radare2 command to decompilation
     r2_cmd = f"pdc @ {address}"
     
     # 4. Execute decompilation using helper
@@ -1798,7 +1800,7 @@ async def generate_yara_rule(
     function_address: str,
     rule_name: str = "auto_generated_rule",
     byte_length: int = 64,
-    timeout: int = DEFAULT_TIMEOUT,
+    timeout: int = 300,
 ) -> ToolResult:
     """
     Generate a YARA rule from function bytes.
@@ -1845,16 +1847,14 @@ async def generate_yara_rule(
         f"p8 {byte_length}",  # Print hex bytes
     ]
     
-    analysis_level = ""
-    if function_address.startswith("0x") or re.match(r"^[0-9a-fA-F]+$", function_address):
-        analysis_level = "-n"
+    # Always use -n for p8 to avoid analysis hang
+    analysis_level = "-n"
         
     # 4. Extract hex bytes using helper
-    # Note: analysis_level may be "" (empty) which means default r2 behavior (parse headers/symbols)
     output, bytes_read = await _execute_r2_command(
         validated_path,
         r2_cmds,
-        analysis_level=analysis_level or "aaa",
+        analysis_level=analysis_level,
         max_output_size=1_000_000,
         base_timeout=timeout,
     )
@@ -1868,12 +1868,78 @@ async def generate_yara_rule(
             hint="Verify the address is valid and contains executable code",
         )
 
+    # Check for invalid patterns (all 00 or all FF)
+    if len(hex_bytes) > 16 and (re.match(r"^(00)+$", hex_bytes) or re.match(r"^(ff)+$", hex_bytes, re.IGNORECASE)):
+        # Smart Offset Search: Try to find a better address
+        # 1. Try 'main' if we weren't already there
+        # 2. Try entry point 'entry0'
+        # 3. Find largest function
+        
+        logger.info(f"Invalid bytes at {function_address}, attempting smart offset search...")
+        
+        # Try to find a better function
+        cmd = "aflj"
+        out, _ = await _execute_r2_command(validated_path, [cmd], analysis_level="aaa", base_timeout=timeout)
+        
+        try:
+            funcs = _parse_json_output(out)
+            if funcs and isinstance(funcs, list):
+                # Sort by size descending
+                funcs.sort(key=lambda x: x.get("size", 0), reverse=True)
+                
+                # Pick the largest function that is NOT the current one
+                for func in funcs[:3]: # Check top 3
+                    addr = func.get("offset")
+                    if addr and hex(addr) != function_address:
+                        new_addr = hex(addr)
+                        # Retry extraction
+                        r2_cmds = [f"s {new_addr}", f"p8 {byte_length}"]
+                        output, _ = await _execute_r2_command(validated_path, r2_cmds, analysis_level="-n", base_timeout=timeout)
+                        hex_bytes = output.strip()
+                        
+                        if hex_bytes and not (re.match(r"^(00)+$", hex_bytes) or re.match(r"^(ff)+$", hex_bytes, re.IGNORECASE)):
+                            function_address = new_addr # Update address for report
+                            break
+        except Exception as e:
+            logger.warning(f"Smart offset search failed: {e}")
+
+        # If still invalid, fail
+        if len(hex_bytes) > 16 and (re.match(r"^(00)+$", hex_bytes) or re.match(r"^(ff)+$", hex_bytes, re.IGNORECASE)):
+             return failure(
+                "YARA_GENERATION_ERROR",
+                f"Extracted bytes are all 0x00 or 0xFF. The address {function_address} might be invalid or unmapped.",
+                hint="Try a different address.",
+            )
+
     # 6. Format as YARA hex string (space-separated pairs)
     # OPTIMIZED: Use generator expression to avoid intermediate list
     formatted_bytes = _format_hex_bytes(hex_bytes)
 
     # 7. Generate YARA rule
     file_name = _sanitize_filename_for_rule(file_path)
+    
+    # Extract strings for better rule
+    strings_section = ""
+    try:
+        # Extract interesting strings (length > 5)
+        str_cmd = "izj"
+        str_out, _ = await _execute_r2_command(validated_path, [str_cmd], analysis_level="-n", base_timeout=30)
+        strings = _parse_json_output(str_out)
+        
+        valid_strings = []
+        if strings and isinstance(strings, list):
+            for s in strings:
+                val = s.get("string", "")
+                # Filter: length > 5, alphanumeric, not too long
+                if len(val) > 5 and len(val) < 100 and re.match(r"^[a-zA-Z0-9_ \-\.]+$", val):
+                    valid_strings.append(val)
+            
+            # Take top 5 unique strings
+            unique_strings = list(set(valid_strings))[:5]
+            if unique_strings:
+                strings_section = "\n        ".join([f'$s{i} = "{s}"' for i, s in enumerate(unique_strings)])
+    except Exception:
+        pass # Ignore string extraction errors
 
     yara_rule = f"""rule {rule_name} {{
     meta:
@@ -1884,9 +1950,10 @@ async def generate_yara_rule(
         
     strings:
         $code = {{ {formatted_bytes} }}
+        {strings_section}
         
     condition:
-        $code
+        $code{" and any of them" if strings_section else ""}
 }}"""
 
     # 8. Return YARA rule
@@ -1909,7 +1976,9 @@ async def analyze_xrefs(
     file_path: str,
     address: str,
     xref_type: str = "all",
-    timeout: int = DEFAULT_TIMEOUT,
+    max_depth: int = 2,
+    timeout: int = 300,
+    ctx: Context = None,
 ) -> ToolResult:
     """
     Analyze cross-references (X-Refs) for a function or data address.
@@ -1940,6 +2009,10 @@ async def analyze_xrefs(
     Args:
         file_path: Path to the binary file (must be in workspace)
         address: Function or data address (e.g., 'main', '0x401000', 'sym.decrypt')
+        xref_type: Type of xrefs to analyze ('all', 'to', 'from')
+        max_depth: Maximum recursion depth for xref analysis (default: 3)
+        timeout: Execution timeout in seconds (default 120)
+        ctx: Context for progress reporting
         xref_type: Type of references to analyze:
             - "all" (default): Both callers and callees
             - "to": References TO this address (callers, data reads)
@@ -2010,14 +2083,36 @@ async def analyze_xrefs(
     # Build command string
     r2_commands_str = "; ".join(commands)
 
+    if ctx:
+        await ctx.report_progress(10, 100)
+        await ctx.info(f"Analyzing xrefs for {address}...")
+
     # 4. Execute analysis using helper
+    # Use 'aa' instead of 'aaa' for speed if possible, but 'axt' needs good analysis.
+    # We'll stick to 'aaa' but rely on the increased timeout (120s -> 300s in config/default).
+    # Wait, I set default to 120s in the signature.
+    # If the user wants faster, they can use 'aa'.
+    # Let's try to be smart: if file size is large (>5MB), use 'aa'.
+    
+    analysis_level = "aaa"
+    try:
+        if os.path.getsize(validated_path) > 5 * 1024 * 1024:
+            analysis_level = "aa"
+            if ctx:
+                await ctx.info("Large file detected, using lighter analysis ('aa')...")
+    except OSError:
+        pass
+
     output, bytes_read = await _execute_r2_command(
         validated_path,
         [r2_commands_str],
-        analysis_level="aaa",
+        analysis_level=analysis_level,
         max_output_size=10_000_000,
         base_timeout=timeout,
     )
+    
+    if ctx:
+        await ctx.report_progress(90, 100)
 
     # 5. Parse JSON output
     try:
@@ -2521,7 +2616,7 @@ async def match_libraries(
     file_path: str,
     signature_db: str = None,
     max_output_size: int = 10_000_000,
-    timeout: int = DEFAULT_TIMEOUT,
+    timeout: int = 600,
     ctx: Context = None,
 ) -> ToolResult:
     """
@@ -2546,7 +2641,7 @@ async def match_libraries(
         signature_db: Optional path to custom signature database file (.sig format).
                      If None, uses radare2's built-in signature databases.
         max_output_size: Maximum output size in bytes (default: 10MB)
-        timeout: Timeout in seconds (default: 300s)
+        timeout: Timeout in seconds (default: 600s)
 
     Returns:
         ToolResult with structured JSON containing:
@@ -2617,11 +2712,18 @@ async def match_libraries(
             # Use built-in signatures
             r2_commands = ["zg", "aflj"]
 
+        if ctx:
+            await ctx.report_progress(10, 100)
+            await ctx.info("Analyzing binary and matching signatures (this may take a while)...")
+
         # Execute using helper
+        # Use 'aa' (basic analysis) instead of 'aaa' to prevent hangs
+        analysis_level = "aa"
+
         output, bytes_read = await _execute_r2_command(
             validated_path,
             r2_commands,
-            analysis_level="aaa",
+            analysis_level=analysis_level,
             max_output_size=max_output_size,
             base_timeout=timeout,
         )
@@ -2977,7 +3079,7 @@ def _extract_first_json(text: str) -> str | None:
         
         # Found potential JSON start
         # Quick heuristic: Skip obvious false starts (isolated brackets)
-        # This prevents pathological O(n²) behavior with "{ { { { {..." patterns
+        # This prevents pathological O(n²) behavior with "{ { { { {".
         # Note: We only check for same bracket type to avoid false positives.
         # Mixed brackets like "{ [" could be valid JSON like `{"arr": [...]}`
         if i + 1 < text_len and text[i + 1] in (' ', '\t'):
