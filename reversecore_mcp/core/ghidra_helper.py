@@ -216,10 +216,11 @@ def _resolve_function(flat_api: "FlatProgramAPI", address_str: str) -> Optional[
         address = symbol.getAddress()
         return function_manager.getFunctionAt(address)
     
-    # Try as hex address
+    # Try as hex address (remove prefix once for both attempts)
+    # OPTIMIZATION: Use pre-compiled regex pattern instead of chained replace
+    addr_str = _HEX_PREFIX_PATTERN.sub('', address_str)
+    
     try:
-        # OPTIMIZATION: Use pre-compiled regex pattern instead of chained replace
-        addr_str = _HEX_PREFIX_PATTERN.sub('', address_str)
         address = flat_api.toAddr(int(addr_str, 16))
         func = function_manager.getFunctionAt(address)
         if func is not None:
@@ -227,10 +228,8 @@ def _resolve_function(flat_api: "FlatProgramAPI", address_str: str) -> Optional[
     except (ValueError, Exception):
         pass
     
-    # Try to find function containing this address
+    # Try to find function containing this address (reuse cleaned addr_str)
     try:
-        # OPTIMIZATION: Reuse the already cleaned addr_str from above
-        addr_str = _HEX_PREFIX_PATTERN.sub('', address_str)
         address = flat_api.toAddr(int(addr_str, 16))
         return function_manager.getFunctionContaining(address)
     except (ValueError, Exception):
