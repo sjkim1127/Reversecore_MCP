@@ -115,11 +115,13 @@ async def server_lifespan(server: FastMCP):
 mcp = FastMCP(name="Reversecore_MCP", lifespan=server_lifespan)
 
 # Register all tool modules
-from reversecore_mcp.tools import cli_tools, lib_tools, ghost_trace, neural_decompiler
+from reversecore_mcp.tools import cli_tools, lib_tools, ghost_trace, neural_decompiler, adaptive_vaccine, trinity_defense
 cli_tools.register_cli_tools(mcp)
 lib_tools.register_lib_tools(mcp)
 ghost_trace.register_ghost_trace(mcp)
 neural_decompiler.register_neural_decompiler(mcp)
+adaptive_vaccine.register_adaptive_vaccine(mcp)
+trinity_defense.register_trinity_defense(mcp)
 
 # Register prompts
 from reversecore_mcp import prompts

@@ -33,6 +33,25 @@ The Neural Decompiler transcends traditional decompilation by transforming raw, 
 - **🏗️ Structure Inference**: Detects pointer arithmetic patterns (`*(ptr + 4)`) and intelligently converts them into structure field accesses (`ptr->field_4`).
 - **💡 Smart Annotation**: Adds high-level comments to explain "Magic Values" and complex logic blocks, making the code instantly understandable.
 
+## 🔱 Reversecore Signature: Trinity Defense System (Preview)
+
+**"Ghost Trace finds it. Neural Decompiler understands it. Adaptive Vaccine stops it."**
+
+Trinity Defense System (TDS) is the ultimate integrated defense framework that orchestrates all three signature technologies into a fully automated threat detection and neutralization pipeline.
+
+**3-Phase Automated Defense:**
+- **Phase 1 (DISCOVER)**: Ghost Trace scans for hidden threats - orphan functions, logic bombs, and dormant malware
+- **Phase 2 (UNDERSTAND)**: Neural Decompiler analyzes threat intent by refining code and identifying malicious patterns
+- **Phase 3 (NEUTRALIZE)**: Adaptive Vaccine generates YARA detection rules and (optionally) binary patches to neutralize threats
+
+**Key Features:**
+- **🔄 Full Automation**: One command analyzes the entire binary from discovery to defense generation
+- **🎯 Intent Inference**: Automatically classifies threats (backdoor, time bomb, data exfiltration, etc.)
+- **🛡️ Defense Generation**: Auto-generates YARA rules for immediate deployment
+- **📊 Actionable Reports**: Provides specific recommendations for each threat type
+
+> *"Complete defense automation: Detect → Analyze → Neutralize"*
+
 ## 💻 System Requirements
 
 | Category | Minimum Specification | Recommended Specification |

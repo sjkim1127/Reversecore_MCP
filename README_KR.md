@@ -33,6 +33,25 @@ Neural Decompiler는 딱딱하고 기계적인 C 코드를 "인간이 작성한 
 - **🏗️ 구조체 추론 (Structure Inference)**: 포인터 연산 패턴(`*(ptr + 4)`)을 감지하고 지능적으로 구조체 필드 접근(`ptr->field_4`)으로 변환합니다.
 - **💡 스마트 주석 (Smart Annotation)**: "매직 값(Magic Values)"과 복잡한 로직 블록에 대한 고수준 설명을 주석으로 추가하여 코드를 즉시 이해할 수 있게 만듭니다.
 
+## 🔱 Reversecore Signature: Trinity Defense System (Preview)
+
+**"Ghost Trace가 찾고, Neural Decompiler가 이해하고, Adaptive Vaccine이 막습니다."**
+
+Trinity Defense System (TDS)은 세 가지 시그니처 기술을 완전 자동화된 위협 탐지 및 무력화 파이프라인으로 통합한 궁극의 통합 방어 프레임워크입니다.
+
+**3단계 자동 방어:**
+- **Phase 1 (DISCOVER - 발견)**: Ghost Trace가 숨겨진 위협을 스캔 - 고립된 함수, 논리 폭탄, 잠복형 악성코드
+- **Phase 2 (UNDERSTAND - 이해)**: Neural Decompiler가 코드를 정제하고 악성 패턴을 식별하여 위협의 의도를 분석
+- **Phase 3 (NEUTRALIZE - 무력化)**: Adaptive Vaccine이 YARA 탐지 규칙과 (선택적으로) 바이너리 패치를 생성하여 위협을 무력화
+
+**주요 기능:**
+- **🔄 완전 자동화**: 단일 명령으로 발견부터 방어 생성까지 전체 바이너리를 분석
+- **🎯 의도 추론**: 위협을 자동으로 분류 (백도어, 시한 폭탄, 데이터 유출 등)
+- **🛡️ 방어 생성**: 즉시 배포 가능한 YARA 규칙을 자동 생성
+- **📊 실행 가능한 보고서**: 각 위협 유형에 대한 구체적인 대응 방안 제공
+
+> *"완전 방어 자동화: 탐지 → 분석 → 무력화"*
+
 ## 💻 시스템 요구 사항
 
 | 범주 | 최소 사양 | 권장 사양 |
