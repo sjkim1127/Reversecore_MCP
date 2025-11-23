@@ -1597,10 +1597,12 @@ async def extract_rtti_info(
 
             # Detect C++ mangled names (start with _Z or ??)
             if name.startswith("_Z") or name.startswith("??"):
+                # OPTIMIZATION: Cache address lookup to avoid nested .get()
+                address = sym.get("vaddr") or sym.get("paddr", "0x0")
                 cpp_methods.append(
                     {
                         "name": name,
-                        "address": sym.get("vaddr", sym.get("paddr", "0x0")),
+                        "address": address,
                         "type": sym_type,
                         "size": sym.get("size", 0),
                     }
@@ -1608,9 +1610,9 @@ async def extract_rtti_info(
 
             # Detect vtables
             if "vtable" in name.lower() or name.startswith("vtable"):
-                vtables.append(
-                    {"name": name, "address": sym.get("vaddr", sym.get("paddr", "0x0"))}
-                )
+                # OPTIMIZATION: Cache address lookup to avoid nested .get()
+                address = sym.get("vaddr") or sym.get("paddr", "0x0")
+                vtables.append({"name": name, "address": address})
 
     # 7. Build comprehensive RTTI report
     rtti_info = {

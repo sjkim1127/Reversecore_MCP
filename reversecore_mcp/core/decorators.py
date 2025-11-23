@@ -49,15 +49,19 @@ def log_execution(tool_name: Optional[str] = None) -> Callable[[F], F]:
                 start_time = time.time()
                 file_name = None
 
+                # OPTIMIZATION: Extract filename without creating Path object
                 # Try to extract file_name from arguments
                 for arg_name in ["file_path", "path", "file"]:
                     if arg_name in kwargs:
-                        file_name = Path(kwargs[arg_name]).name
+                        path_str = kwargs[arg_name]
+                        # Use string operations instead of Path for better performance
+                        file_name = path_str.split('/')[-1] if '/' in path_str else path_str.split('\\')[-1]
                         break
                 if not file_name and args:
                     first_arg = args[0]
                     if isinstance(first_arg, str):
-                        file_name = Path(first_arg).name
+                        # Use string operations instead of Path for better performance
+                        file_name = first_arg.split('/')[-1] if '/' in first_arg else first_arg.split('\\')[-1]
 
                 # Log start
                 log_extra = {"tool_name": actual_tool_name}
@@ -101,17 +105,21 @@ def log_execution(tool_name: Optional[str] = None) -> Callable[[F], F]:
             start_time = time.time()
             file_name = None
 
+            # OPTIMIZATION: Extract filename without creating Path object
             # Try to extract file_name from arguments
             # Common patterns: file_path, path, file
             for arg_name in ["file_path", "path", "file"]:
                 if arg_name in kwargs:
-                    file_name = Path(kwargs[arg_name]).name
+                    path_str = kwargs[arg_name]
+                    # Use string operations instead of Path for better performance
+                    file_name = path_str.split('/')[-1] if '/' in path_str else path_str.split('\\')[-1]
                     break
             if not file_name and args:
                 # Check first positional argument
                 first_arg = args[0]
                 if isinstance(first_arg, str):
-                    file_name = Path(first_arg).name
+                    # Use string operations instead of Path for better performance
+                    file_name = first_arg.split('/')[-1] if '/' in first_arg else first_arg.split('\\')[-1]
 
             # Log start
             log_extra = {"tool_name": actual_tool_name}
