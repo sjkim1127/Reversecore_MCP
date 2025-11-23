@@ -14,7 +14,7 @@ class TestTrinityDefense:
     async def test_discover_mode(self):
         """Test Trinity Defense in discover mode."""
         with patch('reversecore_mcp.tools.trinity_defense.validate_file_path') as mock_validate, \
-             patch('reversecore_mcp.tools.trinity_defense.ghost_trace') as mock_ghost:
+             patch('reversecore_mcp.tools.trinity_defense.ghost_trace', new_callable=AsyncMock) as mock_ghost:
             
             mock_validate.return_value = Path("/app/workspace/test.exe")
             
@@ -39,8 +39,8 @@ class TestTrinityDefense:
     async def test_analyze_mode(self):
         """Test Trinity Defense in analyze mode."""
         with patch('reversecore_mcp.tools.trinity_defense.validate_file_path') as mock_validate, \
-             patch('reversecore_mcp.tools.trinity_defense.ghost_trace') as mock_ghost, \
-             patch('reversecore_mcp.tools.trinity_defense.neural_decompile') as mock_neural:
+             patch('reversecore_mcp.tools.trinity_defense.ghost_trace', new_callable=AsyncMock) as mock_ghost, \
+             patch('reversecore_mcp.tools.trinity_defense.neural_decompile', new_callable=AsyncMock) as mock_neural:
             
             mock_validate.return_value = Path("/app/workspace/test.exe")
             
@@ -72,9 +72,9 @@ class TestTrinityDefense:
     async def test_full_mode_with_vaccine(self):
         """Test Trinity Defense in full mode with vaccine generation."""
         with patch('reversecore_mcp.tools.trinity_defense.validate_file_path') as mock_validate, \
-             patch('reversecore_mcp.tools.trinity_defense.ghost_trace') as mock_ghost, \
-             patch('reversecore_mcp.tools.trinity_defense.neural_decompile') as mock_neural, \
-             patch('reversecore_mcp.tools.trinity_defense.adaptive_vaccine') as mock_vaccine:
+             patch('reversecore_mcp.tools.trinity_defense.ghost_trace', new_callable=AsyncMock) as mock_ghost, \
+             patch('reversecore_mcp.tools.trinity_defense.neural_decompile', new_callable=AsyncMock) as mock_neural, \
+             patch('reversecore_mcp.tools.trinity_defense.adaptive_vaccine', new_callable=AsyncMock) as mock_vaccine:
             
             mock_validate.return_value = Path("/app/workspace/test.exe")
             
@@ -118,7 +118,7 @@ class TestTrinityDefense:
     async def test_ghost_trace_failure(self):
         """Test Trinity Defense when ghost trace fails."""
         with patch('reversecore_mcp.tools.trinity_defense.validate_file_path') as mock_validate, \
-             patch('reversecore_mcp.tools.trinity_defense.ghost_trace') as mock_ghost:
+             patch('reversecore_mcp.tools.trinity_defense.ghost_trace', new_callable=AsyncMock) as mock_ghost:
             
             mock_validate.return_value = Path("/app/workspace/test.exe")
             
@@ -138,7 +138,7 @@ class TestTrinityDefense:
     async def test_no_threats_found(self):
         """Test Trinity Defense when no threats are found."""
         with patch('reversecore_mcp.tools.trinity_defense.validate_file_path') as mock_validate, \
-             patch('reversecore_mcp.tools.trinity_defense.ghost_trace') as mock_ghost:
+             patch('reversecore_mcp.tools.trinity_defense.ghost_trace', new_callable=AsyncMock) as mock_ghost:
             
             mock_validate.return_value = Path("/app/workspace/test.exe")
             
@@ -162,8 +162,8 @@ class TestTrinityDefense:
     async def test_max_threats_limit(self):
         """Test that max_threats parameter limits analysis."""
         with patch('reversecore_mcp.tools.trinity_defense.validate_file_path') as mock_validate, \
-             patch('reversecore_mcp.tools.trinity_defense.ghost_trace') as mock_ghost, \
-             patch('reversecore_mcp.tools.trinity_defense.neural_decompile') as mock_neural:
+             patch('reversecore_mcp.tools.trinity_defense.ghost_trace', new_callable=AsyncMock) as mock_ghost, \
+             patch('reversecore_mcp.tools.trinity_defense.neural_decompile', new_callable=AsyncMock) as mock_neural:
             
             mock_validate.return_value = Path("/app/workspace/test.exe")
             
@@ -196,7 +196,7 @@ class TestTrinityDefense:
     async def test_with_context_logging(self):
         """Test Trinity Defense with context logging."""
         with patch('reversecore_mcp.tools.trinity_defense.validate_file_path') as mock_validate, \
-             patch('reversecore_mcp.tools.trinity_defense.ghost_trace') as mock_ghost:
+             patch('reversecore_mcp.tools.trinity_defense.ghost_trace', new_callable=AsyncMock) as mock_ghost:
             
             mock_validate.return_value = Path("/app/workspace/test.exe")
             mock_ghost.return_value = success({
@@ -234,8 +234,8 @@ class TestTrinityDefense:
     async def test_full_mode_without_vaccine(self):
         """Test Trinity Defense in full mode without vaccine generation."""
         with patch('reversecore_mcp.tools.trinity_defense.validate_file_path') as mock_validate, \
-             patch('reversecore_mcp.tools.trinity_defense.ghost_trace') as mock_ghost, \
-             patch('reversecore_mcp.tools.trinity_defense.neural_decompile') as mock_neural:
+             patch('reversecore_mcp.tools.trinity_defense.ghost_trace', new_callable=AsyncMock) as mock_ghost, \
+             patch('reversecore_mcp.tools.trinity_defense.neural_decompile', new_callable=AsyncMock) as mock_neural:
             
             mock_validate.return_value = Path("/app/workspace/test.exe")
             
@@ -264,8 +264,8 @@ class TestTrinityDefense:
     async def test_neural_decompile_failure(self):
         """Test handling of neural decompiler failure."""
         with patch('reversecore_mcp.tools.trinity_defense.validate_file_path') as mock_validate, \
-             patch('reversecore_mcp.tools.trinity_defense.ghost_trace') as mock_ghost, \
-             patch('reversecore_mcp.tools.trinity_defense.neural_decompile') as mock_neural:
+             patch('reversecore_mcp.tools.trinity_defense.ghost_trace', new_callable=AsyncMock) as mock_ghost, \
+             patch('reversecore_mcp.tools.trinity_defense.neural_decompile', new_callable=AsyncMock) as mock_neural:
             
             mock_validate.return_value = Path("/app/workspace/test.exe")
             
@@ -293,9 +293,9 @@ class TestTrinityDefense:
     async def test_vaccine_generation_failure(self):
         """Test handling of vaccine generation failure."""
         with patch('reversecore_mcp.tools.trinity_defense.validate_file_path') as mock_validate, \
-             patch('reversecore_mcp.tools.trinity_defense.ghost_trace') as mock_ghost, \
-             patch('reversecore_mcp.tools.trinity_defense.neural_decompile') as mock_neural, \
-             patch('reversecore_mcp.tools.trinity_defense.adaptive_vaccine') as mock_vaccine:
+             patch('reversecore_mcp.tools.trinity_defense.ghost_trace', new_callable=AsyncMock) as mock_ghost, \
+             patch('reversecore_mcp.tools.trinity_defense.neural_decompile', new_callable=AsyncMock) as mock_neural, \
+             patch('reversecore_mcp.tools.trinity_defense.adaptive_vaccine', new_callable=AsyncMock) as mock_vaccine:
             
             mock_validate.return_value = Path("/app/workspace/test.exe")
             

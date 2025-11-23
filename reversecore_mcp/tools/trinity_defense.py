@@ -154,19 +154,19 @@ async def trinity_defense(
                     "intent": "unknown",
                     "confidence": 0.0
                 })
-            elif "error" not in result:
+            elif result.status != "error":
                 # Infer intent from refined code with confidence
                 intent, confidence = _infer_intent_with_confidence(
-                    neural_result=result,
+                    neural_result=result.data,
                     threat_info=threat
                 )
                 
                 refined_threats.append({
                     **threat,
-                    "refined_code": result.get("neural_code", ""),
+                    "refined_code": result.data.get("neural_code", ""),
                     "intent": intent,
                     "confidence": confidence,
-                    "refinement_stats": result.get("refinement_stats", {})
+                    "refinement_stats": result.data.get("refinement_stats", {})
                 })
             else:
                 refined_threats.append({
@@ -214,8 +214,8 @@ async def trinity_defense(
                         ctx=None
                     )
                     
-                    if "error" not in vaccine_result:
-                        defenses.append(vaccine_result)
+                    if vaccine_result.status != "error":
+                        defenses.append(vaccine_result.data)
                 except Exception as e:
                     logger.warning(f"Failed to generate vaccine for {threat.get('address')}: {e}")
         
