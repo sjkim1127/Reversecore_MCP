@@ -106,21 +106,21 @@ async def execute_subprocess_async(
             """Read stdout in chunks until EOF or size limit."""
             nonlocal bytes_read
             chunk_size = 8192  # 8KB chunks
-            
+
             while True:
                 chunk = await process.stdout.read(chunk_size)
                 if not chunk:
                     break
-                    
+
                 # Decode chunk
                 decoded_chunk = chunk.decode(encoding, errors=errors)
                 chunk_bytes = len(chunk)
                 bytes_read += chunk_bytes
-                
+
                 # Only append if we haven't exceeded the limit
                 if bytes_read <= max_output_size:
                     output_chunks.append(decoded_chunk)
-        
+
         # Wait for process to complete with timeout
         try:
             await asyncio.wait_for(read_stream(), timeout=timeout)
@@ -141,17 +141,14 @@ async def execute_subprocess_async(
         # Check if output was truncated
         if bytes_read > max_output_size:
             truncation_warning = (
-                f"\n\n[WARNING: Output truncated at {max_output_size} bytes. "
-                f"Total output size: {bytes_read} bytes]"
+                f"\n\n[WARNING: Output truncated at {max_output_size} bytes. " f"Total output size: {bytes_read} bytes]"
             )
             output_text += truncation_warning
 
         # If process failed, raise CalledProcessError with stderr
         if process.returncode != 0:
             stderr_text = "".join(stderr_chunks)
-            raise subprocess.CalledProcessError(
-                process.returncode, cmd, output=output_text, stderr=stderr_text
-            )
+            raise subprocess.CalledProcessError(process.returncode, cmd, output=output_text, stderr=stderr_text)
 
         return output_text, bytes_read
 
@@ -169,7 +166,6 @@ async def execute_subprocess_async(
         raise
 
 
-
 def execute_subprocess_streaming(
     cmd: list[str],
     max_output_size: int = 10_000_000,  # 10 MB default
@@ -179,7 +175,7 @@ def execute_subprocess_streaming(
 ) -> Tuple[str, int]:
     """
     Execute a subprocess command with streaming output and size limits.
-    
+
     This is a synchronous wrapper around execute_subprocess_async that provides
     backward compatibility. It uses asyncio.run() to execute the async version.
 
@@ -221,4 +217,3 @@ def execute_subprocess_streaming(
         return _get_background_runner().run(coro)
 
     return asyncio.run(coro)
-

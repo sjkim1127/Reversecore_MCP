@@ -54,10 +54,7 @@ class OutputLimitExceededError(ReversecoreError):
     def __init__(self, max_size: int, actual_size: int):
         self.max_size = max_size
         self.actual_size = actual_size
-        message = (
-            f"Output limit exceeded: {actual_size} bytes (max: {max_size} bytes). "
-            "Output has been truncated."
-        )
+        message = f"Output limit exceeded: {actual_size} bytes (max: {max_size} bytes). " "Output has been truncated."
         super().__init__(message, self.error_code, self.error_type)
 
 

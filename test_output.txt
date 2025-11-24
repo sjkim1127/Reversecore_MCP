@@ -1,5 +1,0 @@
-ERROR: usage: pytest [options] [file_or_dir] [file_or_dir] [...]
-pytest: error: unrecognized arguments: --cov=reversecore_mcp --cov-report=term-missing --cov-report=html --cov-fail-under=80 --cov-config=.coveragerc
-  inifile: F:\Reversecore_MCP\pytest.ini
-  rootdir: F:\Reversecore_MCP
-

@@ -34,21 +34,22 @@ logger = get_logger(__name__)
 def _validate_address_or_fail(address: str, param_name: str = "address"):
     """
     Validate address format and return failure ToolResult if invalid.
-    
+
     This helper consolidates the repeated pattern of address validation
     with try-except and failure return.
-    
+
     Args:
         address: Address string to validate
         param_name: Parameter name for error messages
-        
+
     Returns:
         None if validation passes, or ToolResult failure if invalid
-        
+
     Raises:
         No exceptions - all validation errors are converted to ToolResult failures
     """
     from reversecore_mcp.core.validators import validate_address_format
+
     try:
         validate_address_format(address, param_name)
         return None  # Validation passed
@@ -141,7 +142,7 @@ async def emulate_machine_code(
         f"aes {instructions}",  # Step through N instructions
         "ar",  # Show all registers
     ]
-    
+
     # 4. Execute emulation using helper
     try:
         output, bytes_read = await _execute_r2_command(
@@ -226,7 +227,7 @@ async def get_pseudo_code(
 
     # 3. Build radare2 command to decompilation
     r2_cmd = f"pdc @ {address}"
-    
+
     # 4. Execute decompilation using helper
     output, bytes_read = await _execute_r2_command(
         validated_path,
@@ -290,9 +291,7 @@ async def _smart_decompile_impl(
 
                 # Run Ghidra decompilation
                 try:
-                    c_code, metadata = decompile_function_with_ghidra(
-                        validated_path, function_address, timeout
-                    )
+                    c_code, metadata = decompile_function_with_ghidra(validated_path, function_address, timeout)
 
                     return success(
                         c_code,
@@ -303,10 +302,7 @@ async def _smart_decompile_impl(
                     )
 
                 except Exception as ghidra_error:
-                    logger.warning(
-                        f"Ghidra decompilation failed: {ghidra_error}. "
-                        "Falling back to radare2"
-                    )
+                    logger.warning(f"Ghidra decompilation failed: {ghidra_error}. " "Falling back to radare2")
                     # Fall through to radare2
             else:
                 logger.info("Ghidra not available, using radare2")
@@ -318,7 +314,7 @@ async def _smart_decompile_impl(
     logger.info(f"Using radare2 decompiler for {function_address}")
 
     r2_cmds = [f"pdc @ {function_address}"]
-    
+
     # 5. Execute decompilation using helper
     try:
         output, bytes_read = await _execute_r2_command(
@@ -334,11 +330,12 @@ async def _smart_decompile_impl(
         return failure(
             "DECOMPILATION_ERROR",
             f"Radare2 decompilation failed: {str(e)}",
-            hint="Analysis failed. The binary might be packed or corrupted."
+            hint="Analysis failed. The binary might be packed or corrupted.",
         )
 
     # Add timestamp for cache visibility
     import time
+
     timestamp = time.time()
 
     # 6. Return result
@@ -349,7 +346,7 @@ async def _smart_decompile_impl(
         format="pseudo_c",
         decompiler="radare2",
         description=f"Decompiled code from function {function_address}",
-        timestamp=timestamp
+        timestamp=timestamp,
     )
 
 
@@ -381,16 +378,15 @@ async def smart_decompile(
         ToolResult with decompiled pseudo C code
     """
     import time
-    result = await _smart_decompile_impl(
-        file_path, function_address, timeout, use_ghidra
-    )
+
+    result = await _smart_decompile_impl(file_path, function_address, timeout, use_ghidra)
 
     # Check for cache hit
     if result.status == "success" and result.metadata:
         ts = result.metadata.get("timestamp")
         if ts and (time.time() - ts > 1.0):
             result.metadata["cache_hit"] = True
-            
+
     return result
 
 
@@ -506,9 +502,7 @@ async def recover_structures(
                     recover_structures_with_ghidra,
                 )
 
-                structures, metadata = recover_structures_with_ghidra(
-                    validated_path, function_address, timeout
-                )
+                structures, metadata = recover_structures_with_ghidra(validated_path, function_address, timeout)
 
                 return success(
                     {"structures": structures},
@@ -558,11 +552,7 @@ async def recover_structures(
                     offset = var.get("delta", 0)
 
                     # Simple heuristic: group by base register
-                    base = (
-                        var.get("ref", {}).get("base", "unknown")
-                        if "ref" in var
-                        else "stack"
-                    )
+                    base = var.get("ref", {}).get("base", "unknown") if "ref" in var else "stack"
 
                     if base not in structures:
                         structures[base] = {"name": f"struct_{base}", "fields": []}
@@ -581,8 +571,7 @@ async def recover_structures(
             for struct_name, struct_data in structures.items():
                 # Pre-format fields more efficiently
                 field_strs = [
-                    f"{field['type']} {field['name']}; // offset {field['offset']}"
-                    for field in struct_data["fields"]
+                    f"{field['type']} {field['name']}; // offset {field['offset']}" for field in struct_data["fields"]
                 ]
                 fields_str = "\n    ".join(field_strs)
 
@@ -594,9 +583,11 @@ async def recover_structures(
                 "c_definitions": "\n\n".join(c_definitions),
                 "count": len(structures),
             }
-            
-            desc = f"Basic structure recovery from {function_address} using radare2 (found {len(structures)} structure(s))"
-            if 'fallback_note' in locals():
+
+            desc = (
+                f"Basic structure recovery from {function_address} using radare2 (found {len(structures)} structure(s))"
+            )
+            if "fallback_note" in locals():
                 desc += fallback_note
 
             return success(

@@ -10,13 +10,14 @@ from reversecore_mcp.core import json_utils as json  # Use optimized JSON (3-5x 
 # Resources 폴더 경로 (AI용 데이터)
 RESOURCES_PATH = Path("/app/resources")
 
+
 def register_resources(mcp: FastMCP):
     """Register MCP resources for AI agents."""
 
     # ============================================================================
     # 정적 리소스 (Static Resources)
     # ============================================================================
-    
+
     @mcp.resource("reversecore://guide")
     def get_guide() -> str:
         """Reversecore MCP Tool Usage Guide"""
@@ -41,7 +42,7 @@ def register_resources(mcp: FastMCP):
             try:
                 # OPTIMIZED: Use deque to read only last N lines efficiently
                 # This avoids loading the entire log file into memory
-                with open(log_file, 'r', encoding='utf-8', errors='replace') as f:
+                with open(log_file, "r", encoding="utf-8", errors="replace") as f:
                     # deque with maxlen automatically keeps only last N items
                     last_lines = deque(f, maxlen=100)
                     return "".join(last_lines)
@@ -52,7 +53,7 @@ def register_resources(mcp: FastMCP):
     # ============================================================================
     # 동적 리소스 (Dynamic Resources) - Binary Virtual File System
     # ============================================================================
-    
+
     @mcp.resource("reversecore://{filename}/strings")
     async def get_file_strings(filename: str) -> str:
         """Extract all strings from a binary file"""
@@ -74,18 +75,18 @@ def register_resources(mcp: FastMCP):
             strings_res = await cli_tools.run_strings(f"/app/workspace/{filename}")
             if strings_res.status != "success":
                 return f"Failed to extract strings from {filename}"
-            
+
             # 2. Extract IOCs from strings
             strings_data = strings_res.content[0].text if strings_res.content else strings_res.data
             ioc_res = lib_tools.extract_iocs(strings_data)
-            
+
             # 3. Format output
             if ioc_res.status == "success":
                 data = ioc_res.data
-                ipv4_list = data.get('ipv4', [])
-                urls_list = data.get('urls', [])
-                emails_list = data.get('emails', [])
-                
+                ipv4_list = data.get("ipv4", [])
+                urls_list = data.get("urls", [])
+                emails_list = data.get("emails", [])
+
                 return f"""# IOC Report for {filename}
 
 ## IPv4 Addresses ({len(ipv4_list)})
@@ -105,12 +106,8 @@ def register_resources(mcp: FastMCP):
     async def get_decompiled_code(filename: str, address: str) -> str:
         """Get decompiled pseudo-C code for a specific function"""
         try:
-            result = await cli_tools.smart_decompile(
-                f"/app/workspace/{filename}", 
-                address, 
-                use_ghidra=True
-            )
-            
+            result = await cli_tools.smart_decompile(f"/app/workspace/{filename}", address, use_ghidra=True)
+
             if result.status == "success":
                 content = result.content[0].text if result.content else result.data
                 return f"""# Decompiled Code: {filename} @ {address}
@@ -127,11 +124,8 @@ def register_resources(mcp: FastMCP):
     async def get_disassembly(filename: str, address: str) -> str:
         """Get disassembly for a specific function"""
         try:
-            result = await cli_tools.run_radare2(
-                f"/app/workspace/{filename}", 
-                f"pdf @ {address}"
-            )
-            
+            result = await cli_tools.run_radare2(f"/app/workspace/{filename}", f"pdf @ {address}")
+
             if result.status == "success":
                 content = result.content[0].text if result.content else result.data
                 return f"""# Disassembly: {filename} @ {address}
@@ -148,12 +142,8 @@ def register_resources(mcp: FastMCP):
     async def get_function_cfg(filename: str, address: str) -> str:
         """Get Control Flow Graph (Mermaid) for a specific function"""
         try:
-            result = await cli_tools.generate_function_graph(
-                f"/app/workspace/{filename}", 
-                address,
-                format="mermaid"
-            )
-            
+            result = await cli_tools.generate_function_graph(f"/app/workspace/{filename}", address, format="mermaid")
+
             if result.status == "success":
                 content = result.content[0].text if result.content else result.data
                 return f"""# Control Flow Graph: {filename} @ {address}
@@ -168,26 +158,23 @@ def register_resources(mcp: FastMCP):
     async def get_function_list(filename: str) -> str:
         """Get list of all functions in the binary"""
         try:
-            result = await cli_tools.run_radare2(
-                f"/app/workspace/{filename}", 
-                "aflj"  # List functions in JSON format
-            )
-            
+            result = await cli_tools.run_radare2(f"/app/workspace/{filename}", "aflj")  # List functions in JSON format
+
             if result.status == "success":
                 content = result.content[0].text if result.content else result.data
-                
+
                 try:
                     functions = json.loads(content)
                     func_list = []
                     for func in functions[:50]:  # Limit to first 50 for readability
-                        name = func.get('name', 'unknown')
-                        offset = func.get('offset', 0)
-                        size = func.get('size', 0)
+                        name = func.get("name", "unknown")
+                        offset = func.get("offset", 0)
+                        size = func.get("size", 0)
                         func_list.append(f"- `{name}` @ 0x{offset:x} (size: {size} bytes)")
-                    
+
                     total = len(functions)
                     shown = min(50, total)
-                    
+
                     return f"""# Functions in {filename}
 
 Total functions: {total}
@@ -197,7 +184,7 @@ Showing: {shown}
 """
                 except:
                     return f"# Functions in {filename}\n\n{content}"
-                    
+
             return f"Error listing functions: {result.message if hasattr(result, 'message') else 'Failed to list functions'}"
         except Exception as e:
             return f"Error: {str(e)}"
@@ -205,20 +192,17 @@ Showing: {shown}
     # ============================================================================
     # Reversecore Signature Resources (Trinity Defense System)
     # ============================================================================
-    
+
     @mcp.resource("reversecore://{filename}/trinity_defense")
     async def get_trinity_defense_report(filename: str) -> str:
         """Get comprehensive Trinity Defense System analysis report"""
         try:
             from reversecore_mcp.tools import trinity_defense as td_module
-            
+
             result = await td_module.trinity_defense(
-                file_path=f"/app/workspace/{filename}",
-                mode="full",
-                max_threats=5,
-                generate_vaccine=True
+                file_path=f"/app/workspace/{filename}", mode="full", max_threats=5, generate_vaccine=True
             )
-            
+
             if result.status == "success":
                 data = result.data
                 summary = data.get("summary", {})
@@ -226,7 +210,7 @@ Showing: {shown}
                 phase_2 = data.get("phase_2_understand", [])
                 phase_3 = data.get("phase_3_neutralize", [])
                 recommendations = data.get("recommendations", [])
-                
+
                 # Format report
                 report = f"""# 🔱 Trinity Defense System Report: {filename}
 
@@ -244,8 +228,8 @@ Showing: {shown}
 ## Phase 2: UNDERSTAND (Neural Decompiler)
 """
                 for i, threat in enumerate(phase_2[:5]):
-                    intent = threat.get('intent', 'unknown')
-                    confidence = threat.get('confidence', 0.0)
+                    intent = threat.get("intent", "unknown")
+                    confidence = threat.get("confidence", 0.0)
                     report += f"""
 ### Threat {i+1}: {threat.get('function', 'unknown')}
 - **Address**: {threat.get('address', 'N/A')}
@@ -253,27 +237,29 @@ Showing: {shown}
 - **Confidence**: {confidence:.2f}
 - **Reason**: {threat.get('reason', 'N/A')}
 """
-                
+
                 report += "\n## Phase 3: NEUTRALIZE (Adaptive Vaccine)\n"
                 report += f"- YARA Rules Generated: {len(phase_3)}\n\n"
-                
+
                 report += "## Recommendations\n"
                 for i, rec in enumerate(recommendations[:5]):
                     if isinstance(rec, dict):
                         report += f"\n### {rec.get('severity', 'INFO')}: {rec.get('threat_type', 'Unknown')}\n"
                         report += f"- **Location**: {rec.get('location', 'N/A')}\n"
                         report += f"- **Confidence**: {rec.get('confidence', 0.0):.2f}\n"
-                        immediate = rec.get('immediate_actions', [])
+                        immediate = rec.get("immediate_actions", [])
                         if immediate:
                             report += "\n**Immediate Actions:**\n"
                             for action in immediate[:5]:
                                 report += f"- {action}\n"
                     else:
                         report += f"{i+1}. {rec}\n"
-                
+
                 return report
-            
-            return f"Trinity Defense analysis failed: {result.message if hasattr(result, 'message') else 'Unknown error'}"
+
+            return (
+                f"Trinity Defense analysis failed: {result.message if hasattr(result, 'message') else 'Unknown error'}"
+            )
         except Exception as e:
             return f"Error: {str(e)}"
 
@@ -282,16 +268,14 @@ Showing: {shown}
         """Get Ghost Trace analysis results (orphan functions and logic bombs)"""
         try:
             from reversecore_mcp.tools import ghost_trace as gt_module
-            
-            result = await gt_module.ghost_trace(
-                file_path=f"/app/workspace/{filename}"
-            )
-            
+
+            result = await gt_module.ghost_trace(file_path=f"/app/workspace/{filename}")
+
             if result.status == "success":
                 data = result.data
                 orphans = data.get("orphan_functions", [])
                 suspicious = data.get("suspicious_logic", [])
-                
+
                 report = f"""# 👻 Ghost Trace Results: {filename}
 
 ## Orphan Functions (Never Called)
@@ -306,9 +290,9 @@ Found {len(orphans)} orphan function(s):
 - **Assessment**: Potentially hidden backdoor or logic bomb
 
 """
-                
+
                 report += f"\n## Suspicious Logic (Magic Values)\nFound {len(suspicious)} suspicious pattern(s):\n\n"
-                
+
                 for logic in suspicious[:10]:
                     report += f"""### {logic.get('function', 'unknown')}
 - **Address**: {logic.get('address', 'N/A')}
@@ -316,9 +300,9 @@ Found {len(orphans)} orphan function(s):
 - **Reason**: {logic.get('reason', 'N/A')}
 
 """
-                
+
                 return report
-            
+
             return f"Ghost Trace analysis failed: {result.message if hasattr(result, 'message') else 'Unknown error'}"
         except Exception as e:
             return f"Error: {str(e)}"
@@ -328,18 +312,15 @@ Found {len(orphans)} orphan function(s):
         """Get AI-refined decompiled code from Neural Decompiler"""
         try:
             from reversecore_mcp.tools import neural_decompiler as nd_module
-            
-            result = await nd_module.neural_decompile(
-                file_path=f"/app/workspace/{filename}",
-                function_address=address
-            )
-            
+
+            result = await nd_module.neural_decompile(file_path=f"/app/workspace/{filename}", function_address=address)
+
             if result.status == "success":
                 data = result.data
                 neural_code = data.get("neural_code", "")
                 ghidra_code = data.get("ghidra_code", "")
                 stats = data.get("refinement_stats", {})
-                
+
                 return f"""# 🧠 Neural Decompiler: {filename} @ {address}
 
 ## AI-Refined Code (Neural Decompiler)
@@ -357,7 +338,7 @@ Found {len(orphans)} orphan function(s):
 - Structures Inferred: {stats.get('structures_inferred', 0)}
 - Comments Added: {stats.get('comments_added', 0)}
 """
-            
+
             return f"Neural Decompilation failed: {result.message if hasattr(result, 'message') else 'Unknown error'}"
         except Exception as e:
             return f"Error: {str(e)}"

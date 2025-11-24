@@ -17,9 +17,7 @@ _IOC_IPV4_PATTERN = re.compile(
 _IOC_URL_PATTERN = re.compile(
     r"https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&//=]*)"
 )
-_IOC_EMAIL_PATTERN = re.compile(
-    r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
-)
+_IOC_EMAIL_PATTERN = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b")
 
 
 @log_execution(tool_name="extract_iocs")
@@ -63,14 +61,14 @@ def extract_iocs(
                     if isinstance(data["data"], str):
                         text = data["data"]
                     elif isinstance(data["data"], dict):
-                        text = json.dumps(data["data"]) # Convert back to string for regex
-                elif "content" in data: # Legacy or other format
-                     if isinstance(data["content"], list):
-                         text = "\n".join([c.get("text", "") for c in data["content"] if isinstance(c, dict)])
-                     else:
-                         text = str(data["content"])
+                        text = json.dumps(data["data"])  # Convert back to string for regex
+                elif "content" in data:  # Legacy or other format
+                    if isinstance(data["content"], list):
+                        text = "\n".join([c.get("text", "") for c in data["content"] if isinstance(c, dict)])
+                    else:
+                        text = str(data["content"])
         except json.JSONDecodeError:
-            pass # Not valid JSON, treat as raw text
+            pass  # Not valid JSON, treat as raw text
 
     # Handle file paths: if text is a valid file path, read its content
     # This handles cases where users pass a file path instead of content
@@ -82,7 +80,7 @@ def extract_iocs(
                 return failure(
                     "FILE_TOO_LARGE",
                     f"File {text} is too large for regex analysis (>10MB).",
-                    hint="Use 'run_strings' or 'grep' to filter content first."
+                    hint="Use 'run_strings' or 'grep' to filter content first.",
                 )
             with open(text, "r", encoding="utf-8", errors="ignore") as f:
                 text = f.read()
@@ -92,16 +90,12 @@ def extract_iocs(
     # Optimization: If text is very large (>100KB), pre-filter lines to avoid token explosion
     # and regex performance issues.
     if len(text) > 100 * 1024:
-        lines = text.split('\n')
+        lines = text.split("\n")
         # Keep lines that look like they might contain IOCs (dots, @, http)
         # This is a rough heuristic to reduce data size before heavy regex
-        filtered_lines = [
-            line for line in lines 
-            if len(line) < 500 and ('.' in line or '@' in line or ':' in line)
-        ]
+        filtered_lines = [line for line in lines if len(line) < 500 and ("." in line or "@" in line or ":" in line)]
         # Limit to top 2000 suspicious lines to prevent memory issues
-        text = '\n'.join(filtered_lines[:2000])
-
+        text = "\n".join(filtered_lines[:2000])
 
     # IPv4 Regex - use pre-compiled pattern
     if extract_ips:

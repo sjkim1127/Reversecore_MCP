@@ -24,9 +24,11 @@ def handle_tool_errors(func: F) -> F:
 
     # Check if function is async
     import inspect
+
     is_async = inspect.iscoroutinefunction(func)
 
     if is_async:
+
         @wraps(func)
         async def async_wrapper(*args, **kwargs) -> ToolResult:
             tool_name = func.__name__

@@ -5,9 +5,7 @@ This module provides caching for binary analysis results.
 It prevents redundant analysis of the same files.
 """
 
-import hashlib
 import time
-import asyncio
 from typing import Dict, Any, Optional, Tuple
 from pathlib import Path
 
@@ -23,15 +21,15 @@ DEFAULT_CACHE_TTL_SECONDS = 60  # Default time-to-live for cache validation
 class BinaryMetadataCache:
     """
     Caches metadata for analyzed binaries.
-    
+
     Keyed by file path and modification time (or hash).
-    
+
     Performance optimizations:
     - TTL-based validation to reduce stat() calls
     - Cached mtime stored with last check time
     - Configurable cache lifetime (default: 60 seconds)
     """
-    
+
     def __init__(self, ttl_seconds: int = DEFAULT_CACHE_TTL_SECONDS):
         self._cache: Dict[str, Any] = {}
         # Store (mtime, last_check_time) tuple to reduce stat() calls
@@ -45,7 +43,7 @@ class BinaryMetadataCache:
     def _is_valid(self, file_path: str) -> bool:
         """
         Check if cache entry is valid (file hasn't changed).
-        
+
         Uses TTL-based checking to avoid excessive stat() calls:
         - If checked within TTL window, assume valid (fast path)
         - Otherwise, verify mtime hasn't changed (slow path)
@@ -53,23 +51,23 @@ class BinaryMetadataCache:
         key = self._get_cache_key(file_path)
         if key not in self._cache:
             return False
-        
+
         if key not in self._file_timestamps:
             return False
-        
+
         cached_mtime, last_check_time = self._file_timestamps[key]
         current_time = time.time()
-        
+
         # Fast path: If within TTL window, trust the cache without stat()
         # Using < instead of <= for strict TTL boundary to avoid edge case stat() calls
         if current_time - last_check_time < self._ttl_seconds:
             return True
-        
+
         # Slow path: TTL expired, need to check file modification time
         try:
             actual_mtime = Path(file_path).stat().st_mtime
             is_valid = cached_mtime == actual_mtime
-            
+
             if is_valid:
                 # Update last check time to reset TTL window
                 self._file_timestamps[key] = (cached_mtime, current_time)
@@ -79,7 +77,7 @@ class BinaryMetadataCache:
                     del self._cache[key]
                 if key in self._file_timestamps:
                     del self._file_timestamps[key]
-            
+
             return is_valid
         except FileNotFoundError:
             # File deleted, invalidate cache
@@ -97,25 +95,25 @@ class BinaryMetadataCache:
             if val is not None:
                 metrics_collector.record_cache_hit("binary_cache")
                 return val
-        
+
         metrics_collector.record_cache_miss("binary_cache")
         return None
 
     def set(self, file_path: str, key: str, value: Any):
         """Set a specific metadata item for a file."""
         cache_key = self._get_cache_key(file_path)
-        
+
         # Initialize if needed
         if cache_key not in self._cache:
             self._cache[cache_key] = {}
-            
+
         # Update timestamp with current time as last check
         try:
             mtime = Path(file_path).stat().st_mtime
             self._file_timestamps[cache_key] = (mtime, time.time())
         except FileNotFoundError:
             pass
-            
+
         self._cache[cache_key][key] = value
         logger.debug(f"Cached {key} for {file_path}")
 

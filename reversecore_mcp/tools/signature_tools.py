@@ -23,25 +23,23 @@ DEFAULT_TIMEOUT = get_config().default_tool_timeout
 logger = get_logger(__name__)
 
 # OPTIMIZATION: Character translation table for filename sanitization
-_FILENAME_SANITIZE_TRANS = str.maketrans({
-    '-': '_',
-    '.': '_'
-})
+_FILENAME_SANITIZE_TRANS = str.maketrans({"-": "_", ".": "_"})
 
 
 def _validate_address_or_fail(address: str, param_name: str = "address"):
     """
     Validate address format and return failure ToolResult if invalid.
-    
+
     Args:
         address: Address string to validate
         param_name: Parameter name for error messages
-        
+
     Returns:
         None if validation passes, or ToolResult failure if invalid
     """
     from reversecore_mcp.core.validators import validate_address_format
     from reversecore_mcp.core.exceptions import ValidationError
+
     try:
         validate_address_format(address, param_name)
         return None  # Validation passed
@@ -52,29 +50,29 @@ def _validate_address_or_fail(address: str, param_name: str = "address"):
 def _format_hex_bytes(hex_string: str) -> str:
     """
     Efficiently format hex string as space-separated byte pairs.
-    
+
     Optimized to avoid intermediate list creation by using a generator.
-    
+
     Args:
         hex_string: Hex string without spaces (e.g., "4883ec20")
-        
+
     Returns:
         Space-separated hex bytes (e.g., "48 83 ec 20")
     """
     # Use generator expression to avoid creating intermediate list
-    return " ".join(hex_string[i:i+2] for i in range(0, len(hex_string), 2))
+    return " ".join(hex_string[i : i + 2] for i in range(0, len(hex_string), 2))
 
 
 @lru_cache(maxsize=128)
 def _sanitize_filename_for_rule(file_path: str) -> str:
     """
     Extract and sanitize filename for use in YARA rule names.
-    
+
     Cached to avoid repeated Path operations and string replacements.
-    
+
     Args:
         file_path: Path to the file
-        
+
     Returns:
         Sanitized filename with special characters replaced
     """
@@ -143,12 +141,12 @@ async def generate_signature(
         f"s {address}",  # Seek to address
         f"p8 {length}",  # Print hex bytes
     ]
-    
+
     # Adaptive analysis: if address is hex, we don't need full analysis
     analysis_level = ""
     if address.startswith("0x") or re.match(r"^[0-9a-fA-F]+$", address):
         analysis_level = "-n"
-        
+
     # Extract hex bytes using helper
     # Note: analysis_level may be "" (empty) which means default r2 behavior (parse headers/symbols)
     output, bytes_read = await _execute_r2_command(
@@ -173,6 +171,7 @@ async def generate_signature(
         # If we used -n, try again without it to force mapping
         if analysis_level == "-n":
             from reversecore_mcp.tools.r2_analysis import _calculate_dynamic_timeout
+
             effective_timeout = _calculate_dynamic_timeout(str(validated_path), timeout)
             cmd = _build_r2_cmd(str(validated_path), r2_cmds, "aaa")
             output, _ = await execute_subprocess_async(
@@ -181,19 +180,19 @@ async def generate_signature(
                 timeout=effective_timeout,
             )
             hex_bytes = output.strip()
-            
+
             # Re-check
             if re.match(r"^(ff)+$", hex_bytes, re.IGNORECASE) or re.match(r"^(00)+$", hex_bytes):
                 return failure(
                     "SIGNATURE_ERROR",
                     f"Extracted bytes are all 0xFF or 0x00 at {address}. The memory might be unmapped or empty.",
-                    hint="Try a different address or ensure the binary is loaded correctly."
+                    hint="Try a different address or ensure the binary is loaded correctly.",
                 )
         else:
             return failure(
                 "SIGNATURE_ERROR",
                 f"Extracted bytes are all 0xFF or 0x00 at {address}. The memory might be unmapped or empty.",
-                hint="Try a different address or ensure the binary is loaded correctly."
+                hint="Try a different address or ensure the binary is loaded correctly.",
             )
 
     # 5. Format as YARA hex string (space-separated pairs)
@@ -287,10 +286,10 @@ async def generate_yara_rule(
         f"s {function_address}",  # Seek to address
         f"p8 {byte_length}",  # Print hex bytes
     ]
-    
+
     # Always use -n for p8 to avoid analysis hang
     analysis_level = "-n"
-        
+
     # 4. Extract hex bytes using helper
     output, bytes_read = await _execute_r2_command(
         validated_path,
@@ -315,13 +314,13 @@ async def generate_yara_rule(
         # 1. Try 'main' if we weren't already there
         # 2. Try entry point 'entry0'
         # 3. Find largest function
-        
+
         logger.info(f"Invalid bytes at {function_address}, attempting smart offset search...")
-        
+
         # Try to find a better function
         cmd = "aflj"
         out, _ = await _execute_r2_command(validated_path, [cmd], analysis_level="aaa", base_timeout=timeout)
-        
+
         try:
             funcs = _parse_json_output(out)
             if funcs and isinstance(funcs, list):
@@ -329,7 +328,7 @@ async def generate_yara_rule(
                 largest_func = max(funcs, key=lambda x: x.get("size", 0))
                 suggested_addr = hex(largest_func.get("offset", 0))
                 suggested_name = largest_func.get("name", "unknown")
-                
+
                 return failure(
                     "YARA_GENERATION_ERROR",
                     f"Address {function_address} contains invalid bytes (all 0x00 or 0xFF). "
@@ -338,7 +337,7 @@ async def generate_yara_rule(
                 )
         except Exception:
             pass
-        
+
         return failure(
             "YARA_GENERATION_ERROR",
             f"Address {function_address} contains invalid bytes (all 0x00 or 0xFF)",

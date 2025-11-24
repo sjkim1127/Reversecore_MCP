@@ -109,10 +109,7 @@ def setup_logging() -> None:
     except (PermissionError, OSError, IOError) as e:
         # If we can't create or write to the log file, log to console only
         # This is acceptable in restricted environments (e.g., AWS Lambda, read-only filesystems)
-        logger.warning(
-            f"Could not create log file handler for {log_file}: {e}. "
-            "Logging to console only."
-        )
+        logger.warning(f"Could not create log file handler for {log_file}: {e}. " "Logging to console only.")
 
     # Prevent propagation to root logger
     logger.propagate = False
@@ -129,4 +126,3 @@ def get_logger(name: str) -> logging.Logger:
         Logger instance
     """
     return logging.getLogger(f"reversecore_mcp.{name}")
-

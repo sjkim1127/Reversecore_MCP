@@ -26,32 +26,28 @@ from reversecore_mcp.core.validators import validate_tool_parameters
 DEFAULT_TIMEOUT = get_config().default_tool_timeout
 
 # OPTIMIZATION: Pre-compile pattern for stripping address prefixes
-_ADDRESS_PREFIX_PATTERN = re.compile(r'(0x|sym\.|fcn\.)')
+_ADDRESS_PREFIX_PATTERN = re.compile(r"(0x|sym\.|fcn\.)")
 
 # OPTIMIZATION: Pre-compile pattern for Mermaid special character escaping
-_MERMAID_ESCAPE_CHARS = str.maketrans({
-    '"': "'",
-    '(': '[',
-    ')': ']'
-})
+_MERMAID_ESCAPE_CHARS = str.maketrans({'"': "'", "(": "[", ")": "]"})
 
 # OPTIMIZATION: Pre-compile pattern for removing radare2 analysis commands
-_R2_ANALYSIS_PATTERN = re.compile(r'\b(aaa|aa)\b')
+_R2_ANALYSIS_PATTERN = re.compile(r"\b(aaa|aa)\b")
 
 
 def _strip_address_prefixes(address: str) -> str:
     """
     Efficiently strip common address prefixes using regex.
-    
+
     This is faster than chained .replace() calls for multiple patterns.
     """
-    return _ADDRESS_PREFIX_PATTERN.sub('', address)
+    return _ADDRESS_PREFIX_PATTERN.sub("", address)
 
 
 def _escape_mermaid_chars(text: str) -> str:
     """
     Efficiently escape Mermaid special characters using str.translate().
-    
+
     This is faster than chained .replace() calls for multiple characters.
     """
     return text.translate(_MERMAID_ESCAPE_CHARS)
@@ -60,7 +56,7 @@ def _escape_mermaid_chars(text: str) -> str:
 @lru_cache(maxsize=128)
 def _get_r2_project_name(file_path: str) -> str:
     """Generate a unique project name based on file path hash.
-    
+
     Cached to avoid repeated MD5 computation for the same file path.
     """
     # Use absolute path to ensure uniqueness
@@ -73,13 +69,13 @@ def _calculate_dynamic_timeout(file_path: str, base_timeout: int = 300) -> int:
     """
     Calculate timeout based on file size.
     Strategy: Base timeout + 1 second per MB of file size.
-    
+
     Cached to avoid repeated file stat calls for the same file.
     """
     try:
         size_mb = os.path.getsize(file_path) / (1024 * 1024)
         # Cap the dynamic addition to avoid extremely long timeouts (e.g. max +10 mins)
-        additional_time = min(size_mb * 2, 600) 
+        additional_time = min(size_mb * 2, 600)
         return int(base_timeout + additional_time)
     except Exception:
         return base_timeout
@@ -94,69 +90,69 @@ async def _execute_r2_command(
 ) -> tuple[str, int]:
     """
     Execute radare2 commands with common pattern.
-    
+
     This helper consolidates the repeated pattern of:
     1. Calculate dynamic timeout
     2. Build r2 command
     3. Execute subprocess
-    
+
     Args:
         file_path: Path to the binary file (already validated)
         r2_commands: List of radare2 commands to execute
         analysis_level: Analysis level ("aaa", "aa", "-n")
         max_output_size: Maximum output size in bytes
         base_timeout: Base timeout in seconds
-        
+
     Returns:
         Tuple of (output, bytes_read)
     """
     effective_timeout = _calculate_dynamic_timeout(str(file_path), base_timeout)
     cmd = _build_r2_cmd(str(file_path), r2_commands, analysis_level)
-    
+
     output, bytes_read = await execute_subprocess_async(
         cmd,
         max_output_size=max_output_size,
         timeout=effective_timeout,
     )
-    
+
     return output, bytes_read
 
 
 def _build_r2_cmd(file_path: str, r2_commands: list[str], analysis_level: str = "aaa") -> list[str]:
     """
     Build radare2 command.
-    
+
     Simplified version: Always run analysis if requested, skipping project persistence
     to avoid permission issues and 'exit 1' errors in Docker environments.
-    
+
     Performance Note - Early Filtering:
     ===================================
     When searching for specific data, consider using radare2's built-in filtering
     to reduce data transfer and parsing overhead. Examples:
-    
+
     1. Text-based filtering with grep (~):
        - aflj~main       # Filter functions containing "main" (WARNING: breaks JSON)
        - afl~main        # Text-mode filtering (safe, but not JSON)
        - iz~password     # Filter strings containing "password"
-    
+
     2. Radare2's native JSON queries (where available):
        - Some commands support inline filtering in JSON mode
        - Check radare2 documentation for specific command capabilities
-    
+
     3. Trade-offs:
        - Early filtering: Reduces data transfer by 50-70%
        - Late filtering: Preserves JSON structure, more flexible
        - Current implementation: Prioritizes JSON structure integrity
-    
+
     For complex filtering logic (e.g., checking multiple conditions, prefix matching),
     Python-side filtering is more maintainable and flexible.
     """
     base_cmd = ["r2", "-q"]
-    
+
     # If we just want to run commands without analysis (adaptive analysis)
     if analysis_level == "-n":
         return base_cmd + ["-n"] + ["-c", ";".join(r2_commands), str(file_path)]
-        
+
     # Always run analysis + commands
     # We use 'e scr.color=0' to ensure no color codes in output
     combined_cmds = ["e scr.color=0", analysis_level] + r2_commands
@@ -167,92 +163,92 @@ def _extract_first_json(text: str) -> str | None:
     """
     Extract the first valid JSON object or array from a string.
     Handles nested structures and ignores surrounding garbage.
-    
+
     PERFORMANCE NOTE: Optimized to O(n) by minimizing redundant scanning.
     Uses early bailout conditions when a bracket is followed only by
     whitespace and more brackets (pathological case: "{ { { { {").
-    
+
     Returns:
         The extracted JSON string, or None if no valid JSON found.
     """
     text = text.strip()
     if not text:
         return None
-    
+
     # Quick optimization: Try parsing the whole string first
     # This handles the common case where output is pure JSON
-    if text[0] in ('{', '['):
+    if text[0] in ("{", "["):
         try:
             json.loads(text)
             return text
         except json.JSONDecodeError:
             pass
-    
+
     # Need to extract JSON from noisy output
     i = 0
     text_len = len(text)
-    
+
     while i < text_len:
         char = text[i]
-        
+
         # Skip non-JSON start characters
-        if char not in ('{', '['):
+        if char not in ("{", "["):
             i += 1
             continue
-        
+
         # Found potential JSON start
         # Quick heuristic: Skip obvious false starts (isolated brackets)
         # This prevents pathological O(n²) behavior with "{ { { { {".
         # Note: We only check for same bracket type to avoid false positives.
         # Mixed brackets like "{ [" could be valid JSON like `{"arr": [...]}`
-        if i + 1 < text_len and text[i + 1] in (' ', '\t'):
+        if i + 1 < text_len and text[i + 1] in (" ", "\t"):
             # Bracket followed by whitespace - check if next non-whitespace is also a bracket
             next_idx = i + 2
-            while next_idx < text_len and text[next_idx] in (' ', '\t', '\n', '\r'):
+            while next_idx < text_len and text[next_idx] in (" ", "\t", "\n", "\r"):
                 next_idx += 1
             if next_idx < text_len and text[next_idx] == char:
                 # Pattern like "{ {" or "[ [" with only whitespace between
                 # This is likely noise, not JSON - skip it
                 i += 1
                 continue
-        
+
         # Try to extract JSON starting from this position
         stack = []
         start_idx = i
         in_string = False
         escape_next = False
         j = i
-        
+
         while j < text_len:
             c = text[j]
-            
+
             # Handle string literals (quotes can contain brackets)
             if escape_next:
                 escape_next = False
                 j += 1
                 continue
-                
-            if c == '\\' and in_string:
+
+            if c == "\\" and in_string:
                 escape_next = True
                 j += 1
                 continue
-                
+
             if c == '"':
                 in_string = not in_string
                 j += 1
                 continue
-            
+
             # Process brackets only when not inside strings
             if not in_string:
-                if c in ('{', '['):
+                if c in ("{", "["):
                     stack.append(c)
-                elif c in ('}', ']'):
+                elif c in ("}", "]"):
                     if not stack:
                         # Unmatched closing bracket
                         break
-                    
+
                     last = stack[-1]
-                    if (c == '}' and last == '{') or (c == ']' and last == '['):
+                    if (c == "}" and last == "{") or (c == "]" and last == "["):
                         stack.pop()
                         if not stack:
                             # Found complete structure, validate it's actually JSON
@@ -269,35 +265,35 @@ def _extract_first_json(text: str) -> str | None:
                     else:
                         # Mismatched brackets
                         break
-            
+
             j += 1
-        
+
         # Move past this failed attempt
         if i == start_idx:
             i += 1
-    
+
     return None
 
 
 def _parse_json_output(output: str):
     """
     Safely parse JSON from command output.
-    
+
     Tries to extract JSON from output that may contain non-JSON text
     (like warnings, debug messages, etc.) and parse it.
-    
+
     Args:
         output: Raw command output that may contain JSON
-        
+
     Returns:
         Parsed JSON object (dict/list) or None if parsing fails
-        
+
     Raises:
         json.JSONDecodeError: If JSON is found but invalid
     """
     # First, try to extract clean JSON from potentially noisy output
     json_str = _extract_first_json(output)
-    
+
     if json_str is not None:
         # Found potential JSON, try to parse it
         try:
@@ -306,7 +302,7 @@ def _parse_json_output(output: str):
             # Extracted text wasn't valid JSON (e.g., "[x]" from radare2 output)
             # Fall through to try parsing entire output
             pass
-    
+
     # No valid JSON structure found via extraction, try parsing entire output as-is
     # This handles cases where output is pure JSON without any prefix/suffix
     return json.loads(output)
@@ -328,23 +324,23 @@ async def run_radare2(
     validate_tool_parameters("run_radare2", {"r2_command": r2_command})
     validated_path = validate_file_path(file_path)
     validated_command = validate_r2_command(r2_command)
-    
+
     # Adaptive analysis logic
     # Use 'aa' (basic analysis) instead of 'aaa' (advanced analysis) for better performance
     # 'aaa' is often overkill for automated tasks and causes timeouts on large binaries
     analysis_level = "aa"
-    
+
     # Simple information commands don't need analysis
     simple_commands = ["i", "iI", "iz", "il", "is", "ie", "it"]
     if validated_command in simple_commands or validated_command.startswith("i "):
         analysis_level = "-n"
-    
+
     # If user explicitly requested analysis, handle it via caching
     if "aaa" in validated_command or "aa" in validated_command:
         # Remove explicit analysis commands as they are handled by _build_r2_cmd
         # OPTIMIZATION: Use pre-compiled regex pattern instead of chained replace
-        validated_command = _R2_ANALYSIS_PATTERN.sub('', validated_command).strip(" ;")
-    
+        validated_command = _R2_ANALYSIS_PATTERN.sub("", validated_command).strip(" ;")
+
     # Use helper function to execute radare2 command
     try:
         output, bytes_read = await _execute_r2_command(
@@ -395,7 +391,6 @@ async def trace_execution_path(
         ToolResult with a list of execution paths (call chains).
     """
     validated_path = validate_file_path(file_path)
-    effective_timeout = _calculate_dynamic_timeout(str(validated_path), timeout)
 
     # Helper to get address of a function name
     async def get_address(func_name):
@@ -404,15 +399,15 @@ async def trace_execution_path(
         # isn't found in the first lookup (common for stripped binaries)
         cmd = _build_r2_cmd(str(validated_path), ["isj", "aflj"], "aaa")
         out, _ = await execute_subprocess_async(cmd, timeout=30)
-        
+
         # Parse output: radare2 outputs one JSON per command line
         # We expect 2 lines: first from isj (symbols), second from aflj (functions)
         lines = [line.strip() for line in out.strip().split("\n") if line.strip()]
-        
+
         # Validate we have at least one line with potential JSON
         if not lines:
             return None
-        
+
         # Try symbols first (isj output)
         # Use robust parsing that handles both JSON arrays and error messages
         if len(lines) >= 1:
@@ -428,7 +423,7 @@ async def trace_execution_path(
                 # First line wasn't valid JSON or wasn't in expected format
                 # This is OK - fall through to try functions
                 pass
-        
+
         # If not found in symbols, try functions (aflj output)
         if len(lines) >= 2:
             try:
@@ -442,7 +437,7 @@ async def trace_execution_path(
                 # Second line wasn't valid JSON or wasn't in expected format
                 # This is OK - just means function not found
                 pass
-        
+
         return None
 
     # Resolve target address
@@ -464,17 +459,17 @@ async def trace_execution_path(
 
         # OPTIMIZATION: Pre-compute addresses in current path to avoid repeated list comprehensions
         current_path_addrs = {p["addr"] for p in current_path}
-        
+
         if current_addr in visited and current_addr not in current_path_addrs:
-             # Allow revisiting if it's a different path, but prevent cycles in current path
-             pass
+            # Allow revisiting if it's a different path, but prevent cycles in current path
+            pass
         elif current_addr in current_path_addrs:
-            return # Cycle detected
+            return  # Cycle detected
 
         # Get xrefs TO this address
         cmd = _build_r2_cmd(str(validated_path), [f"axtj @ {current_addr}"], "aaa")
         out, _ = await execute_subprocess_async(cmd, timeout=30)
-        
+
         try:
             xrefs = _parse_json_output(out)
         except (json.JSONDecodeError, TypeError):
@@ -489,16 +484,16 @@ async def trace_execution_path(
         for xref in xrefs:
             if len(paths) >= max_paths:
                 break
-            
+
             caller_addr = hex(xref.get("fcn_addr", 0))
             caller_name = xref.get("fcn_name", "unknown")
             type_ref = xref.get("type", "call")
-            
+
             if type_ref not in ["call", "jump"]:
                 continue
 
             new_node = {"addr": caller_addr, "name": caller_name, "type": type_ref}
-            
+
             # If we reached main or entry, this is a complete path
             if "main" in caller_name or "entry" in caller_name:
                 paths.append(current_path + [new_node])
@@ -512,16 +507,13 @@ async def trace_execution_path(
     # Format results
     # OPTIMIZATION: Use list comprehension with generator expression in join
     # This reduces memory by avoiding intermediate list creation in the join
-    formatted_paths = [
-        " -> ".join(f"{n['name']} ({n['addr']})" for n in p[::-1])
-        for p in paths
-    ]
+    formatted_paths = [" -> ".join(f"{n['name']} ({n['addr']})" for n in p[::-1]) for p in paths]
 
     return success(
         {"paths": formatted_paths, "raw_paths": paths},
         path_count=len(paths),
         target=target_function,
-        description=f"Found {len(paths)} execution paths to {target_function}"
+        description=f"Found {len(paths)} execution paths to {target_function}",
     )
 
 
@@ -542,11 +534,7 @@ def _radare2_json_to_mermaid(json_str: str) -> str:
             return "graph TD;\n    Error[No graph data found]"
 
         # agfj returns list format for function graph
-        blocks = (
-            graph_data[0].get("blocks", [])
-            if isinstance(graph_data, list)
-            else graph_data.get("blocks", [])
-        )
+        blocks = graph_data[0].get("blocks", []) if isinstance(graph_data, list) else graph_data.get("blocks", [])
 
         mermaid_lines = ["graph TD"]
 
@@ -566,7 +554,7 @@ def _radare2_json_to_mermaid(json_str: str) -> str:
                 elif i == 5:
                     has_more = True
                     break
-            
+
             if has_more:
                 op_codes.append("...")
 
@@ -616,6 +604,7 @@ async def _generate_function_graph_impl(
     # 2. Security check for function address (prevent shell injection)
     from reversecore_mcp.core.validators import validate_address_format
     from reversecore_mcp.core.exceptions import ValidationError
+
     try:
         validate_address_format(function_address, "function_address")
     except ValidationError as e:
@@ -636,6 +625,7 @@ async def _generate_function_graph_impl(
 
     # Add timestamp for cache visibility
     import time
+
     timestamp = time.time()
 
     # 5. Format conversion and return
@@ -649,7 +639,7 @@ async def _generate_function_graph_impl(
             bytes_read=bytes_read,
             format="mermaid",
             description="Render this using Mermaid to see the control flow.",
-            timestamp=timestamp
+            timestamp=timestamp,
         )
 
     elif format.lower() == "dot":
@@ -659,7 +649,7 @@ async def _generate_function_graph_impl(
         # - Batching both would waste resources since we only need one format
         # - DOT format is rarely used (mermaid and json are preferred)
         dot_cmd_str = f"agfd @ {function_address}"
-        
+
         dot_output, dot_bytes = await _execute_r2_command(
             validated_path,
             [dot_cmd_str],
@@ -696,48 +686,41 @@ async def generate_function_graph(
     """
     import time
     from fastmcp.utilities.types import Image
-    
+
     # If PNG format requested, generate DOT first then convert
     if format.lower() == "png":
         # Get DOT format first
-        result = await _generate_function_graph_impl(
-            file_path, function_address, "dot", timeout
-        )
-        
+        result = await _generate_function_graph_impl(file_path, function_address, "dot", timeout)
+
         if result.is_error:
             return result
-            
+
         # Convert DOT to PNG using graphviz
         try:
             import subprocess
             import tempfile
             from pathlib import Path as PathlibPath
-            
+
             # Get DOT content from result
             dot_content = result.content[0].text if result.content else ""
-            
+
             # Create temp files
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.dot', delete=False) as dot_file:
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".dot", delete=False) as dot_file:
                 dot_file.write(dot_content)
                 dot_path = dot_file.name
-            
-            png_path = dot_path.replace('.dot', '.png')
-            
+
+            png_path = dot_path.replace(".dot", ".png")
+
             try:
                 # Use graphviz's dot command to convert DOT to PNG
-                subprocess.run(
-                    ['dot', '-Tpng', dot_path, '-o', png_path],
-                    check=True,
-                    timeout=30,
-                    capture_output=True
-                )
-                
+                subprocess.run(["dot", "-Tpng", dot_path, "-o", png_path], check=True, timeout=30, capture_output=True)
+
                 # Read PNG file
                 png_data = PathlibPath(png_path).read_bytes()
-                
+
                 # Return Image object
                 return Image(data=png_data, mime_type="image/png")
-                
+
             finally:
                 # Cleanup temp files
                 try:
@@ -746,19 +729,17 @@ async def generate_function_graph(
                         PathlibPath(png_path).unlink()
                 except:
                     pass
-                    
+
         except Exception as e:
             return failure(
                 "IMAGE_GENERATION_ERROR",
                 f"Failed to generate PNG image: {str(e)}",
-                hint="Ensure graphviz is installed in the container"
+                hint="Ensure graphviz is installed in the container",
             )
-    
+
     # For other formats, use existing implementation
-    result = await _generate_function_graph_impl(
-        file_path, function_address, format, timeout
-    )
-    
+    result = await _generate_function_graph_impl(file_path, function_address, format, timeout)
+
     # Check for cache hit
     if result.status == "success" and result.metadata:
         ts = result.metadata.get("timestamp")
@@ -766,8 +747,7 @@ async def generate_function_graph(
             result.metadata["cache_hit"] = True
             # Update description to indicate cached result
             # Note: ToolSuccess has 'data' field, not 'content'
-            pass
-                
+
     return result
 
 
@@ -872,7 +852,7 @@ async def analyze_xrefs(
     # Wait, I set default to 120s in the signature.
     # If the user wants faster, they can use 'aa'.
     # Let's try to be smart: if file size is large (>5MB), use 'aa'.
-    
+
     # Use 'aa' (basic analysis) as default to prevent timeouts on obfuscated binaries
     analysis_level = "aa"
     try:
@@ -890,7 +870,7 @@ async def analyze_xrefs(
         max_output_size=10_000_000,
         base_timeout=timeout,
     )
-    
+
     if ctx:
         await ctx.report_progress(90, 100)
 
@@ -933,13 +913,9 @@ async def analyze_xrefs(
         # Add human-readable summary
         summary_parts = []
         if xrefs_to:
-            summary_parts.append(
-                f"{len(xrefs_to)} reference(s) TO this address (callers)"
-            )
+            summary_parts.append(f"{len(xrefs_to)} reference(s) TO this address (callers)")
         if xrefs_from:
-            summary_parts.append(
-                f"{len(xrefs_from)} reference(s) FROM this address (callees)"
-            )
+            summary_parts.append(f"{len(xrefs_from)} reference(s) FROM this address (callees)")
 
         if not summary_parts:
             summary = "No cross-references found"

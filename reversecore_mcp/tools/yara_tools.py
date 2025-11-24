@@ -1,6 +1,5 @@
 """YARA scanning tools for binary analysis with rule matching."""
 
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Protocol, Tuple
 
 from reversecore_mcp.core.decorators import log_execution
@@ -41,18 +40,18 @@ class YaraMatch(Protocol):
 def _format_yara_match(match: YaraMatch) -> Dict[str, Any]:
     """
     Format a YARA match result as a dictionary.
-    
+
     This helper function extracts match information and formats it
     consistently. Supports both modern and legacy yara-python APIs.
-    
+
     Args:
         match: YARA match object
-        
+
     Returns:
         Dictionary with formatted match information
     """
     formatted_strings = []
-    
+
     # Check if match has strings attribute
     match_strings = getattr(match, "strings", None)
     if match_strings:
@@ -73,27 +72,29 @@ def _format_yara_match(match: YaraMatch) -> Dict[str, Any]:
                         else:
                             # Single isinstance check instead of repeated checks
                             data_str = matched_data.hex() if isinstance(matched_data, bytes) else str(matched_data)
-                        
-                        formatted_strings.append({
-                            "identifier": identifier,
-                            "offset": int(offset) if offset is not None else None,
-                            "matched_data": data_str,
-                        })
+
+                        formatted_strings.append(
+                            {
+                                "identifier": identifier,
+                                "offset": int(offset) if offset is not None else None,
+                                "matched_data": data_str,
+                            }
+                        )
         except (AttributeError, TypeError):
             # Fallback: older API may return tuples (offset, identifier, data)
             formatted_strings = []
             for t in match_strings:
                 if isinstance(t, (list, tuple)) and len(t) >= 3:
                     off, ident, data = t[0], t[1], t[2]
-                    data_str = (data.hex() 
-                               if isinstance(data, bytes) 
-                               else str(data))
-                    formatted_strings.append({
-                        "identifier": ident,
-                        "offset": int(off) if off is not None else None,
-                        "matched_data": data_str,
-                    })
-    
+                    data_str = data.hex() if isinstance(data, bytes) else str(data)
+                    formatted_strings.append(
+                        {
+                            "identifier": ident,
+                            "offset": int(off) if off is not None else None,
+                            "matched_data": data_str,
+                        }
+                    )
+
     return {
         "rule": match.rule,
         "namespace": match.namespace,
@@ -131,17 +132,17 @@ def run_yara(
 
     timeout_error = getattr(yara, "TimeoutError", None)
     generic_error = getattr(yara, "Error", None)
-    
+
     # Check cache for compiled rules
     rule_path_str = str(validated_rule)
     current_mtime = validated_rule.stat().st_mtime
-    
+
     rules = None
     if rule_path_str in _YARA_RULES_CACHE:
         cached_mtime, cached_rules = _YARA_RULES_CACHE[rule_path_str]
         if cached_mtime == current_mtime:
             rules = cached_rules
-            
+
     if rules is None:
         try:
             rules = yara.compile(filepath=rule_path_str)
