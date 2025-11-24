@@ -391,7 +391,6 @@ async def trace_execution_path(
         ToolResult with a list of execution paths (call chains).
     """
     validated_path = validate_file_path(file_path)
-    effective_timeout = _calculate_dynamic_timeout(str(validated_path), timeout)
 
     # Helper to get address of a function name
     async def get_address(func_name):

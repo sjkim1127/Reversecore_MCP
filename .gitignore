@@ -21,6 +21,15 @@ htmlcov/
 # Logs
 *.log
 
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+test_output*.txt
+test_debug*.txt
+
 # IDE/editor
 .vscode/
 .idea/

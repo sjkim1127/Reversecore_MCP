@@ -13,7 +13,6 @@ from reversecore_mcp.core.result import ToolResult, success
 from reversecore_mcp.core.security import validate_file_path
 
 # Load default timeout from configuration
-from reversecore_mcp.core.config import get_config
 
 DEFAULT_TIMEOUT = get_config().default_tool_timeout
 

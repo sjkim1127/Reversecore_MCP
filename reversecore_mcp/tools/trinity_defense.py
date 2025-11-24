@@ -109,7 +109,7 @@ async def trinity_defense(
     # PHASE 2: UNDERSTAND - Neural Decompiler
     # ============================================================
     if ctx:
-        await ctx.info(f"\\n🧠 PHASE 2: UNDERSTAND (Neural Decompiler)")
+        await ctx.info("\\n🧠 PHASE 2: UNDERSTAND (Neural Decompiler)")
         await ctx.info(f"📊 Analyzing top {min(max_threats, len(all_threats))} threats...")
 
     refined_threats = []
@@ -127,7 +127,7 @@ async def trinity_defense(
 
         # Execute all decompilations in parallel
         if ctx:
-            await ctx.info(f"  🔄 Parallel analysis in progress...")
+            await ctx.info("  🔄 Parallel analysis in progress...")
 
         results = await asyncio.gather(*[task for _, task in tasks], return_exceptions=True)
 
@@ -176,7 +176,7 @@ async def trinity_defense(
     # PHASE 3: NEUTRALIZE - Adaptive Vaccine
     # ============================================================
     if ctx:
-        await ctx.info(f"\\n🛡️ PHASE 3: NEUTRALIZE (Adaptive Vaccine)")
+        await ctx.info("\\n🛡️ PHASE 3: NEUTRALIZE (Adaptive Vaccine)")
 
     defenses = []
 

@@ -281,7 +281,7 @@ async def solve_path_constraints(
                     "input_str": str(solution),  # Best effort string representation
                     "stdout": found_state.posix.dumps(1).decode(errors="ignore"),
                 }
-            except Exception as e:
+            except Exception:
                 return {"found": True, "input_hex": "", "input_str": "Error dumping input", "stdout": ""}
         else:
             return {"found": False, "reason": "No path found to target"}

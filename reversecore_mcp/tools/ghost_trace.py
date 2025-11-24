@@ -151,7 +151,7 @@ async def ghost_trace(
     functions = _extract_json_safely(output)
     if not functions or not isinstance(functions, list):
         logger.error(f"Invalid function list format. Output preview: {output[:200]}...")
-        return failure(f"Failed to parse function list from radare2. " f"Output may be corrupted or analysis failed.")
+        return failure("Failed to parse function list from radare2. " "Output may be corrupted or analysis failed.")
 
     # Find orphans and suspicious logic
     orphans = []
