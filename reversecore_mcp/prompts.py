@@ -1,5 +1,6 @@
 from fastmcp import FastMCP
 
+
 def register_prompts(mcp: FastMCP):
     """Registers analysis scenarios (prompts) to the server."""
 

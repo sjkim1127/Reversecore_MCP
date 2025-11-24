@@ -41,12 +41,12 @@ async def run_strings(
         "run_strings",
         {"min_length": min_length, "max_output_size": max_output_size},
     )
-    
+
     # Enforce a reasonable minimum output size to prevent accidental truncation
     # 1KB is too small for meaningful string analysis
     if max_output_size < 1024 * 1024:  # Enforce 1MB minimum
         max_output_size = 1024 * 1024
-        
+
     validated_path = validate_file_path(file_path)
     cmd = ["strings", "-n", str(min_length), str(validated_path)]
     output, bytes_read = await execute_subprocess_async(
@@ -54,11 +54,11 @@ async def run_strings(
         max_output_size=max_output_size,
         timeout=timeout,
     )
-    
+
     # Truncate output for LLM consumption if too large
     # 50KB is roughly 12-15k tokens, which is a safe limit for most models
-    LLM_SAFE_LIMIT = 50 * 1024 
-    
+    LLM_SAFE_LIMIT = 50 * 1024
+
     if len(output) > LLM_SAFE_LIMIT:
         truncated_output = output[:LLM_SAFE_LIMIT]
         warning_msg = (
@@ -67,7 +67,7 @@ async def run_strings(
             "To analyze the full content, consider using 'grep' or processing the file directly."
         )
         return success(truncated_output + warning_msg, bytes_read=bytes_read, truncated=True)
-        
+
     return success(output, bytes_read=bytes_read)
 
 
@@ -119,7 +119,7 @@ async def scan_for_versions(
         ToolResult with detected libraries and versions.
     """
     validated_path = validate_file_path(file_path)
-    
+
     # Run strings command
     cmd = ["strings", str(validated_path)]
     output, bytes_read = await execute_subprocess_async(
@@ -127,12 +127,12 @@ async def scan_for_versions(
         max_output_size=10_000_000,
         timeout=timeout,
     )
-    
+
     text = output
-    
+
     # Use pre-compiled patterns for better performance
     detected = {}
-    
+
     # Process all version patterns
     for name, pattern in _VERSION_PATTERNS.items():
         matches = []
@@ -144,12 +144,8 @@ async def scan_for_versions(
                 matches.append(match.group(1))
         if matches:
             detected[name] = list(set(matches))
-    
-    return success(
-        detected,
-        bytes_read=bytes_read,
-        description=f"Detected {len(detected)} potential library versions"
-    )
+
+    return success(detected, bytes_read=bytes_read, description=f"Detected {len(detected)} potential library versions")
 
 
 @log_execution(tool_name="extract_rtti_info")
@@ -161,19 +157,19 @@ async def extract_rtti_info(
 ) -> ToolResult:
     """
     Extract RTTI (Run-Time Type Information) from C++ binaries.
-    
+
     RTTI provides class names and inheritance hierarchies in C++ binaries,
     which is invaluable for understanding object-oriented malware and game clients.
-    
+
     Args:
         file_path: Path to the binary file
         timeout: Execution timeout in seconds
-        
+
     Returns:
         ToolResult with extracted class names and type information
     """
     validated_path = validate_file_path(file_path)
-    
+
     # Use strings with C++ demangling to extract RTTI
     # Look for typeinfo names which start with _ZTS (type string)
     cmd = ["strings", str(validated_path)]
@@ -182,29 +178,29 @@ async def extract_rtti_info(
         max_output_size=10_000_000,
         timeout=timeout,
     )
-    
+
     # Extract potential RTTI strings
     rtti_pattern = re.compile(r"(_ZTS|_ZTI|class\s+\w+|struct\s+\w+)")
     class_pattern = re.compile(r"(?:class|struct)\s+(\w+(?:::\w+)*)")
-    
+
     rtti_strings = []
     class_names = set()
-    
-    for line in output.split('\n'):
+
+    for line in output.split("\n"):
         if rtti_pattern.search(line):
             rtti_strings.append(line.strip())
             # Try to extract class names
             class_match = class_pattern.search(line)
             if class_match:
                 class_names.add(class_match.group(1))
-    
+
     return success(
         {
             "rtti_strings": rtti_strings[:100],  # Limit to first 100
             "class_names": sorted(list(class_names)),
             "total_rtti_entries": len(rtti_strings),
-            "total_classes": len(class_names)
+            "total_classes": len(class_names),
         },
         bytes_read=bytes_read,
-        description=f"Extracted {len(class_names)} C++ class names from RTTI"
+        description=f"Extracted {len(class_names)} C++ class names from RTTI",
     )

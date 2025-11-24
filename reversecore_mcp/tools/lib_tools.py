@@ -17,15 +17,15 @@ from reversecore_mcp.tools.lief_tools import parse_binary_with_lief, _format_lie
 
 # Re-export all tools so existing imports continue to work
 __all__ = [
-    'extract_iocs',
-    'run_yara',
-    'disassemble_with_capstone',
-    'parse_binary_with_lief',
-    'register_lib_tools',
+    "extract_iocs",
+    "run_yara",
+    "disassemble_with_capstone",
+    "parse_binary_with_lief",
+    "register_lib_tools",
     # Internal symbols for backward compatibility (used by tests)
-    '_IOC_IPV4_PATTERN',
-    '_format_yara_match',
-    '_format_lief_output',
+    "_IOC_IPV4_PATTERN",
+    "_format_yara_match",
+    "_format_lief_output",
 ]
 
 
@@ -40,4 +40,3 @@ def register_lib_tools(mcp: FastMCP) -> None:
     mcp.tool(disassemble_with_capstone)
     mcp.tool(parse_binary_with_lief)
     mcp.tool(extract_iocs)
-

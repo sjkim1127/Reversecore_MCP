@@ -24,7 +24,7 @@ logger = get_logger(__name__)
 class R2ConnectionPool:
     """
     Manages a pool of persistent r2pipe connections.
-    
+
     Features:
     - LRU eviction policy to limit memory usage
     - Thread-safe execution
@@ -89,7 +89,7 @@ class R2ConnectionPool:
                     del self._pool[file_path]
                 if file_path in self._analyzed_files:
                     self._analyzed_files.discard(file_path)
-                
+
                 try:
                     r2 = self.get_connection(file_path)
                     return r2.cmd(command)
@@ -124,6 +124,7 @@ class R2ConnectionPool:
         with self._lock:
             if file_path in self._pool:
                 self._analyzed_files.add(file_path)
+
 
 # Global instance
 r2_pool = R2ConnectionPool()

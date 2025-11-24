@@ -26,7 +26,7 @@ DEFAULT_TIMEOUT = get_config().default_tool_timeout
 def _extract_library_name(function_name: str) -> str:
     """
     Extract library name from function name.
-    
+
     Cached to avoid repeated string comparisons for common function names.
 
     Args:
@@ -199,11 +199,7 @@ async def diff_binaries(
                     change_type = "removed_block"
                 elif "modified" in line.lower() or "changed" in line.lower():
                     change_type = "code_change"
-                elif (
-                    "jmp" in line.lower()
-                    or "call" in line.lower()
-                    or "jnz" in line.lower()
-                ):
+                elif "jmp" in line.lower() or "call" in line.lower() or "jnz" in line.lower():
                     change_type = "control_flow_change"
 
                 changes.append(
@@ -229,9 +225,7 @@ async def diff_binaries(
             "function_specific": bool(function_name),
             "changes": changes,
             "total_changes": len(changes),
-            "raw_output": (
-                output if len(output) < 5000 else output[:5000] + "... (truncated)"
-            ),
+            "raw_output": (output if len(output) < 5000 else output[:5000] + "... (truncated)"),
         }
 
         return success(
@@ -282,31 +276,31 @@ async def analyze_variant_changes(
     """
     # Import here to avoid circular dependency
     from reversecore_mcp.tools.r2_analysis import generate_function_graph
-    
+
     # 1. Run diff_binaries
     diff_result = await diff_binaries(file_path_a, file_path_b, timeout=timeout)
-    
+
     if diff_result.is_error:
         return diff_result
-        
+
     diff_data = json.loads(diff_result.content[0].text)
     changes = diff_data.get("changes", [])
-    
+
     # 2. Identify changed functions (heuristic: group changes by address proximity or use explicit function diff if available)
     # Since diff_binaries returns a flat list of changes, we'll try to map them to functions.
     # For this advanced tool, we'll assume we want to analyze the functions where changes occurred.
-    
+
     # Get function list for file B (variant) to map addresses to names
     # We use a simple r2 command to get functions
     validated_path_b = validate_file_path(file_path_b)
     cmd = _build_r2_cmd(str(validated_path_b), ["aflj"], "aaa")
     out, _ = await execute_subprocess_async(cmd, timeout=60)
-    
+
     try:
         funcs_b = _parse_json_output(out)
     except (json.JSONDecodeError, TypeError):
         funcs_b = []
-    
+
     # OPTIMIZATION: Pre-sort functions by offset for binary search
     # This reduces O(n*m) to O(n*log(m)) complexity
     # Further optimized to minimize redundant dict.get() calls
@@ -318,24 +312,24 @@ async def analyze_variant_changes(
         if offset is not None and size is not None:
             sorted_funcs.append((offset, offset + size, name))
     sorted_funcs.sort(key=lambda x: x[0])
-    
+
     # Map changes to functions using binary search
-    changed_funcs = {} # {func_name: count}
-    
+    changed_funcs = {}  # {func_name: count}
+
     for change in changes:
         addr_str = change.get("address")
-        if not addr_str: 
+        if not addr_str:
             continue
         try:
             addr = int(addr_str, 16)
             # Binary search to find the function containing this address
             left, right = 0, len(sorted_funcs) - 1
             found_func = None
-            
+
             while left <= right:
                 mid = (left + right) // 2
                 func_start, func_end, func_name = sorted_funcs[mid]
-                
+
                 if func_start <= addr < func_end:
                     found_func = func_name
                     break
@@ -343,38 +337,40 @@ async def analyze_variant_changes(
                     right = mid - 1
                 else:
                     left = mid + 1
-            
+
             if found_func:
                 changed_funcs[found_func] = changed_funcs.get(found_func, 0) + 1
         except ValueError:
             # Invalid hex address format
             pass
-            
+
     # Sort by number of changes
     sorted_funcs = sorted(changed_funcs.items(), key=lambda x: x[1], reverse=True)[:top_n]
-    
+
     detailed_analysis = []
-    
+
     # 3. Generate CFG for top changed functions
     for func_name, count in sorted_funcs:
         # Get CFG for variant
         cfg_result = await generate_function_graph(file_path_b, func_name, format="mermaid")
         cfg_mermaid = cfg_result.content[0].text if not cfg_result.is_error else "Error generating CFG"
-        
-        detailed_analysis.append({
-            "function": func_name,
-            "change_count": count,
-            "cfg_mermaid": cfg_mermaid,
-            "analysis_hint": f"Function {func_name} has {count} modifications. Compare its logic with the original."
-        })
-        
+
+        detailed_analysis.append(
+            {
+                "function": func_name,
+                "change_count": count,
+                "cfg_mermaid": cfg_mermaid,
+                "analysis_hint": f"Function {func_name} has {count} modifications. Compare its logic with the original.",
+            }
+        )
+
     return success(
         {
             "similarity": diff_data.get("similarity"),
             "total_changes": diff_data.get("total_changes"),
-            "top_modified_functions": detailed_analysis
+            "top_modified_functions": detailed_analysis,
         },
-        description=f"Analyzed variants. Similarity: {diff_data.get('similarity')}. Detailed analysis for {len(detailed_analysis)} functions."
+        description=f"Analyzed variants. Similarity: {diff_data.get('similarity')}. Detailed analysis for {len(detailed_analysis)} functions.",
     )
 
 
@@ -520,12 +516,12 @@ async def match_libraries(
             # Report progress
             if ctx and idx % 10 == 0:  # Report every 10 functions to avoid spam
                 await ctx.report_progress(idx, total_functions)
-            
+
             name = func.get("name", "")
             # Support both 'offset' (aflj) and 'vaddr' (isj) keys
             # Fallback to 'realname' or other identifiers if needed
             offset = func.get("offset", func.get("vaddr", 0))
-            
+
             # If offset is 0, try to parse it from the name if it looks like sym.func.0x...
             if offset == 0 and name:
                 # Try to find hex address in name
@@ -559,7 +555,7 @@ async def match_libraries(
                 )
             else:
                 user_functions.append({"address": f"0x{offset:x}", "name": name})
-        
+
         # Final progress report
         if ctx:
             await ctx.report_progress(total_functions, total_functions)
@@ -569,9 +565,7 @@ async def match_libraries(
         user_count = len(user_functions)
 
         # Calculate noise reduction percentage
-        noise_reduction = (
-            (library_count / total_functions * 100) if total_functions > 0 else 0.0
-        )
+        noise_reduction = (library_count / total_functions * 100) if total_functions > 0 else 0.0
 
         # Build result
         result_data = {
@@ -579,12 +573,8 @@ async def match_libraries(
             "library_functions": library_count,
             "user_functions": user_count,
             "noise_reduction_percentage": round(noise_reduction, 2),
-            "library_matches": library_functions[
-                :50
-            ],  # Limit to first 50 for readability
-            "user_function_list": [
-                f["address"] for f in user_functions[:100]
-            ],  # First 100 user functions
+            "library_matches": library_functions[:50],  # Limit to first 50 for readability
+            "user_function_list": [f["address"] for f in user_functions[:100]],  # First 100 user functions
             "summary": f"Filtered out {library_count} library functions ({noise_reduction:.1f}% noise reduction). Focus analysis on {user_count} user functions.",
             "signature_db_used": signature_db if signature_db else "built-in",
         }

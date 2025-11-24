@@ -14,6 +14,7 @@ from reversecore_mcp.core.security import validate_file_path
 
 # Load default timeout from configuration
 from reversecore_mcp.core.config import get_config
+
 DEFAULT_TIMEOUT = get_config().default_tool_timeout
 
 
@@ -77,9 +78,7 @@ def copy_to_workspace(
         )
 
     if not source.is_file():
-        raise ValidationError(
-            f"Source path is not a file: {source}", details={"source_path": str(source)}
-        )
+        raise ValidationError(f"Source path is not a file: {source}", details={"source_path": str(source)})
 
     # Check file size (prevent copying extremely large files)
     max_file_size = 5 * 1024 * 1024 * 1024  # 5GB
@@ -168,13 +167,9 @@ def list_workspace() -> ToolResult:
     files = []
     for item in workspace.iterdir():
         if item.is_file():
-            files.append(
-                {"name": item.name, "size": item.stat().st_size, "path": str(item)}
-            )
+            files.append({"name": item.name, "size": item.stat().st_size, "path": str(item)})
 
-    return success(
-        {"files": files}, file_count=len(files), workspace_path=str(workspace)
-    )
+    return success({"files": files}, file_count=len(files), workspace_path=str(workspace))
 
 
 @log_execution(tool_name="scan_workspace")
@@ -183,7 +178,7 @@ def list_workspace() -> ToolResult:
 async def scan_workspace(
     file_patterns: list[str] = None,
     timeout: int = 600,
-    ctx = None,
+    ctx=None,
 ) -> ToolResult:
     """
     Batch scan all files in the workspace using multiple tools in parallel.
@@ -214,7 +209,7 @@ async def scan_workspace(
 
     config = get_config()
     workspace = config.workspace
-    
+
     if not file_patterns:
         file_patterns = ["*"]
 
@@ -225,27 +220,24 @@ async def scan_workspace(
         for f in workspace.glob(pattern):
             if f.is_file():
                 files_to_scan_set.add(f)
-    
+
     files_to_scan = list(files_to_scan_set)
-    
+
     if not files_to_scan:
-        return success(
-            {"files": [], "summary": "No files found matching patterns"},
-            file_count=0
-        )
+        return success({"files": [], "summary": "No files found matching patterns"}, file_count=0)
 
     total_files = len(files_to_scan)
 
     # 2. Define scan tasks
     results = {}
     completed_count = 0
-    
+
     async def scan_single_file(file_path: Path, index: int):
         nonlocal completed_count
         path_str = str(file_path)
         file_name = file_path.name
         file_result = {"name": file_name, "path": path_str}
-        
+
         # Task 1: run_file (async)
         # We call the tool function directly. Since it's async, we await it.
         try:
@@ -255,13 +247,20 @@ async def scan_workspace(
             file_result["file_type_error"] = str(e)
 
         # Task 2: LIEF (sync, run in thread)
-        #Only for likely binaries
-        if "executable" in str(file_result.get("file_type", "")).lower() or file_path.suffix.lower() in [".exe", ".dll", ".so", ".dylib", ".bin", ".elf"]:
+        # Only for likely binaries
+        if "executable" in str(file_result.get("file_type", "")).lower() or file_path.suffix.lower() in [
+            ".exe",
+            ".dll",
+            ".so",
+            ".dylib",
+            ".bin",
+            ".elf",
+        ]:
             try:
                 # Run sync function in thread pool
                 lief_result = await asyncio.to_thread(parse_binary_with_lief, path_str)
                 if not lief_result.is_error:
-                     # Parse JSON content if available
+                    # Parse JSON content if available
                     content = lief_result.content[0].text
                     try:
                         file_result["lief_metadata"] = json.loads(content) if isinstance(content, str) else content
@@ -272,28 +271,28 @@ async def scan_workspace(
 
         # Task 3: YARA (sync, run in thread)
         # Check if we have a default yara rule file or if user provided one (not supported in this batch mode yet, skipping for now or using default)
-        # For now, we skip YARA in batch mode unless we have a default rule path in config, 
-        # but let's assume we might want to add it later. 
-        # To keep it simple and robust, we'll skip YARA for now in this initial implementation 
+        # For now, we skip YARA in batch mode unless we have a default rule path in config,
+        # but let's assume we might want to add it later.
+        # To keep it simple and robust, we'll skip YARA for now in this initial implementation
         # unless we want to scan against a specific rule file which isn't passed here.
-        
+
         # Report progress
         completed_count += 1
         if ctx:
             await ctx.report_progress(completed_count, total_files)
-        
+
         return file_name, file_result
 
     # 3. Run scans in parallel
     # Limit concurrency to avoid overwhelming the system
-    semaphore = asyncio.Semaphore(5) # Process 5 files at a time
-    
+    semaphore = asyncio.Semaphore(5)  # Process 5 files at a time
+
     async def sem_scan(file_path, index):
         async with semaphore:
             return await scan_single_file(file_path, index)
 
     tasks = [sem_scan(f, i) for i, f in enumerate(files_to_scan)]
-    
+
     # Wait for all tasks with global timeout
     try:
         scan_results = await asyncio.wait_for(asyncio.gather(*tasks), timeout=timeout)
@@ -304,12 +303,12 @@ async def scan_workspace(
             {"partial_results": results, "error": "Scan timed out"},
             file_count=len(files_to_scan),
             scanned_count=len(results),
-            status="timeout"
+            status="timeout",
         )
 
     return success(
         {"files": results},
         file_count=len(files_to_scan),
         status="completed",
-        description=f"Batch scan completed for {len(files_to_scan)} files"
+        description=f"Batch scan completed for {len(files_to_scan)} files",
     )

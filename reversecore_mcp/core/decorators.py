@@ -41,9 +41,11 @@ def log_execution(tool_name: Optional[str] = None) -> Callable[[F], F]:
 
         # Check if function is async
         import inspect
+
         is_async = inspect.iscoroutinefunction(func)
 
         if is_async:
+
             @functools.wraps(func)
             async def async_wrapper(*args: Any, **kwargs: Any) -> ToolResult:
                 start_time = time.time()
@@ -79,9 +81,7 @@ def log_execution(tool_name: Optional[str] = None) -> Callable[[F], F]:
                         result.metadata["execution_time_ms"] = execution_time
 
                     log_extra["execution_time_ms"] = execution_time
-                    logger.info(
-                        f"{actual_tool_name} completed successfully", extra=log_extra
-                    )
+                    logger.info(f"{actual_tool_name} completed successfully", extra=log_extra)
                     return result
                 except Exception as exc:
                     execution_time = int((time.time() - start_time) * 1000)
@@ -135,9 +135,7 @@ def log_execution(tool_name: Optional[str] = None) -> Callable[[F], F]:
                     result.metadata["execution_time_ms"] = execution_time
 
                 log_extra["execution_time_ms"] = execution_time
-                logger.info(
-                    f"{actual_tool_name} completed successfully", extra=log_extra
-                )
+                logger.info(f"{actual_tool_name} completed successfully", extra=log_extra)
                 return result
             except Exception as exc:
                 execution_time = int((time.time() - start_time) * 1000)
@@ -156,4 +154,3 @@ def log_execution(tool_name: Optional[str] = None) -> Callable[[F], F]:
         return wrapper  # type: ignore
 
     return decorator
-

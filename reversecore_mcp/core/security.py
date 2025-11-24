@@ -56,7 +56,7 @@ def refresh_workspace_config() -> WorkspaceConfig:
 def _resolve_path_cached(path_str: str) -> Tuple[Path, bool, str]:
     """
     Cached path resolution to avoid repeated filesystem calls.
-    
+
     Returns:
         Tuple of (resolved_path, is_file, error_message)
         If resolution fails, returns (original_path, False, error_message)
@@ -87,7 +87,7 @@ def validate_file_path(
     The workspace directory is determined by an immutable WorkspaceConfig that
     is loaded once from environment variables (REVERSECORE_WORKSPACE and
     REVERSECORE_READ_DIRS).
-    
+
     Performance: Uses LRU cache for path resolution to avoid repeated
     filesystem calls for frequently accessed files.
 
@@ -107,7 +107,7 @@ def validate_file_path(
 
     # Use cached path resolution to avoid repeated filesystem calls
     abs_path, is_file, error = _resolve_path_cached(path)
-    
+
     if error:
         raise ValidationError(
             f"Invalid file path: {path}. Error: {error}",
@@ -151,5 +151,3 @@ def validate_file_path(
         )
 
     return abs_path
-
-

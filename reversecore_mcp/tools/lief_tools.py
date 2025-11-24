@@ -54,7 +54,7 @@ def _extract_symbols(binary: Any) -> Dict[str, Any]:
             if entries:
                 for f in islice(entries, 20):
                     func_list.append(str(f))
-            
+
             formatted_imports.append(
                 {
                     "name": getattr(imp, "name", "unknown"),
@@ -152,9 +152,7 @@ def parse_binary_with_lief(file_path: str, format: str = "json") -> ToolResult:
     except Exception as exc:  # noqa: BLE001 - lief exposes custom exception types
         lief_error = getattr(lief, "exception", None)
         lief_bad_file = getattr(lief, "bad_file", None)
-        if (lief_bad_file and isinstance(exc, lief_bad_file)) or (
-            lief_error and isinstance(exc, lief_error)
-        ):
+        if (lief_bad_file and isinstance(exc, lief_bad_file)) or (lief_error and isinstance(exc, lief_error)):
             return failure("LIEF_ERROR", f"LIEF failed to parse binary: {exc}")
         raise
     if binary is None:

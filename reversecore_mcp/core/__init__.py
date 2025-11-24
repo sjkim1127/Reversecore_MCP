@@ -42,5 +42,3 @@ __all__ = [
     "ResourceManager",
     "resource_manager",
 ]
-
-
