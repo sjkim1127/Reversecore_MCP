@@ -291,7 +291,9 @@ async def _smart_decompile_impl(
 
                 # Run Ghidra decompilation
                 try:
-                    c_code, metadata = decompile_function_with_ghidra(validated_path, function_address, timeout)
+                    c_code, metadata = decompile_function_with_ghidra(
+                        validated_path, function_address, timeout
+                    )
 
                     return success(
                         c_code,
@@ -302,7 +304,10 @@ async def _smart_decompile_impl(
                     )
 
                 except Exception as ghidra_error:
-                    logger.warning(f"Ghidra decompilation failed: {ghidra_error}. " "Falling back to radare2")
+                    logger.warning(
+                        f"Ghidra decompilation failed: {ghidra_error}. "
+                        "Falling back to radare2"
+                    )
                     # Fall through to radare2
             else:
                 logger.info("Ghidra not available, using radare2")
@@ -379,7 +384,9 @@ async def smart_decompile(
     """
     import time
 
-    result = await _smart_decompile_impl(file_path, function_address, timeout, use_ghidra)
+    result = await _smart_decompile_impl(
+        file_path, function_address, timeout, use_ghidra
+    )
 
     # Check for cache hit
     if result.status == "success" and result.metadata:
@@ -502,7 +509,9 @@ async def recover_structures(
                     recover_structures_with_ghidra,
                 )
 
-                structures, metadata = recover_structures_with_ghidra(validated_path, function_address, timeout)
+                structures, metadata = recover_structures_with_ghidra(
+                    validated_path, function_address, timeout
+                )
 
                 return success(
                     {"structures": structures},
@@ -552,7 +561,11 @@ async def recover_structures(
                     offset = var.get("delta", 0)
 
                     # Simple heuristic: group by base register
-                    base = var.get("ref", {}).get("base", "unknown") if "ref" in var else "stack"
+                    base = (
+                        var.get("ref", {}).get("base", "unknown")
+                        if "ref" in var
+                        else "stack"
+                    )
 
                     if base not in structures:
                         structures[base] = {"name": f"struct_{base}", "fields": []}
@@ -571,7 +584,8 @@ async def recover_structures(
             for struct_name, struct_data in structures.items():
                 # Pre-format fields more efficiently
                 field_strs = [
-                    f"{field['type']} {field['name']}; // offset {field['offset']}" for field in struct_data["fields"]
+                    f"{field['type']} {field['name']}; // offset {field['offset']}"
+                    for field in struct_data["fields"]
                 ]
                 fields_str = "\n    ".join(field_strs)
 
@@ -584,9 +598,7 @@ async def recover_structures(
                 "count": len(structures),
             }
 
-            desc = (
-                f"Basic structure recovery from {function_address} using radare2 (found {len(structures)} structure(s))"
-            )
+            desc = f"Basic structure recovery from {function_address} using radare2 (found {len(structures)} structure(s))"
             if "fallback_note" in locals():
                 desc += fallback_note
 

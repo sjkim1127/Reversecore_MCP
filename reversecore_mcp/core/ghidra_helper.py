@@ -129,7 +129,9 @@ def decompile_function_with_ghidra(
 
         _configure_ghidra_environment()
     except ImportError as e:
-        raise ImportError("PyGhidra is not installed. Install with: pip install pyghidra") from e
+        raise ImportError(
+            "PyGhidra is not installed. Install with: pip install pyghidra"
+        ) from e
 
     # Create temporary project directory
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -156,7 +158,8 @@ def decompile_function_with_ghidra(
 
                 if function is None:
                     raise ValidationError(
-                        f"Could not find function at address: {function_address}", details={"address": function_address}
+                        f"Could not find function at address: {function_address}",
+                        details={"address": function_address},
                     )
 
                 # Initialize decompiler
@@ -167,14 +170,19 @@ def decompile_function_with_ghidra(
                     # Decompile the function
                     logger.info(f"Decompiling function: {function.getName()}")
 
-                    results: DecompileResults = decompiler.decompileFunction(function, timeout, None)  # monitor
+                    results: DecompileResults = decompiler.decompileFunction(
+                        function, timeout, None
+                    )  # monitor
 
                     # Check for errors
                     if not results.decompileCompleted():
                         error_msg = results.getErrorMessage()
                         raise ValidationError(
                             f"Decompilation failed: {error_msg}",
-                            details={"function": function.getName(), "address": function_address},
+                            details={
+                                "function": function.getName(),
+                                "address": function_address,
+                            },
                         )
 
                     # Extract decompiled C code
@@ -187,10 +195,14 @@ def decompile_function_with_ghidra(
                         "function_name": function.getName(),
                         "entry_point": str(function.getEntryPoint()),
                         "parameter_count": (
-                            high_function.getFunctionPrototype().getNumParams() if high_function else 0
+                            high_function.getFunctionPrototype().getNumParams()
+                            if high_function
+                            else 0
                         ),
                         "local_symbol_count": (
-                            high_function.getLocalSymbolMap().getNumSymbols() if high_function else 0
+                            high_function.getLocalSymbolMap().getNumSymbols()
+                            if high_function
+                            else 0
                         ),
                         "signature": function.getSignature().getPrototypeString(),
                         "body_size": function.getBody().getNumAddresses(),
@@ -207,7 +219,9 @@ def decompile_function_with_ghidra(
 
         except subprocess.CalledProcessError as e:
             if "LaunchSupport" in str(e.cmd):
-                logger.error("Ghidra LaunchSupport failed. Check JAVA_HOME and permissions.")
+                logger.error(
+                    "Ghidra LaunchSupport failed. Check JAVA_HOME and permissions."
+                )
                 raise ValidationError(
                     "Ghidra failed to launch. Please ensure JAVA_HOME is set correctly and the user has write permissions to Ghidra installation.",
                     details={"error": str(e), "command": str(e.cmd)},
@@ -218,7 +232,9 @@ def decompile_function_with_ghidra(
             raise
 
 
-def _resolve_function(flat_api: "FlatProgramAPI", address_str: str) -> Optional["Function"]:
+def _resolve_function(
+    flat_api: "FlatProgramAPI", address_str: str
+) -> Optional["Function"]:
     """
     Resolve a function from an address string or symbol name.
 
@@ -310,7 +326,9 @@ def recover_structures_with_ghidra(
 
         _configure_ghidra_environment()
     except ImportError as e:
-        raise ImportError("PyGhidra is not installed. Install with: pip install pyghidra") from e
+        raise ImportError(
+            "PyGhidra is not installed. Install with: pip install pyghidra"
+        ) from e
 
     # Create temporary project directory
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -319,7 +337,9 @@ def recover_structures_with_ghidra(
 
         try:
             # Open program with PyGhidra
-            logger.info(f"Opening binary with Ghidra for structure recovery: {file_path}")
+            logger.info(
+                f"Opening binary with Ghidra for structure recovery: {file_path}"
+            )
 
             with pyghidra.open_program(
                 str(file_path),
@@ -338,7 +358,8 @@ def recover_structures_with_ghidra(
 
                 if function is None:
                     raise ValidationError(
-                        f"Could not find function at address: {function_address}", details={"address": function_address}
+                        f"Could not find function at address: {function_address}",
+                        details={"address": function_address},
                     )
 
                 # Initialize decompiler for high-level analysis
@@ -347,15 +368,22 @@ def recover_structures_with_ghidra(
 
                 try:
                     # Decompile the function to get high-level representation
-                    logger.info(f"Analyzing structures in function: {function.getName()}")
+                    logger.info(
+                        f"Analyzing structures in function: {function.getName()}"
+                    )
 
-                    results: DecompileResults = decompiler.decompileFunction(function, timeout, None)
+                    results: DecompileResults = decompiler.decompileFunction(
+                        function, timeout, None
+                    )
 
                     if not results.decompileCompleted():
                         error_msg = results.getErrorMessage()
                         raise ValidationError(
                             f"Structure analysis failed: {error_msg}",
-                            details={"function": function.getName(), "address": function_address},
+                            details={
+                                "function": function.getName(),
+                                "address": function_address,
+                            },
                         )
 
                     # Extract structure information from high function
@@ -363,7 +391,8 @@ def recover_structures_with_ghidra(
 
                     if high_function is None:
                         raise ValidationError(
-                            "Could not get high-level function representation", details={"function": function.getName()}
+                            "Could not get high-level function representation",
+                            details={"function": function.getName()},
                         )
 
                     # Collect all data types used in the function
@@ -384,7 +413,10 @@ def recover_structures_with_ghidra(
                                 type_name = data_type.getName()
 
                                 # Look for structure types (including pointers to structures)
-                                if "struct" in type_name.lower() or data_type.getLength() > 8:
+                                if (
+                                    "struct" in type_name.lower()
+                                    or data_type.getLength() > 8
+                                ):
                                     # Try to get the underlying structure
                                     actual_type = data_type
 
@@ -411,7 +443,10 @@ def recover_structures_with_ghidra(
                         if param_type is not None:
                             type_name = param_type.getName()
 
-                            if "struct" in type_name.lower() and type_name not in structures_found:
+                            if (
+                                "struct" in type_name.lower()
+                                and type_name not in structures_found
+                            ):
                                 # OPTIMIZATION: Use helper function to extract fields
                                 fields = _extract_structure_fields(param_type)
 
@@ -441,7 +476,11 @@ def recover_structures_with_ghidra(
                     # Prepare result
                     result = {
                         "structures": list(structures_found.values()),
-                        "c_definitions": "\n\n".join(c_definitions) if c_definitions else "// No structures found",
+                        "c_definitions": (
+                            "\n\n".join(c_definitions)
+                            if c_definitions
+                            else "// No structures found"
+                        ),
                         "count": len(structures_found),
                     }
 
@@ -466,7 +505,9 @@ def recover_structures_with_ghidra(
 
         except subprocess.CalledProcessError as e:
             if "LaunchSupport" in str(e.cmd):
-                logger.error("Ghidra LaunchSupport failed. Check JAVA_HOME and permissions.")
+                logger.error(
+                    "Ghidra LaunchSupport failed. Check JAVA_HOME and permissions."
+                )
                 raise ValidationError(
                     "Ghidra failed to launch. Please ensure JAVA_HOME is set correctly and the user has write permissions to Ghidra installation.",
                     details={"error": str(e), "command": str(e.cmd)},

@@ -80,14 +80,35 @@ R2_COMMAND_SPECS: List[CommandSpec] = [
         description="Print C-like pseudo code",
     ),
     # Analysis commands
-    CommandSpec(name="aaa", type="analyze", regex=re.compile(r"^aaa$"), description="Analyze all referenced code"),
-    CommandSpec(name="aa", type="analyze", regex=re.compile(r"^aa[a]?$"), description="Analyze all"),
-    CommandSpec(name="afl", type="read", regex=re.compile(r"^afl[j]?(\s*~.+)?$"), description="Analyze functions list"),
     CommandSpec(
-        name="aflj", type="read", regex=re.compile(r"^aflj(\s*~.+)?$"), description="Analyze functions list (JSON)"
+        name="aaa",
+        type="analyze",
+        regex=re.compile(r"^aaa$"),
+        description="Analyze all referenced code",
     ),
     CommandSpec(
-        name="af", type="analyze", regex=re.compile(r"^af(\s+@\s+[a-zA-Z0-9_.]+)?$"), description="Analyze function"
+        name="aa",
+        type="analyze",
+        regex=re.compile(r"^aa[a]?$"),
+        description="Analyze all",
+    ),
+    CommandSpec(
+        name="afl",
+        type="read",
+        regex=re.compile(r"^afl[j]?(\s*~.+)?$"),
+        description="Analyze functions list",
+    ),
+    CommandSpec(
+        name="aflj",
+        type="read",
+        regex=re.compile(r"^aflj(\s*~.+)?$"),
+        description="Analyze functions list (JSON)",
+    ),
+    CommandSpec(
+        name="af",
+        type="analyze",
+        regex=re.compile(r"^af(\s+@\s+[a-zA-Z0-9_.]+)?$"),
+        description="Analyze function",
     ),
     CommandSpec(
         name="afi",
@@ -109,25 +130,91 @@ R2_COMMAND_SPECS: List[CommandSpec] = [
         description="Print function graph in JSON format",
     ),
     # ESIL emulation commands
-    CommandSpec(name="aei", type="analyze", regex=re.compile(r"^aei$"), description="Initialize ESIL VM"),
     CommandSpec(
-        name="aeim", type="analyze", regex=re.compile(r"^aeim$"), description="Initialize ESIL VM memory (stack)"
+        name="aei",
+        type="analyze",
+        regex=re.compile(r"^aei$"),
+        description="Initialize ESIL VM",
     ),
     CommandSpec(
-        name="aeip", type="analyze", regex=re.compile(r"^aeip$"), description="Initialize ESIL VM program counter"
+        name="aeim",
+        type="analyze",
+        regex=re.compile(r"^aeim$"),
+        description="Initialize ESIL VM memory (stack)",
     ),
-    CommandSpec(name="aes", type="analyze", regex=re.compile(r"^aes(\s+\d+)?$"), description="ESIL step execution"),
-    CommandSpec(name="ar", type="read", regex=re.compile(r"^ar[j]?$"), description="Show all register values"),
-    CommandSpec(name="s", type="analyze", regex=re.compile(r"^s(\s+[a-zA-Z0-9_.]+)?$"), description="Seek to address"),
+    CommandSpec(
+        name="aeip",
+        type="analyze",
+        regex=re.compile(r"^aeip$"),
+        description="Initialize ESIL VM program counter",
+    ),
+    CommandSpec(
+        name="aes",
+        type="analyze",
+        regex=re.compile(r"^aes(\s+\d+)?$"),
+        description="ESIL step execution",
+    ),
+    CommandSpec(
+        name="ar",
+        type="read",
+        regex=re.compile(r"^ar[j]?$"),
+        description="Show all register values",
+    ),
+    CommandSpec(
+        name="s",
+        type="analyze",
+        regex=re.compile(r"^s(\s+[a-zA-Z0-9_.]+)?$"),
+        description="Seek to address",
+    ),
     # Information commands
-    CommandSpec(name="i", type="read", regex=re.compile(r"^i[IiSszeEhj]?(\s*~.+)?$"), description="File information"),
-    CommandSpec(name="iI", type="read", regex=re.compile(r"^iI(\s*~.+)?$"), description="Binary info"),
-    CommandSpec(name="ii", type="read", regex=re.compile(r"^ii[j]?(\s*~.+)?$"), description="Imports"),
-    CommandSpec(name="iS", type="read", regex=re.compile(r"^iS[j]?(\s*~.+)?$"), description="Sections"),
-    CommandSpec(name="iz", type="read", regex=re.compile(r"^iz[j]?(\s*~.+)?$"), description="Strings in data sections"),
-    CommandSpec(name="izz", type="read", regex=re.compile(r"^izz[j]?(\s*~.+)?$"), description="All strings"),
-    CommandSpec(name="ie", type="read", regex=re.compile(r"^ie[j]?(\s*~.+)?$"), description="Entry points"),
-    CommandSpec(name="iE", type="read", regex=re.compile(r"^iE[j]?(\s*~.+)?$"), description="Exports"),
+    CommandSpec(
+        name="i",
+        type="read",
+        regex=re.compile(r"^i[IiSszeEhj]?(\s*~.+)?$"),
+        description="File information",
+    ),
+    CommandSpec(
+        name="iI",
+        type="read",
+        regex=re.compile(r"^iI(\s*~.+)?$"),
+        description="Binary info",
+    ),
+    CommandSpec(
+        name="ii",
+        type="read",
+        regex=re.compile(r"^ii[j]?(\s*~.+)?$"),
+        description="Imports",
+    ),
+    CommandSpec(
+        name="iS",
+        type="read",
+        regex=re.compile(r"^iS[j]?(\s*~.+)?$"),
+        description="Sections",
+    ),
+    CommandSpec(
+        name="iz",
+        type="read",
+        regex=re.compile(r"^iz[j]?(\s*~.+)?$"),
+        description="Strings in data sections",
+    ),
+    CommandSpec(
+        name="izz",
+        type="read",
+        regex=re.compile(r"^izz[j]?(\s*~.+)?$"),
+        description="All strings",
+    ),
+    CommandSpec(
+        name="ie",
+        type="read",
+        regex=re.compile(r"^ie[j]?(\s*~.+)?$"),
+        description="Entry points",
+    ),
+    CommandSpec(
+        name="iE",
+        type="read",
+        regex=re.compile(r"^iE[j]?(\s*~.+)?$"),
+        description="Exports",
+    ),
     # Hexdump commands
     CommandSpec(
         name="px",
@@ -155,12 +242,23 @@ R2_COMMAND_SPECS: List[CommandSpec] = [
     ),
     # Seek commands (read-only navigation)
     CommandSpec(
-        name="s", type="read", regex=re.compile(r"^s(\s+[a-zA-Z0-9_.+\-]+)?(\s*~.+)?$"), description="Seek to address"
+        name="s",
+        type="read",
+        regex=re.compile(r"^s(\s+[a-zA-Z0-9_.+\-]+)?(\s*~.+)?$"),
+        description="Seek to address",
     ),
     # Flag commands (read-only)
-    CommandSpec(name="f", type="read", regex=re.compile(r"^f[sj]?(\s+[a-zA-Z0-9_.]+)?(\s*~.+)?$"), description="Flags"),
     CommandSpec(
-        name="fs", type="read", regex=re.compile(r"^fs(\s+[a-zA-Z0-9_.]+)?(\s*~.+)?$"), description="Flag spaces"
+        name="f",
+        type="read",
+        regex=re.compile(r"^f[sj]?(\s+[a-zA-Z0-9_.]+)?(\s*~.+)?$"),
+        description="Flags",
+    ),
+    CommandSpec(
+        name="fs",
+        type="read",
+        regex=re.compile(r"^fs(\s+[a-zA-Z0-9_.]+)?(\s*~.+)?$"),
+        description="Flag spaces",
     ),
 ]
 
@@ -206,7 +304,9 @@ def validate_r2_command(cmd: str, allow_write: bool = False) -> ValidatedR2Comma
         ValidationError: Dangerous command pattern detected
     """
     if not cmd or not cmd.strip():
-        raise ValidationError("Command string cannot be empty", details={"command": cmd})
+        raise ValidationError(
+            "Command string cannot be empty", details={"command": cmd}
+        )
 
     cmd_stripped = cmd.strip()
 
@@ -232,8 +332,12 @@ def validate_r2_command(cmd: str, allow_write: bool = False) -> ValidatedR2Comma
 
     # No match found
     raise ValidationError(
-        f"Command not in allowlist: {cmd_stripped}. " "Only read-only and analysis commands are allowed.",
-        details={"command": cmd_stripped, "allowed_commands": [spec.name for spec in R2_COMMAND_SPECS]},
+        f"Command not in allowlist: {cmd_stripped}. "
+        "Only read-only and analysis commands are allowed.",
+        details={
+            "command": cmd_stripped,
+            "allowed_commands": [spec.name for spec in R2_COMMAND_SPECS],
+        },
     )
 
 

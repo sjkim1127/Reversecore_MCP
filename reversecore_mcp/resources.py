@@ -77,7 +77,9 @@ def register_resources(mcp: FastMCP):
                 return f"Failed to extract strings from {filename}"
 
             # 2. Extract IOCs from strings
-            strings_data = strings_res.content[0].text if strings_res.content else strings_res.data
+            strings_data = (
+                strings_res.content[0].text if strings_res.content else strings_res.data
+            )
             ioc_res = lib_tools.extract_iocs(strings_data)
 
             # 3. Format output
@@ -106,7 +108,9 @@ def register_resources(mcp: FastMCP):
     async def get_decompiled_code(filename: str, address: str) -> str:
         """Get decompiled pseudo-C code for a specific function"""
         try:
-            result = await cli_tools.smart_decompile(f"/app/workspace/{filename}", address, use_ghidra=True)
+            result = await cli_tools.smart_decompile(
+                f"/app/workspace/{filename}", address, use_ghidra=True
+            )
 
             if result.status == "success":
                 content = result.content[0].text if result.content else result.data
@@ -124,7 +128,9 @@ def register_resources(mcp: FastMCP):
     async def get_disassembly(filename: str, address: str) -> str:
         """Get disassembly for a specific function"""
         try:
-            result = await cli_tools.run_radare2(f"/app/workspace/{filename}", f"pdf @ {address}")
+            result = await cli_tools.run_radare2(
+                f"/app/workspace/{filename}", f"pdf @ {address}"
+            )
 
             if result.status == "success":
                 content = result.content[0].text if result.content else result.data
@@ -142,7 +148,9 @@ def register_resources(mcp: FastMCP):
     async def get_function_cfg(filename: str, address: str) -> str:
         """Get Control Flow Graph (Mermaid) for a specific function"""
         try:
-            result = await cli_tools.generate_function_graph(f"/app/workspace/{filename}", address, format="mermaid")
+            result = await cli_tools.generate_function_graph(
+                f"/app/workspace/{filename}", address, format="mermaid"
+            )
 
             if result.status == "success":
                 content = result.content[0].text if result.content else result.data
@@ -158,7 +166,9 @@ def register_resources(mcp: FastMCP):
     async def get_function_list(filename: str) -> str:
         """Get list of all functions in the binary"""
         try:
-            result = await cli_tools.run_radare2(f"/app/workspace/{filename}", "aflj")  # List functions in JSON format
+            result = await cli_tools.run_radare2(
+                f"/app/workspace/{filename}", "aflj"
+            )  # List functions in JSON format
 
             if result.status == "success":
                 content = result.content[0].text if result.content else result.data
@@ -170,7 +180,9 @@ def register_resources(mcp: FastMCP):
                         name = func.get("name", "unknown")
                         offset = func.get("offset", 0)
                         size = func.get("size", 0)
-                        func_list.append(f"- `{name}` @ 0x{offset:x} (size: {size} bytes)")
+                        func_list.append(
+                            f"- `{name}` @ 0x{offset:x} (size: {size} bytes)"
+                        )
 
                     total = len(functions)
                     shown = min(50, total)
@@ -182,7 +194,7 @@ Showing: {shown}
 
 {chr(10).join(func_list)}
 """
-                except:
+                except Exception:  # Catch all JSON parsing errors
                     return f"# Functions in {filename}\n\n{content}"
 
             return f"Error listing functions: {result.message if hasattr(result, 'message') else 'Failed to list functions'}"
@@ -200,7 +212,10 @@ Showing: {shown}
             from reversecore_mcp.tools import trinity_defense as td_module
 
             result = await td_module.trinity_defense(
-                file_path=f"/app/workspace/{filename}", mode="full", max_threats=5, generate_vaccine=True
+                file_path=f"/app/workspace/{filename}",
+                mode="full",
+                max_threats=5,
+                generate_vaccine=True,
             )
 
             if result.status == "success":
@@ -246,7 +261,9 @@ Showing: {shown}
                     if isinstance(rec, dict):
                         report += f"\n### {rec.get('severity', 'INFO')}: {rec.get('threat_type', 'Unknown')}\n"
                         report += f"- **Location**: {rec.get('location', 'N/A')}\n"
-                        report += f"- **Confidence**: {rec.get('confidence', 0.0):.2f}\n"
+                        report += (
+                            f"- **Confidence**: {rec.get('confidence', 0.0):.2f}\n"
+                        )
                         immediate = rec.get("immediate_actions", [])
                         if immediate:
                             report += "\n**Immediate Actions:**\n"
@@ -257,9 +274,7 @@ Showing: {shown}
 
                 return report
 
-            return (
-                f"Trinity Defense analysis failed: {result.message if hasattr(result, 'message') else 'Unknown error'}"
-            )
+            return f"Trinity Defense analysis failed: {result.message if hasattr(result, 'message') else 'Unknown error'}"
         except Exception as e:
             return f"Error: {str(e)}"
 
@@ -313,7 +328,9 @@ Found {len(orphans)} orphan function(s):
         try:
             from reversecore_mcp.tools import neural_decompiler as nd_module
 
-            result = await nd_module.neural_decompile(file_path=f"/app/workspace/{filename}", function_address=address)
+            result = await nd_module.neural_decompile(
+                file_path=f"/app/workspace/{filename}", function_address=address
+            )
 
             if result.status == "success":
                 data = result.data

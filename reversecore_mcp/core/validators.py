@@ -32,7 +32,8 @@ def validate_address_format(address: str, param_name: str = "address") -> None:
 
     if not _ADDRESS_PATTERN.match(clean_address):
         raise ValidationError(
-            f"{param_name} must contain only alphanumeric characters, dots, " "underscores, and '0x' prefix"
+            f"{param_name} must contain only alphanumeric characters, dots, "
+            "underscores, and '0x' prefix"
         )
 
 
@@ -120,7 +121,9 @@ def _validate_cfg_params(params: Dict[str, Any]) -> None:
     output_format = params.get("format", "mermaid")
     allowed_formats = ["json", "mermaid", "dot"]
     if output_format not in allowed_formats:
-        raise ValidationError(f"Invalid format '{output_format}'. Allowed: {', '.join(allowed_formats)}")
+        raise ValidationError(
+            f"Invalid format '{output_format}'. Allowed: {', '.join(allowed_formats)}"
+        )
 
 
 def _validate_emulation_params(params: Dict[str, Any]) -> None:
@@ -138,7 +141,9 @@ def _validate_emulation_params(params: Dict[str, Any]) -> None:
         raise ValidationError("instructions must be at least 1")
 
     if instructions > 1000:
-        raise ValidationError("instructions cannot exceed 1000 (safety limit to prevent CPU exhaustion)")
+        raise ValidationError(
+            "instructions cannot exceed 1000 (safety limit to prevent CPU exhaustion)"
+        )
 
 
 def _validate_pseudo_code_params(params: Dict[str, Any]) -> None:

@@ -40,7 +40,9 @@ class GhidraManager:
             return
 
         self._jvm_started = False
-        self._projects: Dict[str, Any] = {}  # Cache for loaded programs (path -> (program, flat_api))
+        self._projects: Dict[str, Any] = (
+            {}
+        )  # Cache for loaded programs (path -> (program, flat_api))
         self._project_lock = threading.RLock()
         self._max_projects = 1  # Keep only 1 project in memory to avoid OOM
         self._initialized = True
@@ -92,7 +94,9 @@ class GhidraManager:
 
             # Evict if needed
             if len(self._projects) >= self._max_projects:
-                oldest_path, (oldest_prog, oldest_api) = self._projects.popitem()  # pop first (oldest)
+                oldest_path, (oldest_prog, oldest_api) = (
+                    self._projects.popitem()
+                )  # pop first (oldest)
                 logger.info(f"Evicting Ghidra project: {oldest_path}")
                 # Note: We can't easily 'close' a FlatProgram created via open_program
                 # if we want to be safe, but we can release references.
@@ -152,7 +156,7 @@ class GhidraManager:
                                 funcs = flat_api.getGlobalFunctions(function_address)
                                 if funcs:
                                     addr = funcs[0].getEntryPoint()
-                        except:
+                        except Exception:  # Catch all exceptions when parsing address
                             pass
 
                     if not addr:
@@ -178,7 +182,9 @@ class GhidraManager:
                         del self._projects[file_path]
                 raise
 
-    async def decompile_async(self, file_path: str, function_address: Optional[str] = None) -> str:
+    async def decompile_async(
+        self, file_path: str, function_address: Optional[str] = None
+    ) -> str:
         """Execute decompilation asynchronously."""
         return await asyncio.to_thread(self.decompile, file_path, function_address)
 

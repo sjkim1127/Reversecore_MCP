@@ -77,7 +77,9 @@ def copy_to_workspace(
         )
 
     if not source.is_file():
-        raise ValidationError(f"Source path is not a file: {source}", details={"source_path": str(source)})
+        raise ValidationError(
+            f"Source path is not a file: {source}", details={"source_path": str(source)}
+        )
 
     # Check file size (prevent copying extremely large files)
     max_file_size = 5 * 1024 * 1024 * 1024  # 5GB
@@ -166,9 +168,13 @@ def list_workspace() -> ToolResult:
     files = []
     for item in workspace.iterdir():
         if item.is_file():
-            files.append({"name": item.name, "size": item.stat().st_size, "path": str(item)})
+            files.append(
+                {"name": item.name, "size": item.stat().st_size, "path": str(item)}
+            )
 
-    return success({"files": files}, file_count=len(files), workspace_path=str(workspace))
+    return success(
+        {"files": files}, file_count=len(files), workspace_path=str(workspace)
+    )
 
 
 @log_execution(tool_name="scan_workspace")
@@ -223,7 +229,9 @@ async def scan_workspace(
     files_to_scan = list(files_to_scan_set)
 
     if not files_to_scan:
-        return success({"files": [], "summary": "No files found matching patterns"}, file_count=0)
+        return success(
+            {"files": [], "summary": "No files found matching patterns"}, file_count=0
+        )
 
     total_files = len(files_to_scan)
 
@@ -241,13 +249,19 @@ async def scan_workspace(
         # We call the tool function directly. Since it's async, we await it.
         try:
             file_cmd_result = await run_file(path_str)
-            file_result["file_type"] = file_cmd_result.content[0].text if file_cmd_result.content else "unknown"
+            file_result["file_type"] = (
+                file_cmd_result.content[0].text
+                if file_cmd_result.content
+                else "unknown"
+            )
         except Exception as e:
             file_result["file_type_error"] = str(e)
 
         # Task 2: LIEF (sync, run in thread)
         # Only for likely binaries
-        if "executable" in str(file_result.get("file_type", "")).lower() or file_path.suffix.lower() in [
+        if "executable" in str(
+            file_result.get("file_type", "")
+        ).lower() or file_path.suffix.lower() in [
             ".exe",
             ".dll",
             ".so",
@@ -262,8 +276,10 @@ async def scan_workspace(
                     # Parse JSON content if available
                     content = lief_result.content[0].text
                     try:
-                        file_result["lief_metadata"] = json.loads(content) if isinstance(content, str) else content
-                    except:
+                        file_result["lief_metadata"] = (
+                            json.loads(content) if isinstance(content, str) else content
+                        )
+                    except (json.JSONDecodeError, ValueError, TypeError):
                         file_result["lief_metadata"] = content
             except Exception as e:
                 file_result["lief_error"] = str(e)

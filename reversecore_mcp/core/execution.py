@@ -141,14 +141,17 @@ async def execute_subprocess_async(
         # Check if output was truncated
         if bytes_read > max_output_size:
             truncation_warning = (
-                f"\n\n[WARNING: Output truncated at {max_output_size} bytes. " f"Total output size: {bytes_read} bytes]"
+                f"\n\n[WARNING: Output truncated at {max_output_size} bytes. "
+                f"Total output size: {bytes_read} bytes]"
             )
             output_text += truncation_warning
 
         # If process failed, raise CalledProcessError with stderr
         if process.returncode != 0:
             stderr_text = "".join(stderr_chunks)
-            raise subprocess.CalledProcessError(process.returncode, cmd, output=output_text, stderr=stderr_text)
+            raise subprocess.CalledProcessError(
+                process.returncode, cmd, output=output_text, stderr=stderr_text
+            )
 
         return output_text, bytes_read
 

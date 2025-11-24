@@ -40,7 +40,9 @@ class MetricsCollector:
         )
         self.circuit_breaker_states: Dict[str, str] = {}
 
-    def record_tool_execution(self, tool_name: str, execution_time: float, success: bool = True):
+    def record_tool_execution(
+        self, tool_name: str, execution_time: float, success: bool = True
+    ):
         """
         Record metrics for a tool execution (thread-safe).
 
@@ -132,7 +134,9 @@ def track_metrics(tool_name: str):
                     raise
                 finally:
                     execution_time = time.time() - start_time
-                    metrics_collector.record_tool_execution(tool_name, execution_time, success)
+                    metrics_collector.record_tool_execution(
+                        tool_name, execution_time, success
+                    )
 
             return async_wrapper
         else:
@@ -160,7 +164,9 @@ def track_metrics(tool_name: str):
                     raise
                 finally:
                     execution_time = time.time() - start_time
-                    metrics_collector.record_tool_execution(tool_name, execution_time, success)
+                    metrics_collector.record_tool_execution(
+                        tool_name, execution_time, success
+                    )
 
             return sync_wrapper
 

@@ -118,7 +118,9 @@ async def _execute_r2_command(
     return output, bytes_read
 
 
-def _build_r2_cmd(file_path: str, r2_commands: list[str], analysis_level: str = "aaa") -> list[str]:
+def _build_r2_cmd(
+    file_path: str, r2_commands: list[str], analysis_level: str = "aaa"
+) -> list[str]:
     """
     Build radare2 command.
 
@@ -417,7 +419,10 @@ async def trace_execution_path(
                 if isinstance(symbols, list):
                     for sym in symbols:
                         if isinstance(sym, dict):
-                            if sym.get("name") == func_name or sym.get("realname") == func_name:
+                            if (
+                                sym.get("name") == func_name
+                                or sym.get("realname") == func_name
+                            ):
                                 return sym.get("vaddr")
             except (json.JSONDecodeError, TypeError, IndexError):
                 # First line wasn't valid JSON or wasn't in expected format
@@ -498,7 +503,9 @@ async def trace_execution_path(
             if "main" in caller_name or "entry" in caller_name:
                 paths.append(current_path + [new_node])
             else:
-                await recursive_backtrace(caller_addr, current_path + [new_node], depth + 1)
+                await recursive_backtrace(
+                    caller_addr, current_path + [new_node], depth + 1
+                )
 
     # Start trace
     root_node = {"addr": target_addr, "name": target_function, "type": "target"}
@@ -507,7 +514,9 @@ async def trace_execution_path(
     # Format results
     # OPTIMIZATION: Use list comprehension with generator expression in join
     # This reduces memory by avoiding intermediate list creation in the join
-    formatted_paths = [" -> ".join(f"{n['name']} ({n['addr']})" for n in p[::-1]) for p in paths]
+    formatted_paths = [
+        " -> ".join(f"{n['name']} ({n['addr']})" for n in p[::-1]) for p in paths
+    ]
 
     return success(
         {"paths": formatted_paths, "raw_paths": paths},
@@ -534,7 +543,11 @@ def _radare2_json_to_mermaid(json_str: str) -> str:
             return "graph TD;\n    Error[No graph data found]"
 
         # agfj returns list format for function graph
-        blocks = graph_data[0].get("blocks", []) if isinstance(graph_data, list) else graph_data.get("blocks", [])
+        blocks = (
+            graph_data[0].get("blocks", [])
+            if isinstance(graph_data, list)
+            else graph_data.get("blocks", [])
+        )
 
         mermaid_lines = ["graph TD"]
 
@@ -630,7 +643,9 @@ async def _generate_function_graph_impl(
 
     # 5. Format conversion and return
     if format.lower() == "json":
-        return success(output, bytes_read=bytes_read, format="json", timestamp=timestamp)
+        return success(
+            output, bytes_read=bytes_read, format="json", timestamp=timestamp
+        )
 
     elif format.lower() == "mermaid":
         mermaid_code = _radare2_json_to_mermaid(output)
@@ -690,7 +705,9 @@ async def generate_function_graph(
     # If PNG format requested, generate DOT first then convert
     if format.lower() == "png":
         # Get DOT format first
-        result = await _generate_function_graph_impl(file_path, function_address, "dot", timeout)
+        result = await _generate_function_graph_impl(
+            file_path, function_address, "dot", timeout
+        )
 
         if result.is_error:
             return result
@@ -705,7 +722,9 @@ async def generate_function_graph(
             dot_content = result.content[0].text if result.content else ""
 
             # Create temp files
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".dot", delete=False) as dot_file:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".dot", delete=False
+            ) as dot_file:
                 dot_file.write(dot_content)
                 dot_path = dot_file.name
 
@@ -713,7 +732,12 @@ async def generate_function_graph(
 
             try:
                 # Use graphviz's dot command to convert DOT to PNG
-                subprocess.run(["dot", "-Tpng", dot_path, "-o", png_path], check=True, timeout=30, capture_output=True)
+                subprocess.run(
+                    ["dot", "-Tpng", dot_path, "-o", png_path],
+                    check=True,
+                    timeout=30,
+                    capture_output=True,
+                )
 
                 # Read PNG file
                 png_data = PathlibPath(png_path).read_bytes()
@@ -727,7 +751,7 @@ async def generate_function_graph(
                     PathlibPath(dot_path).unlink()
                     if PathlibPath(png_path).exists():
                         PathlibPath(png_path).unlink()
-                except:
+                except (OSError, FileNotFoundError):
                     pass
 
         except Exception as e:
@@ -738,7 +762,9 @@ async def generate_function_graph(
             )
 
     # For other formats, use existing implementation
-    result = await _generate_function_graph_impl(file_path, function_address, format, timeout)
+    result = await _generate_function_graph_impl(
+        file_path, function_address, format, timeout
+    )
 
     # Check for cache hit
     if result.status == "success" and result.metadata:
@@ -913,9 +939,13 @@ async def analyze_xrefs(
         # Add human-readable summary
         summary_parts = []
         if xrefs_to:
-            summary_parts.append(f"{len(xrefs_to)} reference(s) TO this address (callers)")
+            summary_parts.append(
+                f"{len(xrefs_to)} reference(s) TO this address (callers)"
+            )
         if xrefs_from:
-            summary_parts.append(f"{len(xrefs_from)} reference(s) FROM this address (callees)")
+            summary_parts.append(
+                f"{len(xrefs_from)} reference(s) FROM this address (callees)"
+            )
 
         if not summary_parts:
             summary = "No cross-references found"

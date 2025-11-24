@@ -22,7 +22,9 @@ def _extract_sections(binary: Any) -> List[Dict[str, Any]]:
             "name": section.name,
             "virtual_address": hex(section.virtual_address),
             "size": section.size,
-            "entropy": round(section.entropy, 2) if hasattr(section, "entropy") else None,
+            "entropy": (
+                round(section.entropy, 2) if hasattr(section, "entropy") else None
+            ),
         }
         for section in binary.sections
     ]
@@ -34,11 +36,15 @@ def _extract_symbols(binary: Any) -> Dict[str, Any]:
 
     if hasattr(binary, "imported_functions") and binary.imported_functions:
         # Use islice to avoid creating full list before slicing
-        symbols["imported_functions"] = [str(func) for func in islice(binary.imported_functions, 100)]
+        symbols["imported_functions"] = [
+            str(func) for func in islice(binary.imported_functions, 100)
+        ]
 
     if hasattr(binary, "exported_functions") and binary.exported_functions:
         # Use islice to avoid creating full list before slicing
-        symbols["exported_functions"] = [str(func) for func in islice(binary.exported_functions, 100)]
+        symbols["exported_functions"] = [
+            str(func) for func in islice(binary.exported_functions, 100)
+        ]
 
     # PE-specific imports/exports
     if hasattr(binary, "imports") and binary.imports:
@@ -98,7 +104,9 @@ def _format_lief_output(result: Dict[str, Any], format: str) -> str:
         for i, section in enumerate(sections):
             if i >= 20:
                 break
-            lines.append(f"  - {section['name']}: VA={section['virtual_address']}, Size={section['size']}")
+            lines.append(
+                f"  - {section['name']}: VA={section['virtual_address']}, Size={section['size']}"
+            )
 
     imported_funcs = result.get("imported_functions")
     if imported_funcs:
@@ -152,7 +160,9 @@ def parse_binary_with_lief(file_path: str, format: str = "json") -> ToolResult:
     except Exception as exc:  # noqa: BLE001 - lief exposes custom exception types
         lief_error = getattr(lief, "exception", None)
         lief_bad_file = getattr(lief, "bad_file", None)
-        if (lief_bad_file and isinstance(exc, lief_bad_file)) or (lief_error and isinstance(exc, lief_error)):
+        if (lief_bad_file and isinstance(exc, lief_bad_file)) or (
+            lief_error and isinstance(exc, lief_error)
+        ):
             return failure("LIEF_ERROR", f"LIEF failed to parse binary: {exc}")
         raise
     if binary is None:
@@ -164,7 +174,9 @@ def parse_binary_with_lief(file_path: str, format: str = "json") -> ToolResult:
 
     result_data: Dict[str, Any] = {
         "format": str(binary.format).split(".")[-1].lower(),
-        "entry_point": hex(binary.entrypoint) if hasattr(binary, "entrypoint") else None,
+        "entry_point": (
+            hex(binary.entrypoint) if hasattr(binary, "entrypoint") else None
+        ),
     }
 
     sections = _extract_sections(binary)

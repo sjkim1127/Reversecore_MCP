@@ -66,7 +66,9 @@ async def run_strings(
             f"Showing first {LLM_SAFE_LIMIT} bytes.\n"
             "To analyze the full content, consider using 'grep' or processing the file directly."
         )
-        return success(truncated_output + warning_msg, bytes_read=bytes_read, truncated=True)
+        return success(
+            truncated_output + warning_msg, bytes_read=bytes_read, truncated=True
+        )
 
     return success(output, bytes_read=bytes_read)
 
@@ -145,7 +147,11 @@ async def scan_for_versions(
         if matches:
             detected[name] = list(set(matches))
 
-    return success(detected, bytes_read=bytes_read, description=f"Detected {len(detected)} potential library versions")
+    return success(
+        detected,
+        bytes_read=bytes_read,
+        description=f"Detected {len(detected)} potential library versions",
+    )
 
 
 @log_execution(tool_name="extract_rtti_info")

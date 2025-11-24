@@ -80,7 +80,9 @@ class ResourceManager:
             from itertools import chain
 
             # Combine all patterns into a single iterable
-            temp_files = chain(workspace.glob("*.tmp"), workspace.glob(".r2_*"), workspace.glob("*.r2"))
+            temp_files = chain(
+                workspace.glob("*.tmp"), workspace.glob(".r2_*"), workspace.glob("*.r2")
+            )
 
             for temp_file in temp_files:
                 try:

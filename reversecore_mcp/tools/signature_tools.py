@@ -15,7 +15,11 @@ from reversecore_mcp.core.security import validate_file_path
 from reversecore_mcp.core.validators import validate_tool_parameters
 
 # Import helper functions from r2_analysis
-from reversecore_mcp.tools.r2_analysis import _execute_r2_command, _build_r2_cmd, _parse_json_output
+from reversecore_mcp.tools.r2_analysis import (
+    _execute_r2_command,
+    _build_r2_cmd,
+    _parse_json_output,
+)
 
 # Load default timeout from configuration
 DEFAULT_TIMEOUT = get_config().default_tool_timeout
@@ -167,7 +171,9 @@ async def generate_signature(
         )
 
     # Check for all 0xFF or 0x00 (likely unmapped memory)
-    if re.match(r"^(ff)+$", hex_bytes, re.IGNORECASE) or re.match(r"^(00)+$", hex_bytes):
+    if re.match(r"^(ff)+$", hex_bytes, re.IGNORECASE) or re.match(
+        r"^(00)+$", hex_bytes
+    ):
         # If we used -n, try again without it to force mapping
         if analysis_level == "-n":
             from reversecore_mcp.tools.r2_analysis import _calculate_dynamic_timeout
@@ -182,7 +188,9 @@ async def generate_signature(
             hex_bytes = output.strip()
 
             # Re-check
-            if re.match(r"^(ff)+$", hex_bytes, re.IGNORECASE) or re.match(r"^(00)+$", hex_bytes):
+            if re.match(r"^(ff)+$", hex_bytes, re.IGNORECASE) or re.match(
+                r"^(00)+$", hex_bytes
+            ):
                 return failure(
                     "SIGNATURE_ERROR",
                     f"Extracted bytes are all 0xFF or 0x00 at {address}. The memory might be unmapped or empty.",
@@ -309,17 +317,24 @@ async def generate_yara_rule(
         )
 
     # Check for invalid patterns (all 00 or all FF)
-    if len(hex_bytes) > 16 and (re.match(r"^(00)+$", hex_bytes) or re.match(r"^(ff)+$", hex_bytes, re.IGNORECASE)):
+    if len(hex_bytes) > 16 and (
+        re.match(r"^(00)+$", hex_bytes)
+        or re.match(r"^(ff)+$", hex_bytes, re.IGNORECASE)
+    ):
         # Smart Offset Search: Try to find a better address
         # 1. Try 'main' if we weren't already there
         # 2. Try entry point 'entry0'
         # 3. Find largest function
 
-        logger.info(f"Invalid bytes at {function_address}, attempting smart offset search...")
+        logger.info(
+            f"Invalid bytes at {function_address}, attempting smart offset search..."
+        )
 
         # Try to find a better function
         cmd = "aflj"
-        out, _ = await _execute_r2_command(validated_path, [cmd], analysis_level="aaa", base_timeout=timeout)
+        out, _ = await _execute_r2_command(
+            validated_path, [cmd], analysis_level="aaa", base_timeout=timeout
+        )
 
         try:
             funcs = _parse_json_output(out)

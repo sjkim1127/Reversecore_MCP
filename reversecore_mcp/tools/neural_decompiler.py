@@ -51,7 +51,9 @@ async def neural_decompile(
         await ctx.info(f"🧠 Neural Decompiler: Analyzing {function_address}...")
 
     try:
-        raw_code, metadata = ghidra_helper.decompile_function_with_ghidra(validated_path, function_address, timeout)
+        raw_code, metadata = ghidra_helper.decompile_function_with_ghidra(
+            validated_path, function_address, timeout
+        )
     except Exception as e:
         return failure(
             error_code="GHIDRA_DECOMPILATION_FAILED",
@@ -156,7 +158,11 @@ def _refine_code(code: str) -> str:
             offset = match.group(2)
             return f"{var}->field_{offset}"
 
-        new_line = re.sub(r"\*\(\w+\s*\*\)\s*\(([\w\d_]+)\s*\+\s*(0x[\da-fA-F]+|\d+)\)", struct_replacer, new_line)
+        new_line = re.sub(
+            r"\*\(\w+\s*\*\)\s*\(([\w\d_]+)\s*\+\s*(0x[\da-fA-F]+|\d+)\)",
+            struct_replacer,
+            new_line,
+        )
 
         # Magic Value Annotation
         # Find hex constants > 0x1000
@@ -166,7 +172,7 @@ def _refine_code(code: str) -> str:
                 val = int(val_str, 16)
                 if val > 0x1000:
                     return f"{val_str} /* Magic Value */"
-            except:
+            except (ValueError, TypeError):
                 pass
             return val_str
 

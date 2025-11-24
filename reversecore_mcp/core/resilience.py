@@ -30,7 +30,9 @@ class CircuitBreaker:
     and blocks requests for 'recovery_timeout' seconds.
     """
 
-    def __init__(self, name: str, failure_threshold: int = 5, recovery_timeout: int = 60):
+    def __init__(
+        self, name: str, failure_threshold: int = 5, recovery_timeout: int = 60
+    ):
         self.name = name
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
@@ -76,7 +78,9 @@ class CircuitBreaker:
 
         if self.state == CircuitState.CLOSED:
             if self.failures >= self.failure_threshold:
-                logger.warning(f"Circuit {self.name} opened due to {self.failures} failures")
+                logger.warning(
+                    f"Circuit {self.name} opened due to {self.failures} failures"
+                )
                 self.state = CircuitState.OPEN
                 self.next_attempt_time = time.time() + self.recovery_timeout
 
@@ -97,13 +101,19 @@ def get_circuit_breaker(name: str, **kwargs) -> CircuitBreaker:
     return _breakers[name]
 
 
-def circuit_breaker(tool_name: str, failure_threshold: int = 5, recovery_timeout: int = 60):
+def circuit_breaker(
+    tool_name: str, failure_threshold: int = 5, recovery_timeout: int = 60
+):
     """
     Decorator to apply circuit breaker pattern to a function.
     """
 
     def decorator(func):
-        breaker = get_circuit_breaker(tool_name, failure_threshold=failure_threshold, recovery_timeout=recovery_timeout)
+        breaker = get_circuit_breaker(
+            tool_name,
+            failure_threshold=failure_threshold,
+            recovery_timeout=recovery_timeout,
+        )
 
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):

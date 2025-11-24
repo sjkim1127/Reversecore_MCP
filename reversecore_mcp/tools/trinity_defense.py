@@ -64,7 +64,9 @@ async def trinity_defense(
     validated_path = validate_file_path(file_path)
 
     if ctx:
-        await ctx.info("🔱 Trinity Defense System: Initiating full-spectrum analysis...")
+        await ctx.info(
+            "🔱 Trinity Defense System: Initiating full-spectrum analysis..."
+        )
         await ctx.info(f"📁 Target: {validated_path.name}")
         await ctx.info(f"⚙️ Mode: {mode.upper()}")
 
@@ -79,7 +81,10 @@ async def trinity_defense(
 
         # Check if ghost_trace returned an error
         if ghost_result.status == "error":
-            return failure(error_code="GHOST_TRACE_FAILED", message=f"Phase 1 failed: {ghost_result.message}")
+            return failure(
+                error_code="GHOST_TRACE_FAILED",
+                message=f"Phase 1 failed: {ghost_result.message}",
+            )
 
         # Extract threats from ToolResult.data
         ghost_data = ghost_result.data
@@ -88,7 +93,13 @@ async def trinity_defense(
         all_threats = orphan_functions + suspicious_logic
 
         if not all_threats:
-            return success({"status": "clean", "message": "No threats detected by Ghost Trace", "phases_completed": 1})
+            return success(
+                {
+                    "status": "clean",
+                    "message": "No threats detected by Ghost Trace",
+                    "phases_completed": 1,
+                }
+            )
 
         logger.info(f"Phase 1 complete: {len(all_threats)} threats discovered")
 
@@ -103,14 +114,19 @@ async def trinity_defense(
             )
 
     except Exception as e:
-        return failure(error_code="GHOST_TRACE_ERROR", message=f"Phase 1 (Ghost Trace) failed: {str(e)}")
+        return failure(
+            error_code="GHOST_TRACE_ERROR",
+            message=f"Phase 1 (Ghost Trace) failed: {str(e)}",
+        )
 
     # ============================================================
     # PHASE 2: UNDERSTAND - Neural Decompiler
     # ============================================================
     if ctx:
         await ctx.info("\\n🧠 PHASE 2: UNDERSTAND (Neural Decompiler)")
-        await ctx.info(f"📊 Analyzing top {min(max_threats, len(all_threats))} threats...")
+        await ctx.info(
+            f"📊 Analyzing top {min(max_threats, len(all_threats))} threats..."
+        )
 
     refined_threats = []
 
@@ -129,19 +145,32 @@ async def trinity_defense(
         if ctx:
             await ctx.info("  🔄 Parallel analysis in progress...")
 
-        results = await asyncio.gather(*[task for _, task in tasks], return_exceptions=True)
+        results = await asyncio.gather(
+            *[task for _, task in tasks], return_exceptions=True
+        )
 
         # Process results
         for i, ((threat, _), result) in enumerate(zip(tasks, results)):
             if ctx:
-                await ctx.info(f"  [{i+1}/{len(tasks)}] Processed {threat.get('function', threat.get('address'))}")
+                await ctx.info(
+                    f"  [{i+1}/{len(tasks)}] Processed {threat.get('function', threat.get('address'))}"
+                )
 
             if isinstance(result, Exception):
                 logger.warning(f"Failed to analyze {threat.get('address')}: {result}")
-                refined_threats.append({**threat, "error": str(result), "intent": "unknown", "confidence": 0.0})
+                refined_threats.append(
+                    {
+                        **threat,
+                        "error": str(result),
+                        "intent": "unknown",
+                        "confidence": 0.0,
+                    }
+                )
             elif result.status != "error":
                 # Infer intent from refined code with confidence
-                intent, confidence = _infer_intent_with_confidence(neural_result=result.data, threat_info=threat)
+                intent, confidence = _infer_intent_with_confidence(
+                    neural_result=result.data, threat_info=threat
+                )
 
                 refined_threats.append(
                     {
@@ -154,7 +183,12 @@ async def trinity_defense(
                 )
             else:
                 refined_threats.append(
-                    {**threat, "error": "Decompilation failed", "intent": "unknown", "confidence": 0.0}
+                    {
+                        **threat,
+                        "error": "Decompilation failed",
+                        "intent": "unknown",
+                        "confidence": 0.0,
+                    }
                 )
 
         logger.info(f"Phase 2 complete: {len(refined_threats)} threats analyzed")
@@ -170,7 +204,10 @@ async def trinity_defense(
             )
 
     except Exception as e:
-        return failure(error_code="NEURAL_DECOMPILER_ERROR", message=f"Phase 2 (Neural Decompiler) failed: {str(e)}")
+        return failure(
+            error_code="NEURAL_DECOMPILER_ERROR",
+            message=f"Phase 2 (Neural Decompiler) failed: {str(e)}",
+        )
 
     # ============================================================
     # PHASE 3: NEUTRALIZE - Adaptive Vaccine
@@ -199,12 +236,17 @@ async def trinity_defense(
                     if vaccine_result.status != "error":
                         defenses.append(vaccine_result.data)
                 except Exception as e:
-                    logger.warning(f"Failed to generate vaccine for {threat.get('address')}: {e}")
+                    logger.warning(
+                        f"Failed to generate vaccine for {threat.get('address')}: {e}"
+                    )
 
         logger.info(f"Phase 3 complete: {len(defenses)} defenses generated")
 
     except Exception as e:
-        return failure(error_code="ADAPTIVE_VACCINE_ERROR", message=f"Phase 3 (Adaptive Vaccine) failed: {str(e)}")
+        return failure(
+            error_code="ADAPTIVE_VACCINE_ERROR",
+            message=f"Phase 3 (Adaptive Vaccine) failed: {str(e)}",
+        )
 
     # ============================================================
     # FINAL REPORT
@@ -236,7 +278,9 @@ async def trinity_defense(
     )
 
 
-def _infer_intent_with_confidence(neural_result: Dict[str, Any], threat_info: Dict[str, Any]) -> Tuple[str, float]:
+def _infer_intent_with_confidence(
+    neural_result: Dict[str, Any], threat_info: Dict[str, Any]
+) -> Tuple[str, float]:
     """Infer threat intent with confidence score using context-aware analysis.
 
     Args:
@@ -322,7 +366,9 @@ def _infer_intent_with_confidence(neural_result: Dict[str, Any], threat_info: Di
     # If multiple high-confidence intents, mark as multi-stage
     high_conf_intents = [i for i, c in scores.items() if c >= 0.7]
     if len(high_conf_intents) > 1:
-        combined_conf = sum(scores[i] for i in high_conf_intents) / len(high_conf_intents)
+        combined_conf = sum(scores[i] for i in high_conf_intents) / len(
+            high_conf_intents
+        )
         return f"multi_stage_attack({','.join(high_conf_intents)})", combined_conf
 
     return intent, confidence
@@ -539,7 +585,10 @@ def _generate_recommendations(threats: List[Dict[str, Any]]) -> List[Dict[str, A
                     "👁️ Continue monitoring with deployed YARA rules",
                     "📊 Review low-confidence findings manually",
                 ],
-                "investigation": ["Periodic rescans recommended", "Keep YARA rules updated"],
+                "investigation": [
+                    "Periodic rescans recommended",
+                    "Keep YARA rules updated",
+                ],
                 "remediation": [],
             }
         )

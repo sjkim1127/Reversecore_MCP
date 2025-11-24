@@ -81,7 +81,9 @@ def log_execution(tool_name: Optional[str] = None) -> Callable[[F], F]:
                         result.metadata["execution_time_ms"] = execution_time
 
                     log_extra["execution_time_ms"] = execution_time
-                    logger.info(f"{actual_tool_name} completed successfully", extra=log_extra)
+                    logger.info(
+                        f"{actual_tool_name} completed successfully", extra=log_extra
+                    )
                     return result
                 except Exception as exc:
                     execution_time = int((time.time() - start_time) * 1000)
@@ -135,7 +137,9 @@ def log_execution(tool_name: Optional[str] = None) -> Callable[[F], F]:
                     result.metadata["execution_time_ms"] = execution_time
 
                 log_extra["execution_time_ms"] = execution_time
-                logger.info(f"{actual_tool_name} completed successfully", extra=log_extra)
+                logger.info(
+                    f"{actual_tool_name} completed successfully", extra=log_extra
+                )
                 return result
             except Exception as exc:
                 execution_time = int((time.time() - start_time) * 1000)

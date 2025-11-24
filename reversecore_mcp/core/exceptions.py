@@ -5,6 +5,8 @@ All exceptions inherit from ReversecoreError to allow for centralized
 exception handling at the MCP server level.
 """
 
+from typing import Optional
+
 
 class ReversecoreError(Exception):
     """Base exception for all Reversecore_MCP errors."""
@@ -12,7 +14,12 @@ class ReversecoreError(Exception):
     error_code: str = "RCMCP-E000"
     error_type: str = "UNKNOWN_ERROR"
 
-    def __init__(self, message: str, error_code: str = None, error_type: str = None):
+    def __init__(
+        self,
+        message: str,
+        error_code: Optional[str] = None,
+        error_type: Optional[str] = None,
+    ):
         self.message = message
         if error_code:
             self.error_code = error_code
@@ -54,7 +61,10 @@ class OutputLimitExceededError(ReversecoreError):
     def __init__(self, max_size: int, actual_size: int):
         self.max_size = max_size
         self.actual_size = actual_size
-        message = f"Output limit exceeded: {actual_size} bytes (max: {max_size} bytes). " "Output has been truncated."
+        message = (
+            f"Output limit exceeded: {actual_size} bytes (max: {max_size} bytes). "
+            "Output has been truncated."
+        )
         super().__init__(message, self.error_code, self.error_type)
 
 
@@ -64,7 +74,7 @@ class ValidationError(ReversecoreError):
     error_code = "RCMCP-E001"
     error_type = "VALIDATION_ERROR"
 
-    def __init__(self, message: str, details: dict = None):
+    def __init__(self, message: str, details: Optional[dict] = None):
         self.details = details or {}
         super().__init__(message, self.error_code, self.error_type)
 

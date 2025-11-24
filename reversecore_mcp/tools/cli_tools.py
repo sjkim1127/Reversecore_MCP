@@ -242,9 +242,15 @@ async def solve_path_constraints(
         avoid_addr = _resolve_address(proj, avoid_address) if avoid_address else None
 
         if start_addr is None:
-            return {"found": False, "error": f"Could not resolve start address: {start_address}"}
+            return {
+                "found": False,
+                "error": f"Could not resolve start address: {start_address}",
+            }
         if target_addr is None:
-            return {"found": False, "error": f"Could not resolve target address: {target_address}"}
+            return {
+                "found": False,
+                "error": f"Could not resolve target address: {target_address}",
+            }
 
         # Create simulation state
         try:
@@ -282,7 +288,12 @@ async def solve_path_constraints(
                     "stdout": found_state.posix.dumps(1).decode(errors="ignore"),
                 }
             except Exception:
-                return {"found": True, "input_hex": "", "input_str": "Error dumping input", "stdout": ""}
+                return {
+                    "found": True,
+                    "input_hex": "",
+                    "input_str": "Error dumping input",
+                    "stdout": "",
+                }
         else:
             return {"found": False, "reason": "No path found to target"}
 
@@ -361,11 +372,17 @@ async def analyze_with_ai(
     try:
         # 1. Get basic info about the file
         file_info_result = await run_file(str(validated_path))
-        file_info = file_info_result.content[0].text if file_info_result.content else "Unknown"
+        file_info = (
+            file_info_result.content[0].text if file_info_result.content else "Unknown"
+        )
 
         # 2. Get strings sample
         strings_result = await run_strings(str(validated_path), max_output_size=100_000)
-        strings_sample = (strings_result.content[0].text if strings_result.content else "")[:5000]  # First 5KB
+        strings_sample = (
+            strings_result.content[0].text if strings_result.content else ""
+        )[
+            :5000
+        ]  # First 5KB
 
         # 3. Ask AI via sampling
         prompt = f"""You are a reverse engineering expert analyzing a binary file.
@@ -383,9 +400,15 @@ Question: {question}
 Please provide a concise, technical analysis based on the available information.
 """
 
-        response = await ctx.sample(messages=[{"role": "user", "content": prompt}], max_tokens=500)
+        response = await ctx.sample(
+            messages=[{"role": "user", "content": prompt}], max_tokens=500
+        )
 
-        ai_analysis = response.content.text if hasattr(response.content, "text") else str(response.content)
+        ai_analysis = (
+            response.content.text
+            if hasattr(response.content, "text")
+            else str(response.content)
+        )
 
         return success(
             ai_analysis,
@@ -396,7 +419,9 @@ Please provide a concise, technical analysis based on the available information.
 
     except Exception as e:
         return failure(
-            "AI_SAMPLING_ERROR", f"AI sampling failed: {str(e)}", hint="Ensure the MCP client supports sampling feature"
+            "AI_SAMPLING_ERROR",
+            f"AI sampling failed: {str(e)}",
+            hint="Ensure the MCP client supports sampling feature",
         )
 
 
@@ -435,12 +460,18 @@ async def suggest_function_name(
 
     try:
         # 1. Decompile the function
-        decompile_result = await smart_decompile(str(validated_path), function_address, use_ghidra=True)
+        decompile_result = await smart_decompile(
+            str(validated_path), function_address, use_ghidra=True
+        )
 
         if decompile_result.is_error:
             return decompile_result
 
-        code = decompile_result.content[0].text if decompile_result.content else decompile_result.data
+        code = (
+            decompile_result.content[0].text
+            if decompile_result.content
+            else decompile_result.data
+        )
 
         # 2. Ask AI for name suggestion
         prompt = f"""You are a reverse engineering expert. Analyze this decompiled function and suggest a descriptive function name.
@@ -459,9 +490,15 @@ Name: <function_name>
 Reason: <why this name>
 """
 
-        response = await ctx.sample(messages=[{"role": "user", "content": prompt}], max_tokens=150)
+        response = await ctx.sample(
+            messages=[{"role": "user", "content": prompt}], max_tokens=150
+        )
 
-        ai_suggestion = response.content.text if hasattr(response.content, "text") else str(response.content)
+        ai_suggestion = (
+            response.content.text
+            if hasattr(response.content, "text")
+            else str(response.content)
+        )
 
         return success(
             ai_suggestion,

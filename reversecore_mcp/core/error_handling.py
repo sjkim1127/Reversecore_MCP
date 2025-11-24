@@ -60,7 +60,9 @@ def handle_tool_errors(func: F) -> F:
                     hint="Ensure the file is in the workspace directory",
                     details=exc.details,
                 )
-            except Exception as exc:  # noqa: BLE001 - we intentionally coerce to ToolResult
+            except (
+                Exception
+            ) as exc:  # noqa: BLE001 - we intentionally coerce to ToolResult
                 logger.exception("Unexpected error in tool '%s'", tool_name)
                 return failure(
                     "INTERNAL_ERROR",

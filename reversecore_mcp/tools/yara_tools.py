@@ -71,7 +71,11 @@ def _format_yara_match(match: YaraMatch) -> Dict[str, Any]:
                             data_str = None
                         else:
                             # Single isinstance check instead of repeated checks
-                            data_str = matched_data.hex() if isinstance(matched_data, bytes) else str(matched_data)
+                            data_str = (
+                                matched_data.hex()
+                                if isinstance(matched_data, bytes)
+                                else str(matched_data)
+                            )
 
                         formatted_strings.append(
                             {
@@ -188,7 +192,10 @@ def run_yara(
             except Exception as fallback_exc:
                 # If fallback fails, return the original error
                 if generic_error and isinstance(exc, generic_error):
-                    return failure("YARA_ERROR", f"Fallback failed: {fallback_exc}. Original: {exc}")
+                    return failure(
+                        "YARA_ERROR",
+                        f"Fallback failed: {fallback_exc}. Original: {exc}",
+                    )
                 raise
         else:
             if generic_error and isinstance(exc, generic_error):

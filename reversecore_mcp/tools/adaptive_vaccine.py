@@ -71,8 +71,8 @@ async def adaptive_vaccine(
         try:
             validated_path = validate_file_path(file_path)
             arch = _detect_architecture(validated_path)
-        except:
-            pass  # Use default if detection fails
+        except Exception:  # Use default if detection fails
+            pass
 
     # Generate YARA rule
     if action in ["yara", "both"]:
@@ -85,12 +85,16 @@ async def adaptive_vaccine(
     # Generate binary patch
     if action in ["patch", "both"]:
         if not file_path:
-            return failure("MISSING_FILE_PATH", "file_path is required for patch action")
+            return failure(
+                "MISSING_FILE_PATH", "file_path is required for patch action"
+            )
 
         validated_path = validate_file_path(file_path)
 
         try:
-            patch_info = _create_binary_patch(validated_path, threat_report, dry_run=dry_run)
+            patch_info = _create_binary_patch(
+                validated_path, threat_report, dry_run=dry_run
+            )
             result["patch"] = patch_info
 
             if ctx:
@@ -253,7 +257,11 @@ def _va_to_file_offset(file_path: Path, va: int) -> Tuple[int, str]:
                     # Find section name
                     section_name = "unknown"
                     for section in binary.sections:
-                        if section.virtual_address <= va < section.virtual_address + section.size:
+                        if (
+                            section.virtual_address
+                            <= va
+                            < section.virtual_address + section.size
+                        ):
                             section_name = section.name
                             break
                     return offset, section_name
@@ -265,7 +273,9 @@ def _va_to_file_offset(file_path: Path, va: int) -> Tuple[int, str]:
         raise
 
 
-def _create_binary_patch(file_path: Path, threat_report: Dict[str, Any], dry_run: bool = True) -> Dict[str, Any]:
+def _create_binary_patch(
+    file_path: Path, threat_report: Dict[str, Any], dry_run: bool = True
+) -> Dict[str, Any]:
     """
     Create binary patch to neutralize threat.
 
@@ -291,7 +301,9 @@ def _create_binary_patch(file_path: Path, threat_report: Dict[str, Any], dry_run
     # Convert VA to file offset
     try:
         file_offset, section_name = _va_to_file_offset(file_path, va)
-        logger.info(f"Converted VA {address_str} to file offset {hex(file_offset)} (section: {section_name})")
+        logger.info(
+            f"Converted VA {address_str} to file offset {hex(file_offset)} (section: {section_name})"
+        )
     except Exception as e:
         raise ValueError(f"Failed to convert VA to file offset: {e}")
 
@@ -339,7 +351,9 @@ def _create_binary_patch(file_path: Path, threat_report: Dict[str, Any], dry_run
 
             patch_info["applied"] = True
             patch_info["backup"] = str(backup_path)
-            logger.info(f"Applied patch at file offset {hex(file_offset)} (VA: {address_str})")
+            logger.info(
+                f"Applied patch at file offset {hex(file_offset)} (VA: {address_str})"
+            )
         except Exception as e:
             # Restore from backup
             shutil.copy2(backup_path, file_path)

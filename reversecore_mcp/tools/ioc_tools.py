@@ -61,10 +61,18 @@ def extract_iocs(
                     if isinstance(data["data"], str):
                         text = data["data"]
                     elif isinstance(data["data"], dict):
-                        text = json.dumps(data["data"])  # Convert back to string for regex
+                        text = json.dumps(
+                            data["data"]
+                        )  # Convert back to string for regex
                 elif "content" in data:  # Legacy or other format
                     if isinstance(data["content"], list):
-                        text = "\n".join([c.get("text", "") for c in data["content"] if isinstance(c, dict)])
+                        text = "\n".join(
+                            [
+                                c.get("text", "")
+                                for c in data["content"]
+                                if isinstance(c, dict)
+                            ]
+                        )
                     else:
                         text = str(data["content"])
         except json.JSONDecodeError:
@@ -93,7 +101,11 @@ def extract_iocs(
         lines = text.split("\n")
         # Keep lines that look like they might contain IOCs (dots, @, http)
         # This is a rough heuristic to reduce data size before heavy regex
-        filtered_lines = [line for line in lines if len(line) < 500 and ("." in line or "@" in line or ":" in line)]
+        filtered_lines = [
+            line
+            for line in lines
+            if len(line) < 500 and ("." in line or "@" in line or ":" in line)
+        ]
         # Limit to top 2000 suspicious lines to prevent memory issues
         text = "\n".join(filtered_lines[:2000])
 

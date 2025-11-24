@@ -50,7 +50,9 @@ def _extract_json_safely(output: str) -> Optional[Any]:
         if not line:
             continue
         # Check if line looks like JSON
-        if (line.startswith("[") and line.endswith("]")) or (line.startswith("{") and line.endswith("}")):
+        if (line.startswith("[") and line.endswith("]")) or (
+            line.startswith("{") and line.endswith("}")
+        ):
             try:
                 parsed = json.loads(line)
                 logger.debug("Successfully parsed single-line JSON")
@@ -76,7 +78,8 @@ def _validate_r2_identifier(identifier: str) -> str:
             return identifier
 
     raise ValidationError(
-        f"Invalid radare2 identifier: '{identifier}'. " "Must be hex address (0x...) or valid symbol name."
+        f"Invalid radare2 identifier: '{identifier}'. "
+        "Must be hex address (0x...) or valid symbol name."
     )
 
 
@@ -134,8 +137,12 @@ async def ghost_trace(
     # 1. If focus_function is provided, run emulation (Verification Phase)
     if focus_function and hypothesis:
         if ctx:
-            await ctx.info(f"👻 Ghost Trace: Emulating {focus_function} with hypothesis...")
-        return await _verify_hypothesis_with_emulation(validated_path, focus_function, hypothesis, timeout)
+            await ctx.info(
+                f"👻 Ghost Trace: Emulating {focus_function} with hypothesis..."
+            )
+        return await _verify_hypothesis_with_emulation(
+            validated_path, focus_function, hypothesis, timeout
+        )
 
     # 2. Otherwise, run full scan (Discovery Phase)
     if ctx:
@@ -151,7 +158,10 @@ async def ghost_trace(
     functions = _extract_json_safely(output)
     if not functions or not isinstance(functions, list):
         logger.error(f"Invalid function list format. Output preview: {output[:200]}...")
-        return failure("Failed to parse function list from radare2. " "Output may be corrupted or analysis failed.")
+        return failure(
+            "Failed to parse function list from radare2. "
+            "Output may be corrupted or analysis failed."
+        )
 
     # Find orphans and suspicious logic
     orphans = []
@@ -205,7 +215,9 @@ async def ghost_trace(
     )
 
 
-async def _find_orphan_functions(file_path: Path, functions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+async def _find_orphan_functions(
+    file_path: Path, functions: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
     """Identify functions with no direct XREFs (potential dead code/backdoors)."""
     orphans = []
     # Heuristic: Check if 'nrefs' (number of references) is 0
@@ -221,7 +233,9 @@ async def _find_orphan_functions(file_path: Path, functions: List[Dict[str, Any]
         # Check refs
         # Some r2 versions use 'codexrefs', some 'refs'.
         refs = func.get("codexrefs", [])
-        if not refs and func.get("size", 0) > 50:  # Only care about non-trivial functions
+        if (
+            not refs and func.get("size", 0) > 50
+        ):  # Only care about non-trivial functions
             orphans.append(
                 {
                     "name": name,
@@ -268,7 +282,9 @@ async def _identify_conditional_paths(
             # Parse each function's output
             # Note: with multiple pdfj, output contains multiple JSON objects
             # We need to split them carefully
-            json_outputs = re.findall(r"\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}", out, re.DOTALL)
+            json_outputs = re.findall(
+                r"\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}", out, re.DOTALL
+            )
 
             for func, json_str in zip(batch, json_outputs):
                 try:

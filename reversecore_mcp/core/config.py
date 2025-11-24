@@ -56,7 +56,11 @@ class Config:
     @classmethod
     def from_env(cls) -> "Config":
         """Build a configuration object from environment variables."""
-        workspace = Path(os.getenv("REVERSECORE_WORKSPACE", "/app/workspace")).expanduser().resolve()
+        workspace = (
+            Path(os.getenv("REVERSECORE_WORKSPACE", "/app/workspace"))
+            .expanduser()
+            .resolve()
+        )
         read_dirs = _split_paths(os.getenv("REVERSECORE_READ_DIRS", "/app/rules"))
         log_level = os.getenv("LOG_LEVEL", "INFO").upper()
         log_file = Path(os.getenv("LOG_FILE", "/tmp/reversecore/app.log")).expanduser()
@@ -73,7 +77,7 @@ class Config:
             default=120,
         )
 
-        return cls(
+        config = cls(
             workspace=workspace,
             read_only_dirs=read_dirs,
             log_level=log_level,
