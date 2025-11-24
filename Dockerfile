@@ -24,7 +24,7 @@
 # ============================================================================
 # Build Stage: Install dependencies that require compilation
 # ============================================================================
-FROM python:3.11-slim-bookworm AS builder
+FROM python:3.14-slim-bookworm AS builder
 ARG YARA_VERSION=4.3.1
 ARG RADARE2_VERSION=6.0.4
 ARG GHIDRA_VERSION=11.4.2
@@ -107,7 +107,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # ============================================================================
 # Runtime Stage: Create minimal production image
 # ============================================================================
-FROM python:3.11-slim-bookworm
+FROM python:3.14-slim-bookworm
 
 # Set working directory
 WORKDIR /app
