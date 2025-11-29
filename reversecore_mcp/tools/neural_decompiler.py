@@ -3,6 +3,8 @@ Neural Decompiler: AI-Simulated Code Refinement Tool.
 
 This tool transforms raw Ghidra decompilation output into "human-like" natural code
 using advanced heuristics and pattern matching to restore developer intent.
+
+Supports fallback to radare2 when Ghidra is not available.
 """
 
 import re
@@ -12,7 +14,10 @@ from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.result import ToolResult, success, failure
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.security import validate_file_path
-from reversecore_mcp.core import ghidra_helper
+from reversecore_mcp.core.ghidra_helper import (
+    ensure_ghidra_available,
+    decompile_function_with_ghidra,
+)
 
 logger = get_logger(__name__)
 
@@ -27,13 +32,14 @@ async def neural_decompile(
     file_path: str,
     function_address: str,
     timeout: int = 300,
+    use_ghidra: bool = True,
     ctx: Context = None,
 ) -> ToolResult:
     """
     Decompile a function and refine it into "human-like" code using the Neural Decompiler.
 
     This tool:
-    1.  Decompiles the function using Ghidra.
+    1.  Decompiles the function using Ghidra (preferred) or radare2 (fallback).
     2.  Refines the code by renaming variables based on API usage (e.g., `socket` -> `sock_fd`).
     3.  Infers structures and adds semantic comments.
 
@@ -41,6 +47,8 @@ async def neural_decompile(
         file_path: Path to the binary.
         function_address: Address or name of the function.
         timeout: Execution timeout.
+        use_ghidra: Use Ghidra decompiler if available (default True), fallback to radare2.
+        ctx: FastMCP Context (auto-injected).
 
     Returns:
         ToolResult containing the refined "Neural" code.
@@ -50,33 +58,95 @@ async def neural_decompile(
     if ctx:
         await ctx.info(f"🧠 Neural Decompiler: Analyzing {function_address}...")
 
-    try:
-        raw_code, metadata = ghidra_helper.decompile_function_with_ghidra(
-            validated_path, function_address, timeout
-        )
-    except Exception as e:
-        return failure(
-            error_code="GHIDRA_DECOMPILATION_FAILED",
-            message=f"Ghidra decompilation failed:{str(e)}",
-            hint="Ensure Ghidra is properly installed and JAVA_HOME is set correctly",
-        )
+    raw_code = None
+    metadata = {}
+    decompiler_used = None
+    fallback_note = ""
+
+    # Try Ghidra first if requested
+    if use_ghidra:
+        if ensure_ghidra_available():
+            try:
+                if ctx:
+                    await ctx.info("🧠 Using Ghidra decompiler...")
+                raw_code, metadata = decompile_function_with_ghidra(
+                    validated_path, function_address, timeout
+                )
+                decompiler_used = "ghidra"
+            except Exception as e:
+                logger.warning(
+                    f"Ghidra decompilation failed: {e}. Falling back to radare2"
+                )
+                fallback_note = f" (Ghidra failed: {str(e)[:50]}..., fell back to radare2)"
+                # Continue to radare2 fallback
+        else:
+            logger.info("Ghidra not available, using radare2")
+            fallback_note = " (Ghidra not available, using radare2)"
+
+    # Fallback to radare2 if Ghidra failed or not available
+    if raw_code is None:
+        try:
+            if ctx:
+                await ctx.info("🧠 Using radare2 decompiler (pdc)...")
+
+            from reversecore_mcp.tools.r2_analysis import _execute_r2_command
+
+            r2_cmds = [f"pdc @ {function_address}"]
+            output, bytes_read = await _execute_r2_command(
+                validated_path,
+                r2_cmds,
+                analysis_level="aaa",
+                max_output_size=10_000_000,
+                base_timeout=timeout,
+            )
+
+            if not output or output.strip() == "":
+                return failure(
+                    error_code="DECOMPILATION_FAILED",
+                    message=f"No decompilation output for address: {function_address}",
+                    hint="Verify the address exists and points to a valid function. "
+                    "Try analyzing with 'afl' first.",
+                )
+
+            raw_code = output
+            metadata = {
+                "function_address": function_address,
+                "bytes_read": bytes_read,
+            }
+            decompiler_used = "radare2"
+
+        except Exception as e:
+            return failure(
+                error_code="DECOMPILATION_FAILED",
+                message=f"Both Ghidra and radare2 decompilation failed: {str(e)}",
+                hint="Ensure the binary is valid and the function address exists. "
+                "Check that radare2 is installed and working.",
+            )
 
     if ctx:
         await ctx.info("🧠 Neural Decompiler: Refining code structure and semantics...")
 
-    # 2. Refine Code (The "Neural" Magic)
+    # Refine Code (The "Neural" Magic)
     refined_code = _refine_code(raw_code)
+
+    # Build description
+    description = f"Decompiled with {decompiler_used}{fallback_note}"
 
     return success(
         {
-            "ghidra_code": raw_code,  # Full original code for comparison
-            "original_code_snippet": raw_code[:200] + "...",
+            "original_code": raw_code,
+            "original_code_snippet": (
+                raw_code[:200] + "..." if len(raw_code) > 200 else raw_code
+            ),
             "neural_code": refined_code,
             "metadata": metadata,
+            "decompiler": decompiler_used,
+            "description": description,
             "refinement_stats": {
                 "renamed_vars": refined_code.count("/* Renamed from"),
                 "inferred_structs": refined_code.count("->"),
-                "comments_added": refined_code.count("// Magic:"),
+                "comments_added": refined_code.count("// Magic:")
+                + refined_code.count("/* Magic"),
             },
         }
     )

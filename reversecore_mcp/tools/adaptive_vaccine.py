@@ -22,6 +22,99 @@ from reversecore_mcp.core.security import validate_file_path
 
 logger = get_logger(__name__)
 
+# Validation constants for YARA rule generation
+YARA_RULE_NAME_MAX_LENGTH = 64
+YARA_META_VALUE_MAX_LENGTH = 256
+YARA_MAX_PATTERNS = 10
+YARA_MAX_STRING_LITERAL_LENGTH = 200
+
+
+def _validate_threat_report(threat_report: Any) -> Dict[str, Any]:
+    """
+    Validate and sanitize threat_report input for YARA rule generation.
+
+    Args:
+        threat_report: Input to validate
+
+    Returns:
+        Validated and sanitized threat report dictionary
+
+    Raises:
+        ValueError: If validation fails
+    """
+    # Type check
+    if not isinstance(threat_report, dict):
+        raise ValueError(
+            f"threat_report must be a dictionary, got {type(threat_report).__name__}"
+        )
+
+    # Extract and validate fields with defaults
+    validated = {}
+
+    # Function name validation
+    function_name = threat_report.get("function", "unknown")
+    if not isinstance(function_name, str):
+        function_name = str(function_name)
+    # Remove dangerous characters and limit length
+    function_name = re.sub(r"[^\w\-.]", "_", function_name)[:YARA_RULE_NAME_MAX_LENGTH]
+    validated["function"] = function_name
+
+    # Address validation
+    address = threat_report.get("address", "0x0")
+    if not isinstance(address, str):
+        address = str(address)
+    # Must be valid hex format or numeric
+    if not re.match(r"^(0x[0-9a-fA-F]+|\d+)$", address):
+        address = "0x0"
+    validated["address"] = address
+
+    # Instruction validation - sanitize for YARA meta
+    instruction = threat_report.get("instruction", "")
+    if not isinstance(instruction, str):
+        instruction = str(instruction)
+    # Escape quotes and limit length
+    instruction = instruction.replace('"', '\\"').replace("\\", "\\\\")
+    instruction = instruction[:YARA_META_VALUE_MAX_LENGTH]
+    validated["instruction"] = instruction
+
+    # Reason validation - sanitize for YARA meta
+    reason = threat_report.get("reason", "Suspicious behavior detected")
+    if not isinstance(reason, str):
+        reason = str(reason)
+    # Escape quotes and limit length
+    reason = reason.replace('"', '\\"').replace("\\", "\\\\")
+    reason = reason[:YARA_META_VALUE_MAX_LENGTH]
+    validated["reason"] = reason
+
+    # Refined code (optional) - just sanitize
+    refined_code = threat_report.get("refined_code", "")
+    if not isinstance(refined_code, str):
+        refined_code = str(refined_code) if refined_code else ""
+    validated["refined_code"] = refined_code
+
+    return validated
+
+
+def _sanitize_yara_string(
+    s: str, max_length: int = YARA_MAX_STRING_LITERAL_LENGTH
+) -> str:
+    """
+    Sanitize a string for safe use in YARA rules.
+
+    Args:
+        s: String to sanitize
+        max_length: Maximum allowed length
+
+    Returns:
+        Sanitized string safe for YARA
+    """
+    # Remove null bytes and control characters
+    s = re.sub(r"[\x00-\x1f\x7f-\x9f]", "", s)
+    # Escape backslashes and quotes
+    s = s.replace("\\", "\\\\").replace('"', '\\"')
+    # Limit length
+    return s[:max_length]
+
 
 def register_adaptive_vaccine(mcp: FastMCP) -> None:
     """Register the Adaptive Vaccine tool with the FastMCP server."""
@@ -60,6 +153,25 @@ async def adaptive_vaccine(
     Returns:
         ToolResult containing generated defenses
     """
+    # Validate action parameter
+    valid_actions = {"yara", "patch", "both"}
+    if action not in valid_actions:
+        return failure(
+            "INVALID_ACTION",
+            f"Invalid action '{action}'. Must be one of: {', '.join(valid_actions)}",
+        )
+
+    # Pre-validate threat_report
+    try:
+        validated_report = _validate_threat_report(threat_report)
+    except ValueError as e:
+        return failure(
+            "INVALID_THREAT_REPORT",
+            f"Invalid threat_report: {str(e)}",
+            hint="threat_report must be a dictionary with 'function', 'address', "
+            "'instruction', and 'reason' fields",
+        )
+
     if ctx:
         await ctx.info(f"🛡️ Adaptive Vaccine: Generating {action} defense...")
 
@@ -76,7 +188,7 @@ async def adaptive_vaccine(
 
     # Generate YARA rule
     if action in ["yara", "both"]:
-        yara_rule = _generate_yara_rule(threat_report, arch)
+        yara_rule = _generate_yara_rule(validated_report, arch)
         result["yara_rule"] = yara_rule
         result["architecture"] = arch
         if ctx:
@@ -164,7 +276,7 @@ def _generate_yara_rule(threat_report: Dict[str, Any], arch: str = "x86") -> str
     Generate YARA rule from threat information.
 
     Args:
-        threat_report: Threat information including instruction, reason, etc.
+        threat_report: Validated threat information including instruction, reason, etc.
         arch: Target architecture for endianness handling
 
     Returns:
@@ -174,37 +286,45 @@ def _generate_yara_rule(threat_report: Dict[str, Any], arch: str = "x86") -> str
     address = threat_report.get("address", "0x0")
     instruction = threat_report.get("instruction", "")
     reason = threat_report.get("reason", "Suspicious behavior detected")
+    refined_code = threat_report.get("refined_code", "")
 
-    # Sanitize rule name (alphanumeric only)
+    # Sanitize rule name (alphanumeric and underscore only)
     rule_name = re.sub(r"[^a-zA-Z0-9_]", "_", function_name)
+    # Ensure rule name starts with letter or underscore
     if not rule_name or rule_name[0].isdigit():
-        rule_name = f"Threat_{address.replace('0x', '')}"
+        rule_name = f"Threat_{address.replace('0x', '').replace('-', '_')}"
+    # Limit rule name length
+    rule_name = rule_name[:YARA_RULE_NAME_MAX_LENGTH]
 
-    # Extract hex patterns from instruction
+    # Extract hex patterns from instruction with validation
     hex_patterns = re.findall(r"0x([0-9a-fA-F]+)", instruction)
 
     # Build strings section with proper endianness
     strings_section = []
-    for i, hex_val in enumerate(hex_patterns[:5]):  # Limit to 5 patterns
+    for i, hex_val in enumerate(hex_patterns[:YARA_MAX_PATTERNS]):
+        # Validate hex pattern length (prevent extremely long patterns)
+        if len(hex_val) > 16:  # Max 8 bytes
+            hex_val = hex_val[:16]
         byte_str = _hex_to_yara_bytes(hex_val, arch)
         strings_section.append(f"        $hex_{i} = {{ {byte_str} }}")
 
-    # Extract string literals if present in refined code
-    refined_code = threat_report.get("refined_code", "")
-    string_literals = re.findall(r'"([^"]+)"', refined_code)
+    # Extract string literals if present in refined code (with sanitization)
+    string_literals = re.findall(r'"([^"]{1,200})"', refined_code)
     for i, literal in enumerate(string_literals[:3]):  # Limit to 3 strings
-        strings_section.append(f'        $str_{i} = "{literal}" ascii')
+        sanitized = _sanitize_yara_string(literal)
+        if sanitized:  # Only add non-empty strings
+            strings_section.append(f'        $str_{i} = "{sanitized}" ascii')
 
     # Build condition
     if strings_section:
         condition = " or ".join([s.split(" = ")[0].strip() for s in strings_section])
     else:
-        condition = "true  // Manual review required"
+        condition = "true  // Manual review required - no patterns extracted"
 
     # Generate timestamp
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # Build YARA rule
+    # Build YARA rule with escaped metadata
     yara_rule = f"""rule {rule_name} {{
     meta:
         description = "{reason}"
@@ -212,10 +332,10 @@ def _generate_yara_rule(threat_report: Dict[str, Any], arch: str = "x86") -> str
         architecture = "{arch}"
         generated = "{timestamp}"
         source = "Reversecore TDS - Adaptive Vaccine"
-        
+
     strings:
-{chr(10).join(strings_section) if strings_section else '        // No patterns extracted'}
-        
+{chr(10).join(strings_section) if strings_section else '        // No patterns extracted - manual analysis required'}
+
     condition:
         {condition}
 }}"""
