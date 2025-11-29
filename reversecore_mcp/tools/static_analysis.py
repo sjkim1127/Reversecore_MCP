@@ -94,6 +94,174 @@ async def run_binwalk(
     return success(output, bytes_read=bytes_read)
 
 
+@log_execution(tool_name="run_binwalk_extract")
+@track_metrics("run_binwalk_extract")
+@handle_tool_errors
+async def run_binwalk_extract(
+    file_path: str,
+    output_dir: str = None,
+    matryoshka: bool = True,
+    depth: int = 8,
+    max_output_size: int = 50_000_000,
+    timeout: int = 600,
+) -> ToolResult:
+    """
+    Extract embedded files and file systems from a binary using binwalk.
+
+    This tool performs deep extraction of embedded content, including:
+    - Compressed archives (gzip, bzip2, lzma, xz)
+    - File systems (squashfs, cramfs, jffs2, ubifs)
+    - Firmware images and bootloaders
+    - Nested/matryoshka content (files within files)
+
+    **Use Cases:**
+    - **Firmware Analysis**: Extract file systems from router/IoT firmware
+    - **Malware Unpacking**: Extract payloads from packed/embedded malware
+    - **Forensics**: Recover embedded files from disk images
+    - **CTF Challenges**: Extract hidden data from challenge files
+
+    Args:
+        file_path: Path to the binary file to extract
+        output_dir: Directory to extract files to (default: creates temp dir)
+        matryoshka: Enable recursive extraction (files within files)
+        depth: Maximum extraction depth for nested content (default: 8)
+        max_output_size: Maximum output size in bytes
+        timeout: Extraction timeout in seconds (default: 600 for large files)
+
+    Returns:
+        ToolResult with extraction summary including:
+        - extracted_files: List of extracted files with paths and types
+        - output_directory: Path to extraction output
+        - total_size: Total size of extracted content
+        - extraction_depth: Maximum depth reached during extraction
+
+    Example:
+        >>> result = await run_binwalk_extract("/path/to/firmware.bin")
+        >>> print(result.data["extracted_files"])
+        [{"path": "squashfs-root/etc/passwd", "type": "ASCII text", "size": 1234}, ...]
+    """
+    import os
+    import tempfile
+    from pathlib import Path
+
+    validated_path = validate_file_path(file_path)
+    
+    # Create output directory if not specified
+    if output_dir is None:
+        # Create temp directory for extraction
+        temp_dir = tempfile.mkdtemp(prefix="binwalk_extract_")
+        extraction_dir = temp_dir
+    else:
+        # Validate output directory path
+        extraction_dir = validate_file_path(output_dir, must_exist=False)
+        os.makedirs(extraction_dir, exist_ok=True)
+    
+    # Build binwalk extraction command
+    cmd = ["binwalk", "-e"]  # -e for extraction
+    
+    if matryoshka:
+        cmd.append("-M")  # Matryoshka/recursive extraction
+    
+    cmd.extend(["-d", str(depth)])  # Extraction depth
+    cmd.extend(["-C", str(extraction_dir)])  # Output directory
+    cmd.append(str(validated_path))
+    
+    # Run extraction
+    output, bytes_read = await execute_subprocess_async(
+        cmd,
+        max_output_size=max_output_size,
+        timeout=timeout,
+    )
+    
+    # Gather extraction results
+    extracted_files = []
+    total_size = 0
+    max_depth_found = 0
+    
+    # Walk the extraction directory to catalog results
+    extraction_path = Path(extraction_dir)
+    if extraction_path.exists():
+        for root, dirs, files in os.walk(extraction_path):
+            # Calculate depth from extraction root
+            rel_path = Path(root).relative_to(extraction_path)
+            current_depth = len(rel_path.parts)
+            max_depth_found = max(max_depth_found, current_depth)
+            
+            for filename in files:
+                file_full_path = Path(root) / filename
+                try:
+                    file_size = file_full_path.stat().st_size
+                    total_size += file_size
+                    
+                    # Try to determine file type
+                    file_type = "unknown"
+                    try:
+                        # Use 'file' command for type detection
+                        type_cmd = ["file", "-b", str(file_full_path)]
+                        type_output, _ = await execute_subprocess_async(
+                            type_cmd, timeout=5, max_output_size=1024
+                        )
+                        file_type = type_output.strip()[:100]  # Limit type string length
+                    except Exception:
+                        pass
+                    
+                    extracted_files.append({
+                        "path": str(file_full_path.relative_to(extraction_path)),
+                        "type": file_type,
+                        "size": file_size,
+                    })
+                except (OSError, ValueError):
+                    continue
+    
+    # Sort by size (largest first) and limit to first 200 entries
+    extracted_files.sort(key=lambda x: x["size"], reverse=True)
+    truncated = len(extracted_files) > 200
+    extracted_files = extracted_files[:200]
+    
+    # Parse binwalk output for additional info
+    signatures_found = []
+    for line in output.split("\n"):
+        line = line.strip()
+        if line and not line.startswith("DECIMAL") and not line.startswith("-"):
+            # Extract signature type from binwalk output
+            parts = line.split()
+            if len(parts) >= 3:
+                try:
+                    offset = int(parts[0])
+                    sig_type = " ".join(parts[2:])
+                    signatures_found.append({
+                        "offset": offset,
+                        "type": sig_type[:100]
+                    })
+                except (ValueError, IndexError):
+                    continue
+    
+    return success(
+        {
+            "output_directory": str(extraction_dir),
+            "extracted_files": extracted_files,
+            "total_files": len(extracted_files) + (100 if truncated else 0),  # Estimate if truncated
+            "total_size": total_size,
+            "total_size_human": _format_size(total_size),
+            "extraction_depth": max_depth_found,
+            "signatures_found": signatures_found[:50],  # Limit signatures
+            "binwalk_output": output[:5000] if len(output) > 5000 else output,
+            "truncated": truncated,
+        },
+        bytes_read=bytes_read,
+        description=f"Extracted {len(extracted_files)} files ({_format_size(total_size)}) to {extraction_dir}",
+    )
+
+
+def _format_size(size_bytes: int) -> str:
+    """Format byte size to human-readable string."""
+    for unit in ["B", "KB", "MB", "GB"]:
+        if size_bytes < 1024:
+            return f"{size_bytes:.1f} {unit}"
+        size_bytes /= 1024
+    return f"{size_bytes:.1f} TB"
+
+
 @log_execution(tool_name="scan_for_versions")
 @track_metrics("scan_for_versions")
 @handle_tool_errors

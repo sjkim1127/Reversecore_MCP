@@ -103,12 +103,120 @@ def get_circuit_breaker(name: str, **kwargs) -> CircuitBreaker:
 
 def circuit_breaker(
     tool_name: str, failure_threshold: int = 5, recovery_timeout: int = 60
-):
+) -> Callable[[F], F]:
     """
     Decorator to apply circuit breaker pattern to a function.
+    
+    Automatically detects if the decorated function is async or sync
+    and applies the appropriate wrapper.
+    
+    Args:
+        tool_name: Name of the tool for circuit breaker tracking
+        failure_threshold: Number of failures before opening circuit
+        recovery_timeout: Seconds to wait before attempting recovery
+        
+    Returns:
+        Decorated function with circuit breaker protection
     """
 
-    def decorator(func):
+    def decorator(func: F) -> F:
+        breaker = get_circuit_breaker(
+            tool_name,
+            failure_threshold=failure_threshold,
+            recovery_timeout=recovery_timeout,
+        )
+        
+        def _get_error_message() -> str:
+            """Generate error message for circuit open state."""
+            remaining = int(breaker.next_attempt_time - time.time())
+            return (
+                f"Tool '{tool_name}' is temporarily unavailable due to repeated failures. "
+                f"Please try again in {max(0, remaining)} seconds."
+            )
+        
+        # Check if function is async
+        if inspect.iscoroutinefunction(func):
+            @functools.wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                if not breaker.allow_request():
+                    raise ToolExecutionError(_get_error_message())
+
+                try:
+                    result = await func(*args, **kwargs)
+                    breaker.record_success()
+                    return result
+                except Exception:
+                    breaker.record_failure()
+                    raise
+
+            return async_wrapper  # type: ignore[return-value]
+        
+        # Sync version
+        @functools.wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            if not breaker.allow_request():
+                raise ToolExecutionError(_get_error_message())
+
+            try:
+                result = func(*args, **kwargs)
+                breaker.record_success()
+                return result
+            except Exception:
+                breaker.record_failure()
+                raise
+
+        return sync_wrapper  # type: ignore[return-value]
+
+    return decorator
+
+
+def circuit_breaker_sync(
+    tool_name: str, failure_threshold: int = 5, recovery_timeout: int = 60
+) -> Callable[[F], F]:
+    """
+    Explicit sync-only circuit breaker decorator.
+    
+    Use this when you want to explicitly mark a function as sync,
+    or when the auto-detection in circuit_breaker doesn't work correctly.
+    """
+    def decorator(func: F) -> F:
+        breaker = get_circuit_breaker(
+            tool_name,
+            failure_threshold=failure_threshold,
+            recovery_timeout=recovery_timeout,
+        )
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            if not breaker.allow_request():
+                raise ToolExecutionError(
+                    f"Tool '{tool_name}' is temporarily unavailable due to repeated failures. "
+                    f"Please try again in {int(breaker.next_attempt_time - time.time())} seconds."
+                )
+
+            try:
+                result = func(*args, **kwargs)
+                breaker.record_success()
+                return result
+            except Exception:
+                breaker.record_failure()
+                raise
+
+        return wrapper  # type: ignore[return-value]
+
+    return decorator
+
+
+def circuit_breaker_async(
+    tool_name: str, failure_threshold: int = 5, recovery_timeout: int = 60
+) -> Callable[[F], F]:
+    """
+    Explicit async-only circuit breaker decorator.
+    
+    Use this when you want to explicitly mark a function as async,
+    or when the auto-detection in circuit_breaker doesn't work correctly.
+    """
+    def decorator(func: F) -> F:
         breaker = get_circuit_breaker(
             tool_name,
             failure_threshold=failure_threshold,
@@ -131,6 +239,6 @@ def circuit_breaker(
                 breaker.record_failure()
                 raise
 
-        return wrapper
+        return wrapper  # type: ignore[return-value]
 
     return decorator
