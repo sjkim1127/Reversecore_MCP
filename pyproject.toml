@@ -1,0 +1,78 @@
+[project]
+name = "reversecore-mcp"
+version = "1.0.0"
+description = "MCP Server for Reverse Engineering with Binary Analysis Tools"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "htmlcov",
+    ".pytest_cache",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # Pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "B008",  # do not perform function calls in argument defaults
+    "B904",  # raise without from inside except
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["reversecore_mcp"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = false
+warn_unused_configs = true
+ignore_missing_imports = true
+no_implicit_optional = false  # Temporarily disabled
+check_untyped_defs = false    # Temporarily disabled
+
+[tool.bandit]
+exclude_dirs = ["tests", "htmlcov", ".venv"]
+# B101: assert used
+# B108: hardcoded temp directory (acceptable for binary analysis tools)
+# B110: try_except_pass (used for graceful degradation in analysis)
+# B324: hashlib MD5 (used for file identification, not cryptographic purposes)
+# B404, B603, B607: subprocess warnings (required for binary tools)
+skips = ["B101", "B108", "B110", "B324", "B404", "B603", "B607"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --strict-markers --tb=short"
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "slow: Slow running tests",
+]
+
+[tool.coverage.run]
+source = ["reversecore_mcp"]
+omit = ["tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]

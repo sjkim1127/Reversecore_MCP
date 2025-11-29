@@ -5,28 +5,28 @@ This tool combines static analysis and partial emulation to detect hidden malici
 (Logic Bombs, Dormant Malware) that are often missed by traditional dynamic analysis.
 """
 
-import hashlib
 import os
 import re
-from typing import Dict, Any, List, Optional, Tuple
 from pathlib import Path
+from typing import Any
 
 from async_lru import alru_cache
-from fastmcp import FastMCP, Context
-from reversecore_mcp.core.logging_config import get_logger
-from reversecore_mcp.core.exceptions import ValidationError
-from reversecore_mcp.core.execution import execute_subprocess_async
-from reversecore_mcp.core.result import ToolResult, success, failure
+from fastmcp import Context, FastMCP
+
+from reversecore_mcp.core import json_utils as json  # Use optimized JSON (3-5x faster)
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
+from reversecore_mcp.core.exceptions import ValidationError
+from reversecore_mcp.core.execution import execute_subprocess_async
+from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
+from reversecore_mcp.core.result import ToolResult, failure, success
 from reversecore_mcp.core.security import validate_file_path
-from reversecore_mcp.core import json_utils as json  # Use optimized JSON (3-5x faster)
 
 logger = get_logger(__name__)
 
 
-def _extract_json_safely(output: str) -> Optional[Any]:
+def _extract_json_safely(output: str) -> Any | None:
     """Extract JSON from radare2 output with multiple fallback strategies."""
     if not output or not output.strip():
         return None
@@ -95,7 +95,7 @@ def register_ghost_trace(mcp: FastMCP) -> None:
 
 def _get_file_cache_key(file_path: str) -> str:
     """Generate a cache key based on file path and modification time.
-    
+
     This ensures cache invalidation when the file is modified.
     """
     try:
@@ -109,7 +109,7 @@ def _get_file_cache_key(file_path: str) -> str:
 @alru_cache(maxsize=64, ttl=300)  # Cache for 5 minutes, max 64 entries
 async def _run_r2_cmd_cached(cache_key: str, file_path: str, cmd: str, timeout: int = 30) -> str:
     """Cached helper to run a single radare2 command.
-    
+
     The cache_key includes file modification time for automatic invalidation.
     """
     full_cmd = ["radare2", "-q", "-c", cmd, str(file_path)]
@@ -119,20 +119,20 @@ async def _run_r2_cmd_cached(cache_key: str, file_path: str, cmd: str, timeout: 
 
 async def _run_r2_cmd(file_path: str, cmd: str, timeout: int = 30, use_cache: bool = True) -> str:
     """Helper to run a single radare2 command with optional caching.
-    
+
     Args:
         file_path: Path to the binary file
         cmd: Radare2 command to execute
         timeout: Command timeout in seconds
         use_cache: Whether to use caching (default: True)
-        
+
     Returns:
         Command output as string
     """
     if use_cache:
         cache_key = _get_file_cache_key(file_path)
         return await _run_r2_cmd_cached(cache_key, file_path, cmd, timeout)
-    
+
     # Direct execution without caching (for commands with side effects)
     full_cmd = ["radare2", "-q", "-c", cmd, str(file_path)]
     output, _ = await execute_subprocess_async(full_cmd, timeout=timeout)
@@ -144,8 +144,8 @@ async def _run_r2_cmd(file_path: str, cmd: str, timeout: int = 30, use_cache: bo
 @handle_tool_errors
 async def ghost_trace(
     file_path: str,
-    focus_function: Optional[str] = None,
-    hypothesis: Optional[Dict[str, Any]] = None,
+    focus_function: str | None = None,
+    hypothesis: dict[str, Any] | None = None,
     timeout: int = 300,
     ctx: Context = None,
 ) -> ToolResult:
@@ -177,9 +177,7 @@ async def ghost_trace(
     # 1. If focus_function is provided, run emulation (Verification Phase)
     if focus_function and hypothesis:
         if ctx:
-            await ctx.info(
-                f"👻 Ghost Trace: Emulating {focus_function} with hypothesis..."
-            )
+            await ctx.info(f"👻 Ghost Trace: Emulating {focus_function} with hypothesis...")
         return await _verify_hypothesis_with_emulation(
             validated_path, focus_function, hypothesis, timeout
         )
@@ -255,25 +253,29 @@ async def ghost_trace(
     )
 
 
-def _functions_to_tuple(functions: List[Dict[str, Any]]) -> Tuple:
+def _functions_to_tuple(functions: list[dict[str, Any]]) -> tuple:
     """Convert functions list to hashable tuple for caching."""
     return tuple(
-        (f.get("name", ""), f.get("offset", 0), f.get("size", 0), 
-         tuple(f.get("codexrefs", []) or []))
+        (
+            f.get("name", ""),
+            f.get("offset", 0),
+            f.get("size", 0),
+            tuple(f.get("codexrefs", []) or []),
+        )
         for f in functions
     )
 
 
 @alru_cache(maxsize=32, ttl=300)
 async def _find_orphan_functions_cached(
-    file_path_str: str, functions_tuple: Tuple
-) -> Tuple[Dict[str, Any], ...]:
+    file_path_str: str, functions_tuple: tuple
+) -> tuple[dict[str, Any], ...]:
     """Cached implementation of orphan function detection."""
     orphans = []
-    
+
     for func_data in functions_tuple:
         name, offset, size, codexrefs = func_data
-        
+
         if name.startswith("sym.imp"):  # Skip imports
             continue
         if "main" in name or "entry" in name:
@@ -294,10 +296,10 @@ async def _find_orphan_functions_cached(
 
 
 async def _find_orphan_functions(
-    file_path: Path, functions: List[Dict[str, Any]]
-) -> List[Dict[str, Any]]:
+    file_path: Path, functions: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     """Identify functions with no direct XREFs (potential dead code/backdoors).
-    
+
     Uses caching to avoid recomputing orphan analysis for the same functions.
     """
     # Convert to hashable format for caching
@@ -307,8 +309,8 @@ async def _find_orphan_functions(
 
 
 async def _identify_conditional_paths(
-    file_path: Path, functions: List[Dict[str, Any]], ctx: Context = None
-) -> List[Dict[str, Any]]:
+    file_path: Path, functions: list[dict[str, Any]], ctx: Context = None
+) -> list[dict[str, Any]]:
     """Identify functions with suspicious conditional logic (Magic Values)."""
     suspicious = []
 
@@ -340,11 +342,9 @@ async def _identify_conditional_paths(
             # Parse each function's output
             # Note: with multiple pdfj, output contains multiple JSON objects
             # We need to split them carefully
-            json_outputs = re.findall(
-                r"\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}", out, re.DOTALL
-            )
+            json_outputs = re.findall(r"\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}", out, re.DOTALL)
 
-            for func, json_str in zip(batch, json_outputs):
+            for func, json_str in zip(batch, json_outputs, strict=False):
                 try:
                     func_data = json.loads(json_str)
                     ops = func_data.get("ops", [])
@@ -379,7 +379,7 @@ async def _identify_conditional_paths(
 
 
 async def _verify_hypothesis_with_emulation(
-    file_path: Path, function_name: str, hypothesis: Dict[str, Any], timeout: int
+    file_path: Path, function_name: str, hypothesis: dict[str, Any], timeout: int
 ) -> ToolResult:
     """
     Verify a hypothesis using partial emulation (ESIL).

@@ -5,15 +5,15 @@ This module implements the Circuit Breaker pattern to prevent cascading failures
 when external tools (like Radare2 or Ghidra) become unstable.
 """
 
-import asyncio
+import functools
 import inspect
 import time
-import functools
+from collections.abc import Callable
 from enum import Enum
-from typing import Callable, Dict, TypeVar
+from typing import TypeVar
 
-from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.exceptions import ToolExecutionError
+from reversecore_mcp.core.logging_config import get_logger
 
 logger = get_logger(__name__)
 
@@ -34,9 +34,7 @@ class CircuitBreaker:
     and blocks requests for 'recovery_timeout' seconds.
     """
 
-    def __init__(
-        self, name: str, failure_threshold: int = 5, recovery_timeout: int = 60
-    ):
+    def __init__(self, name: str, failure_threshold: int = 5, recovery_timeout: int = 60):
         self.name = name
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
@@ -82,9 +80,7 @@ class CircuitBreaker:
 
         if self.state == CircuitState.CLOSED:
             if self.failures >= self.failure_threshold:
-                logger.warning(
-                    f"Circuit {self.name} opened due to {self.failures} failures"
-                )
+                logger.warning(f"Circuit {self.name} opened due to {self.failures} failures")
                 self.state = CircuitState.OPEN
                 self.next_attempt_time = time.time() + self.recovery_timeout
 
@@ -95,7 +91,7 @@ class CircuitBreaker:
 
 
 # Global registry of circuit breakers
-_breakers: Dict[str, CircuitBreaker] = {}
+_breakers: dict[str, CircuitBreaker] = {}
 
 
 def get_circuit_breaker(name: str, **kwargs) -> CircuitBreaker:
@@ -110,15 +106,15 @@ def circuit_breaker(
 ) -> Callable[[F], F]:
     """
     Decorator to apply circuit breaker pattern to a function.
-    
+
     Automatically detects if the decorated function is async or sync
     and applies the appropriate wrapper.
-    
+
     Args:
         tool_name: Name of the tool for circuit breaker tracking
         failure_threshold: Number of failures before opening circuit
         recovery_timeout: Seconds to wait before attempting recovery
-        
+
     Returns:
         Decorated function with circuit breaker protection
     """
@@ -129,7 +125,7 @@ def circuit_breaker(
             failure_threshold=failure_threshold,
             recovery_timeout=recovery_timeout,
         )
-        
+
         def _get_error_message() -> str:
             """Generate error message for circuit open state."""
             remaining = int(breaker.next_attempt_time - time.time())
@@ -137,9 +133,10 @@ def circuit_breaker(
                 f"Tool '{tool_name}' is temporarily unavailable due to repeated failures. "
                 f"Please try again in {max(0, remaining)} seconds."
             )
-        
+
         # Check if function is async
         if inspect.iscoroutinefunction(func):
+
             @functools.wraps(func)
             async def async_wrapper(*args, **kwargs):
                 if not breaker.allow_request():
@@ -154,7 +151,7 @@ def circuit_breaker(
                     raise
 
             return async_wrapper  # type: ignore[return-value]
-        
+
         # Sync version
         @functools.wraps(func)
         def sync_wrapper(*args, **kwargs):
@@ -179,10 +176,11 @@ def circuit_breaker_sync(
 ) -> Callable[[F], F]:
     """
     Explicit sync-only circuit breaker decorator.
-    
+
     Use this when you want to explicitly mark a function as sync,
     or when the auto-detection in circuit_breaker doesn't work correctly.
     """
+
     def decorator(func: F) -> F:
         breaker = get_circuit_breaker(
             tool_name,
@@ -216,10 +214,11 @@ def circuit_breaker_async(
 ) -> Callable[[F], F]:
     """
     Explicit async-only circuit breaker decorator.
-    
+
     Use this when you want to explicitly mark a function as async,
     or when the auto-detection in circuit_breaker doesn't work correctly.
     """
+
     def decorator(func: F) -> F:
         breaker = get_circuit_breaker(
             tool_name,

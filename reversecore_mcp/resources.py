@@ -1,17 +1,20 @@
-from fastmcp import FastMCP
-from pathlib import Path
-from collections import deque
-from functools import wraps
-from typing import Callable, TypeVar, Any, Union
 import asyncio
+from collections import deque
+from collections.abc import Callable
+from functools import wraps
+from pathlib import Path
+from typing import Any, TypeVar
+
+from fastmcp import FastMCP
+
+from reversecore_mcp.core import json_utils as json  # Use optimized JSON (3-5x faster)
+from reversecore_mcp.core.config import get_config
+from reversecore_mcp.core.decorators import log_execution
+from reversecore_mcp.core.metrics import track_metrics
 
 # Import tools at module level for better performance
 # These imports are used by resource functions below
 from reversecore_mcp.tools import cli_tools, lib_tools
-from reversecore_mcp.core import json_utils as json  # Use optimized JSON (3-5x faster)
-from reversecore_mcp.core.decorators import log_execution
-from reversecore_mcp.core.metrics import track_metrics
-from reversecore_mcp.core.config import get_config
 
 # Type variable for generic function wrapper
 F = TypeVar("F", bound=Callable[..., Any])
@@ -22,34 +25,35 @@ DecoratorType = Callable[[F], F]
 
 def resource_decorator(resource_name: str) -> DecoratorType:
     """Combined decorator for resource functions with logging and metrics.
-    
+
     Applies @log_execution and @track_metrics to resource functions
     for consistent monitoring and observability.
-    
+
     Args:
         resource_name: Name identifier for logging and metrics tracking
-        
+
     Returns:
         A decorator that wraps the function with logging and metrics
     """
+
     def decorator(func: F) -> F:
         # Apply decorators in reverse order (innermost first)
         wrapped = track_metrics(resource_name)(func)
         wrapped = log_execution(tool_name=resource_name)(wrapped)
-        
+
         @wraps(func)
         async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             return await wrapped(*args, **kwargs)
-        
+
         @wraps(func)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             return wrapped(*args, **kwargs)
-        
+
         # Return appropriate wrapper based on function type
         if asyncio.iscoroutinefunction(func):
             return async_wrapper  # type: ignore[return-value]
         return sync_wrapper  # type: ignore[return-value]
-    
+
     return decorator
 
 
@@ -103,11 +107,11 @@ def register_resources(mcp: FastMCP):
             try:
                 # OPTIMIZED: Use deque to read only last N lines efficiently
                 # This avoids loading the entire log file into memory
-                with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+                with open(log_file, encoding="utf-8", errors="replace") as f:
                     # deque with maxlen automatically keeps only last N items
                     last_lines = deque(f, maxlen=100)
                     return "".join(last_lines)
-            except (OSError, IOError, PermissionError) as e:
+            except (OSError, PermissionError) as e:
                 return f"Error reading logs: {e}"
         return "No logs found."
 
@@ -140,9 +144,7 @@ def register_resources(mcp: FastMCP):
                 return f"Failed to extract strings from {filename}"
 
             # 2. Extract IOCs from strings
-            strings_data = (
-                strings_res.content[0].text if strings_res.content else strings_res.data
-            )
+            strings_data = strings_res.content[0].text if strings_res.content else strings_res.data
             ioc_res = lib_tools.extract_iocs(strings_data)
 
             # 3. Format output
@@ -193,9 +195,7 @@ def register_resources(mcp: FastMCP):
     async def get_disassembly(filename: str, address: str) -> str:
         """Get disassembly for a specific function"""
         try:
-            result = await cli_tools.run_radare2(
-                _get_workspace_path(filename), f"pdf @ {address}"
-            )
+            result = await cli_tools.run_radare2(_get_workspace_path(filename), f"pdf @ {address}")
 
             if result.status == "success":
                 content = result.content[0].text if result.content else result.data
@@ -247,9 +247,7 @@ def register_resources(mcp: FastMCP):
                         name = func.get("name", "unknown")
                         offset = func.get("offset", 0)
                         size = func.get("size", 0)
-                        func_list.append(
-                            f"- `{name}` @ 0x{offset:x} (size: {size} bytes)"
-                        )
+                        func_list.append(f"- `{name}` @ 0x{offset:x} (size: {size} bytes)")
 
                     total = len(functions)
                     shown = min(50, total)
@@ -298,15 +296,15 @@ Showing: {shown}
                 report = f"""# 🔱 Trinity Defense System Report: {filename}
 
 ## Executive Summary
-- **Threats Discovered**: {summary.get('threats_discovered', 0)}
-- **Threats Analyzed**: {summary.get('threats_analyzed', 0)}
-- **Defenses Generated**: {summary.get('defenses_generated', 0)}
-- **Status**: {data.get('status', 'unknown')}
+- **Threats Discovered**: {summary.get("threats_discovered", 0)}
+- **Threats Analyzed**: {summary.get("threats_analyzed", 0)}
+- **Defenses Generated**: {summary.get("defenses_generated", 0)}
+- **Status**: {data.get("status", "unknown")}
 
 ## Phase 1: DISCOVER (Ghost Trace)
-- Orphan Functions: {phase_1.get('orphan_functions', 0)}
-- Suspicious Logic: {phase_1.get('suspicious_logic', 0)}
-- Total Threats: {phase_1.get('total_threats', 0)}
+- Orphan Functions: {phase_1.get("orphan_functions", 0)}
+- Suspicious Logic: {phase_1.get("suspicious_logic", 0)}
+- Total Threats: {phase_1.get("total_threats", 0)}
 
 ## Phase 2: UNDERSTAND (Neural Decompiler)
 """
@@ -314,11 +312,11 @@ Showing: {shown}
                     intent = threat.get("intent", "unknown")
                     confidence = threat.get("confidence", 0.0)
                     report += f"""
-### Threat {i+1}: {threat.get('function', 'unknown')}
-- **Address**: {threat.get('address', 'N/A')}
+### Threat {i + 1}: {threat.get("function", "unknown")}
+- **Address**: {threat.get("address", "N/A")}
 - **Intent**: {intent}
 - **Confidence**: {confidence:.2f}
-- **Reason**: {threat.get('reason', 'N/A')}
+- **Reason**: {threat.get("reason", "N/A")}
 """
 
                 report += "\n## Phase 3: NEUTRALIZE (Adaptive Vaccine)\n"
@@ -329,16 +327,14 @@ Showing: {shown}
                     if isinstance(rec, dict):
                         report += f"\n### {rec.get('severity', 'INFO')}: {rec.get('threat_type', 'Unknown')}\n"
                         report += f"- **Location**: {rec.get('location', 'N/A')}\n"
-                        report += (
-                            f"- **Confidence**: {rec.get('confidence', 0.0):.2f}\n"
-                        )
+                        report += f"- **Confidence**: {rec.get('confidence', 0.0):.2f}\n"
                         immediate = rec.get("immediate_actions", [])
                         if immediate:
                             report += "\n**Immediate Actions:**\n"
                             for action in immediate[:5]:
                                 report += f"- {action}\n"
                     else:
-                        report += f"{i+1}. {rec}\n"
+                        report += f"{i + 1}. {rec}\n"
 
                 return report
 
@@ -367,10 +363,10 @@ Found {len(orphans)} orphan function(s):
 
 """
                 for func in orphans[:10]:
-                    report += f"""### {func.get('name', 'unknown')}
-- **Address**: {func.get('address', 'N/A')}
-- **Size**: {func.get('size', 0)} bytes
-- **Cross-References**: {func.get('xrefs', 0)}
+                    report += f"""### {func.get("name", "unknown")}
+- **Address**: {func.get("address", "N/A")}
+- **Size**: {func.get("size", 0)} bytes
+- **Cross-References**: {func.get("xrefs", 0)}
 - **Assessment**: Potentially hidden backdoor or logic bomb
 
 """
@@ -378,10 +374,10 @@ Found {len(orphans)} orphan function(s):
                 report += f"\n## Suspicious Logic (Magic Values)\nFound {len(suspicious)} suspicious pattern(s):\n\n"
 
                 for logic in suspicious[:10]:
-                    report += f"""### {logic.get('function', 'unknown')}
-- **Address**: {logic.get('address', 'N/A')}
-- **Instruction**: `{logic.get('instruction', 'N/A')}`
-- **Reason**: {logic.get('reason', 'N/A')}
+                    report += f"""### {logic.get("function", "unknown")}
+- **Address**: {logic.get("address", "N/A")}
+- **Instruction**: `{logic.get("instruction", "N/A")}`
+- **Reason**: {logic.get("reason", "N/A")}
 
 """
 
@@ -421,9 +417,9 @@ Found {len(orphans)} orphan function(s):
 ```
 
 ## Refinement Statistics
-- Variables Renamed: {stats.get('variables_renamed', 0)}
-- Structures Inferred: {stats.get('structures_inferred', 0)}
-- Comments Added: {stats.get('comments_added', 0)}
+- Variables Renamed: {stats.get("variables_renamed", 0)}
+- Structures Inferred: {stats.get("structures_inferred", 0)}
+- Comments Added: {stats.get("comments_added", 0)}
 """
 
             return f"Neural Decompilation failed: {result.message if hasattr(result, 'message') else 'Unknown error'}"
