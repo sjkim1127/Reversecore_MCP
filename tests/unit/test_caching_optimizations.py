@@ -25,21 +25,23 @@ def test_calculate_dynamic_timeout_caching(workspace_dir):
     _calculate_dynamic_timeout.cache_clear()
     
     # First call - cache miss
-    start = time.time()
     result1 = _calculate_dynamic_timeout(str(test_file), base_timeout=100)
-    time1 = time.time() - start
+    
+    # Check cache state after first call
+    info1 = _calculate_dynamic_timeout.cache_info()
+    assert info1.misses == 1, f"Expected 1 miss, got {info1.misses}"
+    assert info1.hits == 0, f"Expected 0 hits, got {info1.hits}"
     
     # Second call - cache hit
-    start = time.time()
     result2 = _calculate_dynamic_timeout(str(test_file), base_timeout=100)
-    time2 = time.time() - start
+    
+    # Check cache state after second call
+    info2 = _calculate_dynamic_timeout.cache_info()
+    assert info2.hits == 1, f"Expected 1 hit, got {info2.hits}"
+    assert info2.misses == 1, f"Expected 1 miss, got {info2.misses}"
     
     # Results should be identical
     assert result1 == result2
-    
-    # Cache hit should be significantly faster
-    # Typically 100x-1000x faster, but we'll be conservative
-    assert time2 < time1 / 10, f"Cache hit not faster: {time2}s vs {time1}s"
     
     # Verify the calculation is correct
     # 5MB file should add ~10 seconds (size_mb * 2)
@@ -89,22 +91,25 @@ def test_extract_library_name_caching():
         ("custom_function", "unknown"),
     ]
     
+    # First pass - all cache misses
     for func_name, expected in test_cases:
-        # First call
-        start = time.time()
-        result1 = _extract_library_name(func_name)
-        time1 = time.time() - start
-        
-        # Second call - should be cached
-        start = time.time()
-        result2 = _extract_library_name(func_name)
-        time2 = time.time() - start
-        
-        # Results should be identical and correct
-        assert result1 == result2 == expected
-        
-        # Cache hit should be faster
-        assert time2 < time1 / 2
+        result = _extract_library_name(func_name)
+        assert result == expected, f"Expected {expected}, got {result} for {func_name}"
+    
+    # Check cache state - should have 5 misses, 0 hits
+    info1 = _extract_library_name.cache_info()
+    assert info1.misses == 5, f"Expected 5 misses, got {info1.misses}"
+    assert info1.hits == 0, f"Expected 0 hits, got {info1.hits}"
+    
+    # Second pass - all cache hits
+    for func_name, expected in test_cases:
+        result = _extract_library_name(func_name)
+        assert result == expected, f"Expected {expected}, got {result} for {func_name}"
+    
+    # Check cache state - should have 5 misses, 5 hits
+    info2 = _extract_library_name.cache_info()
+    assert info2.misses == 5, f"Expected 5 misses, got {info2.misses}"
+    assert info2.hits == 5, f"Expected 5 hits, got {info2.hits}"
 
 
 def test_sanitize_filename_for_rule_caching(workspace_dir):
