@@ -202,8 +202,9 @@ async def run_binwalk_extract(
                             type_cmd, timeout=5, max_output_size=1024
                         )
                         file_type = type_output.strip()[:100]  # Limit type string length
-                    except Exception:
-                        pass
+                    except (OSError, TimeoutError):
+                        # file command failed or timed out, use default "unknown"
+                        file_type = "unknown"
                     
                     extracted_files.append({
                         "path": str(file_full_path.relative_to(extraction_path)),

@@ -99,8 +99,8 @@ async def server_lifespan(server: FastMCP):
             try:
                 temp_file.unlink()
                 logger.debug(f"Cleaned up: {temp_file.name}")
-            except (OSError, FileNotFoundError):
-                pass
+            except (OSError, FileNotFoundError) as e:
+                logger.debug(f"Could not remove temp file {temp_file.name}: {e}")
 
         if temp_files:
             logger.info(f"🧹 Cleaned up {len(temp_files)} temporary files")
@@ -290,11 +290,7 @@ def main():
                         "status": "success",
                         "message": "File uploaded successfully",
                         "file_path": str(file_path),
-                        "workspace_path": (
-                            f"/app/workspace/{file.filename}"
-                            if str(workspace).endswith("workspace")
-                            else str(file_path)
-                        ),
+                        "workspace_path": str(file_path),
                         "filename": file.filename,
                         "size": file_path.stat().st_size,
                     }
@@ -328,9 +324,12 @@ def main():
                 return await limiter.middleware(request, call_next)
 
             app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-        except Exception:
-            # slowapi unavailable or version mismatch: skip gracefully
-            pass
+        except ImportError:
+            # slowapi unavailable: skip gracefully
+            logger.debug("slowapi not installed, rate limiting disabled")
+        except Exception as e:
+            # Version mismatch or other error
+            logger.warning(f"Failed to setup rate limiting: {e}")
 
         # Run uvicorn with the FastMCP HTTP app
         uvicorn.run(app, host="0.0.0.0", port=8000)

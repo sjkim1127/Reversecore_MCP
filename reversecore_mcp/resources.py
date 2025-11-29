@@ -9,6 +9,7 @@ from typing import Callable, TypeVar, Any
 from reversecore_mcp.tools import cli_tools, lib_tools
 from reversecore_mcp.core import json_utils as json  # Use optimized JSON (3-5x faster)
 from reversecore_mcp.core.decorators import log_execution, track_metrics
+from reversecore_mcp.core.config import get_config
 
 # Type variable for generic function wrapper
 F = TypeVar("F", bound=Callable[..., Any])
@@ -41,8 +42,24 @@ def resource_decorator(resource_name: str) -> Callable[[F], F]:
     
     return decorator
 
-# Resources 폴더 경로 (AI용 데이터)
-RESOURCES_PATH = Path("/app/resources")
+
+def _get_resources_path() -> Path:
+    """Get resources path from config or use default."""
+    config = get_config()
+    # Resources are typically in a sibling directory to workspace
+    resources_path = config.workspace.parent / "resources"
+    if resources_path.exists():
+        return resources_path
+    # Fallback to local resources directory
+    local_resources = Path(__file__).parent.parent / "resources"
+    if local_resources.exists():
+        return local_resources
+    return resources_path  # Return config-based path even if not exists
+
+
+def _get_workspace_path(filename: str) -> str:
+    """Get full path to a file in the workspace."""
+    return str(get_config().workspace / filename)
 
 
 def register_resources(mcp: FastMCP):
@@ -55,7 +72,7 @@ def register_resources(mcp: FastMCP):
     @mcp.resource("reversecore://guide")
     def get_guide() -> str:
         """Reversecore MCP Tool Usage Guide"""
-        guide_path = RESOURCES_PATH / "FILE_COPY_TOOL_GUIDE.md"
+        guide_path = _get_resources_path() / "FILE_COPY_TOOL_GUIDE.md"
         if guide_path.exists():
             return guide_path.read_text(encoding="utf-8")
         return "Guide not found."
@@ -63,7 +80,7 @@ def register_resources(mcp: FastMCP):
     @mcp.resource("reversecore://guide/structures")
     def get_structure_guide() -> str:
         """Structure Recovery and Cross-Reference Analysis Technical Guide"""
-        doc_path = RESOURCES_PATH / "XREFS_AND_STRUCTURES_IMPLEMENTATION.md"
+        doc_path = _get_resources_path() / "XREFS_AND_STRUCTURES_IMPLEMENTATION.md"
         if doc_path.exists():
             return doc_path.read_text(encoding="utf-8")
         return "Documentation not found."
@@ -71,7 +88,7 @@ def register_resources(mcp: FastMCP):
     @mcp.resource("reversecore://logs")
     def get_logs() -> str:
         """Application logs (last 100 lines)"""
-        log_file = Path("/var/log/reversecore/app.log")
+        log_file = get_config().log_file
         if log_file.exists():
             try:
                 # OPTIMIZED: Use deque to read only last N lines efficiently
@@ -80,7 +97,7 @@ def register_resources(mcp: FastMCP):
                     # deque with maxlen automatically keeps only last N items
                     last_lines = deque(f, maxlen=100)
                     return "".join(last_lines)
-            except Exception as e:
+            except (OSError, IOError, PermissionError) as e:
                 return f"Error reading logs: {e}"
         return "No logs found."
 
@@ -93,7 +110,7 @@ def register_resources(mcp: FastMCP):
     async def get_file_strings(filename: str) -> str:
         """Extract all strings from a binary file"""
         try:
-            result = await cli_tools.run_strings(f"/app/workspace/{filename}")
+            result = await cli_tools.run_strings(_get_workspace_path(filename))
             if result.status == "success":
                 # Get content from ToolResult
                 content = result.content[0].text if result.content else result.data
@@ -108,7 +125,7 @@ def register_resources(mcp: FastMCP):
         """Extract IOCs (IPs, URLs, Emails) from a binary file"""
         try:
             # 1. Extract strings
-            strings_res = await cli_tools.run_strings(f"/app/workspace/{filename}")
+            strings_res = await cli_tools.run_strings(_get_workspace_path(filename))
             if strings_res.status != "success":
                 return f"Failed to extract strings from {filename}"
 
@@ -146,7 +163,7 @@ def register_resources(mcp: FastMCP):
         """Get decompiled pseudo-C code for a specific function"""
         try:
             result = await cli_tools.smart_decompile(
-                f"/app/workspace/{filename}", address, use_ghidra=True
+                _get_workspace_path(filename), address, use_ghidra=True
             )
 
             if result.status == "success":
@@ -167,7 +184,7 @@ def register_resources(mcp: FastMCP):
         """Get disassembly for a specific function"""
         try:
             result = await cli_tools.run_radare2(
-                f"/app/workspace/{filename}", f"pdf @ {address}"
+                _get_workspace_path(filename), f"pdf @ {address}"
             )
 
             if result.status == "success":
@@ -188,7 +205,7 @@ def register_resources(mcp: FastMCP):
         """Get Control Flow Graph (Mermaid) for a specific function"""
         try:
             result = await cli_tools.generate_function_graph(
-                f"/app/workspace/{filename}", address, format="mermaid"
+                _get_workspace_path(filename), address, format="mermaid"
             )
 
             if result.status == "success":
@@ -207,7 +224,7 @@ def register_resources(mcp: FastMCP):
         """Get list of all functions in the binary"""
         try:
             result = await cli_tools.run_radare2(
-                f"/app/workspace/{filename}", "aflj"
+                _get_workspace_path(filename), "aflj"
             )  # List functions in JSON format
 
             if result.status == "success":
@@ -253,7 +270,7 @@ Showing: {shown}
             from reversecore_mcp.tools import trinity_defense as td_module
 
             result = await td_module.trinity_defense(
-                file_path=f"/app/workspace/{filename}",
+                file_path=_get_workspace_path(filename),
                 mode="full",
                 max_threats=5,
                 generate_vaccine=True,
@@ -326,7 +343,7 @@ Showing: {shown}
         try:
             from reversecore_mcp.tools import ghost_trace as gt_module
 
-            result = await gt_module.ghost_trace(file_path=f"/app/workspace/{filename}")
+            result = await gt_module.ghost_trace(file_path=_get_workspace_path(filename))
 
             if result.status == "success":
                 data = result.data
@@ -372,7 +389,7 @@ Found {len(orphans)} orphan function(s):
             from reversecore_mcp.tools import neural_decompiler as nd_module
 
             result = await nd_module.neural_decompile(
-                file_path=f"/app/workspace/{filename}", function_address=address
+                file_path=_get_workspace_path(filename), function_address=address
             )
 
             if result.status == "success":
