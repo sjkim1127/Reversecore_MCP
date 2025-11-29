@@ -1,11 +1,45 @@
 from fastmcp import FastMCP
 from pathlib import Path
 from collections import deque
+from functools import wraps
+from typing import Callable, TypeVar, Any
 
 # Import tools at module level for better performance
 # These imports are used by resource functions below
 from reversecore_mcp.tools import cli_tools, lib_tools
 from reversecore_mcp.core import json_utils as json  # Use optimized JSON (3-5x faster)
+from reversecore_mcp.core.decorators import log_execution, track_metrics
+
+# Type variable for generic function wrapper
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+def resource_decorator(resource_name: str) -> Callable[[F], F]:
+    """Combined decorator for resource functions with logging and metrics.
+    
+    Applies @log_execution and @track_metrics to resource functions
+    for consistent monitoring and observability.
+    """
+    def decorator(func: F) -> F:
+        # Apply decorators in reverse order (innermost first)
+        wrapped = track_metrics(resource_name)(func)
+        wrapped = log_execution(tool_name=resource_name)(wrapped)
+        
+        @wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            return await wrapped(*args, **kwargs)
+        
+        @wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            return wrapped(*args, **kwargs)
+        
+        # Return appropriate wrapper based on function type
+        import asyncio
+        if asyncio.iscoroutinefunction(func):
+            return async_wrapper  # type: ignore
+        return sync_wrapper  # type: ignore
+    
+    return decorator
 
 # Resources 폴더 경로 (AI용 데이터)
 RESOURCES_PATH = Path("/app/resources")
@@ -55,6 +89,7 @@ def register_resources(mcp: FastMCP):
     # ============================================================================
 
     @mcp.resource("reversecore://{filename}/strings")
+    @resource_decorator("resource_get_file_strings")
     async def get_file_strings(filename: str) -> str:
         """Extract all strings from a binary file"""
         try:
@@ -68,6 +103,7 @@ def register_resources(mcp: FastMCP):
             return f"Error: {str(e)}"
 
     @mcp.resource("reversecore://{filename}/iocs")
+    @resource_decorator("resource_get_file_iocs")
     async def get_file_iocs(filename: str) -> str:
         """Extract IOCs (IPs, URLs, Emails) from a binary file"""
         try:
@@ -105,6 +141,7 @@ def register_resources(mcp: FastMCP):
             return f"Error: {str(e)}"
 
     @mcp.resource("reversecore://{filename}/func/{address}/code")
+    @resource_decorator("resource_get_decompiled_code")
     async def get_decompiled_code(filename: str, address: str) -> str:
         """Get decompiled pseudo-C code for a specific function"""
         try:
@@ -125,6 +162,7 @@ def register_resources(mcp: FastMCP):
             return f"Error: {str(e)}"
 
     @mcp.resource("reversecore://{filename}/func/{address}/asm")
+    @resource_decorator("resource_get_disassembly")
     async def get_disassembly(filename: str, address: str) -> str:
         """Get disassembly for a specific function"""
         try:
@@ -145,6 +183,7 @@ def register_resources(mcp: FastMCP):
             return f"Error: {str(e)}"
 
     @mcp.resource("reversecore://{filename}/func/{address}/cfg")
+    @resource_decorator("resource_get_function_cfg")
     async def get_function_cfg(filename: str, address: str) -> str:
         """Get Control Flow Graph (Mermaid) for a specific function"""
         try:
@@ -163,6 +202,7 @@ def register_resources(mcp: FastMCP):
             return f"Error: {str(e)}"
 
     @mcp.resource("reversecore://{filename}/functions")
+    @resource_decorator("resource_get_function_list")
     async def get_function_list(filename: str) -> str:
         """Get list of all functions in the binary"""
         try:
@@ -206,6 +246,7 @@ Showing: {shown}
     # ============================================================================
 
     @mcp.resource("reversecore://{filename}/trinity_defense")
+    @resource_decorator("resource_get_trinity_defense_report")
     async def get_trinity_defense_report(filename: str) -> str:
         """Get comprehensive Trinity Defense System analysis report"""
         try:
@@ -279,6 +320,7 @@ Showing: {shown}
             return f"Error: {str(e)}"
 
     @mcp.resource("reversecore://{filename}/ghost_trace")
+    @resource_decorator("resource_get_ghost_trace_results")
     async def get_ghost_trace_results(filename: str) -> str:
         """Get Ghost Trace analysis results (orphan functions and logic bombs)"""
         try:
@@ -323,6 +365,7 @@ Found {len(orphans)} orphan function(s):
             return f"Error: {str(e)}"
 
     @mcp.resource("reversecore://{filename}/func/{address}/neural_decompile")
+    @resource_decorator("resource_get_neural_decompiled_code")
     async def get_neural_decompiled_code(filename: str, address: str) -> str:
         """Get AI-refined decompiled code from Neural Decompiler"""
         try:
