@@ -5,10 +5,13 @@ This tool combines static analysis and partial emulation to detect hidden malici
 (Logic Bombs, Dormant Malware) that are often missed by traditional dynamic analysis.
 """
 
+import hashlib
+import os
 import re
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from pathlib import Path
 
+from async_lru import alru_cache
 from fastmcp import FastMCP, Context
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.exceptions import ValidationError
@@ -88,14 +91,47 @@ def register_ghost_trace(mcp: FastMCP) -> None:
     mcp.tool(ghost_trace)
 
 
-async def _run_r2_cmd(file_path: str, cmd: str, timeout: int = 30) -> str:
-    """Helper to run a single radare2 command."""
-    # Use -q for quiet mode, -n for no analysis (we'll do it manually if needed)
-    # But for some commands we need analysis. We'll assume the caller handles 'aaa' if needed
-    # or we use a persistent session (not supported here yet, so we use one-shot)
-    # Actually, for 'afl' we need analysis.
-    # We will use 'radare2 -A' (analyze all) or just run 'aaa' in the command chain.
+def _get_file_cache_key(file_path: str) -> str:
+    """Generate a cache key based on file path and modification time.
+    
+    This ensures cache invalidation when the file is modified.
+    """
+    try:
+        stat = os.stat(file_path)
+        return f"{file_path}:{stat.st_mtime}:{stat.st_size}"
+    except OSError:
+        # If file doesn't exist or can't be accessed, use path only
+        return file_path
 
+
+@alru_cache(maxsize=64, ttl=300)  # Cache for 5 minutes, max 64 entries
+async def _run_r2_cmd_cached(cache_key: str, file_path: str, cmd: str, timeout: int = 30) -> str:
+    """Cached helper to run a single radare2 command.
+    
+    The cache_key includes file modification time for automatic invalidation.
+    """
+    full_cmd = ["radare2", "-q", "-c", cmd, str(file_path)]
+    output, _ = await execute_subprocess_async(full_cmd, timeout=timeout)
+    return output
+
+
+async def _run_r2_cmd(file_path: str, cmd: str, timeout: int = 30, use_cache: bool = True) -> str:
+    """Helper to run a single radare2 command with optional caching.
+    
+    Args:
+        file_path: Path to the binary file
+        cmd: Radare2 command to execute
+        timeout: Command timeout in seconds
+        use_cache: Whether to use caching (default: True)
+        
+    Returns:
+        Command output as string
+    """
+    if use_cache:
+        cache_key = _get_file_cache_key(file_path)
+        return await _run_r2_cmd_cached(cache_key, file_path, cmd, timeout)
+    
+    # Direct execution without caching (for commands with side effects)
     full_cmd = ["radare2", "-q", "-c", cmd, str(file_path)]
     output, _ = await execute_subprocess_async(full_cmd, timeout=timeout)
     return output
@@ -215,37 +251,55 @@ async def ghost_trace(
     )
 
 
-async def _find_orphan_functions(
-    file_path: Path, functions: List[Dict[str, Any]]
-) -> List[Dict[str, Any]]:
-    """Identify functions with no direct XREFs (potential dead code/backdoors)."""
-    orphans = []
-    # Heuristic: Check if 'nrefs' (number of references) is 0
-    # Note: 'aflj' output usually contains 'nrefs' or 'refs'.
+def _functions_to_tuple(functions: List[Dict[str, Any]]) -> Tuple:
+    """Convert functions list to hashable tuple for caching."""
+    return tuple(
+        (f.get("name", ""), f.get("offset", 0), f.get("size", 0), 
+         tuple(f.get("codexrefs", []) or []))
+        for f in functions
+    )
 
-    for func in functions:
-        name = func.get("name", "")
+
+@alru_cache(maxsize=32, ttl=300)
+async def _find_orphan_functions_cached(
+    file_path_str: str, functions_tuple: Tuple
+) -> Tuple[Dict[str, Any], ...]:
+    """Cached implementation of orphan function detection."""
+    orphans = []
+    
+    for func_data in functions_tuple:
+        name, offset, size, codexrefs = func_data
+        
         if name.startswith("sym.imp"):  # Skip imports
             continue
         if "main" in name or "entry" in name:
             continue
 
-        # Check refs
-        # Some r2 versions use 'codexrefs', some 'refs'.
-        refs = func.get("codexrefs", [])
-        if (
-            not refs and func.get("size", 0) > 50
-        ):  # Only care about non-trivial functions
+        # Check refs - only care about non-trivial functions
+        if not codexrefs and size > 50:
             orphans.append(
                 {
                     "name": name,
-                    "address": hex(func.get("offset", 0)),
-                    "size": func.get("size"),
+                    "address": hex(offset),
+                    "size": size,
                     "reason": "No code cross-references found (potential dormant code)",
                 }
             )
 
-    return orphans
+    return tuple(orphans)
+
+
+async def _find_orphan_functions(
+    file_path: Path, functions: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    """Identify functions with no direct XREFs (potential dead code/backdoors).
+    
+    Uses caching to avoid recomputing orphan analysis for the same functions.
+    """
+    # Convert to hashable format for caching
+    functions_tuple = _functions_to_tuple(functions)
+    result = await _find_orphan_functions_cached(str(file_path), functions_tuple)
+    return list(result)
 
 
 async def _identify_conditional_paths(
