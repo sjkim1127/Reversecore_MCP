@@ -18,10 +18,19 @@ from reversecore_mcp.core.r2_helpers import (
     build_r2_cmd as _build_r2_cmd,
 )
 from reversecore_mcp.core.r2_helpers import (
+    calculate_dynamic_timeout as _calculate_dynamic_timeout,
+)
+from reversecore_mcp.core.r2_helpers import (
     escape_mermaid_chars as _escape_mermaid_chars,
 )
 from reversecore_mcp.core.r2_helpers import (
     execute_r2_command as _execute_r2_command,
+)
+from reversecore_mcp.core.r2_helpers import (
+    extract_first_json as _extract_first_json,
+)
+from reversecore_mcp.core.r2_helpers import (
+    get_r2_project_name as _get_r2_project_name,
 )
 from reversecore_mcp.core.r2_helpers import (
     parse_json_output as _parse_json_output,

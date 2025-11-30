@@ -9,7 +9,7 @@ edge cases including strings with brackets.
 import json
 import time
 import pytest
-from reversecore_mcp.tools.r2_analysis import _extract_first_json
+from reversecore_mcp.core.r2_helpers import _extract_first_json
 
 
 class TestJSONExtractionPerformance:

@@ -7,7 +7,7 @@ double parsing and provides cleaner error handling.
 
 import json
 import pytest
-from reversecore_mcp.tools.r2_analysis import _extract_first_json, _parse_json_output
+from reversecore_mcp.core.r2_helpers import _extract_first_json, _parse_json_output
 
 
 class TestExtractFirstJson:
