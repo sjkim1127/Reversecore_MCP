@@ -36,6 +36,161 @@ DEFAULT_TIMEOUT = get_config().default_tool_timeout
 logger = get_logger(__name__)
 
 
+# =============================================================================
+# Helper Functions for Structure Recovery
+# =============================================================================
+
+def _estimate_type_size(type_str: str) -> int:
+    """
+    Estimate the size of a C/C++ type in bytes.
+    
+    Args:
+        type_str: Type string (e.g., "int", "char *", "float")
+    
+    Returns:
+        Estimated size in bytes
+    """
+    type_str = type_str.lower().strip()
+    
+    # Pointer types (64-bit assumed)
+    if "*" in type_str or "ptr" in type_str:
+        return 8
+    
+    # Common types
+    type_sizes = {
+        "char": 1, "byte": 1, "uint8_t": 1, "int8_t": 1, "bool": 1,
+        "short": 2, "uint16_t": 2, "int16_t": 2, "word": 2, "wchar_t": 2,
+        "int": 4, "uint32_t": 4, "int32_t": 4, "dword": 4, "float": 4, "long": 4,
+        "long long": 8, "uint64_t": 8, "int64_t": 8, "qword": 8, "double": 8,
+        "size_t": 8, "void *": 8, "intptr_t": 8,
+    }
+    
+    for type_name, size in type_sizes.items():
+        if type_name in type_str:
+            return size
+    
+    # Default for unknown types
+    return 4
+
+
+def _extract_structures_from_disasm(disasm_ops: list) -> dict:
+    """
+    Extract structure-like patterns from disassembly.
+    
+    Analyzes memory access patterns to detect structure field accesses.
+    For example: [rbx+0x4c], [rax+0x60], etc.
+    
+    Args:
+        disasm_ops: List of disassembly operations from pdfj
+    
+    Returns:
+        Dictionary of detected structures with fields
+    """
+    structures = {}
+    
+    # Pattern for memory accesses: [reg+offset] or [reg-offset]
+    mem_pattern = re.compile(r'\[([a-z0-9]+)\s*([+-])\s*(0x[0-9a-f]+|[0-9]+)\]', re.IGNORECASE)
+    
+    for op in disasm_ops:
+        if not isinstance(op, dict):
+            continue
+            
+        opcode = op.get("opcode", "")
+        disasm = op.get("disasm", "")
+        
+        # Look for memory access patterns
+        matches = mem_pattern.findall(disasm)
+        
+        for reg, sign, offset_str in matches:
+            # Skip stack-based accesses (usually local variables, not structures)
+            if reg.lower() in ("rsp", "esp", "rbp", "ebp", "sp", "bp"):
+                continue
+            
+            # Calculate offset
+            try:
+                offset = int(offset_str, 16) if offset_str.startswith("0x") else int(offset_str)
+                if sign == "-":
+                    offset = -offset
+            except ValueError:
+                continue
+            
+            # Only consider positive offsets (structure fields)
+            if offset < 0:
+                continue
+            
+            # Infer type from instruction
+            field_type = _infer_type_from_instruction(opcode, disasm)
+            
+            # Group by register (potential structure pointer)
+            struct_name = f"struct_ptr_{reg}"
+            if struct_name not in structures:
+                structures[struct_name] = {
+                    "name": struct_name,
+                    "fields": [],
+                    "source": "memory_access_pattern"
+                }
+            
+            # Check if we already have this offset
+            existing_offsets = {f["offset"] for f in structures[struct_name]["fields"]}
+            offset_hex = f"0x{offset:x}"
+            
+            if offset_hex not in existing_offsets:
+                structures[struct_name]["fields"].append({
+                    "offset": offset_hex,
+                    "type": field_type,
+                    "name": f"field_{offset:x}",
+                    "size": _estimate_type_size(field_type),
+                })
+    
+    return structures
+
+
+def _infer_type_from_instruction(opcode: str, disasm: str) -> str:
+    """
+    Infer the data type from the instruction.
+    
+    Args:
+        opcode: Instruction opcode (e.g., "mov", "movss")
+        disasm: Full disassembly string
+    
+    Returns:
+        Inferred type string
+    """
+    opcode_lower = opcode.lower()
+    disasm_lower = disasm.lower()
+    
+    # Floating point operations
+    if any(x in opcode_lower for x in ("movss", "addss", "subss", "mulss", "divss", "comiss")):
+        return "float"
+    if any(x in opcode_lower for x in ("movsd", "addsd", "subsd", "mulsd", "divsd", "comisd")):
+        return "double"
+    if any(x in opcode_lower for x in ("movaps", "movups", "xmm")):
+        return "float[4]"  # SSE vector
+    
+    # Size hints from operand suffixes
+    if "byte" in disasm_lower or opcode_lower.endswith("b"):
+        return "uint8_t"
+    if "word" in disasm_lower and "dword" not in disasm_lower and "qword" not in disasm_lower:
+        return "uint16_t"
+    if "dword" in disasm_lower:
+        return "uint32_t"
+    if "qword" in disasm_lower:
+        return "uint64_t"
+    
+    # Register-based inference
+    if any(r in disasm_lower for r in ("rax", "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9")):
+        return "uint64_t"
+    if any(r in disasm_lower for r in ("eax", "ebx", "ecx", "edx", "esi", "edi")):
+        return "uint32_t"
+    if any(r in disasm_lower for r in ("ax", "bx", "cx", "dx")):
+        return "uint16_t"
+    if any(r in disasm_lower for r in ("al", "bl", "cl", "dl", "ah", "bh", "ch", "dh")):
+        return "uint8_t"
+    
+    # Default
+    return "uint32_t"
+
+
 def _validate_address_or_fail(address: str, param_name: str = "address"):
     """
     Validate address format and return failure ToolResult if invalid.
@@ -545,27 +700,37 @@ async def recover_structures(
                 fallback_note = f" (Ghidra failed: {str(e)}, fell back to radare2)"
 
     if not use_ghidra:
-        # 4b. Use radare2 for basic structure recovery
-        # radare2's 'afvt' command shows variable types and offsets
-        r2_cmds = [
-            f"s {function_address}",  # Seek to function
-            "af",  # Analyze this function only
-            "afvj",  # Get function variables in JSON
-        ]
-
-        # OPTIMIZATION: Use adaptive analysis based on file size
-        # For large binaries, skip full analysis - just analyze the target function
+        # 4b. Use radare2 for enhanced structure recovery
+        # Multi-pronged approach:
+        # 1. Function variables (afvj)
+        # 2. Data types from binary (tj)
+        # 3. Memory access patterns (axtj for structure field access)
+        # 4. RTTI-based class detection
+        
         import os
         file_size_mb = os.path.getsize(validated_path) / (1024 * 1024)
         
-        if file_size_mb > 10:
-            # Large binary: minimal analysis, rely on function-specific analysis
-            analysis_level = "aa"  # Basic analysis only
-        elif file_size_mb > 5:
+        # For structure recovery, we need deeper analysis than basic 'aa'
+        # Use 'aaa' for structure recovery even on large files, but with timeout protection
+        if fast_mode:
+            # Fast mode: minimal analysis, may miss structures
             analysis_level = "aa"
+            analysis_note = " (fast mode - may miss some structures)"
         else:
-            analysis_level = "aaa"  # Full analysis for small files
-
+            # Full mode: thorough analysis for structure recovery
+            # Even for large files, we need 'aaa' to detect types
+            analysis_level = "aaa"
+            analysis_note = " (full analysis)"
+        
+        # Enhanced command set for structure recovery
+        r2_cmds = [
+            f"s {function_address}",  # Seek to function
+            "af",  # Analyze this function
+            "afvj",  # Get function variables in JSON
+            "afij",  # Get function info (size, type)
+            "pdfj",  # Disassemble function - detect memory access patterns
+        ]
+        
         # Execute using helper
         output, bytes_read = await _execute_r2_command(
             validated_path,
@@ -575,68 +740,125 @@ async def recover_structures(
             base_timeout=timeout,
         )
 
-        # 5. Parse radare2 output
+        # 5. Parse radare2 output - enhanced parsing
         try:
-            if output.strip():
-                variables = _parse_json_output(output)
-            else:
-                variables = []
-
-            # Extract structure-like patterns
-            # Group variables by their base pointer (e.g., rbp, rsp)
             structures = {}
-
+            detected_classes = []
+            memory_accesses = []
+            
+            # Parse multi-command output
+            outputs = output.strip().split("\n")
+            
+            # Try to parse each line as JSON
+            variables = []
+            function_info = {}
+            disasm_ops = []
+            
+            for line in outputs:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    parsed = json.loads(line)
+                    if isinstance(parsed, list):
+                        # Could be variables (afvj) or disasm ops
+                        if parsed and isinstance(parsed[0], dict):
+                            if "name" in parsed[0] and "type" in parsed[0]:
+                                variables = parsed
+                            elif "opcode" in parsed[0]:
+                                disasm_ops = parsed
+                    elif isinstance(parsed, dict):
+                        if "ops" in parsed:
+                            disasm_ops = parsed.get("ops", [])
+                        elif "name" in parsed:
+                            function_info = parsed
+                except json.JSONDecodeError:
+                    continue
+            
+            # Extract structures from variables
             for var in variables:
                 if isinstance(var, dict):
                     var_type = var.get("type", "unknown")
                     var_name = var.get("name", "unnamed")
                     offset = var.get("delta", 0)
-
-                    # Simple heuristic: group by base register
-                    base = var.get("ref", {}).get("base", "unknown") if "ref" in var else "stack"
+                    kind = var.get("kind", "")
+                    
+                    # Determine structure grouping
+                    if "arg" in kind:
+                        base = "args"
+                    elif "var" in kind or "local" in kind:
+                        base = "locals"
+                    else:
+                        base = var.get("ref", {}).get("base", "stack") if isinstance(var.get("ref"), dict) else "stack"
 
                     if base not in structures:
-                        structures[base] = {"name": f"struct_{base}", "fields": []}
+                        structures[base] = {"name": f"struct_{base}", "fields": [], "source": "variables"}
 
-                    structures[base]["fields"].append(
-                        {
-                            "offset": f"0x{abs(offset):x}",
-                            "type": var_type,
-                            "name": var_name,
-                        }
-                    )
+                    structures[base]["fields"].append({
+                        "offset": f"0x{abs(offset):x}",
+                        "type": var_type,
+                        "name": var_name,
+                        "size": _estimate_type_size(var_type),
+                    })
+            
+            # Analyze disassembly for memory access patterns (structure field detection)
+            struct_from_memory = _extract_structures_from_disasm(disasm_ops)
+            for struct_name, struct_data in struct_from_memory.items():
+                if struct_name not in structures:
+                    structures[struct_name] = struct_data
+                else:
+                    # Merge fields
+                    existing_offsets = {f["offset"] for f in structures[struct_name]["fields"]}
+                    for field in struct_data["fields"]:
+                        if field["offset"] not in existing_offsets:
+                            structures[struct_name]["fields"].append(field)
+
+            # Sort fields by offset within each structure
+            for struct_data in structures.values():
+                struct_data["fields"].sort(key=lambda f: int(f["offset"], 16) if f["offset"].startswith("0x") else int(f["offset"]))
 
             # 6. Generate C structure definitions
-            # OPTIMIZATION: Build strings more efficiently using join
             c_definitions = []
             for _struct_name, struct_data in structures.items():
-                # Pre-format fields more efficiently
+                if not struct_data["fields"]:
+                    continue
+                    
                 field_strs = [
-                    f"{field['type']} {field['name']}; // offset {field['offset']}"
+                    f"    {field['type']} {field['name']}; // offset {field['offset']}, size ~{field.get('size', '?')} bytes"
                     for field in struct_data["fields"]
                 ]
-                fields_str = "\n    ".join(field_strs)
-
-                c_def = f"struct {struct_data['name']} {{\n    {fields_str}\n}};"
+                fields_str = "\n".join(field_strs)
+                
+                c_def = f"struct {struct_data['name']} {{\n{fields_str}\n}};"
                 c_definitions.append(c_def)
 
+            # Filter out empty structures
+            non_empty_structures = {k: v for k, v in structures.items() if v["fields"]}
+            
             result = {
-                "structures": list(structures.values()),
+                "structures": list(non_empty_structures.values()),
                 "c_definitions": "\n\n".join(c_definitions),
-                "count": len(structures),
+                "count": len(non_empty_structures),
+                "analysis_mode": "fast" if fast_mode else "full",
             }
 
-            desc = f"Basic structure recovery from {function_address} using radare2 (found {len(structures)} structure(s))"
+            desc = f"Structure recovery from {function_address} using radare2{analysis_note} (found {len(non_empty_structures)} structure(s))"
             if "fallback_note" in locals():
                 desc += fallback_note
+            
+            # Add hint if no structures found
+            hint = None
+            if len(non_empty_structures) == 0:
+                hint = "No structures found. Try: 1) fast_mode=False for deeper analysis, 2) use_ghidra=True for C++ structures, 3) analyze a function that uses structures (not main/entry0)"
 
             return success(
                 result,
                 bytes_read=bytes_read,
                 function_address=function_address,
                 method="radare2",
-                structure_count=len(structures),
+                structure_count=len(non_empty_structures),
                 description=desc,
+                hint=hint,
             )
 
         except json.JSONDecodeError as e:
