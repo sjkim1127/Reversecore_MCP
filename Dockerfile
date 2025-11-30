@@ -120,6 +120,7 @@ RUN mkdir -p /app/workspace /app/rules
 # To check available versions: apt-cache madison <package-name>
 #
 # Note: radare2 is built in the builder stage to guarantee availability on bookworm.
+# Note: OpenJDK 21 is installed from Adoptium (Eclipse Temurin) for Ghidra 11.4+ compatibility
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         # coreutils "file" command required by run_file tool
@@ -131,14 +132,23 @@ RUN apt-get update \
         # Binwalk for firmware analysis and file carving
         # Version: 2.3.4+dfsg1-1 (Debian 12 Bookworm)
         binwalk=2.3.4+dfsg1-1 \
-        # OpenJDK 17 required for Ghidra and PyGhidra
-        openjdk-17-jre-headless \
         # Graphviz for CFG image generation (FastMCP Image support)
         graphviz \
+        # Required for Adoptium GPG key
+        wget \
+        gnupg \
     && rm -rf /var/lib/apt/lists/*
 
-# Set JAVA_HOME environment variable (required for PyGhidra to find Java)
-ENV JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"
+# Install Eclipse Temurin (Adoptium) OpenJDK 21 for Ghidra 11.4+
+# Ghidra 11.4.2 requires Java 21+ (Java 17 is no longer supported)
+RUN wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /usr/share/keyrings/adoptium.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb bookworm main" > /etc/apt/sources.list.d/adoptium.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends temurin-21-jre \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set JAVA_HOME environment variable (required for PyGhidra to find Java 21)
+ENV JAVA_HOME="/usr/lib/jvm/temurin-21-jre-amd64"
 
 # Copy native tooling built in the builder stage so CLI tools match Python bindings
 RUN mkdir -p /usr/local/include /usr/local/lib/pkgconfig
