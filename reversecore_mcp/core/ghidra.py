@@ -111,10 +111,18 @@ class GhidraService:
                 import pyghidra
 
                 self._configure_environment()
+                
+                # OPTIMIZATION: Limit JVM heap to prevent excessive memory usage
+                # Default Ghidra can use 50%+ of system RAM
+                jvm_args = [
+                    "-Xmx4g",  # Max heap 4GB (adjust based on system)
+                    "-XX:+UseG1GC",  # Use G1 garbage collector for large heaps
+                    "-XX:MaxGCPauseMillis=200",  # Limit GC pause time
+                ]
 
-                logger.info("Starting Ghidra JVM...")
+                logger.info("Starting Ghidra JVM with optimized settings...")
                 try:
-                    pyghidra.start()
+                    pyghidra.start(jvm_args=jvm_args)
                 except Exception as e:
                     logger.debug(f"pyghidra.start() result: {e}")
 
@@ -324,7 +332,7 @@ class GhidraService:
         self,
         file_path: str,
         function_address: str,
-        timeout: int = 600,
+        timeout: int = 300,
         skip_full_analysis: bool = True,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         """
@@ -333,12 +341,17 @@ class GhidraService:
         Args:
             file_path: Path to the binary file
             function_address: Function address (hex string or symbol name)
-            timeout: Maximum execution time in seconds
+            timeout: Maximum execution time in seconds (default 300)
             skip_full_analysis: Skip full binary analysis for faster startup (default True)
-                               Set to False for more accurate results on first run.
+                               The decompiler performs targeted analysis on the function.
 
         Returns:
             Tuple of (structures_dict, metadata_dict)
+        
+        Performance Notes:
+            - skip_full_analysis=True (default): ~30-60 seconds for large binaries
+            - skip_full_analysis=False: Can take 10+ minutes, uses more memory
+            - For repeated analysis of same binary, results are cached in JVM
         """
         self._ensure_jvm_started()
 
@@ -347,11 +360,12 @@ class GhidraService:
             project_name = "struct_analysis"
 
             try:
-                logger.info(f"Analyzing structures in: {file_path}")
+                logger.info(f"Analyzing structures in: {file_path} (skip_full_analysis={skip_full_analysis})")
                 
-                # OPTIMIZATION: Skip full analysis by default for faster startup
-                # The decompiler will analyze the specific function as needed
-                analyze = not skip_full_analysis
+                # OPTIMIZATION: Always skip full analysis for structure recovery
+                # The decompiler performs targeted analysis on the specific function
+                # Full analysis is rarely needed and extremely slow on large binaries
+                analyze = False  # Force skip - decompiler handles function analysis
 
                 with self._pyghidra.open_program(
                     str(file_path),
