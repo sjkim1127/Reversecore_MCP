@@ -187,20 +187,54 @@ async def ghost_trace(
         await ctx.info("👻 Ghost Trace: Scanning for suspicious logic...")
 
     # Run analysis
-    # We chain commands: aaa (analyze), aflj (list functions json), axj (xrefs json)
-    # Note: 'aaa' can be slow.
-    cmd = "aaa; aflj"
-    output = await _run_r2_cmd(validated_path, cmd, timeout=timeout)
+    # We chain commands: aaa (analyze), aflj (list functions json)
+    # Note: 'aaa' can be slow on large binaries. Use 'aa' for faster but less complete analysis.
+    # For large binaries (>5MB), use lighter analysis
+    file_size = os.path.getsize(validated_path)
+    analysis_cmd = "aa" if file_size > 5_000_000 else "aaa"
+
+    cmd = f"{analysis_cmd}; aflj"
+    output = await _run_r2_cmd(validated_path, cmd, timeout=timeout, use_cache=False)
+
+    # Debug logging for troubleshooting
+    logger.debug(f"r2 output length: {len(output)}, first 500 chars: {output[:500]}")
 
     # Parse functions with safe JSON extraction
     functions = _extract_json_safely(output)
-    if not functions or not isinstance(functions, list):
-        logger.error(f"Invalid function list format. Output preview: {output[:200]}...")
+
+    # Handle failed JSON extraction (not empty list which is valid)
+    if functions is None:
+        logger.warning(f"Could not extract JSON from r2 output. Output preview: {output[:300]}...")
+        # Try a fallback: run aflj separately with more time
+        fallback_output = await _run_r2_cmd(validated_path, "aflj", timeout=60, use_cache=False)
+        functions = _extract_json_safely(fallback_output)
+
+        # If still None after fallback, return error
+        if functions is None:
+            logger.error(
+                f"Failed to parse JSON after fallback. Fallback output: {fallback_output[:200]}..."
+            )
+            return failure(
+                "PARSE_ERROR",
+                "Failed to parse function list from radare2. "
+                "Output may be corrupted or analysis failed.",
+                hint="Try increasing timeout or using a simpler analysis mode.",
+            )
+
+    # Validate that functions is a list (empty list is valid for stripped binaries)
+    if not isinstance(functions, list):
+        logger.error(
+            f"Invalid function list format (type: {type(functions)}). Output preview: {output[:200]}..."
+        )
         return failure(
             "PARSE_ERROR",
             "Failed to parse function list from radare2. "
             "Output may be corrupted or analysis failed.",
+            hint="Try increasing timeout or using a simpler analysis mode.",
         )
+
+    if not functions:
+        logger.info("No functions found in binary (possibly stripped or small)")
 
     # Find orphans and suspicious logic
     orphans = []

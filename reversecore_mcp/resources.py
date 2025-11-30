@@ -127,7 +127,7 @@ def register_resources(mcp: FastMCP):
             result = await cli_tools.run_strings(_get_workspace_path(filename))
             if result.status == "success":
                 # Get content from ToolResult
-                content = result.content[0].text if result.content else result.data
+                content = result.data if isinstance(result.data, str) else str(result.data)
                 return f"# Strings from {filename}\n\n{content}"
             return f"Error extracting strings: {result.message if hasattr(result, 'message') else 'Unknown error'}"
         except Exception as e:
@@ -144,7 +144,9 @@ def register_resources(mcp: FastMCP):
                 return f"Failed to extract strings from {filename}"
 
             # 2. Extract IOCs from strings
-            strings_data = strings_res.content[0].text if strings_res.content else strings_res.data
+            strings_data = (
+                strings_res.data if isinstance(strings_res.data, str) else str(strings_res.data)
+            )
             ioc_res = lib_tools.extract_iocs(strings_data)
 
             # 3. Format output
@@ -179,7 +181,7 @@ def register_resources(mcp: FastMCP):
             )
 
             if result.status == "success":
-                content = result.content[0].text if result.content else result.data
+                content = result.data if isinstance(result.data, str) else str(result.data)
                 return f"""# Decompiled Code: {filename} @ {address}
 
 ```c
@@ -198,7 +200,7 @@ def register_resources(mcp: FastMCP):
             result = await cli_tools.run_radare2(_get_workspace_path(filename), f"pdf @ {address}")
 
             if result.status == "success":
-                content = result.content[0].text if result.content else result.data
+                content = result.data if isinstance(result.data, str) else str(result.data)
                 return f"""# Disassembly: {filename} @ {address}
 
 ```asm
@@ -219,7 +221,7 @@ def register_resources(mcp: FastMCP):
             )
 
             if result.status == "success":
-                content = result.content[0].text if result.content else result.data
+                content = result.data if isinstance(result.data, str) else str(result.data)
                 return f"""# Control Flow Graph: {filename} @ {address}
 
 {content}
@@ -238,7 +240,7 @@ def register_resources(mcp: FastMCP):
             )  # List functions in JSON format
 
             if result.status == "success":
-                content = result.content[0].text if result.content else result.data
+                content = result.data if isinstance(result.data, str) else str(result.data)
 
                 try:
                     functions = json.loads(content)

@@ -12,56 +12,52 @@ It also contains AI-powered tools and symbolic execution tools that remain here.
 """
 
 import asyncio
-from fastmcp import FastMCP, Context
 
-# Import all tools from specialized modules
-from reversecore_mcp.tools.file_operations import (
-    run_file,
-    copy_to_workspace,
-    list_workspace,
-    scan_workspace,
-)
-
-from reversecore_mcp.tools.static_analysis import (
-    run_strings,
-    run_binwalk,
-    scan_for_versions,
-    extract_rtti_info,
-)
-
-from reversecore_mcp.tools.r2_analysis import (
-    run_radare2,
-    generate_function_graph,
-    analyze_xrefs,
-    trace_execution_path,
-)
-
-from reversecore_mcp.tools.decompilation import (
-    smart_decompile,
-    get_pseudo_code,
-    recover_structures,
-    emulate_machine_code,
-)
-
-from reversecore_mcp.tools.signature_tools import (
-    generate_yara_rule,
-    generate_signature,
-)
-
-from reversecore_mcp.tools.diff_tools import (
-    diff_binaries,
-    analyze_variant_changes,
-    match_libraries,
-)
+from fastmcp import Context, FastMCP
 
 # Import remaining dependencies for local tools
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
 from reversecore_mcp.core.metrics import track_metrics
-from reversecore_mcp.core.result import ToolResult, success, failure
+from reversecore_mcp.core.result import ToolResult, failure, success
 from reversecore_mcp.core.security import validate_file_path
 from reversecore_mcp.core.validators import validate_tool_parameters
+from reversecore_mcp.tools.decompilation import (
+    emulate_machine_code,
+    get_pseudo_code,
+    recover_structures,
+    smart_decompile,
+)
+from reversecore_mcp.tools.diff_tools import (
+    analyze_variant_changes,
+    diff_binaries,
+    match_libraries,
+)
+
+# Import all tools from specialized modules
+from reversecore_mcp.tools.file_operations import (
+    copy_to_workspace,
+    list_workspace,
+    run_file,
+    scan_workspace,
+)
+from reversecore_mcp.tools.r2_analysis import (
+    analyze_xrefs,
+    generate_function_graph,
+    run_radare2,
+    trace_execution_path,
+)
+from reversecore_mcp.tools.signature_tools import (
+    generate_signature,
+    generate_yara_rule,
+)
+from reversecore_mcp.tools.static_analysis import (
+    extract_rtti_info,
+    run_binwalk,
+    run_strings,
+    scan_for_versions,
+)
 
 # Load default timeout from configuration
 DEFAULT_TIMEOUT = get_config().default_tool_timeout
@@ -372,15 +368,11 @@ async def analyze_with_ai(
     try:
         # 1. Get basic info about the file
         file_info_result = await run_file(str(validated_path))
-        file_info = (
-            file_info_result.content[0].text if file_info_result.content else "Unknown"
-        )
+        file_info = file_info_result.data if file_info_result.status == "success" else "Unknown"
 
         # 2. Get strings sample
         strings_result = await run_strings(str(validated_path), max_output_size=100_000)
-        strings_sample = (
-            strings_result.content[0].text if strings_result.content else ""
-        )[
+        strings_sample = (strings_result.data if strings_result.status == "success" else "")[
             :5000
         ]  # First 5KB
 
@@ -400,14 +392,10 @@ Question: {question}
 Please provide a concise, technical analysis based on the available information.
 """
 
-        response = await ctx.sample(
-            messages=[{"role": "user", "content": prompt}], max_tokens=500
-        )
+        response = await ctx.sample(messages=[{"role": "user", "content": prompt}], max_tokens=500)
 
         ai_analysis = (
-            response.content.text
-            if hasattr(response.content, "text")
-            else str(response.content)
+            response.content.text if hasattr(response.content, "text") else str(response.content)
         )
 
         return success(
@@ -468,9 +456,7 @@ async def suggest_function_name(
             return decompile_result
 
         code = (
-            decompile_result.content[0].text
-            if decompile_result.content
-            else decompile_result.data
+            decompile_result.content[0].text if decompile_result.content else decompile_result.data
         )
 
         # 2. Ask AI for name suggestion
@@ -490,14 +476,10 @@ Name: <function_name>
 Reason: <why this name>
 """
 
-        response = await ctx.sample(
-            messages=[{"role": "user", "content": prompt}], max_tokens=150
-        )
+        response = await ctx.sample(messages=[{"role": "user", "content": prompt}], max_tokens=150)
 
         ai_suggestion = (
-            response.content.text
-            if hasattr(response.content, "text")
-            else str(response.content)
+            response.content.text if hasattr(response.content, "text") else str(response.content)
         )
 
         return success(

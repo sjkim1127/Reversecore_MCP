@@ -290,10 +290,12 @@ async def analyze_variant_changes(
     # 1. Run diff_binaries
     diff_result = await diff_binaries(file_path_a, file_path_b, timeout=timeout)
 
-    if diff_result.is_error:
+    if diff_result.status == "error":
         return diff_result
 
-    diff_data = json.loads(diff_result.content[0].text)
+    diff_data = (
+        json.loads(diff_result.data) if isinstance(diff_result.data, str) else diff_result.data
+    )
     changes = diff_data.get("changes", [])
 
     # 2. Identify changed functions (heuristic: group changes by address proximity or use explicit function diff if available)
@@ -363,9 +365,7 @@ async def analyze_variant_changes(
     for func_name, count in sorted_funcs:
         # Get CFG for variant
         cfg_result = await generate_function_graph(file_path_b, func_name, format="mermaid")
-        cfg_mermaid = (
-            cfg_result.content[0].text if not cfg_result.is_error else "Error generating CFG"
-        )
+        cfg_mermaid = cfg_result.data if cfg_result.status == "success" else "Error generating CFG"
 
         detailed_analysis.append(
             {
