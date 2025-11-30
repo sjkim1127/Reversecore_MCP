@@ -140,15 +140,15 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Eclipse Temurin (Adoptium) OpenJDK 21 for Ghidra 11.4+
-# Ghidra 11.4.2 requires Java 21+ (Java 17 is no longer supported)
+# Ghidra 11.4.2 requires Java 21+ JDK (not just JRE - needs javac for some operations)
 RUN wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /usr/share/keyrings/adoptium.gpg \
     && echo "deb [signed-by=/usr/share/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb bookworm main" > /etc/apt/sources.list.d/adoptium.list \
     && apt-get update \
-    && apt-get install -y --no-install-recommends temurin-21-jre \
+    && apt-get install -y --no-install-recommends temurin-21-jdk \
     && rm -rf /var/lib/apt/lists/*
 
-# Set JAVA_HOME environment variable (required for PyGhidra to find Java 21)
-ENV JAVA_HOME="/usr/lib/jvm/temurin-21-jre-amd64"
+# Set JAVA_HOME environment variable (required for PyGhidra to find Java 21 JDK)
+ENV JAVA_HOME="/usr/lib/jvm/temurin-21-jdk-amd64"
 
 # Copy native tooling built in the builder stage so CLI tools match Python bindings
 RUN mkdir -p /usr/local/include /usr/local/lib/pkgconfig
