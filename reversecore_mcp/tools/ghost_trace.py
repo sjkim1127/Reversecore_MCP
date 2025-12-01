@@ -20,6 +20,7 @@ from reversecore_mcp.core.exceptions import ValidationError
 from reversecore_mcp.core.execution import execute_subprocess_async
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
+from reversecore_mcp.core.r2_helpers import calculate_dynamic_timeout
 from reversecore_mcp.core.result import ToolResult, failure, success
 from reversecore_mcp.core.security import validate_file_path
 
@@ -107,35 +108,49 @@ def _get_file_cache_key(file_path: str) -> str:
 
 
 @alru_cache(maxsize=64, ttl=300)  # Cache for 5 minutes, max 64 entries
-async def _run_r2_cmd_cached(cache_key: str, file_path: str, cmd: str, timeout: int = 30) -> str:
+async def _run_r2_cmd_cached(
+    cache_key: str, file_path: str, cmd: str, timeout: int | None = None
+) -> str:
     """Cached helper to run a single radare2 command.
 
     The cache_key includes file modification time for automatic invalidation.
+    Uses dynamic timeout based on file size if timeout is not specified.
     """
+    # Calculate dynamic timeout if not provided
+    effective_timeout = (
+        timeout if timeout else calculate_dynamic_timeout(file_path, base_timeout=30)
+    )
     full_cmd = ["radare2", "-q", "-c", cmd, str(file_path)]
-    output, _ = await execute_subprocess_async(full_cmd, timeout=timeout)
+    output, _ = await execute_subprocess_async(full_cmd, timeout=effective_timeout)
     return output
 
 
-async def _run_r2_cmd(file_path: str, cmd: str, timeout: int = 30, use_cache: bool = True) -> str:
+async def _run_r2_cmd(
+    file_path: str, cmd: str, timeout: int | None = None, use_cache: bool = True
+) -> str:
     """Helper to run a single radare2 command with optional caching.
 
     Args:
         file_path: Path to the binary file
         cmd: Radare2 command to execute
-        timeout: Command timeout in seconds
+        timeout: Command timeout in seconds (uses dynamic timeout if None)
         use_cache: Whether to use caching (default: True)
 
     Returns:
         Command output as string
     """
+    # Calculate dynamic timeout based on file size
+    effective_timeout = (
+        timeout if timeout else calculate_dynamic_timeout(file_path, base_timeout=30)
+    )
+
     if use_cache:
         cache_key = _get_file_cache_key(file_path)
-        return await _run_r2_cmd_cached(cache_key, file_path, cmd, timeout)
+        return await _run_r2_cmd_cached(cache_key, file_path, cmd, effective_timeout)
 
     # Direct execution without caching (for commands with side effects)
     full_cmd = ["radare2", "-q", "-c", cmd, str(file_path)]
-    output, _ = await execute_subprocess_async(full_cmd, timeout=timeout)
+    output, _ = await execute_subprocess_async(full_cmd, timeout=effective_timeout)
     return output
 
 
@@ -496,9 +511,8 @@ async def _verify_hypothesis_with_emulation(
     )
 
 
-from typing import Any
-
-from reversecore_mcp.core.plugin import Plugin
+# Plugin import at bottom to avoid circular imports
+from reversecore_mcp.core.plugin import Plugin  # noqa: E402
 
 
 class GhostTracePlugin(Plugin):

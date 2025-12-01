@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from reversecore_mcp.core.exceptions import ValidationError
 from reversecore_mcp.core.logging_config import get_logger
+from reversecore_mcp.core.r2_helpers import calculate_dynamic_timeout
 
 if TYPE_CHECKING:
     from ghidra.program.flatapi import FlatProgramAPI
@@ -254,7 +255,7 @@ class GhidraService:
         self,
         file_path: str,
         function_address: str | None = None,
-        timeout: int = 300,
+        timeout: int | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """
         Decompile a function using Ghidra.
@@ -262,7 +263,7 @@ class GhidraService:
         Args:
             file_path: Path to the binary file
             function_address: Function address (hex string or symbol name)
-            timeout: Maximum execution time in seconds
+            timeout: Maximum execution time in seconds (uses dynamic timeout if None)
 
         Returns:
             Tuple of (decompiled_code, metadata)
@@ -271,6 +272,11 @@ class GhidraService:
             ValidationError: If decompilation fails
             ImportError: If PyGhidra is not available
         """
+        # Calculate dynamic timeout based on file size
+        effective_timeout = (
+            timeout if timeout else calculate_dynamic_timeout(file_path, base_timeout=300)
+        )
+
         self._ensure_jvm_started()
 
         with self._lock:
@@ -297,7 +303,7 @@ class GhidraService:
                         )
 
                     logger.info(f"Decompiling function: {function.getName()}")
-                    results = decompiler.decompileFunction(function, timeout, monitor)
+                    results = decompiler.decompileFunction(function, effective_timeout, monitor)
 
                     if not results.decompileCompleted():
                         error_msg = results.getErrorMessage()
@@ -346,16 +352,16 @@ class GhidraService:
         self,
         file_path: str,
         function_address: str | None = None,
-        timeout: int = 300,
+        timeout: int | None = None,
     ) -> tuple[str, dict[str, Any]]:
-        """Execute decompilation asynchronously."""
+        """Execute decompilation asynchronously with dynamic timeout."""
         return await asyncio.to_thread(self.decompile, file_path, function_address, timeout)
 
     def recover_structures(
         self,
         file_path: str,
         function_address: str,
-        timeout: int = 300,
+        timeout: int | None = None,
         skip_full_analysis: bool = True,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         """
@@ -364,7 +370,7 @@ class GhidraService:
         Args:
             file_path: Path to the binary file
             function_address: Function address (hex string or symbol name)
-            timeout: Maximum execution time in seconds (default 300)
+            timeout: Maximum execution time in seconds (uses dynamic timeout if None)
             skip_full_analysis: Skip full binary analysis for faster startup (default True)
                                The decompiler performs targeted analysis on the function.
 
@@ -376,6 +382,11 @@ class GhidraService:
             - skip_full_analysis=False: Can take 10+ minutes, uses more memory
             - For repeated analysis of same binary, results are cached in JVM
         """
+        # Calculate dynamic timeout based on file size
+        effective_timeout = (
+            timeout if timeout else calculate_dynamic_timeout(file_path, base_timeout=300)
+        )
+
         self._ensure_jvm_started()
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -413,7 +424,7 @@ class GhidraService:
                     decompiler.openProgram(program)
 
                     try:
-                        results = decompiler.decompileFunction(function, timeout, None)
+                        results = decompiler.decompileFunction(function, effective_timeout, None)
 
                         if not results.decompileCompleted():
                             error_msg = results.getErrorMessage()
@@ -522,9 +533,9 @@ class GhidraService:
         self,
         file_path: str,
         function_address: str,
-        timeout: int = 600,
+        timeout: int | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Execute structure recovery asynchronously."""
+        """Execute structure recovery asynchronously with dynamic timeout."""
         return await asyncio.to_thread(
             self.recover_structures, file_path, function_address, timeout
         )
