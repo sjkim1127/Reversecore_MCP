@@ -6,8 +6,8 @@
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/)
 [![FastMCP](https://img.shields.io/badge/FastMCP-2.13.1-green)](https://github.com/jlowin/fastmcp)
 [![Docker](https://img.shields.io/badge/docker-ready-blue)](https://www.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-852%20passed-brightgreen)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-75%25-green)](htmlcov/)
+[![Tests](https://img.shields.io/badge/tests-890%20passed-brightgreen)](tests/)
+[![Coverage](https://img.shields.io/badge/coverage-76%25-green)](htmlcov/)
 
 [🇺🇸 English](README.md)
 
@@ -134,6 +134,22 @@ docker build -f Dockerfile -t reversecore-mcp:latest .
 - 포인터 연산에서 구조체 추론
 - 설명 주석이 포함된 스마트 어노테이션
 
+### 🎮 게임 보안 분석 (신규!)
+
+게임 클라이언트 리버스 엔지니어링을 위한 전문 도구:
+
+- **치트 포인트 파인더**: 스피드핵, 텔레포트, 무적, 아이템 복제, 월핵 자동 탐지
+- **안티치트 프로파일러**: GameGuard, XIGNCODE, EAC, VAC 패턴 식별
+- **프로토콜 분석기**: 한국 MMO 프로토콜 패턴 탐지 (CS_/SC_, MSG_/PKT_)
+- **함수 패턴 매칭**: 속도 배수, 좌표 조작, 체력 수정 탐지
+
+### ⚡ 성능 최적화 (v3.0)
+
+- **동적 타임아웃**: 파일 크기에 따라 자동 조절 (base + 2s/MB, 최대 +600s)
+- **Ghidra JVM**: 현대 시스템(24-32GB RAM)을 위한 16GB 힙
+- **싱크 인식 가지치기**: 39개의 위험한 싱크 API로 지능적 경로 우선순위화
+- **트레이스 깊이 최적화**: 더 빠른 실행 경로 분석을 위해 3에서 2로 축소
+
 ### 🛠️ 핵심 도구
 
 | 카테고리 | 도구 |
@@ -145,6 +161,7 @@ docker build -f Dockerfile -t reversecore-mcp:latest .
 | **방어** | `generate_yara_rule`, `adaptive_vaccine` |
 | **바이너리 파싱** | `parse_binary_with_lief`, `extract_iocs` |
 | **비교** | `diff_binaries`, `match_libraries` |
+| **게임 분석** | `find_cheat_points`, `analyze_game_protocol` |
 
 ## 📊 분석 워크플로우
 
@@ -154,10 +171,12 @@ docker build -f Dockerfile -t reversecore-mcp:latest .
 
 **가이드 분석을 위한 내장 프롬프트 사용:**
 
-- `full_analysis_mode` - 포괄적인 악성코드 분석
+- `full_analysis_mode` - **6단계 전문가 추론**을 갖춘 포괄적인 악성코드 분석
 - `basic_analysis_mode` - 빠른 분류
-- `game_analysis_mode` - 게임 클라이언트 리버스 엔지니어링
+- `game_analysis_mode` - **치트 탐지 휴리스틱**을 갖춘 게임 클라이언트 분석
 - `firmware_analysis_mode` - IoT/펌웨어 분석
+
+> 💡 **AI 추론 강화**: 프롬프트는 전문가 페르소나 프라이밍, Chain-of-Thought 체크포인트, 구조화된 추론을 사용하여 AI 분석 능력을 극대화합니다.
 
 ## 🏗️ 아키텍처
 
@@ -166,17 +185,19 @@ reversecore_mcp/
 ├── core/                 # 인프라
 │   ├── config.py         # 설정 관리
 │   ├── container.py      # 의존성 주입
-│   ├── ghidra.py         # Ghidra 통합
+│   ├── ghidra.py         # Ghidra 통합 (16GB JVM 힙)
 │   ├── r2_helpers.py     # Radare2 유틸리티
 │   ├── result.py         # ToolSuccess/ToolError 모델
 │   └── security.py       # 입력 검증
 ├── tools/                # MCP 도구
 │   ├── cli_tools.py      # CLI 래퍼
 │   ├── decompilation.py  # 디컴파일러
+│   ├── game_analysis.py  # 게임 보안 분석 (신규!)
 │   ├── ghost_trace.py    # 숨겨진 위협 탐지
+│   ├── r2_analysis.py    # R2 분석 (v3.0 최적화)
 │   ├── trinity_defense.py # 자동화된 방어
 │   └── ...
-├── prompts.py            # 분석 프롬프트
+├── prompts.py            # AI 추론 프롬프트 (강화)
 └── resources.py          # 동적 리소스
 ```
 

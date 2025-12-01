@@ -6,8 +6,8 @@
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/)
 [![FastMCP](https://img.shields.io/badge/FastMCP-2.13.1-green)](https://github.com/jlowin/fastmcp)
 [![Docker](https://img.shields.io/badge/docker-ready-blue)](https://www.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-852%20passed-brightgreen)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-75%25-green)](htmlcov/)
+[![Tests](https://img.shields.io/badge/tests-890%20passed-brightgreen)](tests/)
+[![Coverage](https://img.shields.io/badge/coverage-76%25-green)](htmlcov/)
 
 [🇰🇷 한국어 (Korean)](README_KR.md)
 
@@ -134,6 +134,22 @@ Transforms raw decompiled code into human-readable format:
 - Structure inference from pointer arithmetic
 - Smart annotation with explanatory comments
 
+### 🎮 Game Security Analysis (NEW!)
+
+Specialized tools for game client reverse engineering:
+
+- **Cheat Point Finder**: Automated detection of speed hacks, teleport, god mode, item duplication, wallhack
+- **Anti-Cheat Profiler**: Identifies GameGuard, XIGNCODE, EAC, VAC patterns
+- **Protocol Analyzer**: Korean MMO protocol pattern detection (CS_/SC_, MSG_/PKT_)
+- **Function Pattern Matching**: Speed multiplier, coordinate manipulation, health modification detection
+
+### ⚡ Performance Optimizations (v3.0)
+
+- **Dynamic Timeout**: Auto-scales with file size (base + 2s/MB, max +600s)
+- **Ghidra JVM**: 16GB heap for modern systems (24-32GB RAM)
+- **Sink-Aware Pruning**: 39 dangerous sink APIs for intelligent path prioritization
+- **Trace Depth Optimization**: Reduced from 3 to 2 for faster execution path analysis
+
 ### 🛠️ Core Tools
 
 | Category | Tools |
@@ -145,6 +161,7 @@ Transforms raw decompiled code into human-readable format:
 | **Defense** | \`generate_yara_rule\`, \`adaptive_vaccine\` |
 | **Binary Parsing** | \`parse_binary_with_lief\`, \`extract_iocs\` |
 | **Diffing** | \`diff_binaries\`, \`match_libraries\` |
+| **Game Analysis** | \`find_cheat_points\`, \`analyze_game_protocol\` |
 
 ## 📊 Analysis Workflow
 
@@ -154,10 +171,12 @@ Transforms raw decompiled code into human-readable format:
 
 **Use built-in prompts for guided analysis:**
 
-- \`full_analysis_mode\` - Comprehensive malware analysis
+- \`full_analysis_mode\` - Comprehensive malware analysis with **6-phase expert reasoning**
 - \`basic_analysis_mode\` - Quick triage
-- \`game_analysis_mode\` - Game client reverse engineering
+- \`game_analysis_mode\` - Game client analysis with **cheat detection heuristics**
 - \`firmware_analysis_mode\` - IoT/Firmware analysis
+
+> 💡 **AI Reasoning Enhancement**: Prompts use expert persona priming, Chain-of-Thought checkpoints, and structured reasoning to maximize AI analysis capabilities.
 
 ## 🏗️ Architecture
 
@@ -166,17 +185,19 @@ reversecore_mcp/
 ├── core/                 # Infrastructure
 │   ├── config.py         # Configuration management
 │   ├── container.py      # Dependency injection
-│   ├── ghidra.py         # Ghidra integration
+│   ├── ghidra.py         # Ghidra integration (16GB JVM heap)
 │   ├── r2_helpers.py     # Radare2 utilities
 │   ├── result.py         # ToolSuccess/ToolError models
 │   └── security.py       # Input validation
 ├── tools/                # MCP Tools
 │   ├── cli_tools.py      # CLI wrappers
 │   ├── decompilation.py  # Decompilers
+│   ├── game_analysis.py  # Game security analysis (NEW!)
 │   ├── ghost_trace.py    # Hidden threat detection
+│   ├── r2_analysis.py    # R2 analysis (v3.0 optimized)
 │   ├── trinity_defense.py # Automated defense
 │   └── ...
-├── prompts.py            # Analysis prompts
+├── prompts.py            # AI reasoning prompts (enhanced)
 └── resources.py          # Dynamic resources
 ```
 
