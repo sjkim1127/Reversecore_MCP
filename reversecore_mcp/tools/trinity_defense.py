@@ -18,6 +18,7 @@ from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
+from reversecore_mcp.core.plugin import Plugin
 from reversecore_mcp.core.result import ToolResult, failure, success
 from reversecore_mcp.core.security import validate_file_path
 from reversecore_mcp.tools.adaptive_vaccine import adaptive_vaccine
@@ -209,33 +210,47 @@ async def trinity_defense(
         )
 
     # ============================================================
-    # PHASE 3: NEUTRALIZE - Adaptive Vaccine
+    # PHASE 3: NEUTRALIZE - Adaptive Vaccine (Parallelized)
     # ============================================================
     if ctx:
         await ctx.info("\\n🛡️ PHASE 3: NEUTRALIZE (Adaptive Vaccine)")
+        await ctx.info(f"  🔄 Parallel vaccine generation for {len(refined_threats)} threats...")
 
     defenses = []
 
     try:
-        if generate_vaccine:
-            for i, threat in enumerate(refined_threats):
+        if generate_vaccine and refined_threats:
+            # Create tasks for parallel vaccine generation
+            vaccine_tasks = []
+            for threat in refined_threats:
+                task = adaptive_vaccine(
+                    threat_report=threat,
+                    action="yara",  # Generate YARA rule only (patch is risky)
+                    dry_run=True,
+                    ctx=None,
+                )
+                vaccine_tasks.append((threat, task))
+
+            # Execute all vaccine generations in parallel
+            vaccine_results = await asyncio.gather(
+                *[task for _, task in vaccine_tasks], return_exceptions=True
+            )
+
+            # Process results
+            for i, ((threat, _), result) in enumerate(
+                zip(vaccine_tasks, vaccine_results, strict=False)
+            ):
                 if ctx:
                     await ctx.info(
-                        f"  [{i + 1}/{len(refined_threats)}] Generating defense for {threat.get('function', threat.get('address'))}..."
+                        f"  [{i + 1}/{len(vaccine_tasks)}] Generated defense for {threat.get('function', threat.get('address'))}"
                     )
 
-                try:
-                    vaccine_result = await adaptive_vaccine(
-                        threat_report=threat,
-                        action="yara",  # Generate YARA rule only (patch is risky)
-                        dry_run=True,
-                        ctx=None,
+                if isinstance(result, Exception):
+                    logger.warning(
+                        f"Failed to generate vaccine for {threat.get('address')}: {result}"
                     )
-
-                    if vaccine_result.status != "error":
-                        defenses.append(vaccine_result.data)
-                except Exception as e:
-                    logger.warning(f"Failed to generate vaccine for {threat.get('address')}: {e}")
+                elif result.status != "error":
+                    defenses.append(result.data)
 
         logger.info(f"Phase 3 complete: {len(defenses)} defenses generated")
 
@@ -589,11 +604,6 @@ def _generate_recommendations(threats: list[dict[str, Any]]) -> list[dict[str, A
         )
 
     return recommendations
-
-
-from typing import Any
-
-from reversecore_mcp.core.plugin import Plugin
 
 
 class TrinityDefensePlugin(Plugin):
