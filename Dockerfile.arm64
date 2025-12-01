@@ -12,7 +12,7 @@
 # ============================================================================
 # Build Stage: Install dependencies that require compilation
 # ============================================================================
-FROM --platform=linux/arm64 python:3.12-slim-bookworm AS builder
+FROM --platform=linux/arm64 python:3.14-slim-bookworm AS builder
 ARG YARA_VERSION=4.3.1
 ARG RADARE2_VERSION=6.0.4
 ARG GHIDRA_VERSION=11.4.2
@@ -88,7 +88,7 @@ RUN grep -v "^angr" requirements.txt > requirements-arm64.txt \
 # ============================================================================
 # Runtime Stage: Create minimal production image for ARM64
 # ============================================================================
-FROM --platform=linux/arm64 python:3.12-slim-bookworm
+FROM --platform=linux/arm64 python:3.14-slim-bookworm
 
 # Set working directory
 WORKDIR /app
