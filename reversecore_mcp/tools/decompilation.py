@@ -38,7 +38,9 @@ logger = get_logger(__name__)
 # =============================================================================
 
 # OPTIMIZATION: Pre-defined type size mapping at module level
-# Uses exact match for common types and contains match for compound types
+# Uses exact match for common types (O(1) dict lookup) and substring match for compound types.
+# Note: Types appear in both collections intentionally - _TYPE_SIZES_EXACT for exact matches,
+# _TYPE_SIZES_CONTAINS for substring matching in compound types like "unsigned int".
 _TYPE_SIZES_EXACT = {
     "char": 1,
     "byte": 1,
@@ -66,9 +68,12 @@ _TYPE_SIZES_EXACT = {
     "intptr_t": 8,
 }
 
-# Types to check via substring match (sorted by size for priority)
+# Types for substring match, ordered by:
+# 1. Size (largest first) - ensures "uint64_t" matches before "int"
+# 2. Specificity - longer/more specific types before shorter ones
+# This ordering prevents "int" from matching before "uint32_t" in compound types
 _TYPE_SIZES_CONTAINS = (
-    # 8-byte types first (pointer-like)
+    # 8-byte types first (larger size takes priority)
     ("uint64_t", 8),
     ("int64_t", 8),
     ("qword", 8),
@@ -87,7 +92,7 @@ _TYPE_SIZES_CONTAINS = (
     ("wchar_t", 2),
     ("short", 2),
     ("word", 2),
-    # 1-byte types
+    # 1-byte types (smallest size last)
     ("uint8_t", 1),
     ("int8_t", 1),
     ("char", 1),
