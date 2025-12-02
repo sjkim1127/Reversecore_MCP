@@ -97,6 +97,28 @@ class MetricsCollector:
 metrics_collector = MetricsCollector()
 
 
+def _determine_success(result: Any) -> bool:
+    """
+    Determine if a tool execution result indicates success.
+
+    This helper function consolidates the success determination logic
+    used in both sync and async wrappers, reducing code duplication.
+
+    Args:
+        result: The result returned by the tool function
+
+    Returns:
+        True if the result indicates success, False otherwise
+    """
+    if isinstance(result, ToolError):
+        return False
+    if hasattr(result, "status"):
+        return result.status == "success"
+    if isinstance(result, dict) and "status" in result:
+        return result["status"] == "success"
+    return True
+
+
 def track_metrics(tool_name: str):
     """
     Decorator to track tool execution metrics.
@@ -116,16 +138,7 @@ def track_metrics(tool_name: str):
 
                 try:
                     result = await func(*args, **kwargs)
-
-                    if isinstance(result, ToolError):
-                        success = False
-                    elif hasattr(result, "status"):
-                        success = result.status == "success"
-                    elif isinstance(result, dict) and "status" in result:
-                        success = result["status"] == "success"
-                    else:
-                        success = True
-
+                    success = _determine_success(result)
                     return result
                 except Exception:
                     success = False
@@ -144,16 +157,7 @@ def track_metrics(tool_name: str):
 
                 try:
                     result = func(*args, **kwargs)
-
-                    if isinstance(result, ToolError):
-                        success = False
-                    elif hasattr(result, "status"):
-                        success = result.status == "success"
-                    elif isinstance(result, dict) and "status" in result:
-                        success = result["status"] == "success"
-                    else:
-                        success = True
-
+                    success = _determine_success(result)
                     return result
                 except Exception:
                     success = False

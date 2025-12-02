@@ -38,6 +38,7 @@ def _extract_library_name(function_name: str) -> str:
     Extract library name from function name.
 
     Cached to avoid repeated string comparisons for common function names.
+    Optimized to call lower() only once.
 
     Args:
         function_name: Function name (e.g., "sym.imp.strcpy")
@@ -45,17 +46,19 @@ def _extract_library_name(function_name: str) -> str:
     Returns:
         Extracted library name or "unknown"
     """
+    # Convert to lowercase once for efficient comparison
+    name_lower = function_name.lower()
+
     # Simple heuristic extraction
-    if "kernel32" in function_name.lower():
+    if "kernel32" in name_lower:
         return "kernel32"
-    elif "msvcrt" in function_name.lower() or "libc" in function_name.lower():
+    if "msvcrt" in name_lower or "libc" in name_lower:
         return "libc/msvcrt"
-    elif "std::" in function_name:
+    if "std::" in name_lower:
         return "libstdc++"
-    elif "imp." in function_name:
+    if "imp." in name_lower:
         return "import"
-    else:
-        return "unknown"
+    return "unknown"
 
 
 @log_execution(tool_name="diff_binaries")
