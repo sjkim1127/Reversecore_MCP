@@ -37,10 +37,76 @@ logger = get_logger(__name__)
 # Helper Functions for Structure Recovery
 # =============================================================================
 
+# OPTIMIZATION: Pre-defined type size mapping at module level
+# Uses exact match for common types (O(1) dict lookup) and substring match for compound types.
+# Note: Types appear in both collections intentionally - _TYPE_SIZES_EXACT for exact matches,
+# _TYPE_SIZES_CONTAINS for substring matching in compound types like "unsigned int".
+_TYPE_SIZES_EXACT = {
+    "char": 1,
+    "byte": 1,
+    "uint8_t": 1,
+    "int8_t": 1,
+    "bool": 1,
+    "short": 2,
+    "uint16_t": 2,
+    "int16_t": 2,
+    "word": 2,
+    "wchar_t": 2,
+    "int": 4,
+    "uint32_t": 4,
+    "int32_t": 4,
+    "dword": 4,
+    "float": 4,
+    "long": 4,
+    "long long": 8,
+    "uint64_t": 8,
+    "int64_t": 8,
+    "qword": 8,
+    "double": 8,
+    "size_t": 8,
+    "void *": 8,
+    "intptr_t": 8,
+}
+
+# Types for substring match, ordered by:
+# 1. Size (largest first) - ensures "uint64_t" matches before "int"
+# 2. Specificity - longer/more specific types before shorter ones
+# This ordering prevents "int" from matching before "uint32_t" in compound types
+_TYPE_SIZES_CONTAINS = (
+    # 8-byte types first (larger size takes priority)
+    ("uint64_t", 8),
+    ("int64_t", 8),
+    ("qword", 8),
+    ("double", 8),
+    ("size_t", 8),
+    ("intptr_t", 8),
+    ("long long", 8),
+    # 4-byte types
+    ("uint32_t", 4),
+    ("int32_t", 4),
+    ("dword", 4),
+    ("float", 4),
+    # 2-byte types
+    ("uint16_t", 2),
+    ("int16_t", 2),
+    ("wchar_t", 2),
+    ("short", 2),
+    ("word", 2),
+    # 1-byte types (smallest size last)
+    ("uint8_t", 1),
+    ("int8_t", 1),
+    ("char", 1),
+    ("byte", 1),
+    ("bool", 1),
+)
+
 
 def _estimate_type_size(type_str: str) -> int:
     """
     Estimate the size of a C/C++ type in bytes.
+
+    Uses module-level pre-defined mappings for O(1) exact match lookup,
+    falling back to substring search for compound types.
 
     Args:
         type_str: Type string (e.g., "int", "char *", "float")
@@ -50,39 +116,16 @@ def _estimate_type_size(type_str: str) -> int:
     """
     type_str = type_str.lower().strip()
 
-    # Pointer types (64-bit assumed)
+    # Fast path: Pointer types (64-bit assumed)
     if "*" in type_str or "ptr" in type_str:
         return 8
 
-    # Common types
-    type_sizes = {
-        "char": 1,
-        "byte": 1,
-        "uint8_t": 1,
-        "int8_t": 1,
-        "bool": 1,
-        "short": 2,
-        "uint16_t": 2,
-        "int16_t": 2,
-        "word": 2,
-        "wchar_t": 2,
-        "int": 4,
-        "uint32_t": 4,
-        "int32_t": 4,
-        "dword": 4,
-        "float": 4,
-        "long": 4,
-        "long long": 8,
-        "uint64_t": 8,
-        "int64_t": 8,
-        "qword": 8,
-        "double": 8,
-        "size_t": 8,
-        "void *": 8,
-        "intptr_t": 8,
-    }
+    # Fast path: Try exact match first (O(1) lookup)
+    if type_str in _TYPE_SIZES_EXACT:
+        return _TYPE_SIZES_EXACT[type_str]
 
-    for type_name, size in type_sizes.items():
+    # Slow path: Substring match for compound types (e.g., "unsigned int")
+    for type_name, size in _TYPE_SIZES_CONTAINS:
         if type_name in type_str:
             return size
 

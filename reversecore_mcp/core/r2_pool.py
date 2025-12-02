@@ -38,6 +38,7 @@ class R2ConnectionPool:
         self._pool: OrderedDict[str, Any] = OrderedDict()
         self._lock = threading.RLock()
         self._async_lock: asyncio.Lock | None = None  # Lazy-initialized async lock
+        self._async_lock_init_lock = threading.Lock()  # Protects async lock initialization
         self._last_access: dict[str, float] = {}
         self._analyzed_files = set()  # Track files that have been analyzed (aaa)
 
@@ -45,11 +46,18 @@ class R2ConnectionPool:
         """Get or create an async lock for thread-safe async operations.
 
         The lock is lazily initialized to ensure it's created in the correct
-        event loop context.
+        event loop context. Uses double-checked locking pattern for thread-safety.
         """
-        if self._async_lock is None:
-            self._async_lock = asyncio.Lock()
-        return self._async_lock
+        # Fast path: if already initialized, return it directly
+        if self._async_lock is not None:
+            return self._async_lock
+
+        # Slow path: acquire thread lock to safely initialize
+        with self._async_lock_init_lock:
+            # Double-check after acquiring lock
+            if self._async_lock is None:
+                self._async_lock = asyncio.Lock()
+            return self._async_lock
 
     def get_connection(self, file_path: str) -> Any:
         """Get or create an r2pipe connection for the given file."""

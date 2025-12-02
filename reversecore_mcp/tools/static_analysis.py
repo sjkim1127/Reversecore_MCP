@@ -33,6 +33,22 @@ _VERSION_PATTERNS = {
     "Copyright": re.compile(r"Copyright.*(19|20)\d{2}"),
 }
 
+# Pre-compile RTTI detection patterns for performance optimization
+# These patterns are used in extract_rtti_info to identify C++ type information
+_RTTI_MAIN_PATTERN = re.compile(r"(_ZTS|_ZTI|_ZTV|\.?\?A[VUW]|class\s+\w+|struct\s+\w+)")
+
+# Patterns for extracting class names from various RTTI formats
+_RTTI_CLASS_PATTERNS = (
+    re.compile(r"(?:class|struct)\s+(\w+(?:::\w+)*)"),  # class Foo, struct Bar::Baz
+    re.compile(r"\.?\?AV(\w+)@@"),  # MSVC class: .?AVClassName@@
+    re.compile(r"\.?\?AU(\w+)@@"),  # MSVC struct: .?AUStructName@@
+    re.compile(r"_ZTS(\d+)(\w+)"),  # GCC typeinfo: _ZTS4Foo -> Foo (length prefixed)
+    re.compile(
+        r"(\w{2,}(?:Actor|Component|Manager|Controller|Handler|Service|Factory|Provider|Interface))"
+    ),  # Common OOP patterns
+    re.compile(r"(C[a-z][A-Z]\w{3,})"),  # Hungarian notation: CzCharacter, CxMonster
+)
+
 
 @log_execution(tool_name="run_strings")
 @track_metrics("run_strings")
@@ -185,7 +201,7 @@ async def run_binwalk_extract(
     # Walk the extraction directory to catalog results
     extraction_path = Path(extraction_dir)
     if extraction_path.exists():
-        for root, dirs, files in os.walk(extraction_path):
+        for root, _dirs, files in os.walk(extraction_path):
             # Calculate depth from extraction root
             rel_path = Path(root).relative_to(extraction_path)
             current_depth = len(rel_path.parts)
@@ -358,34 +374,20 @@ async def extract_rtti_info(
         timeout=timeout,
     )
 
-    # Enhanced patterns for RTTI extraction
-    # 1. GNU/Linux style: _ZTS (typeinfo string), _ZTI (typeinfo), _ZTV (vtable)
-    # 2. MSVC style: .?AV (class), .?AU (struct), .?AW (enum)
-    # 3. Explicit class/struct keywords
-    rtti_pattern = re.compile(r"(_ZTS|_ZTI|_ZTV|\.?\?A[VUW]|class\s+\w+|struct\s+\w+)")
-
-    # Pattern for extracting class names from various formats
-    class_patterns = [
-        re.compile(r"(?:class|struct)\s+(\w+(?:::\w+)*)"),  # class Foo, struct Bar::Baz
-        re.compile(r"\.?\?AV(\w+)@@"),  # MSVC class: .?AVClassName@@
-        re.compile(r"\.?\?AU(\w+)@@"),  # MSVC struct: .?AUStructName@@
-        re.compile(r"_ZTS(\d+)(\w+)"),  # GCC typeinfo: _ZTS4Foo -> Foo (length prefixed)
-        re.compile(
-            r"(\w{2,}(?:Actor|Component|Manager|Controller|Handler|Service|Factory|Provider|Interface))"
-        ),  # Common OOP patterns
-        re.compile(r"(C[a-z][A-Z]\w{3,})"),  # Hungarian notation: CzCharacter, CxMonster
-    ]
+    # Use pre-compiled module-level patterns for better performance
+    # These patterns are compiled once at module load time, avoiding the overhead
+    # of regex compilation on each function call
 
     rtti_strings = []
     class_names = set()
 
     for line in output.split("\n"):
         line_stripped = line.strip()
-        if rtti_pattern.search(line_stripped):
+        if _RTTI_MAIN_PATTERN.search(line_stripped):
             rtti_strings.append(line_stripped)
 
             # Try all patterns to extract class names
-            for pattern in class_patterns:
+            for pattern in _RTTI_CLASS_PATTERNS:
                 matches = pattern.findall(line_stripped)
                 for match in matches:
                     # Handle tuple results from patterns with groups
@@ -405,7 +407,7 @@ async def extract_rtti_info(
     return success(
         {
             "rtti_strings": rtti_strings[:200],  # Limit to first 200
-            "class_names": sorted(list(class_names)),
+            "class_names": sorted(class_names),  # sorted() accepts any iterable
             "total_rtti_entries": len(rtti_strings),
             "total_classes": len(class_names),
         },
