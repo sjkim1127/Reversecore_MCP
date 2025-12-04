@@ -7,6 +7,7 @@ Features:
 - Timezone support (UTC, local, custom)
 - IOC collection during analysis
 - Template-based report generation
+- Environment variable support for email configuration
 """
 
 from datetime import datetime, timezone, timedelta
@@ -18,6 +19,7 @@ import json
 import hashlib
 import platform
 import uuid
+import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -183,7 +185,61 @@ class EmailConfig:
     username: str = ""
     password: str = ""
     use_tls: bool = True
+    sender_name: str = "Reversecore_MCP"
     default_recipients: List[str] = field(default_factory=list)
+    
+    @classmethod
+    def from_env(cls) -> "EmailConfig":
+        """환경변수에서 이메일 설정 로드"""
+        smtp_server = os.getenv("REPORT_SMTP_SERVER", "")
+        
+        # SMTP 서버가 설정되지 않으면 비활성화 상태로 반환
+        if not smtp_server:
+            logger.info("📧 Email not configured (REPORT_SMTP_SERVER not set)")
+            return cls()
+        
+        config = cls(
+            smtp_server=smtp_server,
+            smtp_port=int(os.getenv("REPORT_SMTP_PORT", "587")),
+            username=os.getenv("REPORT_SMTP_USERNAME", ""),
+            password=os.getenv("REPORT_SMTP_PASSWORD", ""),
+            use_tls=os.getenv("REPORT_SMTP_USE_TLS", "true").lower() in ("true", "1", "yes"),
+            sender_name=os.getenv("REPORT_SENDER_NAME", "Reversecore_MCP"),
+        )
+        
+        logger.info(f"📧 Email configured: {smtp_server}:{config.smtp_port}")
+        return config
+    
+    @property
+    def is_configured(self) -> bool:
+        """이메일이 설정되었는지 확인"""
+        return bool(self.smtp_server and self.username)
+
+
+def _load_quick_contacts_from_env() -> Dict[str, Dict[str, str]]:
+    """환경변수에서 빠른 연락처 로드
+    
+    Format: REPORT_QUICK_CONTACTS=name1:email1:role1,name2:email2:role2
+    """
+    contacts_str = os.getenv("REPORT_QUICK_CONTACTS", "")
+    contacts = {}
+    
+    if not contacts_str:
+        return contacts
+    
+    for entry in contacts_str.split(","):
+        parts = entry.strip().split(":")
+        if len(parts) >= 2:
+            name = parts[0].strip()
+            email = parts[1].strip()
+            role = parts[2].strip() if len(parts) > 2 else "Contact"
+            contacts[name] = {"email": email, "role": role}
+            logger.debug(f"Loaded quick contact: {name} -> {email}")
+    
+    if contacts:
+        logger.info(f"📇 Loaded {len(contacts)} quick contacts from environment")
+    
+    return contacts
 
 
 class ReportTools:
@@ -848,21 +904,36 @@ class ReportTools:
     # Email / Delivery
     # =========================================================================
     
+    async def get_email_status(self) -> dict:
+        """이메일 설정 상태 확인"""
+        return {
+            "configured": self.email_config.is_configured,
+            "smtp_server": self.email_config.smtp_server or "(not set)",
+            "smtp_port": self.email_config.smtp_port,
+            "username": self.email_config.username or "(not set)",
+            "use_tls": self.email_config.use_tls,
+            "sender_name": self.email_config.sender_name,
+            "quick_contacts_count": len(self.quick_contacts),
+            "hint": "Set environment variables or use configure_report_email tool" if not self.email_config.is_configured else None
+        }
+    
     async def configure_email(
         self,
         smtp_server: str,
         smtp_port: int = 587,
         username: str = "",
         password: str = "",
-        use_tls: bool = True
+        use_tls: bool = True,
+        sender_name: str = "Reversecore_MCP"
     ) -> dict:
-        """이메일 설정 구성"""
+        """이메일 설정 구성 (런타임 설정, 환경변수보다 우선)"""
         self.email_config = EmailConfig(
             smtp_server=smtp_server,
             smtp_port=smtp_port,
             username=username,
             password=password,
-            use_tls=use_tls
+            use_tls=use_tls,
+            sender_name=sender_name
         )
         
         return {
@@ -870,7 +941,9 @@ class ReportTools:
             "smtp_server": smtp_server,
             "smtp_port": smtp_port,
             "use_tls": use_tls,
-            "message": "Email configuration updated"
+            "sender_name": sender_name,
+            "configured": self.email_config.is_configured,
+            "message": "Email configuration updated (runtime override)"
         }
     
     async def add_quick_contact(
@@ -928,10 +1001,11 @@ class ReportTools:
             }
         
         # 이메일 설정 확인
-        if not self.email_config.smtp_server:
+        if not self.email_config.is_configured:
             return {
                 "success": False,
-                "error": "Email not configured. Use configure_email first."
+                "error": "Email not configured. Set environment variables (REPORT_SMTP_SERVER, REPORT_SMTP_USERNAME, REPORT_SMTP_PASSWORD) or use configure_report_email tool.",
+                "hint": "Copy .env.example to .env and fill in your SMTP settings"
             }
         
         # 빠른 연락처 이름을 이메일로 변환
@@ -1174,16 +1248,54 @@ _default_report_tools: Optional[ReportTools] = None
 def get_report_tools(
     template_dir: Optional[Path] = None,
     output_dir: Optional[Path] = None,
-    default_timezone: str = "Asia/Seoul"
+    default_timezone: Optional[str] = None
 ) -> ReportTools:
-    """ReportTools 싱글톤 인스턴스 반환"""
+    """
+    ReportTools 싱글톤 인스턴스 반환
+    
+    환경변수 지원:
+    - REPORT_DEFAULT_TIMEZONE: 기본 타임존 (default: Asia/Seoul)
+    - REPORT_SMTP_SERVER: SMTP 서버 주소
+    - REPORT_SMTP_PORT: SMTP 포트 (default: 587)
+    - REPORT_SMTP_USERNAME: 이메일 계정
+    - REPORT_SMTP_PASSWORD: 이메일 비밀번호
+    - REPORT_SMTP_USE_TLS: TLS 사용 여부 (default: true)
+    - REPORT_SENDER_NAME: 발신자 이름 (default: Reversecore_MCP)
+    - REPORT_QUICK_CONTACTS: 빠른 연락처 (format: name:email:role,...)
+    - REPORT_DEFAULT_CLASSIFICATION: 기본 TLP 분류 (default: TLP:AMBER)
+    - REPORT_DEFAULT_ANALYST: 기본 분석가 이름
+    """
     global _default_report_tools
     
     if _default_report_tools is None:
+        # 환경변수에서 설정 로드
+        env_timezone = os.getenv("REPORT_DEFAULT_TIMEZONE", "Asia/Seoul")
+        
+        # 이메일 설정 로드
+        email_config = EmailConfig.from_env()
+        
+        # ReportTools 인스턴스 생성
         _default_report_tools = ReportTools(
             template_dir=template_dir or Path("templates/reports"),
             output_dir=output_dir or Path("reports"),
-            default_timezone=default_timezone
+            default_timezone=default_timezone or env_timezone,
+            email_config=email_config
         )
+        
+        # 환경변수에서 빠른 연락처 로드
+        env_contacts = _load_quick_contacts_from_env()
+        _default_report_tools.quick_contacts.update(env_contacts)
+        
+        # 로그 출력
+        logger.info(f"📋 ReportTools initialized:")
+        logger.info(f"   - Timezone: {_default_report_tools.default_timezone}")
+        logger.info(f"   - Email: {'✅ Configured' if email_config.is_configured else '❌ Not configured'}")
+        logger.info(f"   - Quick contacts: {len(_default_report_tools.quick_contacts)}")
     
     return _default_report_tools
+
+
+def reset_report_tools() -> None:
+    """ReportTools 싱글톤 인스턴스 리셋 (테스트용)"""
+    global _default_report_tools
+    _default_report_tools = None

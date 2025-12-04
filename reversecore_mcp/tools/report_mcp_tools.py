@@ -463,7 +463,10 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
             password: Email password or app-specific password
             use_tls: Use TLS encryption (recommended)
         
-        Note: For Gmail, use App Passwords with 2FA enabled.
+        Note: 
+        - For Gmail, use App Passwords with 2FA enabled.
+        - For Naver, enable POP3/SMTP and use app password.
+        - You can also set email via environment variables (.env file).
         """
         result = await report_tools.configure_email(
             smtp_server=smtp_server,
@@ -472,6 +475,32 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
             password=password,
             use_tls=use_tls
         )
+        return json.dumps(result, indent=2, ensure_ascii=False)
+    
+    @mcp_server.tool()
+    async def get_email_status() -> str:
+        """
+        Check email configuration status.
+        
+        Shows whether email is configured and ready to send.
+        If not configured, provides hints on how to set it up.
+        
+        Email can be configured via:
+        1. Environment variables (.env file) - recommended for persistent config
+        2. configure_report_email tool - runtime configuration
+        
+        Environment variables:
+        - REPORT_SMTP_SERVER: SMTP server (e.g., smtp.naver.com)
+        - REPORT_SMTP_PORT: Port (default: 587)
+        - REPORT_SMTP_USERNAME: Email account
+        - REPORT_SMTP_PASSWORD: Password or app password
+        - REPORT_SMTP_USE_TLS: Use TLS (default: true)
+        - REPORT_QUICK_CONTACTS: Preset contacts (format: name:email:role,...)
+        
+        Returns:
+            JSON with configuration status and hints
+        """
+        result = await report_tools.get_email_status()
         return json.dumps(result, indent=2, ensure_ascii=False)
     
     @mcp_server.tool()
