@@ -42,7 +42,7 @@ jobs:
         REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
         LOG_LEVEL: INFO
       run: |
-        pytest tests/ -v --cov=reversecore_mcp --cov-report=xml --cov-report=term --cov-fail-under=72
+        pytest tests/ -v --cov=reversecore_mcp --cov-report=xml --cov-report=term --cov-fail-under=75
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
