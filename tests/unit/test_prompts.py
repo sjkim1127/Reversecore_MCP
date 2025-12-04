@@ -22,8 +22,8 @@ class TestPromptsRegistration:
         """Test that register_prompts registers handlers with MCP."""
         register_prompts(mock_mcp)
 
-        # Should register 8 prompts (full, basic, game, firmware, vulnerability, crypto, trinity_defense, apt_hunting)
-        assert mock_mcp.prompt.call_count == 8
+        # Should register 10 prompts (full, malware, patch, basic, game, firmware, vulnerability, crypto, trinity_defense, apt_hunting)
+        assert mock_mcp.prompt.call_count == 10
 
     def test_full_analysis_mode_registered(self, mock_mcp):
         """Test full_analysis_mode prompt is registered."""
@@ -47,8 +47,8 @@ class TestPromptsRegistration:
         assert isinstance(result, str)
         assert len(result) > 0
         assert "test.exe" in result
-        assert "Reconnaissance" in result
-        assert "Deep Analysis" in result
+        assert "Elite Reverse Engineering Expert" in result
+        assert "PHASE 1" in result
 
     def test_basic_analysis_mode_registered(self, mock_mcp):
         """Test basic_analysis_mode prompt is registered."""
@@ -97,7 +97,7 @@ class TestPromptsRegistration:
         assert isinstance(result, str)
         assert len(result) > 0
         assert "game_client.exe" in result
-        assert "Game Security Specialist" in result
+        assert "Elite Game Security Researcher" in result
         assert "Anti-Cheat" in result
 
     def test_firmware_analysis_mode_registered(self, mock_mcp):
@@ -199,11 +199,11 @@ class TestPromptContent:
 
         # Check for key sections
         assert "Language Rule" in result
-        assert "Analysis SOP" in result
-        assert "Reconnaissance" in result
-        assert "Filtering" in result
-        assert "Deep Analysis" in result
-        assert "Reporting" in result
+        assert "PHASE 1" in result
+        assert "PHASE 2" in result
+        assert "PHASE 3" in result
+        assert "REASONING CHECKPOINT" in result
+        assert "Intelligence Report" in result
 
         # Check for key tools mentioned
         assert "run_file" in result
@@ -262,7 +262,7 @@ class TestPromptContent:
         result = game_analysis("game.exe")
 
         # Check game-specific content
-        assert "Game Security Specialist" in result
+        assert "Elite Game Security Researcher" in result
         assert "Anti-Cheat" in result or "Protection Analysis" in result
         assert "recover_structures" in result
         assert "Player" in result or "Entity" in result
@@ -364,8 +364,15 @@ class TestPromptParameterization:
         register_prompts(mock_mcp)
 
         test_filename = "unique_test_binary_12345.exe"
+        test_patched_filename = "unique_test_binary_patched.exe"
 
         # Test each prompt
         for prompt_name, prompt_func in registered_prompts.items():
-            result = prompt_func(test_filename)
-            assert test_filename in result, f"Prompt {prompt_name} doesn't include filename"
+            if prompt_name == "patch_analysis_mode":
+                # patch_analysis_mode requires two filenames
+                result = prompt_func(test_filename, test_patched_filename)
+                assert test_filename in result, f"Prompt {prompt_name} doesn't include original filename"
+                assert test_patched_filename in result, f"Prompt {prompt_name} doesn't include patched filename"
+            else:
+                result = prompt_func(test_filename)
+                assert test_filename in result, f"Prompt {prompt_name} doesn't include filename"
