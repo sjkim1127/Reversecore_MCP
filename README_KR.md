@@ -13,6 +13,53 @@
 
 AI 에이전트가 자연어 명령을 통해 포괄적인 바이너리 분석을 수행할 수 있게 하는 엔터프라이즈급 MCP(Model Context Protocol) 서버입니다.
 
+## 📋 사전 요구사항
+
+### Ghidra (디컴파일에 필요)
+
+Ghidra는 고급 디컴파일 기능에 필요합니다. 설치 스크립트는 자동으로 `<프로젝트>/Tools` 디렉토리에 설치합니다.
+
+**옵션 1: 자동 설치 (권장)**
+
+```powershell
+# Windows (PowerShell)
+.\scripts\install-ghidra.ps1
+
+# 버전/경로 지정 (선택)
+.\scripts\install-ghidra.ps1 -Version "11.4.3" -InstallDir "C:\CustomPath"
+```
+
+```bash
+# Linux/macOS
+chmod +x ./scripts/install-ghidra.sh
+./scripts/install-ghidra.sh
+
+# 버전/경로 지정 (선택)
+./scripts/install-ghidra.sh -v 11.4.3 -d /custom/path
+```
+
+**스크립트가 수행하는 작업:**
+- GitHub에서 Ghidra 11.4.3 다운로드 (~400MB)
+- `<프로젝트>/Tools/ghidra_11.4.3_PUBLIC_YYYYMMDD`에 압축 해제
+- `GHIDRA_INSTALL_DIR` 환경 변수 설정
+- 프로젝트 `.env` 파일 업데이트
+
+**옵션 2: 수동 설치**
+
+1. **다운로드**: [Ghidra 11.4.3](https://github.com/NationalSecurityAgency/ghidra/releases/tag/Ghidra_11.4.3_build)
+2. `<프로젝트>/Tools/` 또는 원하는 디렉토리에 **압축 해제**
+3. **환경 변수 설정**:
+   ```bash
+   # Linux/macOS (~/.bashrc 또는 ~/.zshrc)
+   export GHIDRA_INSTALL_DIR=/path/to/ghidra_11.4.3_PUBLIC_YYYYMMDD
+   
+   # Windows (PowerShell - 영구 설정)
+   [Environment]::SetEnvironmentVariable("GHIDRA_INSTALL_DIR", "C:\path\to\ghidra", "User")
+   ```
+   또는 `.env` 파일에 추가 (`.env.example` 참조)
+
+> ⚠️ **참고**: Ghidra는 JDK 17+ 이상이 필요합니다. [Adoptium](https://adoptium.net/)에서 다운로드하세요.
+
 ## 🚀 빠른 시작
 
 ### Docker (권장)

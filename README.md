@@ -17,16 +17,16 @@ An enterprise-grade MCP (Model Context Protocol) server for AI-powered reverse e
 
 ### Ghidra (Required for Decompilation)
 
-Ghidra is required for advanced decompilation features.
+Ghidra is required for advanced decompilation features. The installation scripts automatically install Ghidra to `<project>/Tools` directory.
 
 **Option 1: Automatic Installation (Recommended)**
 
 ```powershell
-# Windows (PowerShell - Run as Administrator)
+# Windows (PowerShell)
 .\scripts\install-ghidra.ps1
 
-# With custom version/path
-.\scripts\install-ghidra.ps1 -Version "11.4.3" -InstallDir "C:\Tools"
+# With custom version/path (optional)
+.\scripts\install-ghidra.ps1 -Version "11.4.3" -InstallDir "C:\CustomPath"
 ```
 
 ```bash
@@ -34,23 +34,27 @@ Ghidra is required for advanced decompilation features.
 chmod +x ./scripts/install-ghidra.sh
 ./scripts/install-ghidra.sh
 
-# With custom version/path
-./scripts/install-ghidra.sh -v 11.4.3 -d /opt
+# With custom version/path (optional)
+./scripts/install-ghidra.sh -v 11.4.3 -d /custom/path
 ```
+
+**What the scripts do:**
+- Downloads Ghidra 11.4.3 from GitHub (~400MB)
+- Extracts to `<project>/Tools/ghidra_11.4.3_PUBLIC_YYYYMMDD`
+- Sets `GHIDRA_INSTALL_DIR` environment variable
+- Updates project `.env` file
 
 **Option 2: Manual Installation**
 
 1. **Download**: [Ghidra 11.4.3](https://github.com/NationalSecurityAgency/ghidra/releases/tag/Ghidra_11.4.3_build)
-2. **Extract** to a directory:
-   - Windows: `F:\Tools\ghidra_11.4.3_PUBLIC_YYYYMMDD`
-   - Linux/macOS: `/opt/ghidra_11.4.3_PUBLIC_YYYYMMDD`
+2. **Extract** to `<project>/Tools/` or any directory
 3. **Set environment variable**:
    ```bash
-   # Linux/macOS
-   export GHIDRA_INSTALL_DIR=/opt/ghidra_11.4.3_PUBLIC_YYYYMMDD
+   # Linux/macOS (~/.bashrc or ~/.zshrc)
+   export GHIDRA_INSTALL_DIR=/path/to/ghidra_11.4.3_PUBLIC_YYYYMMDD
    
-   # Windows (PowerShell)
-   $env:GHIDRA_INSTALL_DIR="F:\Tools\ghidra_11.4.3_PUBLIC_YYYYMMDD"
+   # Windows (PowerShell - permanent)
+   [Environment]::SetEnvironmentVariable("GHIDRA_INSTALL_DIR", "C:\path\to\ghidra", "User")
    ```
    Or add to `.env` file (copy from `.env.example`)
 

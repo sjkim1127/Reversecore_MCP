@@ -2,20 +2,27 @@
 # =============================================================================
 # Ghidra Installation Script for Linux/macOS
 # =============================================================================
-# This script downloads and installs Ghidra
+# This script downloads and installs Ghidra to the Reversecore MCP Tools directory
 # Usage: ./scripts/install-ghidra.sh [-v VERSION] [-d INSTALL_DIR]
+#
+# Default installation: <project_root>/Tools/ghidra_<version>
 
 set -e
 
+# Get script directory and project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
 # Default values
 VERSION="11.4.3"
-INSTALL_DIR="/opt"
+INSTALL_DIR=""
 
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
+GRAY='\033[0;90m'
 NC='\033[0m' # No Color
 
 # Parse arguments
@@ -26,16 +33,24 @@ while getopts "v:d:h" opt; do
         h)
             echo "Usage: $0 [-v VERSION] [-d INSTALL_DIR]"
             echo "  -v VERSION     Ghidra version (default: 11.4.3)"
-            echo "  -d INSTALL_DIR Installation directory (default: /opt)"
+            echo "  -d INSTALL_DIR Installation directory (default: <project>/Tools)"
             exit 0
             ;;
         \?) echo "Invalid option: -$OPTARG" >&2; exit 1 ;;
     esac
 done
 
+# Default to project Tools directory if not specified
+if [ -z "$INSTALL_DIR" ]; then
+    INSTALL_DIR="$PROJECT_ROOT/Tools"
+fi
+
 echo -e "${CYAN}=============================================${NC}"
 echo -e "${CYAN}  Ghidra ${VERSION} Installation Script${NC}"
 echo -e "${CYAN}=============================================${NC}"
+echo ""
+echo -e "${GRAY}Project Root: $PROJECT_ROOT${NC}"
+echo -e "${GRAY}Install Dir:  $INSTALL_DIR${NC}"
 echo ""
 
 # Check for required tools
@@ -52,7 +67,7 @@ check_command unzip
 # Step 1: Create installation directory
 echo -e "${YELLOW}[1/5] Creating installation directory...${NC}"
 if [ ! -d "$INSTALL_DIR" ]; then
-    sudo mkdir -p "$INSTALL_DIR"
+    mkdir -p "$INSTALL_DIR"
     echo -e "  ${GREEN}Created: $INSTALL_DIR${NC}"
 else
     echo -e "  ${GREEN}Already exists: $INSTALL_DIR${NC}"
@@ -67,8 +82,19 @@ DOWNLOAD_URL=$(curl -s "$RELEASES_API" | grep -o '"browser_download_url": "[^"]*
 if [ -z "$DOWNLOAD_URL" ]; then
     echo -e "  ${YELLOW}Could not fetch from API, trying known patterns...${NC}"
     
-    # Try recent dates
-    for DATE in $(date +%Y%m%d) $(date -d "yesterday" +%Y%m%d 2>/dev/null || date -v-1d +%Y%m%d 2>/dev/null) "20251204" "20251203"; do
+    # Try recent dates (compatible with both Linux and macOS)
+    DATES_TO_TRY="$(date +%Y%m%d) 20251204 20251203"
+    
+    # Add yesterday for Linux
+    if date -d "yesterday" +%Y%m%d &>/dev/null; then
+        DATES_TO_TRY="$DATES_TO_TRY $(date -d 'yesterday' +%Y%m%d)"
+    fi
+    # Add yesterday for macOS
+    if date -v-1d +%Y%m%d &>/dev/null; then
+        DATES_TO_TRY="$DATES_TO_TRY $(date -v-1d +%Y%m%d)"
+    fi
+    
+    for DATE in $DATES_TO_TRY; do
         TEST_URL="https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_${VERSION}_build/ghidra_${VERSION}_PUBLIC_${DATE}.zip"
         if curl --output /dev/null --silent --head --fail "$TEST_URL"; then
             DOWNLOAD_URL="$TEST_URL"
@@ -94,8 +120,8 @@ echo -e "  ${GREEN}Found: $FILENAME${NC}"
 # Step 3: Download Ghidra
 DOWNLOAD_PATH="/tmp/$FILENAME"
 echo -e "${YELLOW}[3/5] Downloading Ghidra ($FILENAME)...${NC}"
-echo -e "  URL: $DOWNLOAD_URL"
-echo -e "  This may take several minutes (~400MB)..."
+echo -e "  ${GRAY}URL: $DOWNLOAD_URL${NC}"
+echo -e "  ${GRAY}This may take several minutes (~400MB)...${NC}"
 
 curl -L -o "$DOWNLOAD_PATH" "$DOWNLOAD_URL" --progress-bar
 
@@ -104,9 +130,9 @@ echo -e "  ${GREEN}Downloaded: $FILE_SIZE${NC}"
 
 # Step 4: Extract Ghidra
 echo -e "${YELLOW}[4/5] Extracting Ghidra to $INSTALL_DIR...${NC}"
-echo -e "  This may take a minute..."
+echo -e "  ${GRAY}This may take a minute...${NC}"
 
-sudo unzip -q -o "$DOWNLOAD_PATH" -d "$INSTALL_DIR"
+unzip -q -o "$DOWNLOAD_PATH" -d "$INSTALL_DIR"
 
 # Find extracted directory
 GHIDRA_DIR=$(find "$INSTALL_DIR" -maxdepth 1 -type d -name "ghidra_*" | sort -r | head -1)
@@ -119,8 +145,8 @@ fi
 echo -e "  ${GREEN}Extracted to: $GHIDRA_DIR${NC}"
 
 # Make scripts executable
-sudo chmod +x "$GHIDRA_DIR/ghidraRun"
-sudo chmod +x "$GHIDRA_DIR/support/analyzeHeadless"
+chmod +x "$GHIDRA_DIR/ghidraRun"
+chmod +x "$GHIDRA_DIR/support/analyzeHeadless"
 
 # Step 5: Set environment variable
 echo -e "${YELLOW}[5/5] Setting environment variable...${NC}"
@@ -137,22 +163,40 @@ fi
 # Add to shell config if not already present
 if ! grep -q "GHIDRA_INSTALL_DIR" "$SHELL_RC" 2>/dev/null; then
     echo "" >> "$SHELL_RC"
-    echo "# Ghidra installation path" >> "$SHELL_RC"
+    echo "# Ghidra installation path (added by Reversecore MCP)" >> "$SHELL_RC"
     echo "export GHIDRA_INSTALL_DIR=\"$GHIDRA_DIR\"" >> "$SHELL_RC"
     echo -e "  ${GREEN}Added to $SHELL_RC${NC}"
 else
-    # Update existing
-    sed -i.bak "s|export GHIDRA_INSTALL_DIR=.*|export GHIDRA_INSTALL_DIR=\"$GHIDRA_DIR\"|" "$SHELL_RC"
+    # Update existing - handle both Linux and macOS sed
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "s|export GHIDRA_INSTALL_DIR=.*|export GHIDRA_INSTALL_DIR=\"$GHIDRA_DIR\"|" "$SHELL_RC"
+    else
+        sed -i "s|export GHIDRA_INSTALL_DIR=.*|export GHIDRA_INSTALL_DIR=\"$GHIDRA_DIR\"|" "$SHELL_RC"
+    fi
     echo -e "  ${GREEN}Updated in $SHELL_RC${NC}"
 fi
 
 # Set for current session
 export GHIDRA_INSTALL_DIR="$GHIDRA_DIR"
+
+# Update .env file in project root
+ENV_FILE="$PROJECT_ROOT/.env"
+if [ -f "$ENV_FILE" ]; then
+    if ! grep -q "GHIDRA_INSTALL_DIR" "$ENV_FILE" 2>/dev/null; then
+        echo "" >> "$ENV_FILE"
+        echo "GHIDRA_INSTALL_DIR=$GHIDRA_DIR" >> "$ENV_FILE"
+        echo -e "  ${GREEN}Added to .env file${NC}"
+    fi
+else
+    echo "GHIDRA_INSTALL_DIR=$GHIDRA_DIR" > "$ENV_FILE"
+    echo -e "  ${GREEN}Created .env file${NC}"
+fi
+
 echo -e "  ${GREEN}GHIDRA_INSTALL_DIR = $GHIDRA_DIR${NC}"
 
 # Cleanup
 echo ""
-echo "Cleaning up temporary files..."
+echo -e "${GRAY}Cleaning up temporary files...${NC}"
 rm -f "$DOWNLOAD_PATH"
 
 # Summary
@@ -181,7 +225,11 @@ if command -v java &> /dev/null; then
 else
     echo -e "  ${RED}WARNING: Java not found!${NC}"
     echo -e "  ${YELLOW}Ghidra requires JDK 17 or later.${NC}"
-    echo -e "  ${CYAN}Install with: sudo apt install openjdk-17-jdk (Ubuntu/Debian)${NC}"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        echo -e "  ${CYAN}Install with: brew install openjdk@17${NC}"
+    else
+        echo -e "  ${CYAN}Install with: sudo apt install openjdk-17-jdk (Ubuntu/Debian)${NC}"
+    fi
     echo -e "  ${CYAN}Or download from: https://adoptium.net/${NC}"
 fi
 

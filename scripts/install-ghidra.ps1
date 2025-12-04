@@ -1,15 +1,26 @@
 # =============================================================================
 # Ghidra Installation Script for Windows
 # =============================================================================
-# This script downloads and installs Ghidra to F:\Tools directory
-# Usage: .\scripts\install-ghidra.ps1 [-Version "11.4.3"] [-InstallDir "F:\Tools"]
+# This script downloads and installs Ghidra to the Reversecore MCP Tools directory
+# Usage: .\scripts\install-ghidra.ps1 [-Version "11.4.3"] [-InstallDir ".\Tools"]
+#
+# Default installation: <project_root>\Tools\ghidra_<version>
 
 param(
     [string]$Version = "11.4.3",
-    [string]$InstallDir = "F:\Tools"
+    [string]$InstallDir = ""
 )
 
 $ErrorActionPreference = "Stop"
+
+# Get script directory and project root
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ProjectRoot = Split-Path -Parent $ScriptDir
+
+# Default to project Tools directory if not specified
+if ([string]::IsNullOrEmpty($InstallDir)) {
+    $InstallDir = Join-Path $ProjectRoot "Tools"
+}
 
 # Ghidra release URL pattern
 $GhidraReleasesApi = "https://api.github.com/repos/NationalSecurityAgency/ghidra/releases/tags/Ghidra_${Version}_build"
@@ -17,6 +28,9 @@ $GhidraReleasesApi = "https://api.github.com/repos/NationalSecurityAgency/ghidra
 Write-Host "=============================================" -ForegroundColor Cyan
 Write-Host "  Ghidra $Version Installation Script" -ForegroundColor Cyan
 Write-Host "=============================================" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "Project Root: $ProjectRoot" -ForegroundColor Gray
+Write-Host "Install Dir:  $InstallDir" -ForegroundColor Gray
 Write-Host ""
 
 # Step 1: Create Tools directory
@@ -143,6 +157,20 @@ $env:GHIDRA_INSTALL_DIR = $ghidraPath
 # Set permanently for user
 [Environment]::SetEnvironmentVariable("GHIDRA_INSTALL_DIR", $ghidraPath, "User")
 Write-Host "  GHIDRA_INSTALL_DIR = $ghidraPath" -ForegroundColor Green
+
+# Create .env file in project root if it doesn't have GHIDRA_INSTALL_DIR
+$envFile = Join-Path $ProjectRoot ".env"
+if (Test-Path $envFile) {
+    $envContent = Get-Content $envFile -Raw
+    if ($envContent -notmatch "GHIDRA_INSTALL_DIR") {
+        Add-Content -Path $envFile -Value "`nGHIDRA_INSTALL_DIR=$ghidraPath"
+        Write-Host "  Added to .env file" -ForegroundColor Green
+    }
+} else {
+    # Create .env with Ghidra path
+    "GHIDRA_INSTALL_DIR=$ghidraPath" | Out-File -FilePath $envFile -Encoding utf8
+    Write-Host "  Created .env file" -ForegroundColor Green
+}
 
 # Cleanup
 Write-Host ""
