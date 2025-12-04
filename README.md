@@ -13,6 +13,26 @@
 
 An enterprise-grade MCP (Model Context Protocol) server for AI-powered reverse engineering. Enables AI agents to perform comprehensive binary analysis through natural language commands.
 
+## 📋 Prerequisites
+
+### Ghidra (Required for Decompilation)
+
+Ghidra is required for advanced decompilation features. Download and install:
+
+1. **Download**: [https://ghidra-sre.org/](https://ghidra-sre.org/)
+2. **Extract** to a directory (e.g., `F:\Tools\ghidra_11.4.2_PUBLIC` on Windows)
+3. **Set environment variable**:
+   ```bash
+   # Linux/macOS
+   export GHIDRA_INSTALL_DIR=/opt/ghidra
+   
+   # Windows (PowerShell)
+   $env:GHIDRA_INSTALL_DIR="F:\Tools\ghidra_11.4.2_PUBLIC"
+   ```
+   Or add to `.env` file (copy from `.env.example`)
+
+> ⚠️ **Note**: JDK 17+ is required for Ghidra. Ghidra will prompt you to install it if missing.
+
 ## 🚀 Quick Start
 
 ### Docker (Recommended)
