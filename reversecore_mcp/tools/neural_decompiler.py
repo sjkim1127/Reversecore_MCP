@@ -24,6 +24,26 @@ from reversecore_mcp.core.security import validate_file_path
 
 logger = get_logger(__name__)
 
+# OPTIMIZATION: Pre-compile regex patterns used in hot paths for variable renaming
+# These patterns match API calls and extract the assigned variable name
+_API_PATTERNS = [
+    (re.compile(r"(\w+)\s*=\s*socket\("), "sock_fd"),
+    (re.compile(r"(\w+)\s*=\s*fopen\("), "file_handle"),
+    (re.compile(r"(\w+)\s*=\s*recv\("), "bytes_received"),
+    (re.compile(r"(\w+)\s*=\s*send\("), "bytes_sent"),
+    (re.compile(r"(\w+)\s*=\s*malloc\("), "heap_ptr"),
+    (re.compile(r"(\w+)\s*=\s*calloc\("), "heap_ptr"),
+    (re.compile(r"(\w+)\s*=\s*realloc\("), "heap_ptr"),
+    (re.compile(r"(\w+)\s*=\s*CreateFile\w*\("), "file_handle"),
+    (re.compile(r"(\w+)\s*=\s*CreateThread\("), "thread_handle"),
+    (re.compile(r"(\w+)\s*=\s*connect\("), "conn_result"),
+    (re.compile(r"(\w+)\s*=\s*accept\("), "client_sock"),
+    (re.compile(r"(\w+)\s*=\s*RegOpenKey\w*\("), "reg_key"),
+    (re.compile(r"(\w+)\s*=\s*RegCreateKey\w*\("), "reg_key"),
+    (re.compile(r"(\w+)\s*=\s*GetProcAddress\("), "proc_addr"),
+    (re.compile(r"(\w+)\s*=\s*LoadLibrary\w*\("), "lib_handle"),
+]
+
 
 def register_neural_decompiler(mcp: FastMCP) -> None:
     """Register the Neural Decompiler tool with the FastMCP server."""
@@ -170,29 +190,10 @@ def _refine_code(code: str) -> str:
     # API counters for unique naming
     api_counters = {}
 
-    # Extended API patterns with meaningful names
-    api_patterns = [
-        (r"(\w+)\s*=\s*socket\(", "sock_fd"),
-        (r"(\w+)\s*=\s*fopen\(", "file_handle"),
-        (r"(\w+)\s*=\s*recv\(", "bytes_received"),
-        (r"(\w+)\s*=\s*send\(", "bytes_sent"),
-        (r"(\w+)\s*=\s*malloc\(", "heap_ptr"),
-        (r"(\w+)\s*=\s*calloc\(", "heap_ptr"),
-        (r"(\w+)\s*=\s*realloc\(", "heap_ptr"),
-        (r"(\w+)\s*=\s*CreateFile\w*\(", "file_handle"),
-        (r"(\w+)\s*=\s*CreateThread\(", "thread_handle"),
-        (r"(\w+)\s*=\s*connect\(", "conn_result"),
-        (r"(\w+)\s*=\s*accept\(", "client_sock"),
-        (r"(\w+)\s*=\s*RegOpenKey\w*\(", "reg_key"),
-        (r"(\w+)\s*=\s*RegCreateKey\w*\(", "reg_key"),
-        (r"(\w+)\s*=\s*GetProcAddress\(", "proc_addr"),
-        (r"(\w+)\s*=\s*LoadLibrary\w*\(", "lib_handle"),
-    ]
-
-    # 1. First Pass: Analyze API usage to build variable map
+    # 1. First Pass: Analyze API usage to build variable map (using pre-compiled patterns)
     for line in lines:
-        for pattern, base_name in api_patterns:
-            if match := re.search(pattern, line):
+        for pattern, base_name in _API_PATTERNS:
+            if match := pattern.search(line):
                 var_name = match.group(1)
 
                 # Generate unique name if multiple variables use same API
@@ -204,20 +205,29 @@ def _refine_code(code: str) -> str:
                 var_map[var_name] = unique_name
                 break  # Stop after first match per line
 
+    # OPTIMIZATION: Pre-compile all variable renaming patterns before second pass
+    # This avoids recompiling the same pattern for each line
+    var_patterns = {
+        old: re.compile(r"\b" + re.escape(old) + r"\b")
+        for old in var_map.keys()
+    }
+
     # 2. Second Pass: Apply transformations
     for line in lines:
         new_line = line
 
-        # Apply variable renaming
+        # Apply variable renaming (using pre-compiled patterns)
         for old, new in var_map.items():
-            # Use word boundary to avoid partial matches
-            if re.search(r"\b" + re.escape(old) + r"\b", new_line):
+            pattern = var_patterns[old]
+            
+            # Check if variable exists in line before attempting replacement
+            if pattern.search(new_line):
                 # Add comment on first definition
                 if f"{old} =" in new_line or f"{old};" in new_line:
-                    new_line = re.sub(r"\b" + re.escape(old) + r"\b", new, new_line)
+                    new_line = pattern.sub(new, new_line)
                     new_line += f" /* Renamed from {old} */"
                 else:
-                    new_line = re.sub(r"\b" + re.escape(old) + r"\b", new, new_line)
+                    new_line = pattern.sub(new, new_line)
 
         # Structure Inference: *(ptr + 4) -> ptr->field_4
         # Regex: \*\((int|long|void)\s*\*\)\s*\((\w+)\s*\+\s*(0x[0-9a-fA-F]+|\d+)\)

@@ -304,8 +304,8 @@ Showing: {shown}
                 phase_3 = data.get("phase_3_neutralize", [])
                 recommendations = data.get("recommendations", [])
 
-                # Format report
-                report = f"""# 🔱 Trinity Defense System Report: {filename}
+                # Format report (using list to avoid string concatenation in loops)
+                report_parts = [f"""# 🔱 Trinity Defense System Report: {filename}
 
 ## Executive Summary
 - **Threats Discovered**: {summary.get("threats_discovered", 0)}
@@ -319,36 +319,41 @@ Showing: {shown}
 - Total Threats: {phase_1.get("total_threats", 0)}
 
 ## Phase 2: UNDERSTAND (Neural Decompiler)
-"""
+"""]
+                
+                # OPTIMIZATION: Build threat sections in list to avoid repeated string concatenation
                 for i, threat in enumerate(phase_2[:5]):
                     intent = threat.get("intent", "unknown")
                     confidence = threat.get("confidence", 0.0)
-                    report += f"""
+                    report_parts.append(f"""
 ### Threat {i + 1}: {threat.get("function", "unknown")}
 - **Address**: {threat.get("address", "N/A")}
 - **Intent**: {intent}
 - **Confidence**: {confidence:.2f}
 - **Reason**: {threat.get("reason", "N/A")}
-"""
+""")
 
-                report += "\n## Phase 3: NEUTRALIZE (Adaptive Vaccine)\n"
-                report += f"- YARA Rules Generated: {len(phase_3)}\n\n"
+                report_parts.append("\n## Phase 3: NEUTRALIZE (Adaptive Vaccine)\n")
+                report_parts.append(f"- YARA Rules Generated: {len(phase_3)}\n\n")
 
-                report += "## Recommendations\n"
+                report_parts.append("## Recommendations\n")
                 for i, rec in enumerate(recommendations[:5]):
                     if isinstance(rec, dict):
-                        report += f"\n### {rec.get('severity', 'INFO')}: {rec.get('threat_type', 'Unknown')}\n"
-                        report += f"- **Location**: {rec.get('location', 'N/A')}\n"
-                        report += f"- **Confidence**: {rec.get('confidence', 0.0):.2f}\n"
+                        rec_parts = [
+                            f"\n### {rec.get('severity', 'INFO')}: {rec.get('threat_type', 'Unknown')}\n",
+                            f"- **Location**: {rec.get('location', 'N/A')}\n",
+                            f"- **Confidence**: {rec.get('confidence', 0.0):.2f}\n"
+                        ]
                         immediate = rec.get("immediate_actions", [])
                         if immediate:
-                            report += "\n**Immediate Actions:**\n"
+                            rec_parts.append("\n**Immediate Actions:**\n")
                             for action in immediate[:5]:
-                                report += f"- {action}\n"
+                                rec_parts.append(f"- {action}\n")
+                        report_parts.append("".join(rec_parts))
                     else:
-                        report += f"{i + 1}. {rec}\n"
+                        report_parts.append(f"{i + 1}. {rec}\n")
 
-                return report
+                return "".join(report_parts)
 
             return f"Trinity Defense analysis failed: {result.message if hasattr(result, 'message') else 'Unknown error'}"
         except Exception as e:

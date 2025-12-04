@@ -44,6 +44,9 @@ from reversecore_mcp.core.validators import validate_tool_parameters
 # Load default timeout from configuration
 DEFAULT_TIMEOUT = get_config().default_tool_timeout
 
+# OPTIMIZATION: Pre-compile regex patterns used in hot paths
+_ADDRESS_FORMAT_PATTERN = re.compile(r"^[a-zA-Z0-9_.]+$")
+
 
 @log_execution(tool_name="run_radare2")
 @track_metrics("run_radare2")
@@ -691,9 +694,8 @@ async def analyze_xrefs(
         )
 
     # 2. Validate address format
-    # OPTIMIZATION: Use efficient regex substitution instead of chained replace
-    if not re.match(
-        r"^[a-zA-Z0-9_.]+$",
+    # OPTIMIZATION: Use pre-compiled pattern
+    if not _ADDRESS_FORMAT_PATTERN.match(
         _strip_address_prefixes(address),
     ):
         return failure(

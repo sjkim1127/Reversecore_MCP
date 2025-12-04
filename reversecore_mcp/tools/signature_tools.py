@@ -38,6 +38,7 @@ _HEX_ADDRESS_PATTERN = re.compile(r"^[0-9a-fA-F]+$")
 _HEX_BYTES_PATTERN = re.compile(r"^[0-9a-fA-F]+$")
 _ALL_FF_PATTERN = re.compile(r"^(ff)+$", re.IGNORECASE)
 _ALL_00_PATTERN = re.compile(r"^(00)+$")
+_RULE_NAME_PATTERN = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]*$")
 
 
 def _validate_address_or_fail(address: str, param_name: str = "address"):
@@ -288,7 +289,7 @@ async def generate_yara_rule(
     validated_path = validate_file_path(file_path)
 
     # 2. Validate rule_name format
-    if not re.match(r"^[a-zA-Z][a-zA-Z0-9_]*$", rule_name):
+    if not _RULE_NAME_PATTERN.match(rule_name):
         return failure(
             "VALIDATION_ERROR",
             "rule_name must start with a letter and contain only alphanumeric characters and underscores",
@@ -319,7 +320,7 @@ async def generate_yara_rule(
 
     # 5. Validate output
     hex_bytes = output.strip()
-    if not hex_bytes or not re.match(r"^[0-9a-fA-F]+$", hex_bytes):
+    if not hex_bytes or not _HEX_BYTES_PATTERN.match(hex_bytes):
         return failure(
             "YARA_GENERATION_ERROR",
             f"Failed to extract valid hex bytes from address: {function_address}",
@@ -328,7 +329,7 @@ async def generate_yara_rule(
 
     # Check for invalid patterns (all 00 or all FF)
     if len(hex_bytes) > 16 and (
-        re.match(r"^(00)+$", hex_bytes) or re.match(r"^(ff)+$", hex_bytes, re.IGNORECASE)
+        _ALL_00_PATTERN.match(hex_bytes) or _ALL_FF_PATTERN.match(hex_bytes)
     ):
         # Smart Offset Search: Try to find a better address
         # 1. Try 'main' if we weren't already there
