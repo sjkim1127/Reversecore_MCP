@@ -177,6 +177,9 @@ _DANGEROUS_SINKS = frozenset(
     }
 )
 
+# OPTIMIZATION: Pre-define translation table for faster function name cleaning
+_FUNC_NAME_CLEAN_TABLE = str.maketrans({"_": ""})
+
 
 @log_execution(tool_name="trace_execution_path")
 @track_metrics("trace_execution_path")
@@ -229,8 +232,11 @@ async def trace_execution_path(
         """Check if function name matches any dangerous sink API."""
         if not func_name:
             return False
-        # Strip common prefixes and check against known sinks
-        clean_name = func_name.replace("sym.imp.", "").replace("sym.", "").replace("_", "")
+        # OPTIMIZATION: Use str.translate() for faster prefix removal
+        # Remove common prefixes first
+        clean_name = func_name.replace("sym.imp.", "").replace("sym.", "")
+        # Then remove underscores using translate (faster than replace)
+        clean_name = clean_name.translate(_FUNC_NAME_CLEAN_TABLE)
         return any(sink in clean_name.lower() for sink in _DANGEROUS_SINKS)
 
     # Helper to get address of a function name

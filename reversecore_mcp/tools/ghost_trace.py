@@ -26,6 +26,16 @@ from reversecore_mcp.core.security import validate_file_path
 
 logger = get_logger(__name__)
 
+# OPTIMIZATION: Pre-compile regex patterns used in hot paths
+_JSON_ARRAY_PATTERN = re.compile(r"\[(?:[^\[\]]|\[(?:[^\[\]]|\[[^\[\]]*\])*\])*\]", re.DOTALL)
+_JSON_OBJECT_PATTERN = re.compile(r"\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}", re.DOTALL)
+_NESTED_JSON_PATTERN = re.compile(r"\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}", re.DOTALL)
+_HEX_ADDRESS_PATTERN = re.compile(r"^0x[0-9a-fA-F]+$")
+_SYMBOL_PATTERN = re.compile(r"^sym\.[a-zA-Z0-9_\.]+$")
+_FUNCTION_NAME_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+_REG_PATTERN = re.compile(r"^[a-z0-9]+$")
+_VALUE_PATTERN = re.compile(r"^(0x[0-9a-fA-F]+|\d+)$")
+
 
 def _extract_json_safely(output: str) -> Any | None:
     """Extract JSON from radare2 output with multiple fallback strategies."""
@@ -33,13 +43,14 @@ def _extract_json_safely(output: str) -> Any | None:
         return None
 
     # Strategy 1: Try to find JSON array/object with proper nesting
+    # OPTIMIZATION: Use pre-compiled patterns (faster)
     json_patterns = [
-        (r"\[(?:[^\[\]]|\[(?:[^\[\]]|\[[^\[\]]*\])*\])*\]", "array"),  # Nested arrays
-        (r"\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}", "object"),  # Nested objects
+        (_JSON_ARRAY_PATTERN, "array"),  # Nested arrays
+        (_JSON_OBJECT_PATTERN, "object"),  # Nested objects
     ]
 
     for pattern, pattern_type in json_patterns:
-        matches = re.findall(pattern, output, re.DOTALL)
+        matches = pattern.findall(output)
         # Try from last to first (radare2 usually puts command output at the end)
         for match in reversed(matches):
             try:
@@ -72,16 +83,12 @@ def _extract_json_safely(output: str) -> Any | None:
 
 def _validate_r2_identifier(identifier: str) -> str:
     """Validate and sanitize radare2 function/address identifier."""
+    # OPTIMIZATION: Use pre-compiled patterns (faster)
     # Allow: hex addresses (0x...), symbols (sym.*), function names
-    valid_patterns = [
-        r"^0x[0-9a-fA-F]+$",  # Hex address
-        r"^sym\.[a-zA-Z0-9_\.]+$",  # Symbol
-        r"^[a-zA-Z_][a-zA-Z0-9_]*$",  # Simple function name
-    ]
-
-    for pattern in valid_patterns:
-        if re.match(pattern, identifier):
-            return identifier
+    if (_HEX_ADDRESS_PATTERN.match(identifier) or 
+        _SYMBOL_PATTERN.match(identifier) or 
+        _FUNCTION_NAME_PATTERN.match(identifier)):
+        return identifier
 
     raise ValidationError(
         f"Invalid radare2 identifier: '{identifier}'. "
@@ -392,7 +399,8 @@ async def _identify_conditional_paths(
             # Parse each function's output
             # Note: with multiple pdfj, output contains multiple JSON objects
             # We need to split them carefully
-            json_outputs = re.findall(r"\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}", out, re.DOTALL)
+            # OPTIMIZATION: Use pre-compiled pattern (faster)
+            json_outputs = _NESTED_JSON_PATTERN.findall(out)
 
             for func, json_str in zip(batch, json_outputs, strict=False):
                 try:
@@ -465,12 +473,12 @@ async def _verify_hypothesis_with_emulation(
 
     # Set registers (validate register names and values)
     for reg, val in regs.items():
-        # Basic validation: register names should be alphanumeric
-        if not re.match(r"^[a-z0-9]+$", reg.lower()):
+        # OPTIMIZATION: Use pre-compiled pattern (faster)
+        if not _REG_PATTERN.match(reg.lower()):
             logger.warning(f"Skipping invalid register name: {reg}")
             continue
-        # Validate value format (hex or decimal)
-        if not re.match(r"^(0x[0-9a-fA-F]+|\d+)$", str(val)):
+        # OPTIMIZATION: Use pre-compiled pattern (faster)
+        if not _VALUE_PATTERN.match(str(val)):
             logger.warning(f"Skipping invalid register value: {val}")
             continue
         cmds.append(f"aer {reg}={val}")
