@@ -205,21 +205,21 @@ def _refine_code(code: str) -> str:
                 var_map[var_name] = unique_name
                 break  # Stop after first match per line
 
-    # OPTIMIZATION: Pre-compile all variable renaming patterns before second pass
-    # This avoids recompiling the same pattern for each line
-    var_patterns = {
-        old: re.compile(r"\b" + re.escape(old) + r"\b")
-        for old in var_map.keys()
-    }
-
     # 2. Second Pass: Apply transformations
+    # OPTIMIZATION: Compile patterns lazily only when needed
+    var_patterns = {}  # Cache for compiled patterns
+    
     for line in lines:
         new_line = line
 
-        # Apply variable renaming (using pre-compiled patterns)
+        # Apply variable renaming (compile patterns on first use)
         for old, new in var_map.items():
-            pattern = var_patterns[old]
+            # OPTIMIZATION: Lazy compilation - only compile if variable not already compiled
+            if old not in var_patterns:
+                var_patterns[old] = re.compile(r"\b" + re.escape(old) + r"\b")
             
+            pattern = var_patterns[old]
+
             # Check if variable exists in line before attempting replacement
             if pattern.search(new_line):
                 # Add comment on first definition

@@ -339,17 +339,17 @@ Showing: {shown}
                 report_parts.append("## Recommendations\n")
                 for i, rec in enumerate(recommendations[:5]):
                     if isinstance(rec, dict):
-                        rec_parts = [
-                            f"\n### {rec.get('severity', 'INFO')}: {rec.get('threat_type', 'Unknown')}\n",
-                            f"- **Location**: {rec.get('location', 'N/A')}\n",
+                        # OPTIMIZATION: Build recommendation section directly
+                        report_parts.append(
+                            f"\n### {rec.get('severity', 'INFO')}: {rec.get('threat_type', 'Unknown')}\n"
+                            f"- **Location**: {rec.get('location', 'N/A')}\n"
                             f"- **Confidence**: {rec.get('confidence', 0.0):.2f}\n"
-                        ]
+                        )
                         immediate = rec.get("immediate_actions", [])
                         if immediate:
-                            rec_parts.append("\n**Immediate Actions:**\n")
+                            report_parts.append("\n**Immediate Actions:**\n")
                             for action in immediate[:5]:
-                                rec_parts.append(f"- {action}\n")
-                        report_parts.append("".join(rec_parts))
+                                report_parts.append(f"- {action}\n")
                     else:
                         report_parts.append(f"{i + 1}. {rec}\n")
 
