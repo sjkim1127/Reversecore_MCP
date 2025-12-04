@@ -6,7 +6,7 @@
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/)
 [![FastMCP](https://img.shields.io/badge/FastMCP-2.13.1-green)](https://github.com/jlowin/fastmcp)
 [![Docker](https://img.shields.io/badge/docker-ready-blue)](https://www.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-890%20passed-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-852%20passed-brightgreen)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-76%25-green)](htmlcov/)
 
 [🇰🇷 한국어 (Korean)](README_KR.md)

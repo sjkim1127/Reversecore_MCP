@@ -65,7 +65,7 @@ try {
     foreach ($date in $possibleDates) {
         $testUrl = "https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_${Version}_build/ghidra_${Version}_PUBLIC_$date.zip"
         try {
-            $response = Invoke-WebRequest -Uri $testUrl -Method Head -UseBasicParsing -ErrorAction Stop
+            $null = Invoke-WebRequest -Uri $testUrl -Method Head -UseBasicParsing -ErrorAction Stop
             $downloadUrl = $testUrl
             $fileName = "ghidra_${Version}_PUBLIC_$date.zip"
             Write-Host "  Found: $fileName" -ForegroundColor Green

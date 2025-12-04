@@ -6,7 +6,7 @@
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/)
 [![FastMCP](https://img.shields.io/badge/FastMCP-2.13.1-green)](https://github.com/jlowin/fastmcp)
 [![Docker](https://img.shields.io/badge/docker-ready-blue)](https://www.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-890%20passed-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-852%20passed-brightgreen)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-76%25-green)](htmlcov/)
 
 [🇺🇸 English](README.md)
@@ -143,6 +143,27 @@ docker build -f Dockerfile -t reversecore-mcp:latest .
 - **프로토콜 분석기**: 한국 MMO 프로토콜 패턴 탐지 (CS_/SC_, MSG_/PKT_)
 - **함수 패턴 매칭**: 속도 배수, 좌표 조작, 체력 수정 탐지
 
+### 📝 리포트 생성 도구 (신규!)
+
+정확한 타임스탬프를 포함한 전문적인 악성코드 분석 리포트 생성:
+
+- **세션 추적**: 분석 세션 시작/종료 및 자동 소요 시간 계산
+- **IOC 수집**: 분석 중 지표 수집 및 정리 (해시, IP, 도메인, URL)
+- **MITRE ATT&CK 매핑**: 프레임워크 참조와 함께 기법 문서화
+- **다양한 템플릿**: 전체 분석, 빠른 분류, IOC 요약, 경영진 브리핑
+- **이메일 전송**: 보안 팀에 리포트 직접 전송 (SMTP 지원)
+- **시간대 지원**: UTC, KST, EST, PST, CET 등
+
+```
+# 워크플로우 예시
+get_system_time()                    # 정확한 서버 타임스탬프
+start_analysis_session(sample_path="malware.exe")
+add_session_ioc("ips", "192.168.1.100")
+add_session_mitre("T1059.001", "PowerShell", "Execution")
+end_analysis_session(summary="랜섬웨어 변종 탐지")
+create_analysis_report(template_type="full_analysis")
+```
+
 ### ⚡ 성능 최적화 (v3.0)
 
 - **동적 타임아웃**: 파일 크기에 따라 자동 조절 (base + 2s/MB, 최대 +600s)
@@ -162,6 +183,7 @@ docker build -f Dockerfile -t reversecore-mcp:latest .
 | **바이너리 파싱** | `parse_binary_with_lief`, `extract_iocs` |
 | **비교** | `diff_binaries`, `match_libraries` |
 | **게임 분석** | `find_cheat_points`, `analyze_game_protocol` |
+| **리포팅** | `get_system_time`, `start_analysis_session`, `create_analysis_report` |
 
 ## 📊 분석 워크플로우
 
@@ -175,6 +197,7 @@ docker build -f Dockerfile -t reversecore-mcp:latest .
 - `basic_analysis_mode` - 빠른 분류
 - `game_analysis_mode` - **치트 탐지 휴리스틱**을 갖춘 게임 클라이언트 분석
 - `firmware_analysis_mode` - IoT/펌웨어 분석
+- `report_generation_mode` - 전문적인 리포트 생성 워크플로우 **(신규!)**
 
 > 💡 **AI 추론 강화**: 프롬프트는 전문가 페르소나 프라이밍, Chain-of-Thought 체크포인트, 구조화된 추론을 사용하여 AI 분석 능력을 극대화합니다.
 

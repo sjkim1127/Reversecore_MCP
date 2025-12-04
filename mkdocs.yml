@@ -1,10 +1,10 @@
 site_name: Reversecore MCP
 site_description: AI-Powered Binary Analysis Platform
 site_author: Reversecore Team
-site_url: https://yourusername.github.io/Reversecore_MCP/
+site_url: https://sjkim1127.github.io/Reversecore_MCP/
 
-repo_name: yourusername/Reversecore_MCP
-repo_url: https://github.com/yourusername/Reversecore_MCP
+repo_name: sjkim1127/Reversecore_MCP
+repo_url: https://github.com/sjkim1127/Reversecore_MCP
 
 theme:
   name: material
@@ -90,6 +90,7 @@ nav:
           - Ghost Trace: api/tools/ghost-trace.md
           - Neural Decompiler: api/tools/neural-decompiler.md
           - Trinity Defense: api/tools/trinity-defense.md
+          - Report Tools: api/tools/report-tools.md
   - Development:
       - Contributing: development/contributing.md
       - Testing: development/testing.md
@@ -99,6 +100,6 @@ nav:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/yourusername/Reversecore_MCP
+      link: https://github.com/sjkim1127/Reversecore_MCP
     - icon: fontawesome/brands/docker
-      link: https://ghcr.io/yourusername/reversecore_mcp
+      link: https://ghcr.io/sjkim1127/reversecore_mcp
