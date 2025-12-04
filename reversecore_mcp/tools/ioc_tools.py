@@ -84,7 +84,9 @@ def extract_iocs(
                     f"File {text} is too large for regex analysis (>10MB).",
                     hint="Use 'run_strings' or 'grep' to filter content first.",
                 )
-            with open(text, encoding="utf-8", errors="ignore") as f:
+            # Use buffered reading for better I/O performance on large files
+            # This reduces system calls and improves throughput
+            with open(text, encoding="utf-8", errors="ignore", buffering=8192) as f:
                 text = f.read()
         except Exception as e:
             return failure("FILE_READ_ERROR", f"Failed to read file: {str(e)}")

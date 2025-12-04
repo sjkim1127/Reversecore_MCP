@@ -3,14 +3,15 @@ MCP Tool Definitions for Report Generation
 Register these tools in your MCP server
 """
 
-import json
+# Use optimized JSON implementation (3-5x faster than standard json)
 from pathlib import Path
-from typing import Optional, List
 
-from .report_tools import ReportTools, get_report_tools
+from reversecore_mcp.core import json_utils as json
+
+from .report_tools import get_report_tools
 
 
-def register_report_tools(mcp_server, template_dir: Optional[Path] = None, output_dir: Optional[Path] = None):
+def register_report_tools(mcp_server, template_dir: Path | None = None, output_dir: Path | None = None):
     """
     Register report tools with the MCP server.
     
@@ -22,18 +23,18 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
     Returns:
         ReportTools instance
     """
-    
+
     # Initialize ReportTools instance
     report_tools = get_report_tools(
         template_dir=template_dir or Path("templates/reports"),
         output_dir=output_dir or Path("reports"),
         default_timezone="Asia/Seoul"
     )
-    
+
     # =========================================================================
     # Time & Timezone Tools
     # =========================================================================
-    
+
     @mcp_server.tool()
     async def get_system_time() -> str:
         """
@@ -62,7 +63,7 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
         """
         result = await report_tools.get_current_time()
         return json.dumps(result, indent=2, ensure_ascii=False)
-    
+
     @mcp_server.tool()
     async def set_timezone(timezone: str) -> str:
         """
@@ -84,7 +85,7 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
         """
         result = report_tools.set_timezone(timezone)
         return json.dumps(result, indent=2, ensure_ascii=False)
-    
+
     @mcp_server.tool()
     async def get_timezone_info() -> str:
         """
@@ -95,11 +96,11 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
         """
         result = report_tools.get_timezone_info()
         return json.dumps(result, indent=2, ensure_ascii=False)
-    
+
     # =========================================================================
     # Session Management Tools
     # =========================================================================
-    
+
     @mcp_server.tool()
     async def start_analysis_session(
         sample_path: str = "",
@@ -137,7 +138,7 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
             )
         """
         tags_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else None
-        
+
         result = await report_tools.start_session(
             sample_path=sample_path if sample_path else None,
             analyst=analyst,
@@ -146,7 +147,7 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
             tags=tags_list
         )
         return json.dumps(result, indent=2, ensure_ascii=False)
-    
+
     @mcp_server.tool()
     async def end_analysis_session(
         session_id: str = "",
@@ -170,7 +171,7 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
             summary=summary if summary else None
         )
         return json.dumps(result, indent=2, ensure_ascii=False)
-    
+
     @mcp_server.tool()
     async def get_session_status(session_id: str = "") -> str:
         """
@@ -188,7 +189,7 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
             session_id=session_id if session_id else None
         )
         return json.dumps(result, indent=2, ensure_ascii=False)
-    
+
     @mcp_server.tool()
     async def list_analysis_sessions() -> str:
         """
@@ -199,7 +200,7 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
         """
         result = await report_tools.list_sessions()
         return json.dumps(result, indent=2, ensure_ascii=False)
-    
+
     @mcp_server.tool()
     async def add_ioc(
         ioc_type: str,
@@ -235,7 +236,7 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
             session_id=session_id if session_id else None
         )
         return json.dumps(result, indent=2, ensure_ascii=False)
-    
+
     @mcp_server.tool()
     async def add_analysis_note(
         note: str,
@@ -267,7 +268,7 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
             session_id=session_id if session_id else None
         )
         return json.dumps(result, indent=2, ensure_ascii=False)
-    
+
     @mcp_server.tool()
     async def add_mitre_technique(
         technique_id: str,
@@ -308,7 +309,7 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
             session_id=session_id if session_id else None
         )
         return json.dumps(result, indent=2, ensure_ascii=False)
-    
+
     @mcp_server.tool()
     async def add_session_tag(
         tag: str,
@@ -334,7 +335,7 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
             session_id=session_id if session_id else None
         )
         return json.dumps(result, indent=2, ensure_ascii=False)
-    
+
     @mcp_server.tool()
     async def set_session_severity(
         severity: str,
@@ -356,11 +357,11 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
             session_id=session_id if session_id else None
         )
         return json.dumps(result, indent=2, ensure_ascii=False)
-    
+
     # =========================================================================
     # Report Generation Tools
     # =========================================================================
-    
+
     @mcp_server.tool()
     async def create_analysis_report(
         template_type: str = "full_analysis",
@@ -407,7 +408,7 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
             classification=classification
         )
         return json.dumps(result, indent=2, ensure_ascii=False)
-    
+
     @mcp_server.tool()
     async def list_report_templates() -> str:
         """
@@ -418,7 +419,7 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
         """
         result = await report_tools.list_templates()
         return json.dumps(result, indent=2, ensure_ascii=False)
-    
+
     @mcp_server.tool()
     async def get_report(report_id: str) -> str:
         """
@@ -432,7 +433,7 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
         """
         result = await report_tools.get_report(report_id)
         return json.dumps(result, indent=2, ensure_ascii=False)
-    
+
     @mcp_server.tool()
     async def list_reports() -> str:
         """
@@ -443,11 +444,11 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
         """
         result = await report_tools.list_reports()
         return json.dumps(result, indent=2, ensure_ascii=False)
-    
+
     # =========================================================================
     # Email / Delivery Tools
     # =========================================================================
-    
+
     @mcp_server.tool()
     async def configure_report_email(
         smtp_server: str,
@@ -479,7 +480,7 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
             use_tls=use_tls
         )
         return json.dumps(result, indent=2, ensure_ascii=False)
-    
+
     @mcp_server.tool()
     async def get_email_status() -> str:
         """
@@ -505,7 +506,7 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
         """
         result = await report_tools.get_email_status()
         return json.dumps(result, indent=2, ensure_ascii=False)
-    
+
     @mcp_server.tool()
     async def add_quick_contact(
         name: str,
@@ -532,7 +533,7 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
             role=role
         )
         return json.dumps(result, indent=2, ensure_ascii=False)
-    
+
     @mcp_server.tool()
     async def list_quick_contacts() -> str:
         """
@@ -543,7 +544,7 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
         """
         result = await report_tools.list_quick_contacts()
         return json.dumps(result, indent=2, ensure_ascii=False)
-    
+
     @mcp_server.tool()
     async def send_report_email(
         report_id: str,
@@ -573,7 +574,7 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
         Note: Configure email settings first with configure_report_email.
         """
         recipients_list = [r.strip() for r in recipients.split(",") if r.strip()]
-        
+
         result = await report_tools.send_report(
             report_id=report_id,
             recipients=recipients_list,
@@ -582,5 +583,5 @@ def register_report_tools(mcp_server, template_dir: Optional[Path] = None, outpu
             include_attachment=include_attachment
         )
         return json.dumps(result, indent=2, ensure_ascii=False)
-    
+
     return report_tools

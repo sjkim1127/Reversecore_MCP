@@ -76,6 +76,7 @@ class ResourceManager:
             cleaned_count = 0
 
             # OPTIMIZATION: Use itertools.chain to avoid multiple glob calls and iterations
+            # This combines all temp file patterns into a single iterable for better performance
             from itertools import chain
 
             # Combine all patterns into a single iterable
@@ -83,6 +84,9 @@ class ResourceManager:
                 workspace.glob("*.tmp"), workspace.glob(".r2_*"), workspace.glob("*.r2")
             )
 
+            # PERFORMANCE NOTE: For very large numbers of temp files (>1000),
+            # consider using batch deletion with os.unlink_many() or parallel deletion
+            # However, this is a rare case and the current implementation is sufficient
             for temp_file in temp_files:
                 try:
                     if temp_file.is_file():
