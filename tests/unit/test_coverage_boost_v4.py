@@ -281,11 +281,11 @@ class TestStaticAnalysisRunStrings:
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"Hello World Test\x00Binary Data\x00")
 
-        # Mock the strings command
+        # Mock the strings command - patch where it's used, not where it's defined
         with patch(
-            "reversecore_mcp.core.execution.execute_subprocess_async",
+            "reversecore_mcp.tools.static_analysis.execute_subprocess_async",
             new_callable=AsyncMock,
-            return_value=("Hello World Test\nBinary Data\n", ""),
+            return_value=("Hello World Test\nBinary Data\n", 0),
         ):
             result = await run_strings(str(test_file))
             assert result.status == "success"
@@ -299,9 +299,9 @@ class TestStaticAnalysisRunStrings:
         test_file.write_bytes(b"Hello World\x00AB\x00")
 
         with patch(
-            "reversecore_mcp.core.execution.execute_subprocess_async",
+            "reversecore_mcp.tools.static_analysis.execute_subprocess_async",
             new_callable=AsyncMock,
-            return_value=("Hello World\n", ""),
+            return_value=("Hello World\n", 0),
         ):
             result = await run_strings(str(test_file), min_length=5)
             assert result.status == "success"
@@ -342,9 +342,9 @@ class TestStaticAnalysisScanVersions:
         test_file.write_bytes(b"Version: 1.2.3\x00Build: 20240101\x00")
 
         with patch(
-            "reversecore_mcp.core.execution.execute_subprocess_async",
+            "reversecore_mcp.tools.static_analysis.execute_subprocess_async",
             new_callable=AsyncMock,
-            return_value=("Version: 1.2.3\nBuild: 20240101\n", ""),
+            return_value=("Version: 1.2.3\nBuild: 20240101\n", 0),
         ):
             result = await scan_for_versions(str(test_file))
             assert result.status == "success"
@@ -364,9 +364,9 @@ class TestStaticAnalysisExtractRTTI:
         mock_output = "class MyClass\nstruct DataStruct"
 
         with patch(
-            "reversecore_mcp.core.execution.execute_subprocess_async",
+            "reversecore_mcp.tools.static_analysis.execute_subprocess_async",
             new_callable=AsyncMock,
-            return_value=(mock_output, ""),
+            return_value=(mock_output, 0),
         ):
             result = await extract_rtti_info(str(test_file))
             assert result.status == "success"

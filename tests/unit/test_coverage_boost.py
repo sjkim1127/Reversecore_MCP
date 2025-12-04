@@ -14,6 +14,8 @@ from unittest.mock import Mock
 
 import pytest
 
+from tests.conftest import requires_file, requires_strings
+
 # ============================================================================
 # ghost_trace.py tests
 # ============================================================================
@@ -145,6 +147,7 @@ class TestNeuralDecompilerHelpers:
 class TestStaticAnalysis:
     """Test static analysis functions."""
 
+    @requires_strings
     @pytest.mark.asyncio
     async def test_run_strings_basic(self, sample_binary_path, patched_workspace_config):
         """Test basic string extraction."""
@@ -153,6 +156,7 @@ class TestStaticAnalysis:
         result = await run_strings(str(sample_binary_path))
         assert result.status == "success"
 
+    @requires_strings
     @pytest.mark.asyncio
     async def test_run_strings_min_length(self, sample_binary_path, patched_workspace_config):
         """Test string extraction with custom min length."""
@@ -161,6 +165,7 @@ class TestStaticAnalysis:
         result = await run_strings(str(sample_binary_path), min_length=8)
         assert result.status == "success"
 
+    @requires_strings
     @pytest.mark.asyncio
     async def test_run_strings_output_truncation(
         self, sample_binary_path, patched_workspace_config
@@ -172,6 +177,7 @@ class TestStaticAnalysis:
         result = await run_strings(str(sample_binary_path), max_output_size=1024 * 1024)
         assert result.status == "success"
 
+    @requires_strings
     @pytest.mark.asyncio
     async def test_run_strings_small_max_output_enforced(
         self, sample_binary_path, patched_workspace_config
@@ -219,6 +225,7 @@ class TestStaticAnalysis:
 class TestFileOperations:
     """Test file operation functions."""
 
+    @requires_file
     @pytest.mark.asyncio
     async def test_run_file_basic(self, sample_binary_path, patched_workspace_config):
         """Test basic file type identification."""

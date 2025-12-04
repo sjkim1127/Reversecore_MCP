@@ -71,8 +71,9 @@ def test_get_r2_project_name_caching(workspace_dir):
     assert result1 == result2
     assert len(result1) == 32  # MD5 hex digest length
 
-    # Cache hit should be faster
-    assert time2 < time1 / 5
+    # Verify cache hit via cache_info (more reliable than timing)
+    info = _get_r2_project_name.cache_info()
+    assert info.hits >= 1, f"Expected at least 1 cache hit, got {info.hits}"
 
 
 def test_extract_library_name_caching():
@@ -135,8 +136,9 @@ def test_sanitize_filename_for_rule_caching(workspace_dir):
     assert result1 == result2
     assert result1 == "test_file_name"  # Dashes and dots replaced
 
-    # Cache hit should be faster
-    assert time2 < time1 / 5
+    # Verify cache hit via cache_info (more reliable than timing)
+    info = _sanitize_filename_for_rule.cache_info()
+    assert info.hits >= 1, f"Expected at least 1 cache hit, got {info.hits}"
 
 
 def test_cache_size_limits():

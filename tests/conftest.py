@@ -1,6 +1,7 @@
 """Pytest configuration and shared fixtures with explicit dependency injection."""
 
 import os
+import shutil
 import tempfile
 
 # Set up test environment variables BEFORE importing reversecore_mcp modules
@@ -25,6 +26,27 @@ import pytest  # noqa: E402
 from reversecore_mcp.core import security  # noqa: E402
 from reversecore_mcp.core.config import Config  # noqa: E402
 from reversecore_mcp.core.security import WorkspaceConfig  # noqa: E402
+
+
+# =============================================================================
+# System tool availability checks for conditional test skipping
+# =============================================================================
+
+def _has_command(cmd: str) -> bool:
+    """Check if a command is available in PATH."""
+    return shutil.which(cmd) is not None
+
+
+HAS_STRINGS = _has_command("strings")
+HAS_FILE = _has_command("file")
+HAS_BINWALK = _has_command("binwalk")
+HAS_RADARE2 = _has_command("r2") or _has_command("radare2")
+
+# Skip markers for tests requiring specific system tools
+requires_strings = pytest.mark.skipif(not HAS_STRINGS, reason="strings command not available")
+requires_file = pytest.mark.skipif(not HAS_FILE, reason="file command not available")
+requires_binwalk = pytest.mark.skipif(not HAS_BINWALK, reason="binwalk command not available")
+requires_radare2 = pytest.mark.skipif(not HAS_RADARE2, reason="radare2 not available")
 
 
 @pytest.fixture
