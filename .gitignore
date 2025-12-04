@@ -46,7 +46,7 @@ build/
 .env
 .python-version
 
-# Local tools (capitalized)
-Tools/
+# Local tools directory (root level only, not reversecore_mcp/tools)
+/Tools/
 
 
