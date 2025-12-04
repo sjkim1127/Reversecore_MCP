@@ -79,7 +79,8 @@ if _HEX_ADDRESS_PATTERN.match(address):
 clean_name = func_name.replace("sym.imp.", "").replace("sym.", "").replace("_", "")
 
 # After (fast)
-_FUNC_NAME_CLEAN_TABLE = str.maketrans({"_": ""})
+# Use proper deletion syntax: str.maketrans(from, to, delete)
+_FUNC_NAME_CLEAN_TABLE = str.maketrans("", "", "_")
 clean_name = func_name.replace("sym.imp.", "").replace("sym.", "")
 clean_name = clean_name.translate(_FUNC_NAME_CLEAN_TABLE)
 ```

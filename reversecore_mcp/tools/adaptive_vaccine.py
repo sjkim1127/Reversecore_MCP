@@ -42,10 +42,11 @@ _YARA_STRING_LITERAL = re.compile(r'"([^"]{1,200})"')
 
 def _escape_yara_meta(s: str) -> str:
     """
-    Fast escape function for YARA meta strings.
+    Escape function for YARA meta strings.
     
     Escapes backslashes and quotes. Order matters: escape backslashes first.
-    This is faster than chained replace when dealing with many strings.
+    Note: str.translate() cannot handle multi-character escape sequences,
+    so we use chained replace() which is appropriate for this use case.
     
     Args:
         s: String to escape

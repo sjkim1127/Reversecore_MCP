@@ -29,7 +29,6 @@ logger = get_logger(__name__)
 # OPTIMIZATION: Pre-compile regex patterns used in hot paths
 _JSON_ARRAY_PATTERN = re.compile(r"\[(?:[^\[\]]|\[(?:[^\[\]]|\[[^\[\]]*\])*\])*\]", re.DOTALL)
 _JSON_OBJECT_PATTERN = re.compile(r"\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}", re.DOTALL)
-_NESTED_JSON_PATTERN = re.compile(r"\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}", re.DOTALL)
 _HEX_ADDRESS_PATTERN = re.compile(r"^0x[0-9a-fA-F]+$")
 _SYMBOL_PATTERN = re.compile(r"^sym\.[a-zA-Z0-9_\.]+$")
 _FUNCTION_NAME_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
@@ -400,7 +399,7 @@ async def _identify_conditional_paths(
             # Note: with multiple pdfj, output contains multiple JSON objects
             # We need to split them carefully
             # OPTIMIZATION: Use pre-compiled pattern (faster)
-            json_outputs = _NESTED_JSON_PATTERN.findall(out)
+            json_outputs = _JSON_OBJECT_PATTERN.findall(out)
 
             for func, json_str in zip(batch, json_outputs, strict=False):
                 try:
