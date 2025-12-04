@@ -32,6 +32,9 @@ DEFAULT_TIMEOUT = get_config().default_tool_timeout
 
 logger = get_logger(__name__)
 
+# OPTIMIZATION: Pre-compile regex patterns used in hot paths
+_FUNCTION_ADDRESS_PATTERN = re.compile(r"^[a-zA-Z0-9_.:<>]+$")
+
 
 # =============================================================================
 # Helper Functions for Structure Recovery
@@ -713,11 +716,8 @@ async def recover_structures(
     validated_path = validate_file_path(file_path)
 
     # 2. Validate address format
-    # OPTIMIZATION: Use efficient regex substitution instead of chained replace
-    if not re.match(
-        r"^[a-zA-Z0-9_.:<>]+$",
-        _strip_address_prefixes(function_address),
-    ):
+    # OPTIMIZATION: Use pre-compiled regex pattern (faster)
+    if not _FUNCTION_ADDRESS_PATTERN.match(_strip_address_prefixes(function_address)):
         return failure(
             "VALIDATION_ERROR",
             "Invalid function address format",

@@ -31,6 +31,11 @@ from reversecore_mcp.core.validators import validate_tool_parameters
 # Load default timeout from configuration
 DEFAULT_TIMEOUT = get_config().default_tool_timeout
 
+# OPTIMIZATION: Pre-compile regex patterns used in hot paths
+_SIMILARITY_PATTERN = re.compile(r"similarity:\s*(\d+\.?\d*)")
+_ADDRESS_PATTERN = re.compile(r"(0x[0-9a-fA-F]+)")
+_HEX_PATTERN = re.compile(r"(?:0x)?([0-9a-fA-F]{4,})")
+
 
 @lru_cache(maxsize=256)
 def _extract_library_name(function_name: str) -> str:
@@ -180,7 +185,8 @@ async def diff_binaries(
 
         # Parse similarity score (format: "similarity: 0.95")
         similarity = 0.0
-        similarity_match = re.search(r"similarity:\s*(\d+\.?\d*)", similarity_output)
+        # OPTIMIZATION: Use pre-compiled pattern (faster)
+        similarity_match = _SIMILARITY_PATTERN.search(similarity_output)
         if similarity_match:
             similarity = float(similarity_match.group(1))
 
@@ -196,8 +202,8 @@ async def diff_binaries(
                 continue
 
             # Look for common patterns in radiff2 output
-            # Address patterns: 0x... or addresses
-            addr_match = re.search(r"(0x[0-9a-fA-F]+)", line)
+            # OPTIMIZATION: Use pre-compiled pattern (faster)
+            addr_match = _ADDRESS_PATTERN.search(line)
 
             if addr_match:
                 address = addr_match.group(1)
@@ -551,8 +557,8 @@ async def match_libraries(
 
             # If offset is 0, try to parse it from the name if it looks like sym.func.0x...
             if offset == 0 and name:
-                # Try to find hex address in name
-                hex_match = re.search(r"(?:0x)?([0-9a-fA-F]{4,})", name)
+                # OPTIMIZATION: Use pre-compiled pattern (faster)
+                hex_match = _HEX_PATTERN.search(name)
                 if hex_match:
                     try:
                         offset = int(hex_match.group(1), 16)

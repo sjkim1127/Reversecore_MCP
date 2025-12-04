@@ -33,6 +33,12 @@ logger = get_logger(__name__)
 # OPTIMIZATION: Character translation table for filename sanitization
 _FILENAME_SANITIZE_TRANS = str.maketrans({"-": "_", ".": "_"})
 
+# OPTIMIZATION: Pre-compile regex patterns used in hot paths
+_HEX_ADDRESS_PATTERN = re.compile(r"^[0-9a-fA-F]+$")
+_HEX_BYTES_PATTERN = re.compile(r"^[0-9a-fA-F]+$")
+_ALL_FF_PATTERN = re.compile(r"^(ff)+$", re.IGNORECASE)
+_ALL_00_PATTERN = re.compile(r"^(00)+$")
+
 
 def _validate_address_or_fail(address: str, param_name: str = "address"):
     """
@@ -152,7 +158,8 @@ async def generate_signature(
 
     # Adaptive analysis: if address is hex, we don't need full analysis
     analysis_level = ""
-    if address.startswith("0x") or re.match(r"^[0-9a-fA-F]+$", address):
+    # OPTIMIZATION: Use pre-compiled regex pattern (faster)
+    if address.startswith("0x") or _HEX_ADDRESS_PATTERN.match(address):
         analysis_level = "-n"
 
     # Extract hex bytes using helper
@@ -167,7 +174,8 @@ async def generate_signature(
 
     # 4. Validate output
     hex_bytes = output.strip()
-    if not hex_bytes or not re.match(r"^[0-9a-fA-F]+$", hex_bytes):
+    # OPTIMIZATION: Use pre-compiled regex pattern (faster)
+    if not hex_bytes or not _HEX_BYTES_PATTERN.match(hex_bytes):
         return failure(
             "SIGNATURE_ERROR",
             f"Failed to extract valid hex bytes from address: {address}",
@@ -175,7 +183,8 @@ async def generate_signature(
         )
 
     # Check for all 0xFF or 0x00 (likely unmapped memory)
-    if re.match(r"^(ff)+$", hex_bytes, re.IGNORECASE) or re.match(r"^(00)+$", hex_bytes):
+    # OPTIMIZATION: Use pre-compiled regex patterns (faster)
+    if _ALL_FF_PATTERN.match(hex_bytes) or _ALL_00_PATTERN.match(hex_bytes):
         # If we used -n, try again without it to force mapping
         if analysis_level == "-n":
             from reversecore_mcp.tools.r2_analysis import _calculate_dynamic_timeout
@@ -190,7 +199,8 @@ async def generate_signature(
             hex_bytes = output.strip()
 
             # Re-check
-            if re.match(r"^(ff)+$", hex_bytes, re.IGNORECASE) or re.match(r"^(00)+$", hex_bytes):
+            # OPTIMIZATION: Use pre-compiled regex patterns (faster)
+            if _ALL_FF_PATTERN.match(hex_bytes) or _ALL_00_PATTERN.match(hex_bytes):
                 return failure(
                     "SIGNATURE_ERROR",
                     f"Extracted bytes are all 0xFF or 0x00 at {address}. The memory might be unmapped or empty.",
