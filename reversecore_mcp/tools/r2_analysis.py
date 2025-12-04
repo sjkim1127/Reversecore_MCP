@@ -585,12 +585,12 @@ async def generate_function_graph(
             png_path = dot_path.replace(".dot", ".png")
 
             try:
-                # Use graphviz's dot command to convert DOT to PNG
-                subprocess.run(
+                # Use async subprocess execution to avoid blocking the event loop
+                # This allows concurrent operations and better resource utilization
+                await execute_subprocess_async(
                     ["dot", "-Tpng", dot_path, "-o", png_path],
-                    check=True,
+                    max_output_size=1_000_000,  # 1MB for error messages
                     timeout=30,
-                    capture_output=True,
                 )
 
                 # Read PNG file

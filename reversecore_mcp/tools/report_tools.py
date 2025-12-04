@@ -10,22 +10,23 @@ Features:
 - Environment variable support for email configuration
 """
 
-from datetime import datetime, timezone, timedelta
-from pathlib import Path
-from typing import Optional, Dict, Any, List
-from dataclasses import dataclass, field, asdict
-from enum import Enum
-import json
 import hashlib
-import platform
-import uuid
-import os
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email import encoders
 import logging
+import os
+import platform
+import smtplib
+import uuid
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timedelta, timezone
+from email import encoders
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from enum import Enum
+from pathlib import Path
+from typing import Any
+
+# Use optimized JSON implementation (3-5x faster than standard json)
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ class TimezonePreset(Enum):
 
 
 # Simple UTC offset mapping (works without pytz)
-TIMEZONE_OFFSETS: Dict[str, int] = {
+TIMEZONE_OFFSETS: dict[str, int] = {
     "UTC": 0,
     "Asia/Seoul": 9,
     "Asia/Tokyo": 9,
@@ -55,7 +56,7 @@ TIMEZONE_OFFSETS: Dict[str, int] = {
 }
 
 # Timezone abbreviation mapping
-TIMEZONE_ABBRS: Dict[str, str] = {
+TIMEZONE_ABBRS: dict[str, str] = {
     "UTC": "UTC",
     "Asia/Seoul": "KST",
     "Asia/Tokyo": "JST",
@@ -71,20 +72,20 @@ TIMEZONE_ABBRS: Dict[str, str] = {
 class AnalysisSession:
     """Data class for tracking analysis session information"""
     session_id: str
-    sample_path: Optional[str] = None
-    sample_name: Optional[str] = None
+    sample_path: str | None = None
+    sample_name: str | None = None
     analyst: str = "Security Researcher"
-    
+
     # Timestamps (stored in UTC)
-    started_at: Optional[datetime] = None
-    ended_at: Optional[datetime] = None
-    
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+
     # Session status
     status: str = "initialized"  # initialized, in_progress, completed, aborted
-    
+
     # Data collected during analysis
-    findings: Dict[str, Any] = field(default_factory=dict)
-    iocs: Dict[str, List[str]] = field(default_factory=lambda: {
+    findings: dict[str, Any] = field(default_factory=dict)
+    iocs: dict[str, list[str]] = field(default_factory=lambda: {
         "hashes": [],
         "ips": [],
         "domains": [],
@@ -94,57 +95,57 @@ class AnalysisSession:
         "mutexes": [],
         "emails": [],
     })
-    mitre_techniques: List[Dict[str, str]] = field(default_factory=list)
-    notes: List[Dict[str, str]] = field(default_factory=list)
-    
+    mitre_techniques: list[dict[str, str]] = field(default_factory=list)
+    notes: list[dict[str, str]] = field(default_factory=list)
+
     # Additional metadata
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
     severity: str = "medium"  # low, medium, high, critical
-    malware_family: Optional[str] = None
-    
+    malware_family: str | None = None
+
     def start(self):
         """Start session"""
         self.started_at = datetime.now(timezone.utc)
         self.status = "in_progress"
-    
+
     def end(self, status: str = "completed"):
         """End session"""
         self.ended_at = datetime.now(timezone.utc)
         self.status = status
-    
-    def get_duration(self) -> Optional[timedelta]:
+
+    def get_duration(self) -> timedelta | None:
         """Calculate analysis duration"""
         if not self.started_at:
             return None
         end = self.ended_at or datetime.now(timezone.utc)
         return end - self.started_at
-    
+
     def get_duration_str(self) -> str:
         """Human-readable duration string"""
         duration = self.get_duration()
         if duration is None:
             return "N/A"
-        
+
         total_seconds = int(duration.total_seconds())
         hours, remainder = divmod(total_seconds, 3600)
         minutes, seconds = divmod(remainder, 60)
-        
+
         parts = []
         if hours > 0:
             parts.append(f"{hours}h")
         if minutes > 0:
             parts.append(f"{minutes}m")
         parts.append(f"{seconds}s")
-        
+
         return " ".join(parts)
-    
+
     def add_ioc(self, ioc_type: str, value: str) -> bool:
         """Add IOC"""
         if ioc_type in self.iocs and value not in self.iocs[ioc_type]:
             self.iocs[ioc_type].append(value)
             return True
         return False
-    
+
     def add_note(self, note: str, category: str = "general"):
         """Add analysis note"""
         timestamp = datetime.now(timezone.utc).isoformat()
@@ -153,18 +154,18 @@ class AnalysisSession:
             "note": note,
             "category": category
         })
-    
+
     def add_mitre(self, technique_id: str, technique_name: str, tactic: str):
         """Add MITRE ATT&CK technique"""
         entry = {"id": technique_id, "name": technique_name, "tactic": tactic}
         if entry not in self.mitre_techniques:
             self.mitre_techniques.append(entry)
-    
+
     def add_tag(self, tag: str):
         """Add tag"""
         if tag not in self.tags:
             self.tags.append(tag)
-    
+
     def to_dict(self) -> dict:
         """Serialize to dictionary"""
         data = asdict(self)
@@ -186,18 +187,18 @@ class EmailConfig:
     password: str = ""
     use_tls: bool = True
     sender_name: str = "Reversecore_MCP"
-    default_recipients: List[str] = field(default_factory=list)
-    
+    default_recipients: list[str] = field(default_factory=list)
+
     @classmethod
     def from_env(cls) -> "EmailConfig":
         """Load email configuration from environment variables"""
         smtp_server = os.getenv("REPORT_SMTP_SERVER", "")
-        
+
         # Return disabled state if SMTP server is not configured
         if not smtp_server:
             logger.info("📧 Email not configured (REPORT_SMTP_SERVER not set)")
             return cls()
-        
+
         config = cls(
             smtp_server=smtp_server,
             smtp_port=int(os.getenv("REPORT_SMTP_PORT", "587")),
@@ -206,27 +207,27 @@ class EmailConfig:
             use_tls=os.getenv("REPORT_SMTP_USE_TLS", "true").lower() in ("true", "1", "yes"),
             sender_name=os.getenv("REPORT_SENDER_NAME", "Reversecore_MCP"),
         )
-        
+
         logger.info(f"📧 Email configured: {smtp_server}:{config.smtp_port}")
         return config
-    
+
     @property
     def is_configured(self) -> bool:
         """Check if email is configured"""
         return bool(self.smtp_server and self.username)
 
 
-def _load_quick_contacts_from_env() -> Dict[str, Dict[str, str]]:
+def _load_quick_contacts_from_env() -> dict[str, dict[str, str]]:
     """Load quick contacts from environment variables
     
     Format: REPORT_QUICK_CONTACTS=name1:email1:role1,name2:email2:role2
     """
     contacts_str = os.getenv("REPORT_QUICK_CONTACTS", "")
     contacts = {}
-    
+
     if not contacts_str:
         return contacts
-    
+
     for entry in contacts_str.split(","):
         parts = entry.strip().split(":")
         if len(parts) >= 2:
@@ -235,10 +236,10 @@ def _load_quick_contacts_from_env() -> Dict[str, Dict[str, str]]:
             role = parts[2].strip() if len(parts) > 2 else "Contact"
             contacts[name] = {"email": email, "role": role}
             logger.debug(f"Loaded quick contact: {name} -> {email}")
-    
+
     if contacts:
         logger.info(f"📇 Loaded {len(contacts)} quick contacts from environment")
-    
+
     return contacts
 
 
@@ -254,35 +255,35 @@ class ReportTools:
     - Template-based report generation
     - Email delivery support
     """
-    
+
     def __init__(
-        self, 
-        template_dir: Path, 
+        self,
+        template_dir: Path,
         output_dir: Path,
         default_timezone: str = "UTC",
-        email_config: Optional[EmailConfig] = None
+        email_config: EmailConfig | None = None
     ):
         self.template_dir = Path(template_dir)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         self.default_timezone = default_timezone
         self.timezone_offset = TIMEZONE_OFFSETS.get(default_timezone, 0)
-        
+
         # Active session management
-        self.sessions: Dict[str, AnalysisSession] = {}
-        self.current_session_id: Optional[str] = None
-        
+        self.sessions: dict[str, AnalysisSession] = {}
+        self.current_session_id: str | None = None
+
         # Email configuration
         self.email_config = email_config or EmailConfig()
-        
+
         # Quick contacts list
-        self.quick_contacts: Dict[str, Dict[str, str]] = {}
-    
+        self.quick_contacts: dict[str, dict[str, str]] = {}
+
     # =========================================================================
     # Timezone Management
     # =========================================================================
-    
+
     def set_timezone(self, tz: str) -> dict:
         """
         Set default timezone.
@@ -296,10 +297,10 @@ class ReportTools:
                 "error": f"Unknown timezone: {tz}",
                 "available": list(TIMEZONE_OFFSETS.keys())
             }
-        
+
         self.default_timezone = tz
         self.timezone_offset = TIMEZONE_OFFSETS[tz]
-        
+
         return {
             "success": True,
             "timezone": tz,
@@ -307,7 +308,7 @@ class ReportTools:
             "abbreviation": TIMEZONE_ABBRS.get(tz, ""),
             "current_time": self._format_time(datetime.now(timezone.utc))
         }
-    
+
     def get_timezone_info(self) -> dict:
         """Return current timezone configuration info"""
         return {
@@ -322,27 +323,27 @@ class ReportTools:
                 for name, offset in TIMEZONE_OFFSETS.items()
             }
         }
-    
+
     def _get_local_time(self) -> datetime:
         """Get current time in configured timezone"""
         utc_now = datetime.now(timezone.utc)
         local_tz = timezone(timedelta(hours=self.timezone_offset))
         return utc_now.astimezone(local_tz)
-    
+
     def _format_time(self, dt: datetime, include_tz: bool = True) -> str:
         """Format datetime to configured timezone"""
         local_tz = timezone(timedelta(hours=self.timezone_offset))
         local_dt = dt.astimezone(local_tz)
-        
+
         if include_tz:
             abbr = TIMEZONE_ABBRS.get(self.default_timezone, f"UTC{'+' if self.timezone_offset >= 0 else ''}{self.timezone_offset}")
             return f"{local_dt.strftime('%Y-%m-%d %H:%M:%S')} ({abbr})"
         return local_dt.strftime('%Y-%m-%d %H:%M:%S')
-    
+
     # =========================================================================
     # Timestamp Generation
     # =========================================================================
-    
+
     def get_timestamp_data(self) -> dict:
         """
         Generate accurate timestamp data at OS level.
@@ -351,29 +352,29 @@ class ReportTools:
         utc_now = datetime.now(timezone.utc)
         local_now = self._get_local_time()
         abbr = TIMEZONE_ABBRS.get(self.default_timezone, "")
-        
+
         return {
             # For Report ID generation
             "report_id": f"MAR-{local_now.strftime('%Y%m%d-%H%M%S')}",
-            
+
             # Date formats (ISO, localized)
             "date": local_now.strftime("%Y-%m-%d"),
             "date_long": local_now.strftime("%B %d, %Y"),  # December 05, 2025
             "date_short": local_now.strftime("%d %b %Y"),  # 05 Dec 2025
             "date_eu": local_now.strftime("%d/%m/%Y"),     # 05/12/2025
             "date_us": local_now.strftime("%m/%d/%Y"),     # 12/05/2025
-            
+
             # Time formats
             "time": local_now.strftime("%H:%M:%S"),
             "time_12h": local_now.strftime("%I:%M:%S %p"),  # 02:30:45 PM
             "datetime": local_now.strftime("%Y-%m-%d %H:%M:%S"),
             "datetime_full": self._format_time(utc_now),
             "datetime_iso": local_now.isoformat(),
-            
+
             # UTC based
             "datetime_utc": utc_now.strftime("%Y-%m-%d %H:%M:%S UTC"),
             "timestamp_unix": int(utc_now.timestamp()),
-            
+
             # Individual fields
             "year": local_now.strftime("%Y"),
             "month": local_now.strftime("%m"),
@@ -382,32 +383,32 @@ class ReportTools:
             "day": local_now.strftime("%d"),
             "weekday": local_now.strftime("%A"),           # Thursday
             "weekday_short": local_now.strftime("%a"),     # Thu
-            
+
             # Timezone info
             "timezone": self.default_timezone,
             "timezone_abbr": abbr,
             "timezone_offset": f"UTC{'+' if self.timezone_offset >= 0 else ''}{self.timezone_offset}",
-            
+
             # System info
             "hostname": platform.node(),
             "platform": platform.system(),
         }
-    
+
     async def get_current_time(self) -> dict:
         """Return current system time info (for MCP Tool)"""
         return self.get_timestamp_data()
-    
+
     # =========================================================================
     # Session Management
     # =========================================================================
-    
+
     async def start_session(
         self,
-        sample_path: Optional[str] = None,
+        sample_path: str | None = None,
         analyst: str = "Security Researcher",
         severity: str = "medium",
-        malware_family: Optional[str] = None,
-        tags: Optional[List[str]] = None
+        malware_family: str | None = None,
+        tags: list[str] | None = None
     ) -> dict:
         """
         Start a new analysis session.
@@ -423,7 +424,7 @@ class ReportTools:
             Session information
         """
         session_id = f"SES-{uuid.uuid4().hex[:8].upper()}"
-        
+
         session = AnalysisSession(
             session_id=session_id,
             sample_path=sample_path,
@@ -432,26 +433,26 @@ class ReportTools:
             severity=severity,
             malware_family=malware_family
         )
-        
+
         if tags:
             for tag in tags:
                 session.add_tag(tag)
-        
+
         session.start()
-        
+
         # Auto-calculate sample hashes
         if sample_path:
             sample_info = await self._extract_sample_info(sample_path)
             session.findings["sample_info"] = sample_info
-            
+
             # Auto-add hashes to IOC
             for hash_type in ["md5", "sha1", "sha256"]:
                 if hash_type in sample_info:
                     session.add_ioc("hashes", f"{hash_type.upper()}: {sample_info[hash_type]}")
-        
+
         self.sessions[session_id] = session
         self.current_session_id = session_id
-        
+
         return {
             "success": True,
             "session_id": session_id,
@@ -463,12 +464,12 @@ class ReportTools:
             "malware_family": malware_family,
             "message": f"Analysis session started. Use session_id '{session_id}' to track."
         }
-    
+
     async def end_session(
         self,
-        session_id: Optional[str] = None,
+        session_id: str | None = None,
         status: str = "completed",
-        summary: Optional[str] = None
+        summary: str | None = None
     ) -> dict:
         """
         End an analysis session.
@@ -479,16 +480,16 @@ class ReportTools:
             summary: Analysis summary
         """
         sid = session_id or self.current_session_id
-        
+
         if not sid or sid not in self.sessions:
             return {"success": False, "error": "No active session found"}
-        
+
         session = self.sessions[sid]
         session.end(status)
-        
+
         if summary:
             session.findings["summary"] = summary
-        
+
         result = {
             "success": True,
             "session_id": sid,
@@ -503,60 +504,60 @@ class ReportTools:
             "notes": len(session.notes),
             "tags": session.tags
         }
-        
+
         if sid == self.current_session_id:
             self.current_session_id = None
-        
+
         return result
-    
-    async def get_session_info(self, session_id: Optional[str] = None) -> dict:
+
+    async def get_session_info(self, session_id: str | None = None) -> dict:
         """Query session status"""
         sid = session_id or self.current_session_id
-        
+
         if not sid or sid not in self.sessions:
             return {
                 "success": False,
                 "error": "No session found",
                 "active_sessions": list(self.sessions.keys())
             }
-        
+
         session = self.sessions[sid]
         info = session.to_dict()
-        
+
         # 포맷된 시간 추가
         if session.started_at:
             info["started_at_formatted"] = self._format_time(session.started_at)
         if session.ended_at:
             info["ended_at_formatted"] = self._format_time(session.ended_at)
-        
+
         info["is_current"] = (sid == self.current_session_id)
-        
+
         return {"success": True, "session": info}
-    
+
     async def add_session_ioc(
         self,
         ioc_type: str,
         value: str,
-        session_id: Optional[str] = None
+        session_id: str | None = None
     ) -> dict:
         """Add IOC to session"""
         sid = session_id or self.current_session_id
-        
+
         if not sid or sid not in self.sessions:
             return {"success": False, "error": "No active session"}
-        
+
         session = self.sessions[sid]
         valid_types = list(session.iocs.keys())
-        
+
         if ioc_type not in valid_types:
             return {
                 "success": False,
                 "error": f"Invalid IOC type: {ioc_type}",
                 "valid_types": valid_types
             }
-        
+
         added = session.add_ioc(ioc_type, value)
-        
+
         return {
             "success": True,
             "added": added,
@@ -564,22 +565,22 @@ class ReportTools:
             "message": "IOC added" if added else "IOC already exists",
             "total_iocs": sum(len(v) for v in session.iocs.values())
         }
-    
+
     async def add_session_note(
         self,
         note: str,
         category: str = "general",
-        session_id: Optional[str] = None
+        session_id: str | None = None
     ) -> dict:
         """Add analysis note to session"""
         sid = session_id or self.current_session_id
-        
+
         if not sid or sid not in self.sessions:
             return {"success": False, "error": "No active session"}
-        
+
         session = self.sessions[sid]
         session.add_note(note, category)
-        
+
         return {
             "success": True,
             "note_added": note[:100] + "..." if len(note) > 100 else note,
@@ -587,61 +588,61 @@ class ReportTools:
             "timestamp": self._format_time(datetime.now(timezone.utc)),
             "total_notes": len(session.notes)
         }
-    
+
     async def add_session_mitre(
         self,
         technique_id: str,
         technique_name: str,
         tactic: str,
-        session_id: Optional[str] = None
+        session_id: str | None = None
     ) -> dict:
         """Add MITRE ATT&CK technique to session"""
         sid = session_id or self.current_session_id
-        
+
         if not sid or sid not in self.sessions:
             return {"success": False, "error": "No active session"}
-        
+
         session = self.sessions[sid]
         session.add_mitre(technique_id, technique_name, tactic)
-        
+
         return {
             "success": True,
             "added": f"{technique_id} - {technique_name}",
             "tactic": tactic,
             "total_techniques": len(session.mitre_techniques)
         }
-    
+
     async def add_session_tag(
         self,
         tag: str,
-        session_id: Optional[str] = None
+        session_id: str | None = None
     ) -> dict:
         """Add tag to session"""
         sid = session_id or self.current_session_id
-        
+
         if not sid or sid not in self.sessions:
             return {"success": False, "error": "No active session"}
-        
+
         session = self.sessions[sid]
         session.add_tag(tag)
-        
+
         return {
             "success": True,
             "tag_added": tag,
             "all_tags": session.tags
         }
-    
+
     async def set_session_severity(
         self,
         severity: str,
-        session_id: Optional[str] = None
+        session_id: str | None = None
     ) -> dict:
         """Set session severity"""
         sid = session_id or self.current_session_id
-        
+
         if not sid or sid not in self.sessions:
             return {"success": False, "error": "No active session"}
-        
+
         valid_severities = ["low", "medium", "high", "critical"]
         if severity.lower() not in valid_severities:
             return {
@@ -649,20 +650,20 @@ class ReportTools:
                 "error": f"Invalid severity: {severity}",
                 "valid_severities": valid_severities
             }
-        
+
         session = self.sessions[sid]
         session.severity = severity.lower()
-        
+
         return {
             "success": True,
             "severity": session.severity,
             "session_id": sid
         }
-    
+
     async def list_sessions(self) -> dict:
         """List all sessions"""
         sessions_list = []
-        
+
         for sid, session in self.sessions.items():
             sessions_list.append({
                 "session_id": sid,
@@ -675,25 +676,25 @@ class ReportTools:
                 "iocs_count": sum(len(v) for v in session.iocs.values()),
                 "is_current": sid == self.current_session_id
             })
-        
+
         return {
             "total": len(sessions_list),
             "current_session": self.current_session_id,
             "sessions": sessions_list
         }
-    
+
     # =========================================================================
     # Report Generation
     # =========================================================================
-    
+
     async def create_report(
         self,
         template_type: str = "full_analysis",
-        session_id: Optional[str] = None,
-        sample_path: Optional[str] = None,
+        session_id: str | None = None,
+        sample_path: str | None = None,
         analyst: str = "Security Researcher",
         classification: str = "TLP:AMBER",
-        custom_fields: Optional[dict] = None,
+        custom_fields: dict | None = None,
         output_format: str = "markdown"
     ) -> dict:
         """
@@ -702,7 +703,7 @@ class ReportTools:
         """
         # 타임스탬프 생성 (서버 시간 기준)
         ts = self.get_timestamp_data()
-        
+
         # 템플릿 로드
         template_path = self.template_dir / f"{template_type}.md"
         if not template_path.exists():
@@ -712,9 +713,9 @@ class ReportTools:
                 "error": f"Template not found: {template_type}",
                 "available_templates": available
             }
-        
+
         template = template_path.read_text(encoding='utf-8')
-        
+
         # Basic fields
         fields = {
             "REPORT_ID": ts["report_id"],
@@ -743,11 +744,11 @@ class ReportTools:
             "GENERATED_BY": "Reversecore_MCP",
             "HOSTNAME": ts["hostname"],
         }
-        
+
         # Merge session data
         sid = session_id or self.current_session_id
         session = self.sessions.get(sid) if sid else None
-        
+
         if session:
             fields.update({
                 "SESSION_ID": session.session_id,
@@ -760,37 +761,37 @@ class ReportTools:
                 "ANALYSIS_DURATION": session.get_duration_str(),
                 "TAGS": ", ".join(session.tags) if session.tags else "None",
             })
-            
+
             # 세션에서 샘플 정보 가져오기
             if "sample_info" in session.findings:
                 sample_info = session.findings["sample_info"]
                 fields.update({k.upper(): str(v) for k, v in sample_info.items()})
-            
+
             # IOC 블록 생성
             fields["IOCS_YAML"] = self._format_iocs_yaml(session.iocs)
             fields["IOCS_MARKDOWN"] = self._format_iocs_markdown(session.iocs)
             fields["IOCS_COUNT"] = str(sum(len(v) for v in session.iocs.values()))
-            
+
             # MITRE 테이블 생성
             fields["MITRE_TABLE"] = self._format_mitre_table(session.mitre_techniques)
             fields["MITRE_COUNT"] = str(len(session.mitre_techniques))
-            
+
             # 노트 섹션
             fields["ANALYSIS_NOTES"] = self._format_notes(session.notes)
             fields["NOTES_COUNT"] = str(len(session.notes))
-            
+
             # 요약
             fields["SUMMARY"] = session.findings.get("summary", "_No summary provided._")
-        
+
         # 샘플 정보 (세션 없이 직접 지정한 경우)
         elif sample_path:
             sample_info = await self._extract_sample_info(sample_path)
             fields.update({k.upper(): str(v) for k, v in sample_info.items()})
-        
+
         # 커스텀 필드
         if custom_fields:
             fields.update({k.upper(): str(v) for k, v in custom_fields.items()})
-        
+
         # 기본값 설정 (템플릿 변수가 치환되지 않은 경우)
         default_values = {
             "SEVERITY": "MEDIUM",
@@ -811,20 +812,20 @@ class ReportTools:
             "ANALYSIS_END": "N/A",
             "ANALYSIS_DURATION": "N/A",
         }
-        
+
         for key, default in default_values.items():
             if key not in fields:
                 fields[key] = default
-        
+
         # 템플릿 치환
         report = template
         for key, value in fields.items():
             report = report.replace(f"{{{{{key}}}}}", value)
-        
+
         # 리포트 저장
         output_path = self.output_dir / f"{ts['report_id']}.md"
         output_path.write_text(report, encoding='utf-8')
-        
+
         return {
             "success": True,
             "report_id": ts["report_id"],
@@ -836,11 +837,11 @@ class ReportTools:
             "fields_filled": len(fields),
             "report_content": report  # 미리보기용
         }
-    
+
     async def list_templates(self) -> dict:
         """List available templates"""
         templates = []
-        
+
         for f in self.template_dir.glob("*.md"):
             content = f.read_text(encoding='utf-8')
             # 첫 줄에서 설명 추출 (<!-- description --> 형식)
@@ -849,22 +850,22 @@ class ReportTools:
                 end = content.find("-->")
                 if end > 0:
                     desc = content[4:end].strip()
-            
+
             templates.append({
                 "name": f.stem,
                 "description": desc,
                 "path": str(f)
             })
-        
+
         return {
             "total": len(templates),
             "templates": templates
         }
-    
+
     async def get_report(self, report_id: str) -> dict:
         """Retrieve a generated report"""
         report_path = self.output_dir / f"{report_id}.md"
-        
+
         if not report_path.exists():
             # 리포트 목록 반환
             reports = [f.stem for f in self.output_dir.glob("*.md")]
@@ -873,9 +874,9 @@ class ReportTools:
                 "error": f"Report not found: {report_id}",
                 "available_reports": reports
             }
-        
+
         content = report_path.read_text(encoding='utf-8')
-        
+
         return {
             "success": True,
             "report_id": report_id,
@@ -883,11 +884,11 @@ class ReportTools:
             "content": content,
             "size": len(content)
         }
-    
+
     async def list_reports(self) -> dict:
         """List generated reports"""
         reports = []
-        
+
         for f in self.output_dir.glob("*.md"):
             stat = f.stat()
             reports.append({
@@ -897,19 +898,19 @@ class ReportTools:
                 "created": datetime.fromtimestamp(stat.st_ctime).isoformat(),
                 "modified": datetime.fromtimestamp(stat.st_mtime).isoformat()
             })
-        
+
         # 최신순 정렬
         reports.sort(key=lambda x: x["created"], reverse=True)
-        
+
         return {
             "total": len(reports),
             "reports": reports
         }
-    
+
     # =========================================================================
     # Email / Delivery
     # =========================================================================
-    
+
     async def get_email_status(self) -> dict:
         """Check email configuration status"""
         return {
@@ -922,7 +923,7 @@ class ReportTools:
             "quick_contacts_count": len(self.quick_contacts),
             "hint": "Set environment variables or use configure_report_email tool" if not self.email_config.is_configured else None
         }
-    
+
     async def configure_email(
         self,
         smtp_server: str,
@@ -941,7 +942,7 @@ class ReportTools:
             use_tls=use_tls,
             sender_name=sender_name
         )
-        
+
         return {
             "success": True,
             "smtp_server": smtp_server,
@@ -951,7 +952,7 @@ class ReportTools:
             "configured": self.email_config.is_configured,
             "message": "Email configuration updated (runtime override)"
         }
-    
+
     async def add_quick_contact(
         self,
         name: str,
@@ -963,13 +964,13 @@ class ReportTools:
             "email": email,
             "role": role
         }
-        
+
         return {
             "success": True,
             "contact": {"name": name, "email": email, "role": role},
             "total_contacts": len(self.quick_contacts)
         }
-    
+
     async def list_quick_contacts(self) -> dict:
         """List quick contacts"""
         return {
@@ -979,13 +980,13 @@ class ReportTools:
                 for name, info in self.quick_contacts.items()
             ]
         }
-    
+
     async def send_report(
         self,
         report_id: str,
-        recipients: List[str],
-        subject: Optional[str] = None,
-        message: Optional[str] = None,
+        recipients: list[str],
+        subject: str | None = None,
+        message: str | None = None,
         include_attachment: bool = True
     ) -> dict:
         """
@@ -1005,7 +1006,7 @@ class ReportTools:
                 "success": False,
                 "error": f"Report not found: {report_id}"
             }
-        
+
         # 이메일 설정 확인
         if not self.email_config.is_configured:
             return {
@@ -1013,7 +1014,7 @@ class ReportTools:
                 "error": "Email not configured. Set environment variables (REPORT_SMTP_SERVER, REPORT_SMTP_USERNAME, REPORT_SMTP_PASSWORD) or use configure_report_email tool.",
                 "hint": "Copy .env.example to .env and fill in your SMTP settings"
             }
-        
+
         # 빠른 연락처 이름을 이메일로 변환
         resolved_recipients = []
         for r in recipients:
@@ -1021,13 +1022,13 @@ class ReportTools:
                 resolved_recipients.append(self.quick_contacts[r]["email"])
             else:
                 resolved_recipients.append(r)
-        
+
         report_content = report_path.read_text(encoding='utf-8')
-        
+
         # 기본 제목
         if not subject:
             subject = f"[Malware Analysis Report] {report_id}"
-        
+
         # 기본 메시지
         if not message:
             ts = self.get_timestamp_data()
@@ -1048,16 +1049,16 @@ class ReportTools:
 
 이 리포트는 Reversecore_MCP에 의해 자동 생성되었습니다.
 """
-        
+
         try:
             # 이메일 구성
             msg = MIMEMultipart()
             msg["From"] = self.email_config.username
             msg["To"] = ", ".join(resolved_recipients)
             msg["Subject"] = subject
-            
+
             msg.attach(MIMEText(message, "plain", "utf-8"))
-            
+
             # 첨부파일
             if include_attachment:
                 attachment = MIMEBase("application", "octet-stream")
@@ -1068,7 +1069,7 @@ class ReportTools:
                     f"attachment; filename={report_id}.md"
                 )
                 msg.attach(attachment)
-            
+
             # 전송
             with smtplib.SMTP(
                 self.email_config.smtp_server,
@@ -1086,7 +1087,7 @@ class ReportTools:
                     resolved_recipients,
                     msg.as_string()
                 )
-            
+
             return {
                 "success": True,
                 "report_id": report_id,
@@ -1095,7 +1096,7 @@ class ReportTools:
                 "attachment_included": include_attachment,
                 "sent_at": self._format_time(datetime.now(timezone.utc))
             }
-            
+
         except Exception as e:
             logger.error(f"Failed to send email: {e}")
             return {
@@ -1104,24 +1105,24 @@ class ReportTools:
                 "report_id": report_id,
                 "recipients": resolved_recipients
             }
-    
+
     # =========================================================================
     # Helper Methods
     # =========================================================================
-    
+
     async def _extract_sample_info(self, sample_path: str) -> dict:
         """Extract metadata from sample file"""
         path = Path(sample_path)
-        
+
         if not path.exists():
             return {
                 "filename": path.name,
                 "error": "File not found"
             }
-        
+
         data = path.read_bytes()
         stat = path.stat()
-        
+
         info = {
             "filename": path.name,
             "filepath": str(path.absolute()),
@@ -1133,18 +1134,18 @@ class ReportTools:
             "file_created": datetime.fromtimestamp(stat.st_ctime).isoformat(),
             "file_modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
         }
-        
+
         # 파일 타입 식별
         info["file_type"] = self._identify_file_type(data)
-        
+
         return info
-    
+
     @staticmethod
     def _identify_file_type(data: bytes) -> str:
         """Identify file type"""
         if len(data) < 4:
             return "Unknown (too small)"
-        
+
         magic_bytes = {
             b'MZ': "PE Executable (Windows)",
             b'\x7fELF': "ELF Executable (Linux)",
@@ -1162,20 +1163,20 @@ class ReportTools:
             b'{\n  ': "JSON Document",
             b'#!': "Script (Shell/Python)",
         }
-        
+
         for magic, file_type in magic_bytes.items():
             if data.startswith(magic):
                 return file_type
-        
+
         # ASCII 텍스트 체크
         try:
             data[:1000].decode('utf-8')
             return "Text/Script File"
         except UnicodeDecodeError:
             pass
-        
+
         return "Unknown Binary"
-    
+
     @staticmethod
     def _human_readable_size(size: int) -> str:
         """Convert bytes to human-readable format"""
@@ -1184,7 +1185,7 @@ class ReportTools:
                 return f"{size:,.1f} {unit}"
             size /= 1024
         return f"{size:,.1f} TB"
-    
+
     @staticmethod
     def _get_severity_emoji(severity: str) -> str:
         """Get severity emoji"""
@@ -1195,8 +1196,8 @@ class ReportTools:
             "critical": "🔴"
         }
         return emojis.get(severity.lower(), "⚪")
-    
-    def _format_iocs_yaml(self, iocs: Dict[str, List[str]]) -> str:
+
+    def _format_iocs_yaml(self, iocs: dict[str, list[str]]) -> str:
         """Format IOCs in YAML format"""
         lines = []
         for ioc_type, values in iocs.items():
@@ -1205,8 +1206,8 @@ class ReportTools:
                 for v in values:
                     lines.append(f"  - {v}")
         return "\n".join(lines) if lines else "# No IOCs collected"
-    
-    def _format_iocs_markdown(self, iocs: Dict[str, List[str]]) -> str:
+
+    def _format_iocs_markdown(self, iocs: dict[str, list[str]]) -> str:
         """Format IOCs in Markdown format"""
         lines = []
         for ioc_type, values in iocs.items():
@@ -1216,22 +1217,22 @@ class ReportTools:
                     lines.append(f"- `{v}`")
                 lines.append("")
         return "\n".join(lines) if lines else "_No IOCs collected._"
-    
-    def _format_mitre_table(self, techniques: List[Dict[str, str]]) -> str:
+
+    def _format_mitre_table(self, techniques: list[dict[str, str]]) -> str:
         """Format MITRE techniques as Markdown table"""
         if not techniques:
             return "| - | - | - |"
-        
+
         lines = []
         for t in techniques:
             lines.append(f"| {t['tactic']} | {t['name']} | `{t['id']}` |")
         return "\n".join(lines)
-    
-    def _format_notes(self, notes: List[Dict[str, str]]) -> str:
+
+    def _format_notes(self, notes: list[dict[str, str]]) -> str:
         """Format analysis notes"""
         if not notes:
             return "_No notes recorded._"
-        
+
         lines = []
         for n in notes:
             ts = n["timestamp"][:19].replace("T", " ")  # ISO to readable
@@ -1248,13 +1249,13 @@ class ReportTools:
 
 
 # 싱글톤 인스턴스 (기본 경로)
-_default_report_tools: Optional[ReportTools] = None
+_default_report_tools: ReportTools | None = None
 
 
 def get_report_tools(
-    template_dir: Optional[Path] = None,
-    output_dir: Optional[Path] = None,
-    default_timezone: Optional[str] = None
+    template_dir: Path | None = None,
+    output_dir: Path | None = None,
+    default_timezone: str | None = None
 ) -> ReportTools:
     """
     ReportTools 싱글톤 인스턴스 반환
@@ -1272,14 +1273,14 @@ def get_report_tools(
     - REPORT_DEFAULT_ANALYST: 기본 분석가 이름
     """
     global _default_report_tools
-    
+
     if _default_report_tools is None:
         # 환경변수에서 설정 로드
         env_timezone = os.getenv("REPORT_DEFAULT_TIMEZONE", "Asia/Seoul")
-        
+
         # 이메일 설정 로드
         email_config = EmailConfig.from_env()
-        
+
         # ReportTools 인스턴스 생성
         _default_report_tools = ReportTools(
             template_dir=template_dir or Path("templates/reports"),
@@ -1287,17 +1288,17 @@ def get_report_tools(
             default_timezone=default_timezone or env_timezone,
             email_config=email_config
         )
-        
+
         # 환경변수에서 빠른 연락처 로드
         env_contacts = _load_quick_contacts_from_env()
         _default_report_tools.quick_contacts.update(env_contacts)
-        
+
         # 로그 출력
-        logger.info(f"📋 ReportTools initialized:")
+        logger.info("📋 ReportTools initialized:")
         logger.info(f"   - Timezone: {_default_report_tools.default_timezone}")
         logger.info(f"   - Email: {'✅ Configured' if email_config.is_configured else '❌ Not configured'}")
         logger.info(f"   - Quick contacts: {len(_default_report_tools.quick_contacts)}")
-    
+
     return _default_report_tools
 
 
