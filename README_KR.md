@@ -9,6 +9,8 @@
 [![Tests](https://img.shields.io/badge/tests-852%20passed-brightgreen)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-76%25-green)](htmlcov/)
 
+[![데모 영상 시청](https://img.shields.io/badge/데모_영상_시청-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtu.be/wJGW2bp3c5A)
+
 [🇺🇸 English](README.md)
 
 AI 에이전트가 자연어 명령을 통해 포괄적인 바이너리 분석을 수행할 수 있게 하는 엔터프라이즈급 MCP(Model Context Protocol) 서버입니다.

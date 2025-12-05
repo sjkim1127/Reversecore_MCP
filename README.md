@@ -9,6 +9,8 @@
 [![Tests](https://img.shields.io/badge/tests-852%20passed-brightgreen)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-76%25-green)](htmlcov/)
 
+[![Watch the Demo](https://img.shields.io/badge/Watch_Demo-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtu.be/wJGW2bp3c5A)
+
 [🇰🇷 한국어 (Korean)](README_KR.md)
 
 An enterprise-grade MCP (Model Context Protocol) server for AI-powered reverse engineering. Enables AI agents to perform comprehensive binary analysis through natural language commands.
