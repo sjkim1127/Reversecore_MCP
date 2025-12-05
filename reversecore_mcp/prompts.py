@@ -9,6 +9,12 @@ DOCKER_PATH_RULE = """
 - Example: "/Users/john/Reversecore_Workspace/sample.exe" → use "sample.exe"
 - First, ALWAYS run `list_workspace()` to verify the file exists in the workspace
 - If the file is not in the workspace, inform the user to copy it there first
+
+[CRITICAL: Tool Usage Rule]
+- ALWAYS use `list_workspace()` first to verify files.
+- For disassembly, ALWAYS use `Radare2_disassemble` or `run_radare2`.
+- DO NOT use Capstone tools as they lack file format context (VA/offset).
+- Use `extract_iocs` for automated artifact extraction (IP, URL, BTC, Hashes).
 """
 
 
@@ -34,6 +40,16 @@ def register_prompts(mcp: FastMCP):
 
     To list available files in the workspace:
     - Use `list_workspace()` tool to see all accessible files
+
+    [Tool Usage Best Practices]
+    - Disassembly: Use `Radare2_disassemble` or `run_radare2` (handles VA/offsets automatically).
+    - IOCs: Use `extract_iocs` to find malicious indicators (IPs, URLs, BTC, Hashes).
+    - Avoid direct Capstone usage unless dealing with raw shellcode blobs.
+
+    [Tool Usage Best Practices]
+    - Disassembly: Use `Radare2_disassemble` or `run_radare2` (handles VA/offsets automatically).
+    - IOCs: Use `extract_iocs` to find malicious indicators (IPs, URLs, BTC, Hashes).
+    - Avoid direct Capstone usage unless dealing with raw shellcode blobs.
     """
 
     @mcp.prompt("full_analysis_mode")
