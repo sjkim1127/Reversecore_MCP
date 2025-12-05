@@ -72,32 +72,71 @@ def _handle_exception(exc: Exception, tool_name: str) -> ToolResult:
     )
 
 
-def handle_tool_errors(func: F) -> F:
-    """Wrap a tool function to convert common exceptions into ToolResult failures.
-
-    Works with both sync and async functions, using _handle_exception for
-    centralized error handling logic.
+def handle_tool_errors(func=None, *, max_retries: int = 0, backoff: float = 0.5) -> F:
     """
+    Wrap a tool function to handle errors and optionally retry on failure.
+    
+    Supports usage as both:
+    @handle_tool_errors
+    def my_tool(): ...
+    
+    and:
+    @handle_tool_errors(max_retries=3)
+    def my_tool(): ...
+    """
+    import asyncio
     import inspect
+    import time
 
-    is_async = inspect.iscoroutinefunction(func)
+    def decorator(f: F) -> F:
+        is_async = inspect.iscoroutinefunction(f)
+        tool_name = f.__name__
 
-    if is_async:
+        if is_async:
+            @wraps(f)
+            async def async_wrapper(*args, **kwargs) -> ToolResult:
+                last_exception = None
+                for attempt in range(max_retries + 1):
+                    try:
+                        return await f(*args, **kwargs)
+                    except Exception as exc:
+                        last_exception = exc
+                        if attempt < max_retries:
+                            wait_time = backoff * (2 ** attempt)
+                            logger.warning(
+                                f"Tool '{tool_name}' failed (attempt {attempt+1}/{max_retries+1}). "
+                                f"Retrying in {wait_time:.1f}s. Error: {exc}"
+                            )
+                            await asyncio.sleep(wait_time)
+                        else:
+                            # Final attempt failed
+                            msg = f"Failed after {max_retries+1} attempts" if max_retries > 0 else None
+                            return _handle_exception(exc, tool_name)
+                # Should not reach here
+                return _handle_exception(last_exception, tool_name)
+            return async_wrapper  # type: ignore
 
-        @wraps(func)
-        async def async_wrapper(*args, **kwargs) -> ToolResult:
-            try:
-                return await func(*args, **kwargs)
-            except Exception as exc:  # noqa: BLE001 - we intentionally coerce to ToolResult
-                return _handle_exception(exc, func.__name__)
+        else:
+            @wraps(f)
+            def sync_wrapper(*args, **kwargs) -> ToolResult:
+                last_exception = None
+                for attempt in range(max_retries + 1):
+                    try:
+                        return f(*args, **kwargs)
+                    except Exception as exc:
+                        last_exception = exc
+                        if attempt < max_retries:
+                            wait_time = backoff * (2 ** attempt)
+                            logger.warning(
+                                f"Tool '{tool_name}' failed (attempt {attempt+1}/{max_retries+1}). "
+                                f"Retrying in {wait_time:.1f}s. Error: {exc}"
+                            )
+                            time.sleep(wait_time)
+                        else:
+                            return _handle_exception(exc, tool_name)
+                return _handle_exception(last_exception, tool_name)
+            return sync_wrapper  # type: ignore
 
-        return async_wrapper  # type: ignore[return-value]
-
-    @wraps(func)
-    def wrapper(*args, **kwargs) -> ToolResult:
-        try:
-            return func(*args, **kwargs)
-        except Exception as exc:  # noqa: BLE001 - we intentionally coerce to ToolResult
-            return _handle_exception(exc, func.__name__)
-
-    return wrapper  # type: ignore[return-value]
+    if func is None:
+        return decorator
+    return decorator(func)
