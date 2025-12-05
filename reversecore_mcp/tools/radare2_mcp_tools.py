@@ -16,20 +16,18 @@ SECURITY PHILOSOPHY:
 from __future__ import annotations
 
 import re
-from pathlib import Path
 from functools import lru_cache
 from typing import Any
 
 import r2pipe
-
 from fastmcp import FastMCP
 
 from reversecore_mcp.core.config import get_config
+from reversecore_mcp.core.exceptions import ValidationError
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.plugin import Plugin
 from reversecore_mcp.core.security import validate_file_path
 from reversecore_mcp.core.validators import validate_address_format
-from reversecore_mcp.core.exceptions import ValidationError
 
 logger = get_logger(__name__)
 
@@ -50,20 +48,22 @@ _SAFE_IDENTIFIER_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_.]*$")
 _SAFE_EXPRESSION_PATTERN = re.compile(r"^[a-zA-Z0-9_.\s+\-*/%()\[\]]+$")
 
 # Dangerous r2 commands that should be blocked
-_BLOCKED_R2_COMMANDS = frozenset({
-    "!",       # Shell escape
-    "#!",      # Alternative shell
-    "=!",      # Remote shell
-    "o+",      # Open for write
-    "w",       # Write
-    "wa",      # Write assembly
-    "wb",      # Write bytes
-    "wc",      # Write comment (file modification)
-    "wf",      # Write file
-    "Ps",      # Project save (can overwrite)
-    "rm",      # Remove (radare2 built-in)
-    "r2pm",    # Package manager
-})
+_BLOCKED_R2_COMMANDS = frozenset(
+    {
+        "!",  # Shell escape
+        "#!",  # Alternative shell
+        "=!",  # Remote shell
+        "o+",  # Open for write
+        "w",  # Write
+        "wa",  # Write assembly
+        "wb",  # Write bytes
+        "wc",  # Write comment (file modification)
+        "wf",  # Write file
+        "Ps",  # Project save (can overwrite)
+        "rm",  # Remove (radare2 built-in)
+        "r2pm",  # Package manager
+    }
+)
 
 
 def _validate_identifier(value: str, param_name: str) -> None:
@@ -107,7 +107,7 @@ def _validate_expression(expression: str) -> None:
         )
 
     # Additional check for shell escape attempts
-    if any(c in expression for c in ['`', '$', ';', '|', '&', '>', '<', '~']):
+    if any(c in expression for c in ["`", "$", ";", "|", "&", ">", "<", "~"]):
         raise ValidationError("expression contains forbidden shell characters")
 
 
@@ -136,7 +136,7 @@ def _validate_r2_command(command: str) -> None:
             )
 
     # Block shell metacharacters in command
-    if any(c in command for c in ['`', '$', '|', '&', '>', '<', '\n', '\r']):
+    if any(c in command for c in ["`", "$", "|", "&", ">", "<", "\n", "\r"]):
         raise ValidationError("Command contains forbidden shell metacharacters")
 
 
@@ -156,13 +156,13 @@ def _sanitize_for_r2_cmd(value: str) -> str:
         return ""
 
     # Remove shell metacharacters
-    dangerous_chars = '`$;|&><\n\r\t\\'
+    dangerous_chars = "`$;|&><\n\r\t\\"
     sanitized = value
     for char in dangerous_chars:
-        sanitized = sanitized.replace(char, '')
+        sanitized = sanitized.replace(char, "")
 
     # Remove quotes that could break command parsing
-    sanitized = sanitized.replace('"', '').replace("'", '')
+    sanitized = sanitized.replace('"', "").replace("'", "")
 
     return sanitized
 
@@ -229,10 +229,10 @@ class R2Session:
             return "Already analyzed"
 
         analysis_cmds = {
-            0: "aa",      # Basic analysis
-            1: "aaa",     # Auto-analysis
-            2: "aaaa",    # Experimental analysis
-            3: "aaaaa",   # Deep analysis
+            0: "aa",  # Basic analysis
+            1: "aaa",  # Auto-analysis
+            2: "aaaa",  # Experimental analysis
+            3: "aaaaa",  # Deep analysis
             4: "aaaaaa",  # Very deep analysis
         }
         cmd = analysis_cmds.get(level, "aaa")
@@ -267,27 +267,27 @@ def _filter_lines_by_regex(text: str, pattern: str) -> str:
     if regex is None:
         return f"Invalid regex pattern: {pattern}"
 
-    lines = text.split('\n')
+    lines = text.split("\n")
     filtered = [line for line in lines if regex.search(line)]
-    return '\n'.join(filtered)
+    return "\n".join(filtered)
 
 
 def _filter_named_functions(text: str) -> str:
     """Filter out functions with numeric suffixes (e.g., sym.func.1000016c8)."""
     if not text:
         return text
-    lines = text.split('\n')
+    lines = text.split("\n")
     filtered = []
     for line in lines:
         # Check if last part after dot is a number (hex)
-        parts = line.split('.')
+        parts = line.split(".")
         if parts:
             last_part = parts[-1].split()[0] if parts[-1] else ""
             # Skip if last part looks like a hex address
             if last_part and last_part[0].isdigit():
                 continue
         filtered.append(line)
-    return '\n'.join(filtered)
+    return "\n".join(filtered)
 
 
 def _paginate_text(text: str, cursor: str | None, page_size: int) -> tuple[str, bool, str | None]:
@@ -299,7 +299,7 @@ def _paginate_text(text: str, cursor: str | None, page_size: int) -> tuple[str, 
     if not text:
         return "", False, None
 
-    lines = text.split('\n')
+    lines = text.split("\n")
     start_index = int(cursor) if cursor and cursor.isdigit() else 0
 
     if start_index < 0:
@@ -311,7 +311,7 @@ def _paginate_text(text: str, cursor: str | None, page_size: int) -> tuple[str, 
     has_more = end_index < len(lines)
     next_cursor = str(end_index) if has_more else None
 
-    return '\n'.join(paginated_lines), has_more, next_cursor
+    return "\n".join(paginated_lines), has_more, next_cursor
 
 
 class Radare2ToolsPlugin(Plugin):
@@ -380,7 +380,7 @@ class Radare2ToolsPlugin(Plugin):
             """
             # Validate path using project security module
             try:
-                validated_path = validate_file_path(file_path, must_exist=True)
+                validated_path = validate_file_path(file_path)
             except ValidationError as e:
                 return {"status": "error", "message": str(e)}
 
@@ -552,7 +552,7 @@ class Radare2ToolsPlugin(Plugin):
             if filter:
                 result = _filter_lines_by_regex(result, filter)
 
-            lines = [l for l in result.strip().split('\n') if l]
+            lines = [line for line in result.strip().split("\n") if line]
             return {
                 "status": "success",
                 "count": len(lines),
@@ -1169,7 +1169,10 @@ class Radare2ToolsPlugin(Plugin):
 
             name_lower = name.lower()
             if name_lower not in decompiler_map:
-                return {"status": "error", "message": f"Unknown decompiler: {name}. Allowed: ghidra, r2dec, pdc"}
+                return {
+                    "status": "error",
+                    "message": f"Unknown decompiler: {name}. Allowed: ghidra, r2dec, pdc",
+                }
 
             cmd_name = decompiler_map[name_lower]
             if cmd_name not in available:
