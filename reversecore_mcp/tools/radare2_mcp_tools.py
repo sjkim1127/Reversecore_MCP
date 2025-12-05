@@ -334,6 +334,16 @@ class Radare2ToolsPlugin(Plugin):
         Returns:
             R2Session instance
         """
+        # Validate and normalize path first
+        # This handles host paths (e.g. /Users/...) by converting to workspace paths
+        try:
+            validated_path = validate_file_path(file_path)
+            file_path = str(validated_path)
+        except ValidationError as e:
+            logger.error(f"Invalid file path in get_or_create_session: {e}")
+            # Identify file path for error reporting (best effort)
+            pass
+
         if file_path in self._sessions:
             session = self._sessions[file_path]
             if session.is_open:
