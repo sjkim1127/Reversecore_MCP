@@ -18,6 +18,7 @@ _IOC_URL_PATTERN = re.compile(
     r"https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&//=]*)"
 )
 _IOC_EMAIL_PATTERN = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b")
+_IOC_BITCOIN_PATTERN = re.compile(r"\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b")
 
 
 @log_execution(tool_name="extract_iocs")
@@ -28,6 +29,7 @@ def extract_iocs(
     extract_ips: bool = True,
     extract_urls: bool = True,
     extract_emails: bool = True,
+    extract_bitcoin: bool = True,
     limit: int = 100,
 ) -> ToolResult:
     """
@@ -42,6 +44,7 @@ def extract_iocs(
         extract_ips: Whether to extract IPv4 addresses (default: True)
         extract_urls: Whether to extract URLs (default: True)
         extract_emails: Whether to extract email addresses (default: True)
+        extract_bitcoin: Whether to extract Bitcoin addresses (default: True)
         limit: Maximum number of IOCs to return per category (default: 100)
 
     Returns:
@@ -130,6 +133,14 @@ def extract_iocs(
             emails = emails[:limit]
         iocs["emails"] = emails
         total_count += len(emails)
+
+    # Bitcoin Regex - use pre-compiled pattern
+    if extract_bitcoin:
+        bitcoin_addresses = list(set(_IOC_BITCOIN_PATTERN.findall(text)))
+        if len(bitcoin_addresses) > limit:
+            bitcoin_addresses = bitcoin_addresses[:limit]
+        iocs["bitcoin_addresses"] = bitcoin_addresses
+        total_count += len(bitcoin_addresses)
 
     return success(
         iocs,
