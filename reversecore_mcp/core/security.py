@@ -134,6 +134,20 @@ def validate_file_path(
     # This allows users to specify just the filename (e.g., "sample.exe")
     # instead of the full path ("/app/workspace/sample.exe")
     file_path = Path(path)
+
+    # Defense against AI mistakes: if a host-side absolute path is passed
+    # (e.g., "/Users/john/Reversecore_Workspace/sample.exe"), extract just
+    # the filename and try to find it in the workspace directory.
+    # This handles cases where AI ignores the prompt instructions.
+    if file_path.is_absolute() and not str(file_path).startswith(str(active_config.workspace)):
+        # Path is absolute but not in workspace - likely a host path
+        # Extract filename and try workspace
+        filename_only = file_path.name
+        workspace_path = active_config.workspace / filename_only
+        if workspace_path.exists():
+            path = str(workspace_path)
+        # If not found, continue with original path (will error with helpful message)
+
     if not file_path.is_absolute():
         # Try workspace-relative path first
         workspace_path = active_config.workspace / path
