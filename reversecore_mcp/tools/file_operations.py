@@ -30,7 +30,27 @@ async def run_file(file_path: str, timeout: int = DEFAULT_TIMEOUT) -> ToolResult
         max_output_size=1_000_000,
         timeout=timeout,
     )
-    return success(output.strip(), bytes_read=bytes_read)
+    output = output.strip()
+    
+    # Try to infer mime type from output (simple heuristic)
+    mime_type = "application/octet-stream"
+    if "text" in output.lower():
+        mime_type = "text/plain"
+    elif "executable" in output.lower():
+        mime_type = "application/x-executable"
+    elif "image" in output.lower():
+        mime_type = "image/" + output.split()[0].lower()
+        
+    return success(
+        output,
+        bytes_read=bytes_read,
+        data={
+            "file_type": output,
+            "file_path": str(validated_path),
+            "file_name": validated_path.name,
+            "mime_type": mime_type
+        }
+    )
 
 
 @log_execution(tool_name="copy_to_workspace")

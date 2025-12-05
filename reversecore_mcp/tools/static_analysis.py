@@ -79,17 +79,59 @@ async def run_strings(
         timeout=timeout,
     )
 
-    # Truncate output for LLM consumption if too large
+    # Truncate output logic enhanced with file saving
+    truncated = False
+    output_files = {}
+    
+    # Calculate statistics
+    text_output = output
+    lines = text_output.splitlines()
+    count = len(lines)
+    
     if len(output) > LLM_SAFE_LIMIT:
-        truncated_output = output[:LLM_SAFE_LIMIT]
-        warning_msg = (
-            f"\n\n[WARNING] Output truncated! Total size: {len(output)} bytes. "
-            f"Showing first {LLM_SAFE_LIMIT} bytes.\n"
-            "To analyze the full content, consider using 'grep' or processing the file directly."
-        )
-        return success(truncated_output + warning_msg, bytes_read=bytes_read, truncated=True)
+        truncated = True
+        # Save full output to file
+        strings_filename = f"{validated_path.name}_strings.txt"
+        strings_path = validated_path.parent / strings_filename
+        
+        try:
+            with open(strings_path, "w", encoding="utf-8") as f:
+                f.write(text_output)
+            output_files["full_output"] = str(strings_path)
+            
+            # Create preview
+            preview_limit = min(2000, len(text_output)) # First 2000 chars
+            preview_text = text_output[:preview_limit] + f"\n... (truncated, full content in {strings_filename})"
+            
+            return success(
+                preview_text,
+                bytes_read=bytes_read,
+                truncated=True,
+                data={
+                    "count": count,
+                    "preview": lines[:50], # First 50 lines list
+                    "file_path": str(strings_path),
+                    "full_size": len(text_output)
+                }
+            )
+        except Exception as e:
+            # Fallback if file write fails
+            truncated_output = output[:LLM_SAFE_LIMIT]
+            return success(
+                truncated_output + f"\n[Error saving file: {e}]", 
+                bytes_read=bytes_read, 
+                truncated=True
+            )
 
-    return success(output, bytes_read=bytes_read)
+    return success(
+        output, 
+        bytes_read=bytes_read,
+        data={
+            "count": count,
+            "preview": lines[:50],
+            "full_size": len(text_output)
+        }
+    )
 
 
 @log_execution(tool_name="run_binwalk")
