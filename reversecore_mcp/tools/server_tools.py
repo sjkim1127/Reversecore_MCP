@@ -36,7 +36,7 @@ class ServerToolsPlugin(Plugin):
         """Register server tools."""
 
         @mcp.tool()
-        def get_server_health() -> ToolResult:
+        async def get_server_health() -> ToolResult:
             """
             Get the current health status and resource usage of the MCP server.
             
@@ -54,8 +54,6 @@ class ServerToolsPlugin(Plugin):
             
             # Memory usage (RSS)
             # getrusage returns kilobytes on Linux, bytes on macOS
-            # But in Docker (Linux), it's usually KB. 
-            # safe conversion assuming KB (standard for getrusage on Linux)
             usage = resource.getrusage(resource.RUSAGE_SELF)
             memory_mb = usage.ru_maxrss / 1024
             if os.uname().sysname == "Darwin":
@@ -87,7 +85,7 @@ class ServerToolsPlugin(Plugin):
             })
 
         @mcp.tool()
-        def get_tool_metrics(tool_name: str = None) -> ToolResult:
+        async def get_tool_metrics(tool_name: str = None) -> ToolResult:
             """
             Get detailed execution metrics for specific or all tools.
             
