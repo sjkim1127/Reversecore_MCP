@@ -99,12 +99,12 @@ RUN mkdir -p /app/workspace /app/rules
 # Install runtime dependencies
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        file \
-        binutils \
-        binwalk \
-        graphviz \
-        wget \
-        gnupg \
+    file \
+    binutils \
+    binwalk \
+    graphviz \
+    wget \
+    gnupg \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Eclipse Temurin OpenJDK 21 for ARM64
@@ -144,6 +144,7 @@ ENV PATH="/opt/radare2/bin:/opt/venv/bin:$PATH" \
     MCP_TRANSPORT=http \
     LOG_LEVEL=INFO \
     LOG_FILE=/var/log/reversecore/app.log \
+    MEMORY_DB_PATH=/app/workspace/.memory.db \
     RATE_LIMIT=60
 
 # Create log directory

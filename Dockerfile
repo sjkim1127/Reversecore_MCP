@@ -123,20 +123,20 @@ RUN mkdir -p /app/workspace /app/rules
 # Note: OpenJDK 21 is installed from Adoptium (Eclipse Temurin) for Ghidra 11.4+ compatibility
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        # coreutils "file" command required by run_file tool
-        # Version: 1:5.44-3 (Debian 12 Bookworm)
-        file=1:5.44-3 \
-        # Binutils for strings command
-        # Version: 2.40-2 (Debian 12 Bookworm)
-        binutils=2.40-2 \
-        # Binwalk for firmware analysis and file carving
-        # Version: 2.3.4+dfsg1-1 (Debian 12 Bookworm)
-        binwalk=2.3.4+dfsg1-1 \
-        # Graphviz for CFG image generation (FastMCP Image support)
-        graphviz \
-        # Required for Adoptium GPG key
-        wget \
-        gnupg \
+    # coreutils "file" command required by run_file tool
+    # Version: 1:5.44-3 (Debian 12 Bookworm)
+    file=1:5.44-3 \
+    # Binutils for strings command
+    # Version: 2.40-2 (Debian 12 Bookworm)
+    binutils=2.40-2 \
+    # Binwalk for firmware analysis and file carving
+    # Version: 2.3.4+dfsg1-1 (Debian 12 Bookworm)
+    binwalk=2.3.4+dfsg1-1 \
+    # Graphviz for CFG image generation (FastMCP Image support)
+    graphviz \
+    # Required for Adoptium GPG key
+    wget \
+    gnupg \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Eclipse Temurin (Adoptium) OpenJDK 21 for Ghidra 11.4+
@@ -180,6 +180,7 @@ ENV PATH="/opt/radare2/bin:/opt/venv/bin:$PATH" \
     MCP_TRANSPORT=http \
     LOG_LEVEL=INFO \
     LOG_FILE=/var/log/reversecore/app.log \
+    MEMORY_DB_PATH=/app/workspace/.memory.db \
     RATE_LIMIT=60
 
 # Create log directory
