@@ -951,26 +951,7 @@ async def recover_structures(
                 hint="The function may not exist or may not use structures. Verify the address with 'afl' command.",
             )
 
+# Note: DecompilationPlugin has been removed.
+# All tools (emulate_machine_code, get_pseudo_code, smart_decompile, recover_structures)
+# are now registered via GhidraToolsPlugin in ghidra_tools.py for unified management.
 
-from typing import Any
-
-from reversecore_mcp.core.plugin import Plugin
-
-
-class DecompilationPlugin(Plugin):
-    """Plugin for decompilation and structure recovery tools."""
-
-    @property
-    def name(self) -> str:
-        return "decompilation"
-
-    @property
-    def description(self) -> str:
-        return "Decompilation and code recovery tools for binary analysis."
-
-    def register(self, mcp_server: Any) -> None:
-        """Register decompilation tools."""
-        mcp_server.tool(emulate_machine_code)
-        mcp_server.tool(get_pseudo_code)
-        mcp_server.tool(smart_decompile)
-        mcp_server.tool(recover_structures)

@@ -981,3 +981,20 @@ class GhidraToolsPlugin(Plugin):
         # Analysis tools
         mcp_server.tool(Ghidra_analyze_function)
         mcp_server.tool(Ghidra_get_call_graph)
+
+        # =====================================================================
+        # Decompilation Tools (from decompilation module)
+        # =====================================================================
+        from reversecore_mcp.tools.ghidra.decompilation import (
+            emulate_machine_code,
+            get_pseudo_code,
+            smart_decompile,
+            recover_structures,
+        )
+        mcp_server.tool(emulate_machine_code)
+        mcp_server.tool(get_pseudo_code)
+        mcp_server.tool(smart_decompile)
+        mcp_server.tool(recover_structures)
+
+        logger.info(f"Registered {self.name} plugin with 17 Ghidra tools (unified)")
+
