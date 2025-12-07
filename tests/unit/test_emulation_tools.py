@@ -3,7 +3,7 @@
 import pytest
 
 from reversecore_mcp.core import r2_helpers
-from reversecore_mcp.tools import decompilation
+from reversecore_mcp.tools.ghidra import decompilation
 
 
 def test_parse_register_state_basic():

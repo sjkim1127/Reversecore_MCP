@@ -6,7 +6,7 @@ import pytest
 
 from reversecore_mcp.core import command_spec
 from reversecore_mcp.core.exceptions import ValidationError
-from reversecore_mcp.tools import r2_analysis, static_analysis
+from reversecore_mcp.tools.radare2 import r2_analysis, static_analysis
 
 
 @pytest.mark.asyncio

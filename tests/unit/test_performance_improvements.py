@@ -48,7 +48,7 @@ def test_yara_processing_micro_optimization():
     This tests the micro-optimization in lib_tools.py where we check
     matched_data is None before doing the isinstance check.
     """
-    from reversecore_mcp.tools.lib_tools import _format_yara_match
+    from reversecore_mcp.tools.common.lib_tools import _format_yara_match
 
     # Create mock YARA match with many instances
     mock_instance_with_data = MagicMock()

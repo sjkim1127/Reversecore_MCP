@@ -648,7 +648,7 @@ def register_report_tools(mcp_server, template_dir: Path | None = None, output_d
 
             # 1. LIEF Analysis
             try:
-                from reversecore_mcp.tools.lief_tools import parse_binary_with_lief
+                from reversecore_mcp.tools.analysis.lief_tools import parse_binary_with_lief
                 lief_result = parse_binary_with_lief(file_path_str, format="json")
                 if lief_result.status == "success":
                     data = lief_result.data
@@ -699,7 +699,7 @@ def register_report_tools(mcp_server, template_dir: Path | None = None, output_d
 
             # 2. Strings Analysis (Separate File)
             try:
-                from reversecore_mcp.tools.static_analysis import run_strings
+                from reversecore_mcp.tools.analysis.static_analysis import run_strings
                 strings_result = await run_strings(file_path_str, min_length=4)
                 
                 if strings_result.status == "success":
@@ -729,7 +729,7 @@ def register_report_tools(mcp_server, template_dir: Path | None = None, output_d
 
             # 3. IOCs
             try:
-                from reversecore_mcp.tools.ioc_tools import extract_iocs
+                from reversecore_mcp.tools.malware.ioc_tools import extract_iocs
                 ioc_result = extract_iocs(file_path_str)
                 if ioc_result.status == "success":
                     # Map IOC tool output to schema

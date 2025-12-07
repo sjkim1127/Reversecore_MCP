@@ -91,7 +91,7 @@ class TestIOCToolsAdditional:
 
     def test_extract_iocs_with_urls(self, patched_workspace_config, workspace_dir):
         """Test extract_iocs with URL patterns."""
-        from reversecore_mcp.tools.ioc_tools import extract_iocs
+        from reversecore_mcp.tools.malware.ioc_tools import extract_iocs
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(
@@ -103,7 +103,7 @@ class TestIOCToolsAdditional:
 
     def test_extract_iocs_with_ips(self, patched_workspace_config, workspace_dir):
         """Test extract_iocs with IP patterns."""
-        from reversecore_mcp.tools.ioc_tools import extract_iocs
+        from reversecore_mcp.tools.malware.ioc_tools import extract_iocs
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"10.0.0.1\x00172.16.0.1\x008.8.8.8\x00")
@@ -123,7 +123,7 @@ class TestStaticAnalysisAdditional:
     @pytest.mark.asyncio
     async def test_run_strings_basic(self, patched_workspace_config, workspace_dir):
         """Test run_strings with basic file."""
-        from reversecore_mcp.tools.static_analysis import run_strings
+        from reversecore_mcp.tools.analysis.static_analysis import run_strings
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"Hello World\x00This is a test string\x00\x00\x00\x00\x00")
@@ -186,7 +186,7 @@ class TestFileOperationsAdditional:
 
     def test_list_workspace(self, patched_workspace_config, workspace_dir):
         """Test list_workspace function."""
-        from reversecore_mcp.tools.file_operations import list_workspace
+        from reversecore_mcp.tools.common.file_operations import list_workspace
 
         # Create some test files
         (workspace_dir / "test1.bin").write_bytes(b"\x00" * 10)
@@ -206,21 +206,21 @@ class TestSignatureToolsAdditional:
 
     def test_validate_address_or_fail_valid(self):
         """Test _validate_address_or_fail with valid address."""
-        from reversecore_mcp.tools.signature_tools import _validate_address_or_fail
+        from reversecore_mcp.tools.analysis.signature_tools import _validate_address_or_fail
 
         # Should not raise for valid hex address
         _validate_address_or_fail("0x401000")
 
     def test_format_hex_bytes(self):
         """Test _format_hex_bytes helper."""
-        from reversecore_mcp.tools.signature_tools import _format_hex_bytes
+        from reversecore_mcp.tools.analysis.signature_tools import _format_hex_bytes
 
         result = _format_hex_bytes("414243")
         assert isinstance(result, str)
 
     def test_sanitize_filename_for_rule(self):
         """Test _sanitize_filename_for_rule helper."""
-        from reversecore_mcp.tools.signature_tools import _sanitize_filename_for_rule
+        from reversecore_mcp.tools.analysis.signature_tools import _sanitize_filename_for_rule
 
         result = _sanitize_filename_for_rule("/path/to/file.bin")
         assert isinstance(result, str)

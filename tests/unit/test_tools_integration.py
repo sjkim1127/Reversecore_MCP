@@ -23,7 +23,7 @@ class TestAdaptiveVaccineHelpers:
 
     def test_register_adaptive_vaccine(self):
         """Test register_adaptive_vaccine."""
-        from reversecore_mcp.tools.adaptive_vaccine import register_adaptive_vaccine
+        from reversecore_mcp.tools.malware.adaptive_vaccine import register_adaptive_vaccine
 
         mock_mcp = MagicMock()
         register_adaptive_vaccine(mock_mcp)
@@ -36,7 +36,7 @@ class TestAdaptiveVaccineMain:
     @pytest.mark.asyncio
     async def test_adaptive_vaccine_basic(self, patched_workspace_config, workspace_dir):
         """Test adaptive_vaccine with basic file."""
-        from reversecore_mcp.tools.adaptive_vaccine import adaptive_vaccine
+        from reversecore_mcp.tools.malware.adaptive_vaccine import adaptive_vaccine
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)
@@ -62,14 +62,14 @@ class TestDiffToolsExtractLibraryName:
 
     def test_extract_library_name_basic(self):
         """Test _extract_library_name with basic input."""
-        from reversecore_mcp.tools.diff_tools import _extract_library_name
+        from reversecore_mcp.tools.analysis.diff_tools import _extract_library_name
 
         result = _extract_library_name("sym.imp.printf")
         assert isinstance(result, str)
 
     def test_extract_library_name_no_prefix(self):
         """Test _extract_library_name without prefix."""
-        from reversecore_mcp.tools.diff_tools import _extract_library_name
+        from reversecore_mcp.tools.analysis.diff_tools import _extract_library_name
 
         result = _extract_library_name("printf")
         assert isinstance(result, str)
@@ -81,7 +81,7 @@ class TestDiffToolsDiffBinaries:
     @pytest.mark.asyncio
     async def test_diff_binaries_same_file(self, patched_workspace_config, workspace_dir):
         """Test diff_binaries with same file."""
-        from reversecore_mcp.tools.diff_tools import diff_binaries
+        from reversecore_mcp.tools.analysis.diff_tools import diff_binaries
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)
@@ -105,7 +105,7 @@ class TestDormantDetectorRegister:
 
     def test_register_dormant_detector(self):
         """Test register_dormant_detector."""
-        from reversecore_mcp.tools.dormant_detector import DormantDetectorPlugin
+        from reversecore_mcp.tools.malware.dormant_detector import DormantDetectorPlugin
 
         plugin = DormantDetectorPlugin()
         mock_mcp = MagicMock()
@@ -119,7 +119,7 @@ class TestDormantDetectorMain:
     @pytest.mark.asyncio
     async def test_dormant_detector_basic(self, patched_workspace_config, workspace_dir):
         """Test dormant_detector with basic file."""
-        from reversecore_mcp.tools.dormant_detector import dormant_detector
+        from reversecore_mcp.tools.malware.dormant_detector import dormant_detector
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)
@@ -144,7 +144,7 @@ class TestIOCToolsExtract:
 
     def test_extract_iocs_basic(self, patched_workspace_config, workspace_dir):
         """Test extract_iocs with basic file."""
-        from reversecore_mcp.tools.ioc_tools import extract_iocs
+        from reversecore_mcp.tools.malware.ioc_tools import extract_iocs
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"http://example.com\x00192.168.1.1\x00test@email.com\x00")
@@ -223,7 +223,7 @@ class TestStaticAnalysisBinwalkExtract:
     @pytest.mark.asyncio
     async def test_run_binwalk_extract_basic(self, patched_workspace_config, workspace_dir):
         """Test run_binwalk_extract with basic file."""
-        from reversecore_mcp.tools.static_analysis import run_binwalk_extract
+        from reversecore_mcp.tools.analysis.static_analysis import run_binwalk_extract
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)
@@ -247,7 +247,7 @@ class TestYaraToolsFormatMatch:
 
     def test_format_yara_match_basic(self):
         """Test _format_yara_match with basic match."""
-        from reversecore_mcp.tools.yara_tools import _format_yara_match
+        from reversecore_mcp.tools.malware.yara_tools import _format_yara_match
 
         mock_match = MagicMock()
         mock_match.rule = "test_rule"
@@ -266,7 +266,7 @@ class TestYaraToolsRunYara:
 
     def test_run_yara_basic(self, patched_workspace_config, workspace_dir):
         """Test run_yara with basic file."""
-        from reversecore_mcp.tools.yara_tools import run_yara
+        from reversecore_mcp.tools.malware.yara_tools import run_yara
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)
@@ -292,7 +292,7 @@ class TestSignatureToolsMain:
     @pytest.mark.asyncio
     async def test_generate_signature(self, patched_workspace_config, workspace_dir):
         """Test generate_signature."""
-        from reversecore_mcp.tools.signature_tools import generate_signature
+        from reversecore_mcp.tools.analysis.signature_tools import generate_signature
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)
@@ -317,7 +317,7 @@ class TestDecompilationMain:
     @pytest.mark.asyncio
     async def test_smart_decompile(self, patched_workspace_config, workspace_dir):
         """Test smart_decompile function."""
-        from reversecore_mcp.tools.decompilation import smart_decompile
+        from reversecore_mcp.tools.ghidra.decompilation import smart_decompile
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)
@@ -342,7 +342,7 @@ class TestFileOperationsMain:
     @pytest.mark.asyncio
     async def test_run_file(self, patched_workspace_config, workspace_dir):
         """Test run_file function."""
-        from reversecore_mcp.tools.file_operations import run_file
+        from reversecore_mcp.tools.common.file_operations import run_file
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)
@@ -367,7 +367,7 @@ class TestR2AnalysisMain:
     @pytest.mark.asyncio
     async def test_run_radare2(self, patched_workspace_config, workspace_dir):
         """Test run_radare2 function."""
-        from reversecore_mcp.tools.r2_analysis import run_radare2
+        from reversecore_mcp.tools.radare2.r2_analysis import run_radare2
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)
@@ -391,7 +391,7 @@ class TestLiefToolsMain:
 
     def test_parse_binary_with_lief(self, patched_workspace_config, workspace_dir):
         """Test parse_binary_with_lief function."""
-        from reversecore_mcp.tools.lief_tools import parse_binary_with_lief
+        from reversecore_mcp.tools.analysis.lief_tools import parse_binary_with_lief
 
         test_file = workspace_dir / "test.bin"
         # Create a minimal ELF file
@@ -429,8 +429,8 @@ class TestAdditionalEdgeCases:
     @pytest.mark.asyncio
     async def test_multiple_tool_registrations(self):
         """Test multiple tools can be registered to same MCP."""
-        from reversecore_mcp.tools.dormant_detector import DormantDetectorPlugin
-        from reversecore_mcp.tools.vulnerability_hunter import VulnerabilityHunterPlugin
+        from reversecore_mcp.tools.malware.dormant_detector import DormantDetectorPlugin
+        from reversecore_mcp.tools.malware.vulnerability_hunter import VulnerabilityHunterPlugin
 
         mock_mcp = MagicMock()
         DormantDetectorPlugin().register(mock_mcp)

@@ -34,7 +34,7 @@ class TestIOCToolsFinal:
 
     def test_extract_iocs_with_hashes(self, patched_workspace_config, workspace_dir):
         """Test extract_iocs with hash patterns."""
-        from reversecore_mcp.tools.ioc_tools import extract_iocs
+        from reversecore_mcp.tools.malware.ioc_tools import extract_iocs
 
         # MD5 and SHA256 patterns
         test_file = workspace_dir / "test.bin"
@@ -73,7 +73,7 @@ class TestStaticAnalysisFinal:
     @pytest.mark.asyncio
     async def test_run_binwalk_basic(self, patched_workspace_config, workspace_dir):
         """Test run_binwalk function."""
-        from reversecore_mcp.tools.static_analysis import run_binwalk
+        from reversecore_mcp.tools.analysis.static_analysis import run_binwalk
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)
@@ -119,7 +119,7 @@ class TestR2AnalysisFinal:
     @pytest.mark.asyncio
     async def test_trace_execution_path(self, patched_workspace_config, workspace_dir):
         """Test trace_execution_path function."""
-        from reversecore_mcp.tools.r2_analysis import trace_execution_path
+        from reversecore_mcp.tools.radare2.r2_analysis import trace_execution_path
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)
@@ -143,7 +143,7 @@ class TestDiffToolsFinal:
 
     def test_extract_library_name_complex(self):
         """Test _extract_library_name with complex input."""
-        from reversecore_mcp.tools.diff_tools import _extract_library_name
+        from reversecore_mcp.tools.analysis.diff_tools import _extract_library_name
 
         result = _extract_library_name("sym.imp.kernel32.dll_GetProcAddress")
         assert isinstance(result, str)
@@ -160,7 +160,7 @@ class TestDormantDetectorFinal:
     @pytest.mark.asyncio
     async def test_dormant_detector_basic(self, patched_workspace_config, workspace_dir):
         """Test dormant_detector basic call."""
-        from reversecore_mcp.tools.dormant_detector import dormant_detector
+        from reversecore_mcp.tools.malware.dormant_detector import dormant_detector
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)
@@ -184,7 +184,7 @@ class TestYaraToolsFinal:
 
     def test_format_match_with_empty_strings(self):
         """Test _format_yara_match with empty strings list."""
-        from reversecore_mcp.tools.yara_tools import _format_yara_match
+        from reversecore_mcp.tools.malware.yara_tools import _format_yara_match
 
         mock_match = MagicMock()
         mock_match.rule = "empty_strings_rule"
@@ -208,7 +208,7 @@ class TestVulnerabilityHunterFinal:
     @pytest.mark.asyncio
     async def test_vulnerability_hunter_basic(self, patched_workspace_config, workspace_dir):
         """Test vulnerability_hunter basic call."""
-        from reversecore_mcp.tools.vulnerability_hunter import vulnerability_hunter
+        from reversecore_mcp.tools.malware.vulnerability_hunter import vulnerability_hunter
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)
@@ -233,7 +233,7 @@ class TestDecompilationFinal:
     @pytest.mark.asyncio
     async def test_smart_decompile_basic(self, patched_workspace_config, workspace_dir):
         """Test smart_decompile basic call."""
-        from reversecore_mcp.tools.decompilation import smart_decompile
+        from reversecore_mcp.tools.ghidra.decompilation import smart_decompile
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)
@@ -258,7 +258,7 @@ class TestSignatureToolsFinal:
     @pytest.mark.asyncio
     async def test_generate_signature_basic(self, patched_workspace_config, workspace_dir):
         """Test generate_signature basic call."""
-        from reversecore_mcp.tools.signature_tools import generate_signature
+        from reversecore_mcp.tools.analysis.signature_tools import generate_signature
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)

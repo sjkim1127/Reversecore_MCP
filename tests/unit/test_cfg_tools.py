@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from reversecore_mcp.tools import r2_analysis
+from reversecore_mcp.tools.radare2 import r2_analysis
 
 
 def test_radare2_json_to_mermaid_basic():

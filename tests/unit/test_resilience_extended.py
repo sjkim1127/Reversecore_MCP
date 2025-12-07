@@ -130,7 +130,7 @@ class TestIOCToolsPatterns:
 
     def test_extract_iocs_mixed_content(self, patched_workspace_config, workspace_dir):
         """Test extract_iocs with mixed content."""
-        from reversecore_mcp.tools.ioc_tools import extract_iocs
+        from reversecore_mcp.tools.malware.ioc_tools import extract_iocs
 
         test_file = workspace_dir / "mixed.bin"
         test_file.write_bytes(
@@ -155,7 +155,7 @@ class TestDiffToolsHelpers:
 
     def test_extract_library_name_various(self):
         """Test _extract_library_name with various inputs."""
-        from reversecore_mcp.tools.diff_tools import _extract_library_name
+        from reversecore_mcp.tools.analysis.diff_tools import _extract_library_name
 
         # Various formats
         result1 = _extract_library_name("printf")
@@ -177,14 +177,14 @@ class TestR2AnalysisHelpers:
 
     def test_parse_json_output_array(self):
         """Test _parse_json_output with array."""
-        from reversecore_mcp.tools.r2_analysis import _parse_json_output
+        from reversecore_mcp.tools.radare2.r2_analysis import _parse_json_output
 
         result = _parse_json_output('[{"name": "test"}]')
         assert result is not None
 
     def test_parse_json_output_object(self):
         """Test _parse_json_output with object."""
-        from reversecore_mcp.tools.r2_analysis import _parse_json_output
+        from reversecore_mcp.tools.radare2.r2_analysis import _parse_json_output
 
         result = _parse_json_output('{"key": "value"}')
         assert result is not None
@@ -201,7 +201,7 @@ class TestStaticAnalysisVariations:
     @pytest.mark.asyncio
     async def test_run_strings_options(self, patched_workspace_config, workspace_dir):
         """Test run_strings with various options."""
-        from reversecore_mcp.tools.static_analysis import run_strings
+        from reversecore_mcp.tools.analysis.static_analysis import run_strings
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"test string content here\x00more\x00")
@@ -248,7 +248,7 @@ class TestYaraToolsVariations:
 
     def test_format_yara_match_with_meta(self):
         """Test _format_yara_match with metadata."""
-        from reversecore_mcp.tools.yara_tools import _format_yara_match
+        from reversecore_mcp.tools.malware.yara_tools import _format_yara_match
 
         mock_match = MagicMock()
         mock_match.rule = "rule_with_meta"

@@ -227,7 +227,7 @@ async def scan_workspace(
     import asyncio
 
     from reversecore_mcp.core import json_utils as json
-    from reversecore_mcp.tools.lib_tools import parse_binary_with_lief
+    from reversecore_mcp.tools.common.lib_tools import parse_binary_with_lief
 
     config = get_config()
     workspace = config.workspace

@@ -294,7 +294,7 @@ async def analyze_variant_changes(
         ToolResult with diff summary and CFG data for top changed functions.
     """
     # Import here to avoid circular dependency
-    from reversecore_mcp.tools.r2_analysis import generate_function_graph
+    from reversecore_mcp.tools.radare2.r2_analysis import generate_function_graph
 
     # 1. Run diff_binaries
     diff_result = await diff_binaries(file_path_a, file_path_b, timeout=timeout)

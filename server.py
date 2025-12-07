@@ -169,7 +169,7 @@ from reversecore_mcp import resources  # noqa: E402
 resources.register_resources(mcp)
 
 # Register report tools for malware analysis reporting
-from reversecore_mcp.tools.report_mcp_tools import register_report_tools  # noqa: E402
+from reversecore_mcp.tools.report.report_mcp_tools import register_report_tools  # noqa: E402
 
 report_tools = register_report_tools(mcp)
 logger.info("Registered report tools")

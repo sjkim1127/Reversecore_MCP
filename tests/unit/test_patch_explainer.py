@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from reversecore_mcp.core.result import ToolSuccess
-from reversecore_mcp.tools.patch_explainer import _generate_explanation, explain_patch
+from reversecore_mcp.tools.common.patch_explainer import _generate_explanation, explain_patch
 
 
 @pytest.mark.asyncio

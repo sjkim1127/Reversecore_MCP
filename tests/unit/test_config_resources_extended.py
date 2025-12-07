@@ -176,7 +176,7 @@ class TestStaticAnalysisLastPush:
     @pytest.mark.asyncio
     async def test_run_binwalk_extract_detailed(self, patched_workspace_config, workspace_dir):
         """Test run_binwalk_extract with detailed output."""
-        from reversecore_mcp.tools.static_analysis import run_binwalk_extract
+        from reversecore_mcp.tools.analysis.static_analysis import run_binwalk_extract
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 200)
@@ -201,7 +201,7 @@ class TestFileOperationsLastPush:
     @pytest.mark.asyncio
     async def test_scan_workspace(self, patched_workspace_config, workspace_dir):
         """Test scan_workspace function."""
-        from reversecore_mcp.tools.file_operations import scan_workspace
+        from reversecore_mcp.tools.common.file_operations import scan_workspace
 
         # Create test files
         (workspace_dir / "test1.bin").write_bytes(b"\x00" * 50)
@@ -239,7 +239,7 @@ class TestAdaptiveVaccineLastPush:
 
     def test_register_adaptive_vaccine_call(self):
         """Test register_adaptive_vaccine registration."""
-        from reversecore_mcp.tools.adaptive_vaccine import register_adaptive_vaccine
+        from reversecore_mcp.tools.malware.adaptive_vaccine import register_adaptive_vaccine
 
         mock_mcp = MagicMock()
         register_adaptive_vaccine(mock_mcp)

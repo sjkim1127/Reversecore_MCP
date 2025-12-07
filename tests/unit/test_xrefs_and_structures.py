@@ -5,7 +5,7 @@ import json
 import pytest
 
 from reversecore_mcp.core import r2_helpers
-from reversecore_mcp.tools import decompilation, r2_analysis
+from reversecore_mcp.tools.ghidra import decompilation, r2_analysis
 
 
 def _create_workspace_file(workspace_dir, name: str, data: str | bytes = "stub"):

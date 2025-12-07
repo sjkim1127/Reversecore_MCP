@@ -24,7 +24,7 @@ async def test_trace_execution_path_get_address_batching():
     r2 commands into a single call, improving performance when resolving
     function names to addresses.
     """
-    from reversecore_mcp.tools.r2_analysis import trace_execution_path
+    from reversecore_mcp.tools.radare2.r2_analysis import trace_execution_path
 
     # Mock data for symbols (isj) and functions (aflj)
     mock_symbols = [
@@ -90,7 +90,7 @@ async def test_get_address_helper_finds_symbol():
 
     Verifies the optimization doesn't break the symbol lookup functionality.
     """
-    from reversecore_mcp.tools.r2_analysis import trace_execution_path
+    from reversecore_mcp.tools.radare2.r2_analysis import trace_execution_path
 
     mock_symbols = [{"name": "sym.target", "vaddr": 0x401234}]
     mock_functions = []
@@ -135,7 +135,7 @@ async def test_get_address_helper_finds_function():
 
     Verifies the optimization works when symbol isn't found but function is.
     """
-    from reversecore_mcp.tools.r2_analysis import trace_execution_path
+    from reversecore_mcp.tools.radare2.r2_analysis import trace_execution_path
 
     # Symbol not found, but function exists
     mock_symbols = []
@@ -178,7 +178,7 @@ async def test_get_address_helper_handles_not_found():
 
     Verifies error handling works correctly with the optimization.
     """
-    from reversecore_mcp.tools.r2_analysis import trace_execution_path
+    from reversecore_mcp.tools.radare2.r2_analysis import trace_execution_path
 
     # Neither symbols nor functions contain the target
     mock_symbols = []
@@ -281,7 +281,7 @@ async def test_get_address_robust_error_handling():
     - Handles missing lines
     - Handles error messages instead of JSON
     """
-    from reversecore_mcp.tools.r2_analysis import trace_execution_path
+    from reversecore_mcp.tools.radare2.r2_analysis import trace_execution_path
 
     # Test case 1: First command returns error, second returns valid JSON
     mock_output = "Error: binary not analyzed\n" + json.dumps(

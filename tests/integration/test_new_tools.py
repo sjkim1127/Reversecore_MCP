@@ -4,7 +4,7 @@ import subprocess
 
 import pytest
 
-from reversecore_mcp.tools import decompilation, signature_tools, static_analysis
+from reversecore_mcp.tools.ghidra import decompilation, signature_tools, static_analysis
 
 
 def _require_radare2() -> None:

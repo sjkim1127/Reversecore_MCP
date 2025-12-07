@@ -18,7 +18,7 @@ class TestStaticAnalysisRemaining:
     @pytest.mark.asyncio
     async def test_run_binwalk_detailed(self, patched_workspace_config, workspace_dir):
         """Test run_binwalk function."""
-        from reversecore_mcp.tools.static_analysis import run_binwalk
+        from reversecore_mcp.tools.analysis.static_analysis import run_binwalk
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)
@@ -43,7 +43,7 @@ class TestDiffToolsRemaining:
     @pytest.mark.asyncio
     async def test_match_libraries_basic(self, patched_workspace_config, workspace_dir):
         """Test match_libraries function."""
-        from reversecore_mcp.tools.diff_tools import match_libraries
+        from reversecore_mcp.tools.analysis.diff_tools import match_libraries
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)
@@ -68,7 +68,7 @@ class TestR2AnalysisRemaining:
     @pytest.mark.asyncio
     async def test_generate_function_graph_basic(self, patched_workspace_config, workspace_dir):
         """Test generate_function_graph function."""
-        from reversecore_mcp.tools.r2_analysis import generate_function_graph
+        from reversecore_mcp.tools.radare2.r2_analysis import generate_function_graph
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)
@@ -92,7 +92,7 @@ class TestIOCToolsRemaining:
 
     def test_extract_iocs_registry_keys(self, patched_workspace_config, workspace_dir):
         """Test extract_iocs with registry key patterns."""
-        from reversecore_mcp.tools.ioc_tools import extract_iocs
+        from reversecore_mcp.tools.malware.ioc_tools import extract_iocs
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(
@@ -115,7 +115,7 @@ class TestAdaptiveVaccineRemaining:
     @pytest.mark.asyncio
     async def test_adaptive_vaccine_detailed(self, patched_workspace_config, workspace_dir):
         """Test adaptive_vaccine with detailed analysis."""
-        from reversecore_mcp.tools.adaptive_vaccine import adaptive_vaccine
+        from reversecore_mcp.tools.malware.adaptive_vaccine import adaptive_vaccine
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 200)
@@ -242,7 +242,7 @@ class TestYaraToolsRemaining:
 
     def test_run_yara_multiple_rules(self, patched_workspace_config, workspace_dir):
         """Test run_yara with multiple rule matches."""
-        from reversecore_mcp.tools.yara_tools import run_yara
+        from reversecore_mcp.tools.malware.yara_tools import run_yara
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"MALWARETEST\x00SUSPICIOUSCONTENT\x00")

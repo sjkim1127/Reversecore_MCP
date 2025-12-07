@@ -78,7 +78,7 @@ def test_get_r2_project_name_caching(workspace_dir):
 
 def test_extract_library_name_caching():
     """Test that _extract_library_name uses caching effectively."""
-    from reversecore_mcp.tools.diff_tools import _extract_library_name
+    from reversecore_mcp.tools.analysis.diff_tools import _extract_library_name
 
     # Clear cache
     _extract_library_name.cache_clear()
@@ -114,7 +114,7 @@ def test_extract_library_name_caching():
 
 def test_sanitize_filename_for_rule_caching(workspace_dir):
     """Test that _sanitize_filename_for_rule uses caching effectively."""
-    from reversecore_mcp.tools.signature_tools import _sanitize_filename_for_rule
+    from reversecore_mcp.tools.analysis.signature_tools import _sanitize_filename_for_rule
 
     test_file = workspace_dir / "test-file.name.ext"
     test_file.write_bytes(b"test")
@@ -147,8 +147,8 @@ def test_cache_size_limits():
         _calculate_dynamic_timeout,
         _get_r2_project_name,
     )
-    from reversecore_mcp.tools.diff_tools import _extract_library_name
-    from reversecore_mcp.tools.signature_tools import _sanitize_filename_for_rule
+    from reversecore_mcp.tools.analysis.diff_tools import _extract_library_name
+    from reversecore_mcp.tools.analysis.signature_tools import _sanitize_filename_for_rule
 
     # Clear all caches
     _calculate_dynamic_timeout.cache_clear()
@@ -198,7 +198,7 @@ def test_extract_first_json_optimization():
 
 def test_caching_improves_batch_operations(workspace_dir):
     """Test that caching provides measurable benefits in batch scenarios."""
-    from reversecore_mcp.tools.diff_tools import _extract_library_name
+    from reversecore_mcp.tools.analysis.diff_tools import _extract_library_name
 
     # Create a list of common function names
     function_names = [

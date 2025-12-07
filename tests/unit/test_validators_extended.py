@@ -22,7 +22,7 @@ class TestFileOperationsFinalPush:
         # Create source file outside workspace first
         import tempfile
 
-        from reversecore_mcp.tools.file_operations import copy_to_workspace
+        from reversecore_mcp.tools.common.file_operations import copy_to_workspace
 
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(b"\x7fELF" + b"\x00" * 100)
@@ -45,7 +45,7 @@ class TestIOCToolsFinalPush:
 
     def test_extract_iocs_emails(self, patched_workspace_config, workspace_dir):
         """Test extract_iocs with email patterns."""
-        from reversecore_mcp.tools.ioc_tools import extract_iocs
+        from reversecore_mcp.tools.malware.ioc_tools import extract_iocs
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(
@@ -102,7 +102,7 @@ class TestDecompilationFinalPush:
     @pytest.mark.asyncio
     async def test_smart_decompile_detailed(self, patched_workspace_config, workspace_dir):
         """Test smart_decompile with detailed mock."""
-        from reversecore_mcp.tools.decompilation import smart_decompile
+        from reversecore_mcp.tools.ghidra.decompilation import smart_decompile
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 150)
@@ -126,14 +126,14 @@ class TestSignatureToolsFinalPush:
 
     def test_validate_address_or_fail_decimal(self):
         """Test _validate_address_or_fail with decimal address."""
-        from reversecore_mcp.tools.signature_tools import _validate_address_or_fail
+        from reversecore_mcp.tools.analysis.signature_tools import _validate_address_or_fail
 
         # Should not raise for decimal address
         _validate_address_or_fail("4198400")
 
     def test_format_hex_bytes_short(self):
         """Test _format_hex_bytes with short hex string."""
-        from reversecore_mcp.tools.signature_tools import _format_hex_bytes
+        from reversecore_mcp.tools.analysis.signature_tools import _format_hex_bytes
 
         result = _format_hex_bytes("41")
         assert isinstance(result, str)
@@ -150,7 +150,7 @@ class TestStaticAnalysisFinalPush:
     @pytest.mark.asyncio
     async def test_run_strings_detailed(self, patched_workspace_config, workspace_dir):
         """Test run_strings with detailed output."""
-        from reversecore_mcp.tools.static_analysis import run_strings
+        from reversecore_mcp.tools.analysis.static_analysis import run_strings
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"FIRST_STRING\x00SECOND_STRING\x00THIRD_STRING\x00")

@@ -22,7 +22,7 @@ class PluginLoader:
         self, package_path: str, package_name: str = "reversecore_mcp.tools"
     ) -> list[Plugin]:
         """
-        Discover and load plugins from a package directory.
+        Discover and load plugins from a package directory (including subdirectories).
 
         Args:
             package_path: Absolute path to the package directory
@@ -35,12 +35,16 @@ class PluginLoader:
 
         discovered_plugins = []
 
-        # Iterate over all modules in the package
-        for _, name, is_pkg in pkgutil.iter_modules([package_path]):
-            full_module_name = f"{package_name}.{name}"
+        # Use walk_packages to recursively iterate over all modules including subdirectories
+        for importer, name, is_pkg in pkgutil.walk_packages(
+            [package_path], prefix=f"{package_name}."
+        ):
+            # Skip __init__ modules and __pycache__ directories
+            if name.endswith(".__init__") or "__pycache__" in name:
+                continue
 
             try:
-                module = importlib.import_module(full_module_name)
+                module = importlib.import_module(name)
 
                 # Find Plugin subclasses in the module
                 for item_name, item in inspect.getmembers(module):
@@ -55,7 +59,7 @@ class PluginLoader:
                             logger.error(f"Failed to instantiate plugin {item_name}: {e}")
 
             except ImportError as e:
-                logger.warning(f"Failed to import module {full_module_name}: {e}")
+                logger.warning(f"Failed to import module {name}: {e}")
                 continue
 
         return discovered_plugins

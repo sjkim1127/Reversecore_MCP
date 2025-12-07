@@ -84,7 +84,7 @@ class TestFileOperationsMain:
     @pytest.mark.asyncio
     async def test_run_file_command(self, sample_binary_path, patched_config):
         """Test run_file command."""
-        from reversecore_mcp.tools.file_operations import run_file
+        from reversecore_mcp.tools.common.file_operations import run_file
 
         result = await run_file(str(sample_binary_path))
 
@@ -93,7 +93,7 @@ class TestFileOperationsMain:
 
     def test_list_workspace(self, workspace_dir, patched_config):
         """Test list_workspace function."""
-        from reversecore_mcp.tools.file_operations import list_workspace
+        from reversecore_mcp.tools.common.file_operations import list_workspace
 
         # Create test files
         (workspace_dir / "test1.bin").write_bytes(b"\x00\x01")
@@ -106,7 +106,7 @@ class TestFileOperationsMain:
     @pytest.mark.asyncio
     async def test_scan_workspace(self, workspace_dir, patched_config):
         """Test scan_workspace function."""
-        from reversecore_mcp.tools.file_operations import scan_workspace
+        from reversecore_mcp.tools.common.file_operations import scan_workspace
 
         # Create test files
         (workspace_dir / "sample.bin").write_bytes(b"\x4d\x5a\x90\x00")
@@ -132,7 +132,7 @@ class TestStaticAnalysisMain:
     @pytest.mark.asyncio
     async def test_run_strings_basic(self, sample_binary_path, patched_config):
         """Test run_strings with basic input."""
-        from reversecore_mcp.tools.static_analysis import run_strings
+        from reversecore_mcp.tools.analysis.static_analysis import run_strings
 
         # Note: the decorator wraps the function, need to patch at correct level
         result = await run_strings(str(sample_binary_path))
@@ -143,7 +143,7 @@ class TestStaticAnalysisMain:
     @pytest.mark.asyncio
     async def test_run_binwalk_basic(self, sample_binary_path, patched_config):
         """Test run_binwalk with basic input."""
-        from reversecore_mcp.tools.static_analysis import run_binwalk
+        from reversecore_mcp.tools.analysis.static_analysis import run_binwalk
 
         result = await run_binwalk(str(sample_binary_path))
 
@@ -152,7 +152,7 @@ class TestStaticAnalysisMain:
     @pytest.mark.asyncio
     async def test_scan_for_versions(self, sample_binary_path, patched_config):
         """Test scan_for_versions function."""
-        from reversecore_mcp.tools.static_analysis import scan_for_versions
+        from reversecore_mcp.tools.analysis.static_analysis import scan_for_versions
 
         result = await scan_for_versions(str(sample_binary_path))
 
@@ -161,7 +161,7 @@ class TestStaticAnalysisMain:
     @pytest.mark.asyncio
     async def test_extract_rtti_info(self, sample_binary_path, patched_config):
         """Test extract_rtti_info function."""
-        from reversecore_mcp.tools.static_analysis import extract_rtti_info
+        from reversecore_mcp.tools.analysis.static_analysis import extract_rtti_info
 
         result = await extract_rtti_info(str(sample_binary_path))
 
@@ -184,7 +184,7 @@ class TestDiffToolsMain:
     @pytest.mark.asyncio
     async def test_diff_binaries(self, workspace_dir, patched_config):
         """Test diff_binaries function."""
-        from reversecore_mcp.tools.diff_tools import diff_binaries
+        from reversecore_mcp.tools.analysis.diff_tools import diff_binaries
 
         file1 = workspace_dir / "bin1.exe"
         file2 = workspace_dir / "bin2.exe"
@@ -198,7 +198,7 @@ class TestDiffToolsMain:
     @pytest.mark.asyncio
     async def test_analyze_variant_changes(self, workspace_dir, patched_config):
         """Test analyze_variant_changes function."""
-        from reversecore_mcp.tools.diff_tools import analyze_variant_changes
+        from reversecore_mcp.tools.analysis.diff_tools import analyze_variant_changes
 
         file1 = workspace_dir / "v1.bin"
         file2 = workspace_dir / "v2.bin"
@@ -212,7 +212,7 @@ class TestDiffToolsMain:
     @pytest.mark.asyncio
     async def test_match_libraries(self, sample_binary_path, patched_config):
         """Test match_libraries function."""
-        from reversecore_mcp.tools.diff_tools import match_libraries
+        from reversecore_mcp.tools.analysis.diff_tools import match_libraries
 
         result = await match_libraries(str(sample_binary_path))
 
@@ -229,7 +229,7 @@ class TestIocToolsMain:
 
     def test_extract_iocs(self, sample_binary_path, patched_config):
         """Test extract_iocs function."""
-        from reversecore_mcp.tools.ioc_tools import extract_iocs
+        from reversecore_mcp.tools.malware.ioc_tools import extract_iocs
 
         result = extract_iocs(str(sample_binary_path))
 
@@ -265,7 +265,7 @@ class TestAdaptiveVaccineMain:
     @pytest.mark.asyncio
     async def test_adaptive_vaccine(self, sample_binary_path, patched_config):
         """Test adaptive_vaccine function."""
-        from reversecore_mcp.tools.adaptive_vaccine import adaptive_vaccine
+        from reversecore_mcp.tools.malware.adaptive_vaccine import adaptive_vaccine
 
         sample_info = {
             "name": "test_sample",
@@ -287,7 +287,7 @@ class TestYaraToolsMain:
 
     def test_run_yara(self, sample_binary_path, patched_config, read_only_dir):
         """Test run_yara function."""
-        from reversecore_mcp.tools.yara_tools import run_yara
+        from reversecore_mcp.tools.malware.yara_tools import run_yara
 
         # Create a simple test rule
         rule_file = read_only_dir / "test.yar"
@@ -307,7 +307,7 @@ rule test_rule {
     @pytest.mark.asyncio
     async def test_generate_yara_rule(self, sample_binary_path, patched_config):
         """Test generate_yara_rule function."""
-        from reversecore_mcp.tools.signature_tools import generate_yara_rule
+        from reversecore_mcp.tools.analysis.signature_tools import generate_yara_rule
 
         result = await generate_yara_rule(str(sample_binary_path), "test_rule")
 
@@ -325,7 +325,7 @@ class TestSignatureToolsMain:
     @pytest.mark.asyncio
     async def test_generate_signature(self, sample_binary_path, patched_config):
         """Test generate_signature function."""
-        from reversecore_mcp.tools.signature_tools import generate_signature
+        from reversecore_mcp.tools.analysis.signature_tools import generate_signature
 
         result = await generate_signature(str(sample_binary_path), "0x1000")
 
@@ -369,7 +369,7 @@ class TestR2AnalysisMain:
     @pytest.mark.asyncio
     async def test_run_radare2_basic(self, sample_binary_path, patched_config):
         """Test run_radare2 function."""
-        from reversecore_mcp.tools.r2_analysis import run_radare2
+        from reversecore_mcp.tools.radare2.r2_analysis import run_radare2
 
         result = await run_radare2(str(sample_binary_path), "afl")
 
@@ -378,7 +378,7 @@ class TestR2AnalysisMain:
     @pytest.mark.asyncio
     async def test_trace_execution_path(self, sample_binary_path, patched_config):
         """Test trace_execution_path function."""
-        from reversecore_mcp.tools.r2_analysis import trace_execution_path
+        from reversecore_mcp.tools.radare2.r2_analysis import trace_execution_path
 
         result = await trace_execution_path(str(sample_binary_path), "system")
 
@@ -396,7 +396,7 @@ class TestDecompilationMain:
     @pytest.mark.asyncio
     async def test_get_pseudo_code(self, sample_binary_path, patched_config):
         """Test get_pseudo_code function."""
-        from reversecore_mcp.tools.decompilation import get_pseudo_code
+        from reversecore_mcp.tools.ghidra.decompilation import get_pseudo_code
 
         result = await get_pseudo_code(str(sample_binary_path), "0x1000")
 
@@ -405,7 +405,7 @@ class TestDecompilationMain:
     @pytest.mark.asyncio
     async def test_smart_decompile(self, sample_binary_path, patched_config):
         """Test smart_decompile function."""
-        from reversecore_mcp.tools.decompilation import smart_decompile
+        from reversecore_mcp.tools.ghidra.decompilation import smart_decompile
 
         result = await smart_decompile(str(sample_binary_path), "0x1000")
 

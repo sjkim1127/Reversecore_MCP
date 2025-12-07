@@ -14,7 +14,7 @@ from reversecore_mcp.core.metrics import track_metrics
 
 # Import tools at module level for better performance
 # These imports are used by resource functions below
-from reversecore_mcp.tools import decompilation, lib_tools, r2_analysis, static_analysis
+from reversecore_mcp.tools.ghidra import decompilation, lib_tools, r2_analysis, static_analysis
 
 # Type variable for generic function wrapper
 F = TypeVar("F", bound=Callable[..., Any])

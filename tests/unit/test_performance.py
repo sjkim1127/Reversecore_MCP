@@ -53,7 +53,7 @@ def test_yara_result_processing_with_many_matches(
     mock_yara_module.compile.return_value.match.return_value = mock_matches
 
     try:
-        from reversecore_mcp.tools.lib_tools import run_yara
+        from reversecore_mcp.tools.common.lib_tools import run_yara
 
         start_time = time.time()
         result = run_yara(str(binary), str(rule_file))
@@ -88,7 +88,7 @@ def test_file_path_validation_string_conversion_optimization(workspace_config):
 
 def test_lief_output_formatting_no_redundant_slicing():
     """Test that LIEF output formatting doesn't perform redundant list slicing."""
-    from reversecore_mcp.tools.lib_tools import _format_lief_output
+    from reversecore_mcp.tools.common.lib_tools import _format_lief_output
 
     # Create a large result with many sections and functions
     result = {
@@ -159,7 +159,7 @@ def test_subprocess_polling_adaptive_backoff():
 
 def test_ioc_extraction_with_precompiled_patterns():
     """Test that IOC extraction uses pre-compiled patterns for better performance."""
-    from reversecore_mcp.tools.lib_tools import extract_iocs
+    from reversecore_mcp.tools.common.lib_tools import extract_iocs
 
     # Create a large text with many IOCs
     test_text = "\n".join(
@@ -188,7 +188,7 @@ def test_regex_pattern_reuse_performance():
     import re
 
     # Import the pre-compiled pattern for comparison
-    from reversecore_mcp.tools.lib_tools import _IOC_IPV4_PATTERN
+    from reversecore_mcp.tools.common.lib_tools import _IOC_IPV4_PATTERN
 
     # Simulate the old approach (compiling each time)
     text = "Test 192.168.1.1 and http://example.com and test@email.com " * 1000

@@ -3,7 +3,7 @@
 import sys
 import types
 
-from reversecore_mcp.tools import lib_tools
+from reversecore_mcp.tools.common import lib_tools
 
 
 def _create_workspace_binary(workspace_dir, name: str, data: bytes = b"x"):

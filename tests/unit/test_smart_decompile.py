@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from reversecore_mcp.core.exceptions import ValidationError
-from reversecore_mcp.tools import decompilation, signature_tools
+from reversecore_mcp.tools.ghidra import decompilation, signature_tools
 
 
 @pytest.mark.asyncio

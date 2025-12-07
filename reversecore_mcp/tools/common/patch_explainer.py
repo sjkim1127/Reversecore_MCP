@@ -14,7 +14,7 @@ from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.plugin import Plugin
 from reversecore_mcp.core.result import ToolResult, failure, success
 from reversecore_mcp.core.security import validate_file_path
-from reversecore_mcp.tools import decompilation, diff_tools
+from reversecore_mcp.tools.ghidra import decompilation, diff_tools
 
 logger = get_logger(__name__)
 

@@ -15,7 +15,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 import pytest
 
-from reversecore_mcp.tools.report_tools import (
+from reversecore_mcp.tools.report.report_tools import (
     ReportTools,
     AnalysisSession,
     TimezonePreset,

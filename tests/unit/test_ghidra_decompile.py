@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from reversecore_mcp.tools import decompilation
+from reversecore_mcp.tools.ghidra import decompilation
 
 
 @pytest.mark.asyncio

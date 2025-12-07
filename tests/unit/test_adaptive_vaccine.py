@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from reversecore_mcp.tools.adaptive_vaccine import (
+from reversecore_mcp.tools.malware.adaptive_vaccine import (
     _detect_architecture,
     _generate_yara_rule,
     _hex_to_yara_bytes,
@@ -275,7 +275,7 @@ class TestRegisterAdaptiveVaccine:
 
     def test_register_adaptive_vaccine(self):
         """Test that registration function works."""
-        from reversecore_mcp.tools.adaptive_vaccine import register_adaptive_vaccine
+        from reversecore_mcp.tools.malware.adaptive_vaccine import register_adaptive_vaccine
 
         mock_mcp = Mock()
         mock_mcp.tool = Mock()

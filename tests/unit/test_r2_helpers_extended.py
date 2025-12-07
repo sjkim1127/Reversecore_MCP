@@ -60,7 +60,7 @@ class TestR2AnalysisDeep:
 
     def test_radare2_json_to_mermaid_basic(self):
         """Test _radare2_json_to_mermaid function."""
-        from reversecore_mcp.tools.r2_analysis import _radare2_json_to_mermaid
+        from reversecore_mcp.tools.radare2.r2_analysis import _radare2_json_to_mermaid
 
         json_str = "[]"  # Empty array
         result = _radare2_json_to_mermaid(json_str)
@@ -77,7 +77,7 @@ class TestIOCToolsDeep:
 
     def test_extract_iocs_empty_file(self, patched_workspace_config, workspace_dir):
         """Test extract_iocs with empty file."""
-        from reversecore_mcp.tools.ioc_tools import extract_iocs
+        from reversecore_mcp.tools.malware.ioc_tools import extract_iocs
 
         test_file = workspace_dir / "empty.bin"
         test_file.write_bytes(b"")
@@ -87,7 +87,7 @@ class TestIOCToolsDeep:
 
     def test_extract_iocs_domains(self, patched_workspace_config, workspace_dir):
         """Test extract_iocs with domain patterns."""
-        from reversecore_mcp.tools.ioc_tools import extract_iocs
+        from reversecore_mcp.tools.malware.ioc_tools import extract_iocs
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"google.com\x00evil.example.org\x00test.co.uk\x00")
@@ -107,7 +107,7 @@ class TestStaticAnalysisDeep:
     @pytest.mark.asyncio
     async def test_run_strings_with_min_length(self, patched_workspace_config, workspace_dir):
         """Test run_strings with minimum length parameter."""
-        from reversecore_mcp.tools.static_analysis import run_strings
+        from reversecore_mcp.tools.analysis.static_analysis import run_strings
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"short\x00This is a longer string\x00")
@@ -132,7 +132,7 @@ class TestAdaptiveVaccineDeep:
     @pytest.mark.asyncio
     async def test_adaptive_vaccine_with_options(self, patched_workspace_config, workspace_dir):
         """Test adaptive_vaccine with options."""
-        from reversecore_mcp.tools.adaptive_vaccine import adaptive_vaccine
+        from reversecore_mcp.tools.malware.adaptive_vaccine import adaptive_vaccine
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)
@@ -157,7 +157,7 @@ class TestDiffToolsDeep:
     @pytest.mark.asyncio
     async def test_diff_binaries_different_files(self, patched_workspace_config, workspace_dir):
         """Test diff_binaries with different files."""
-        from reversecore_mcp.tools.diff_tools import diff_binaries
+        from reversecore_mcp.tools.analysis.diff_tools import diff_binaries
 
         file1 = workspace_dir / "file1.bin"
         file2 = workspace_dir / "file2.bin"
@@ -208,7 +208,7 @@ class TestYaraToolsDeep:
 
     def test_format_yara_match_with_strings(self):
         """Test _format_yara_match with string matches."""
-        from reversecore_mcp.tools.yara_tools import _format_yara_match
+        from reversecore_mcp.tools.malware.yara_tools import _format_yara_match
 
         mock_match = MagicMock()
         mock_match.rule = "test_rule"
@@ -236,7 +236,7 @@ class TestDecompilationDeep:
     @pytest.mark.asyncio
     async def test_smart_decompile_with_r2(self, patched_workspace_config, workspace_dir):
         """Test smart_decompile using r2 backend."""
-        from reversecore_mcp.tools.decompilation import smart_decompile
+        from reversecore_mcp.tools.ghidra.decompilation import smart_decompile
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)
@@ -311,7 +311,7 @@ class TestSignatureToolsDeep:
     @pytest.mark.asyncio
     async def test_generate_yara_rule(self, patched_workspace_config, workspace_dir):
         """Test generate_yara_rule function."""
-        from reversecore_mcp.tools.signature_tools import generate_yara_rule
+        from reversecore_mcp.tools.analysis.signature_tools import generate_yara_rule
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)

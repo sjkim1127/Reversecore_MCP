@@ -4,7 +4,7 @@ import subprocess
 
 import pytest
 
-from reversecore_mcp.tools import diff_tools
+from reversecore_mcp.tools.analysis import diff_tools
 
 
 def _require_radare2() -> None:

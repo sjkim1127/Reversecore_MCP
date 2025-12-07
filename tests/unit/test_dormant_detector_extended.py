@@ -151,7 +151,7 @@ class TestStaticAnalysis:
     @pytest.mark.asyncio
     async def test_run_strings_basic(self, sample_binary_path, patched_workspace_config):
         """Test basic string extraction."""
-        from reversecore_mcp.tools.static_analysis import run_strings
+        from reversecore_mcp.tools.analysis.static_analysis import run_strings
 
         result = await run_strings(str(sample_binary_path))
         assert result.status == "success"
@@ -160,7 +160,7 @@ class TestStaticAnalysis:
     @pytest.mark.asyncio
     async def test_run_strings_min_length(self, sample_binary_path, patched_workspace_config):
         """Test string extraction with custom min length."""
-        from reversecore_mcp.tools.static_analysis import run_strings
+        from reversecore_mcp.tools.analysis.static_analysis import run_strings
 
         result = await run_strings(str(sample_binary_path), min_length=8)
         assert result.status == "success"
@@ -171,7 +171,7 @@ class TestStaticAnalysis:
         self, sample_binary_path, patched_workspace_config
     ):
         """Test output truncation warning."""
-        from reversecore_mcp.tools.static_analysis import run_strings
+        from reversecore_mcp.tools.analysis.static_analysis import run_strings
 
         # This tests the truncation path - file is small so won't trigger
         result = await run_strings(str(sample_binary_path), max_output_size=1024 * 1024)
@@ -183,7 +183,7 @@ class TestStaticAnalysis:
         self, sample_binary_path, patched_workspace_config
     ):
         """Test that small max_output_size is enforced to minimum."""
-        from reversecore_mcp.tools.static_analysis import run_strings
+        from reversecore_mcp.tools.analysis.static_analysis import run_strings
 
         # Even if we pass a small max_output_size, it should be enforced to MIN_OUTPUT_SIZE
         result = await run_strings(str(sample_binary_path), max_output_size=100)
@@ -191,7 +191,7 @@ class TestStaticAnalysis:
 
     def test_version_patterns_compiled(self):
         """Test that version patterns are pre-compiled."""
-        from reversecore_mcp.tools.static_analysis import _VERSION_PATTERNS
+        from reversecore_mcp.tools.analysis.static_analysis import _VERSION_PATTERNS
 
         assert "OpenSSL" in _VERSION_PATTERNS
         assert "GCC" in _VERSION_PATTERNS
@@ -204,7 +204,7 @@ class TestStaticAnalysis:
 
     def test_constants_defined(self):
         """Test that constants are properly defined."""
-        from reversecore_mcp.tools.static_analysis import (
+        from reversecore_mcp.tools.analysis.static_analysis import (
             LLM_SAFE_LIMIT,
             MAX_EXTRACTED_FILES,
             MAX_SIGNATURES,
@@ -229,7 +229,7 @@ class TestFileOperations:
     @pytest.mark.asyncio
     async def test_run_file_basic(self, sample_binary_path, patched_workspace_config):
         """Test basic file type identification."""
-        from reversecore_mcp.tools.file_operations import run_file
+        from reversecore_mcp.tools.common.file_operations import run_file
 
         result = await run_file(str(sample_binary_path))
         assert result.status == "success"
@@ -241,7 +241,7 @@ class TestFileOperations:
 
     def test_copy_to_workspace_nonexistent(self, patched_workspace_config):
         """Test copying non-existent file."""
-        from reversecore_mcp.tools.file_operations import copy_to_workspace
+        from reversecore_mcp.tools.common.file_operations import copy_to_workspace
 
         # The function is wrapped with handle_tool_errors, so it returns ToolResult
         result = copy_to_workspace("/nonexistent/file.bin")
@@ -249,7 +249,7 @@ class TestFileOperations:
 
     def test_copy_to_workspace_directory(self, workspace_dir, patched_workspace_config):
         """Test copying a directory (should fail)."""
-        from reversecore_mcp.tools.file_operations import copy_to_workspace
+        from reversecore_mcp.tools.common.file_operations import copy_to_workspace
 
         # Create a subdirectory
         subdir = workspace_dir / "subdir"
@@ -264,7 +264,7 @@ class TestFileOperations:
         # Create source file outside workspace
         import tempfile
 
-        from reversecore_mcp.tools.file_operations import copy_to_workspace
+        from reversecore_mcp.tools.common.file_operations import copy_to_workspace
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as f:
             f.write(b"test binary content")
@@ -290,35 +290,35 @@ class TestDiffTools:
 
     def test_extract_library_name_import(self):
         """Test library name extraction for imports."""
-        from reversecore_mcp.tools.diff_tools import _extract_library_name
+        from reversecore_mcp.tools.analysis.diff_tools import _extract_library_name
 
         assert _extract_library_name("sym.imp.strcpy") == "import"
         assert _extract_library_name("sym.imp.malloc") == "import"
 
     def test_extract_library_name_kernel32(self):
         """Test library name extraction for kernel32."""
-        from reversecore_mcp.tools.diff_tools import _extract_library_name
+        from reversecore_mcp.tools.analysis.diff_tools import _extract_library_name
 
         assert _extract_library_name("kernel32.dll.CreateFileA") == "kernel32"
         assert _extract_library_name("kernel32.VirtualAlloc") == "kernel32"
 
     def test_extract_library_name_msvcrt(self):
         """Test library name extraction for msvcrt."""
-        from reversecore_mcp.tools.diff_tools import _extract_library_name
+        from reversecore_mcp.tools.analysis.diff_tools import _extract_library_name
 
         assert _extract_library_name("msvcrt.printf") == "libc/msvcrt"
         assert _extract_library_name("msvcrt.malloc") == "libc/msvcrt"
 
     def test_extract_library_name_stl(self):
         """Test library name extraction for STL."""
-        from reversecore_mcp.tools.diff_tools import _extract_library_name
+        from reversecore_mcp.tools.analysis.diff_tools import _extract_library_name
 
         assert _extract_library_name("std::vector") == "libstdc++"
         assert _extract_library_name("std::string") == "libstdc++"
 
     def test_extract_library_name_unknown(self):
         """Test library name extraction for unknown functions."""
-        from reversecore_mcp.tools.diff_tools import _extract_library_name
+        from reversecore_mcp.tools.analysis.diff_tools import _extract_library_name
 
         assert _extract_library_name("my_custom_function") == "unknown"
         assert _extract_library_name("user_code_123") == "unknown"
@@ -335,7 +335,7 @@ class TestCliTools:
     @pytest.mark.asyncio
     async def test_run_radare2_with_mock(self, sample_binary_path, patched_workspace_config):
         """Test radare2 execution with mocked subprocess."""
-        from reversecore_mcp.tools.r2_analysis import run_radare2
+        from reversecore_mcp.tools.radare2.r2_analysis import run_radare2
 
         # Simple info command that should work
         result = await run_radare2(str(sample_binary_path), "i")
@@ -345,7 +345,7 @@ class TestCliTools:
     @pytest.mark.asyncio
     async def test_run_radare2_invalid_command(self, sample_binary_path, patched_workspace_config):
         """Test radare2 with invalid command."""
-        from reversecore_mcp.tools.r2_analysis import run_radare2
+        from reversecore_mcp.tools.radare2.r2_analysis import run_radare2
 
         # This should fail validation
         result = await run_radare2(str(sample_binary_path), "!rm -rf /")
@@ -362,7 +362,7 @@ class TestIocTools:
 
     def test_extract_iocs_basic(self):
         """Test basic IOC extraction."""
-        from reversecore_mcp.tools.ioc_tools import extract_iocs
+        from reversecore_mcp.tools.malware.ioc_tools import extract_iocs
 
         text = """
         Connect to http://malicious.com/payload
@@ -376,14 +376,14 @@ class TestIocTools:
 
     def test_extract_iocs_empty(self):
         """Test IOC extraction with no IOCs."""
-        from reversecore_mcp.tools.ioc_tools import extract_iocs
+        from reversecore_mcp.tools.malware.ioc_tools import extract_iocs
 
         result = extract_iocs("no indicators here")
         assert result.status == "success"
 
     def test_extract_iocs_ipv4(self):
         """Test IPv4 extraction."""
-        from reversecore_mcp.tools.ioc_tools import extract_iocs
+        from reversecore_mcp.tools.malware.ioc_tools import extract_iocs
 
         text = "Server at 10.0.0.1 and 172.16.0.1"
         result = extract_iocs(text)

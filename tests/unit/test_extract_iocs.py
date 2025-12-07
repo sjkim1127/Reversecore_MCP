@@ -1,4 +1,4 @@
-from reversecore_mcp.tools.lib_tools import extract_iocs
+from reversecore_mcp.tools.common.lib_tools import extract_iocs
 
 
 def test_extract_iocs_basic():

@@ -8,9 +8,9 @@ This module acts as a facade that imports and exposes tools from specialized mod
 """
 
 # Import all tools from specialized modules
-from reversecore_mcp.tools.ioc_tools import _IOC_IPV4_PATTERN, extract_iocs
-from reversecore_mcp.tools.lief_tools import _format_lief_output, parse_binary_with_lief
-from reversecore_mcp.tools.yara_tools import _format_yara_match, run_yara
+from reversecore_mcp.tools.malware.ioc_tools import _IOC_IPV4_PATTERN, extract_iocs
+from reversecore_mcp.tools.analysis.lief_tools import _format_lief_output, parse_binary_with_lief
+from reversecore_mcp.tools.malware.yara_tools import _format_yara_match, run_yara
 
 # Re-export all tools so existing imports continue to work
 __all__ = [

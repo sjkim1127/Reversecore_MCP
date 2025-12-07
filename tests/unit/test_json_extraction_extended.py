@@ -16,7 +16,7 @@ class TestGhostTraceHelpers:
 
     def test_extract_json_safely_empty_input(self):
         """Test _extract_json_safely with empty input."""
-        from reversecore_mcp.tools.ghost_trace import _extract_json_safely
+        from reversecore_mcp.tools.malware.dormant_detector import _extract_json_safely
 
         assert _extract_json_safely(None) is None
         assert _extract_json_safely("") is None
@@ -24,56 +24,56 @@ class TestGhostTraceHelpers:
 
     def test_extract_json_safely_array(self):
         """Test _extract_json_safely with valid JSON array."""
-        from reversecore_mcp.tools.ghost_trace import _extract_json_safely
+        from reversecore_mcp.tools.malware.dormant_detector import _extract_json_safely
 
         result = _extract_json_safely('some noise [{"key": "value"}] more noise')
         assert result == [{"key": "value"}]
 
     def test_extract_json_safely_object(self):
         """Test _extract_json_safely with valid JSON object."""
-        from reversecore_mcp.tools.ghost_trace import _extract_json_safely
+        from reversecore_mcp.tools.malware.dormant_detector import _extract_json_safely
 
         result = _extract_json_safely('noise {"key": "value"} noise')
         assert result == {"key": "value"}
 
     def test_extract_json_safely_nested(self):
         """Test _extract_json_safely with nested JSON."""
-        from reversecore_mcp.tools.ghost_trace import _extract_json_safely
+        from reversecore_mcp.tools.malware.dormant_detector import _extract_json_safely
 
         result = _extract_json_safely('[{"nested": {"deep": "value"}}]')
         assert result == [{"nested": {"deep": "value"}}]
 
     def test_extract_json_safely_line_by_line(self):
         """Test _extract_json_safely single line fallback."""
-        from reversecore_mcp.tools.ghost_trace import _extract_json_safely
+        from reversecore_mcp.tools.malware.dormant_detector import _extract_json_safely
 
         result = _extract_json_safely("line1\n[1,2,3]\nline3")
         assert result == [1, 2, 3]
 
     def test_extract_json_safely_invalid(self):
         """Test _extract_json_safely with no valid JSON."""
-        from reversecore_mcp.tools.ghost_trace import _extract_json_safely
+        from reversecore_mcp.tools.malware.dormant_detector import _extract_json_safely
 
         result = _extract_json_safely("no json here")
         assert result is None
 
     def test_validate_r2_identifier_hex(self):
         """Test _validate_r2_identifier with hex address."""
-        from reversecore_mcp.tools.ghost_trace import _validate_r2_identifier
+        from reversecore_mcp.tools.malware.dormant_detector import _validate_r2_identifier
 
         result = _validate_r2_identifier("0x401000")
         assert result == "0x401000"
 
     def test_validate_r2_identifier_symbol(self):
         """Test _validate_r2_identifier with symbol."""
-        from reversecore_mcp.tools.ghost_trace import _validate_r2_identifier
+        from reversecore_mcp.tools.malware.dormant_detector import _validate_r2_identifier
 
         result = _validate_r2_identifier("sym.main")
         assert result == "sym.main"
 
     def test_validate_r2_identifier_function_name(self):
         """Test _validate_r2_identifier with function name."""
-        from reversecore_mcp.tools.ghost_trace import _validate_r2_identifier
+        from reversecore_mcp.tools.malware.dormant_detector import _validate_r2_identifier
 
         result = _validate_r2_identifier("my_function")
         assert result == "my_function"
@@ -81,14 +81,14 @@ class TestGhostTraceHelpers:
     def test_validate_r2_identifier_invalid(self):
         """Test _validate_r2_identifier with invalid input."""
         from reversecore_mcp.core.exceptions import ValidationError
-        from reversecore_mcp.tools.ghost_trace import _validate_r2_identifier
+        from reversecore_mcp.tools.malware.dormant_detector import _validate_r2_identifier
 
         with pytest.raises(ValidationError):
             _validate_r2_identifier("invalid;injection")
 
     def test_functions_to_tuple(self):
         """Test _functions_to_tuple conversion."""
-        from reversecore_mcp.tools.ghost_trace import _functions_to_tuple
+        from reversecore_mcp.tools.malware.dormant_detector import _functions_to_tuple
 
         funcs = [
             {"name": "main", "offset": 0x1000, "size": 100, "codexrefs": [1, 2]},
@@ -101,7 +101,7 @@ class TestGhostTraceHelpers:
 
     def test_get_file_cache_key_existing_file(self, tmp_path):
         """Test _get_file_cache_key with existing file."""
-        from reversecore_mcp.tools.ghost_trace import _get_file_cache_key
+        from reversecore_mcp.tools.malware.dormant_detector import _get_file_cache_key
 
         test_file = tmp_path / "test.bin"
         test_file.write_bytes(b"test")
@@ -112,7 +112,7 @@ class TestGhostTraceHelpers:
 
     def test_get_file_cache_key_nonexistent_file(self):
         """Test _get_file_cache_key with nonexistent file."""
-        from reversecore_mcp.tools.ghost_trace import _get_file_cache_key
+        from reversecore_mcp.tools.malware.dormant_detector import _get_file_cache_key
 
         key = _get_file_cache_key("/nonexistent/path")
         assert key == "/nonexistent/path"
@@ -124,7 +124,7 @@ class TestGhostTraceFindOrphanFunctions:
     @pytest.mark.asyncio
     async def test_find_orphan_functions_basic(self):
         """Test _find_orphan_functions with basic input."""
-        from reversecore_mcp.tools.ghost_trace import _find_orphan_functions
+        from reversecore_mcp.tools.malware.dormant_detector import _find_orphan_functions
 
         functions = [
             {"name": "main", "offset": 0x1000, "size": 100, "codexrefs": [1]},
@@ -139,7 +139,7 @@ class TestGhostTraceFindOrphanFunctions:
     @pytest.mark.asyncio
     async def test_find_orphan_functions_skip_imports(self):
         """Test _find_orphan_functions skips imports."""
-        from reversecore_mcp.tools.ghost_trace import _find_orphan_functions
+        from reversecore_mcp.tools.malware.dormant_detector import _find_orphan_functions
 
         functions = [
             {"name": "sym.imp.printf", "offset": 0x1000, "size": 100, "codexrefs": []},
@@ -151,7 +151,7 @@ class TestGhostTraceFindOrphanFunctions:
     @pytest.mark.asyncio
     async def test_find_orphan_functions_skip_entry(self):
         """Test _find_orphan_functions skips entry points."""
-        from reversecore_mcp.tools.ghost_trace import _find_orphan_functions
+        from reversecore_mcp.tools.malware.dormant_detector import _find_orphan_functions
 
         functions = [
             {"name": "entry0", "offset": 0x1000, "size": 100, "codexrefs": []},
@@ -167,7 +167,7 @@ class TestGhostTraceIdentifyConditionalPaths:
     @pytest.mark.asyncio
     async def test_identify_conditional_paths_empty(self):
         """Test _identify_conditional_paths with empty functions."""
-        from reversecore_mcp.tools.ghost_trace import _identify_conditional_paths
+        from reversecore_mcp.tools.malware.dormant_detector import _identify_conditional_paths
 
         result = await _identify_conditional_paths(Path("/test"), [])
         assert result == []
@@ -175,7 +175,7 @@ class TestGhostTraceIdentifyConditionalPaths:
     @pytest.mark.asyncio
     async def test_identify_conditional_paths_magic_value(self):
         """Test _identify_conditional_paths detects magic values."""
-        from reversecore_mcp.tools.ghost_trace import _identify_conditional_paths
+        from reversecore_mcp.tools.malware.dormant_detector import _identify_conditional_paths
 
         functions = [{"name": "func1", "offset": 0x1000, "size": 100}]
 
@@ -198,7 +198,7 @@ class TestGhostTraceVerifyHypothesis:
     @pytest.mark.asyncio
     async def test_verify_hypothesis_invalid_function(self):
         """Test _verify_hypothesis_with_emulation with invalid function."""
-        from reversecore_mcp.tools.ghost_trace import _verify_hypothesis_with_emulation
+        from reversecore_mcp.tools.malware.dormant_detector import _verify_hypothesis_with_emulation
 
         result = await _verify_hypothesis_with_emulation(
             Path("/test"), "invalid;cmd", {"registers": {}}, timeout=30
@@ -209,7 +209,7 @@ class TestGhostTraceVerifyHypothesis:
     @pytest.mark.asyncio
     async def test_verify_hypothesis_valid(self):
         """Test _verify_hypothesis_with_emulation with valid input."""
-        from reversecore_mcp.tools.ghost_trace import _verify_hypothesis_with_emulation
+        from reversecore_mcp.tools.malware.dormant_detector import _verify_hypothesis_with_emulation
 
         mock_output = '{"eax": 0, "ebx": 0}'
 
@@ -229,7 +229,7 @@ class TestGhostTraceVerifyHypothesis:
     @pytest.mark.asyncio
     async def test_verify_hypothesis_parse_failure(self):
         """Test _verify_hypothesis_with_emulation with parse failure."""
-        from reversecore_mcp.tools.ghost_trace import _verify_hypothesis_with_emulation
+        from reversecore_mcp.tools.malware.dormant_detector import _verify_hypothesis_with_emulation
 
         with patch(
             "reversecore_mcp.tools.ghost_trace._run_r2_cmd",
@@ -250,21 +250,21 @@ class TestStaticAnalysisFormatSize:
 
     def test_format_size_bytes(self):
         """Test _format_size with bytes."""
-        from reversecore_mcp.tools.static_analysis import _format_size
+        from reversecore_mcp.tools.analysis.static_analysis import _format_size
 
         result = _format_size(500)
         assert "500" in result and "B" in result
 
     def test_format_size_kilobytes(self):
         """Test _format_size with kilobytes."""
-        from reversecore_mcp.tools.static_analysis import _format_size
+        from reversecore_mcp.tools.analysis.static_analysis import _format_size
 
         result = _format_size(2048)
         assert "KB" in result
 
     def test_format_size_megabytes(self):
         """Test _format_size with megabytes."""
-        from reversecore_mcp.tools.static_analysis import _format_size
+        from reversecore_mcp.tools.analysis.static_analysis import _format_size
 
         result = _format_size(2 * 1024 * 1024)
         assert "MB" in result
@@ -276,7 +276,7 @@ class TestStaticAnalysisRunStrings:
     @pytest.mark.asyncio
     async def test_run_strings_basic(self, patched_workspace_config, workspace_dir):
         """Test run_strings with basic file."""
-        from reversecore_mcp.tools.static_analysis import run_strings
+        from reversecore_mcp.tools.analysis.static_analysis import run_strings
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"Hello World Test\x00Binary Data\x00")
@@ -293,7 +293,7 @@ class TestStaticAnalysisRunStrings:
     @pytest.mark.asyncio
     async def test_run_strings_with_min_length(self, patched_workspace_config, workspace_dir):
         """Test run_strings with minimum length."""
-        from reversecore_mcp.tools.static_analysis import run_strings
+        from reversecore_mcp.tools.analysis.static_analysis import run_strings
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"Hello World\x00AB\x00")
@@ -313,7 +313,7 @@ class TestStaticAnalysisRunBinwalk:
     @pytest.mark.asyncio
     async def test_run_binwalk_basic(self, patched_workspace_config, workspace_dir):
         """Test run_binwalk with basic file."""
-        from reversecore_mcp.tools.static_analysis import run_binwalk
+        from reversecore_mcp.tools.analysis.static_analysis import run_binwalk
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)
@@ -336,7 +336,7 @@ class TestStaticAnalysisScanVersions:
     @pytest.mark.asyncio
     async def test_scan_for_versions_basic(self, patched_workspace_config, workspace_dir):
         """Test scan_for_versions with basic file."""
-        from reversecore_mcp.tools.static_analysis import scan_for_versions
+        from reversecore_mcp.tools.analysis.static_analysis import scan_for_versions
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"Version: 1.2.3\x00Build: 20240101\x00")
@@ -356,7 +356,7 @@ class TestStaticAnalysisExtractRTTI:
     @pytest.mark.asyncio
     async def test_extract_rtti_basic(self, patched_workspace_config, workspace_dir):
         """Test extract_rtti_info with basic file."""
-        from reversecore_mcp.tools.static_analysis import extract_rtti_info
+        from reversecore_mcp.tools.analysis.static_analysis import extract_rtti_info
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)
@@ -469,7 +469,7 @@ class TestEdgeCases:
 
     def test_ghost_trace_register_function(self):
         """Test register_ghost_trace function."""
-        from reversecore_mcp.tools.ghost_trace import register_ghost_trace
+        from reversecore_mcp.tools.malware.dormant_detector import register_ghost_trace
 
         mock_mcp = MagicMock()
         register_ghost_trace(mock_mcp)
@@ -478,7 +478,7 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_ghost_trace_main_function_scan(self, patched_workspace_config, workspace_dir):
         """Test ghost_trace main function in scan mode."""
-        from reversecore_mcp.tools.ghost_trace import ghost_trace
+        from reversecore_mcp.tools.malware.dormant_detector import ghost_trace
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)
@@ -508,7 +508,7 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_ghost_trace_emulation_mode(self, patched_workspace_config, workspace_dir):
         """Test ghost_trace in emulation mode."""
-        from reversecore_mcp.tools.ghost_trace import ghost_trace
+        from reversecore_mcp.tools.malware.dormant_detector import ghost_trace
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)
@@ -530,7 +530,7 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_ghost_trace_invalid_json_output(self, patched_workspace_config, workspace_dir):
         """Test ghost_trace with invalid JSON output from r2."""
-        from reversecore_mcp.tools.ghost_trace import ghost_trace
+        from reversecore_mcp.tools.malware.dormant_detector import ghost_trace
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)

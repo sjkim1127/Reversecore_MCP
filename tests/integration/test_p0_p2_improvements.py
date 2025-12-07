@@ -78,7 +78,7 @@ class TestYaraInputValidation:
     @pytest.mark.asyncio
     async def test_yara_rule_name_validation(self, sample_binary_path, patched_workspace_config):
         """Test that YARA rule names are properly validated."""
-        from reversecore_mcp.tools.adaptive_vaccine import adaptive_vaccine
+        from reversecore_mcp.tools.malware.adaptive_vaccine import adaptive_vaccine
 
         # Test with valid threat report
         result = await adaptive_vaccine(
@@ -99,7 +99,7 @@ class TestYaraInputValidation:
         self, sample_binary_path, patched_workspace_config
     ):
         """Test that invalid action parameter is rejected."""
-        from reversecore_mcp.tools.adaptive_vaccine import adaptive_vaccine
+        from reversecore_mcp.tools.malware.adaptive_vaccine import adaptive_vaccine
 
         result = await adaptive_vaccine(
             threat_report={"malware_name": "Test"},
@@ -113,7 +113,7 @@ class TestYaraInputValidation:
     @pytest.mark.asyncio
     async def test_yara_string_sanitization(self, sample_binary_path, patched_workspace_config):
         """Test that special characters in strings are properly sanitized."""
-        from reversecore_mcp.tools.adaptive_vaccine import adaptive_vaccine
+        from reversecore_mcp.tools.malware.adaptive_vaccine import adaptive_vaccine
 
         # Test with strings containing special characters
         result = await adaptive_vaccine(
@@ -386,7 +386,7 @@ class TestBinwalkExtraction:
         """Test basic binwalk extraction functionality."""
         _require_binwalk()
 
-        from reversecore_mcp.tools.static_analysis import run_binwalk_extract
+        from reversecore_mcp.tools.analysis.static_analysis import run_binwalk_extract
 
         result = await run_binwalk_extract(str(sample_binary_path))
 
@@ -403,7 +403,7 @@ class TestBinwalkExtraction:
         """Test binwalk extraction with custom output directory."""
         _require_binwalk()
 
-        from reversecore_mcp.tools.static_analysis import run_binwalk_extract
+        from reversecore_mcp.tools.analysis.static_analysis import run_binwalk_extract
 
         output_dir = tmp_path / "binwalk_output"
         result = await run_binwalk_extract(str(sample_binary_path), output_dir=str(output_dir))
@@ -419,7 +419,7 @@ class TestBinwalkExtraction:
         """Test binwalk extraction with matryoshka disabled."""
         _require_binwalk()
 
-        from reversecore_mcp.tools.static_analysis import run_binwalk_extract
+        from reversecore_mcp.tools.analysis.static_analysis import run_binwalk_extract
 
         result = await run_binwalk_extract(str(sample_binary_path), matryoshka=False)
 
@@ -433,7 +433,7 @@ class TestBinwalkExtraction:
         """Test binwalk extraction result has correct structure."""
         _require_binwalk()
 
-        from reversecore_mcp.tools.static_analysis import run_binwalk_extract
+        from reversecore_mcp.tools.analysis.static_analysis import run_binwalk_extract
 
         result = await run_binwalk_extract(str(sample_binary_path))
 
@@ -513,7 +513,7 @@ class TestEndToEndWorkflow:
         _require_radare2()
 
         from reversecore_mcp.core.r2_pool import r2_pool
-        from reversecore_mcp.tools.static_analysis import run_strings, scan_for_versions
+        from reversecore_mcp.tools.analysis.static_analysis import run_strings, scan_for_versions
 
         # Step 1: Extract strings
         strings_result = await run_strings(str(sample_binary_path))
@@ -533,7 +533,7 @@ class TestEndToEndWorkflow:
     @pytest.mark.asyncio
     async def test_error_handling_workflow(self, workspace_dir, patched_workspace_config):
         """Test error handling across multiple components."""
-        from reversecore_mcp.tools.static_analysis import run_strings
+        from reversecore_mcp.tools.analysis.static_analysis import run_strings
 
         # Test with nonexistent file
         result = await run_strings(str(workspace_dir / "nonexistent.bin"))
