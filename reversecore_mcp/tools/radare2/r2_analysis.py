@@ -162,6 +162,164 @@ _DANGEROUS_SINKS = frozenset(
     }
 )
 
+# =============================================================================
+# Symbol Alias Database for Enhanced Matching
+# =============================================================================
+# Maps common API names to their variants (Windows A/W suffixes, safety variants, etc.)
+_SYMBOL_ALIASES: dict[str, list[str]] = {
+    # Windows Process APIs
+    "createprocess": ["CreateProcessA", "CreateProcessW", "CreateProcessAsUserA", "CreateProcessAsUserW"],
+    "shellexecute": ["ShellExecuteA", "ShellExecuteW", "ShellExecuteExA", "ShellExecuteExW"],
+    "winexec": ["WinExec"],
+    # Windows File APIs
+    "createfile": ["CreateFileA", "CreateFileW", "CreateFile2"],
+    "deletefile": ["DeleteFileA", "DeleteFileW"],
+    "writefile": ["WriteFile", "WriteFileEx"],
+    "readfile": ["ReadFile", "ReadFileEx"],
+    "copyfile": ["CopyFileA", "CopyFileW", "CopyFileExA", "CopyFileExW"],
+    # Windows Registry APIs
+    "regsetvalue": ["RegSetValueA", "RegSetValueW", "RegSetValueExA", "RegSetValueExW"],
+    "regcreatekey": ["RegCreateKeyA", "RegCreateKeyW", "RegCreateKeyExA", "RegCreateKeyExW"],
+    "regopenkey": ["RegOpenKeyA", "RegOpenKeyW", "RegOpenKeyExA", "RegOpenKeyExW"],
+    "regdeletekey": ["RegDeleteKeyA", "RegDeleteKeyW", "RegDeleteKeyExA", "RegDeleteKeyExW"],
+    # Windows Message APIs
+    "messagebox": ["MessageBoxA", "MessageBoxW", "MessageBoxExA", "MessageBoxExW"],
+    # Windows Service APIs
+    "createservice": ["CreateServiceA", "CreateServiceW"],
+    "openservice": ["OpenServiceA", "OpenServiceW"],
+    "startservice": ["StartServiceA", "StartServiceW"],
+    # Windows Network APIs
+    "internetopen": ["InternetOpenA", "InternetOpenW"],
+    "internetconnect": ["InternetConnectA", "InternetConnectW"],
+    "httpopen": ["HttpOpenRequestA", "HttpOpenRequestW"],
+    # C Runtime String Functions
+    "strcpy": ["strcpy", "strcpy_s", "__strcpy_chk", "wcscpy", "lstrcpyA", "lstrcpyW"],
+    "strcat": ["strcat", "strcat_s", "__strcat_chk", "wcscat", "lstrcatA", "lstrcatW"],
+    "sprintf": ["sprintf", "sprintf_s", "swprintf", "wsprintfA", "wsprintfW", "_snprintf"],
+    "printf": ["printf", "wprintf", "_printf_l"],
+    "scanf": ["scanf", "scanf_s", "wscanf", "sscanf", "fscanf"],
+    # C Runtime Memory Functions
+    "malloc": ["malloc", "_malloc", "calloc", "realloc"],
+    "free": ["free", "_free"],
+    "memcpy": ["memcpy", "memcpy_s", "memmove", "memmove_s", "wmemcpy"],
+    # System/Exec Functions
+    "system": ["system", "_system", "msvcrt.system", "_wsystem"],
+    "popen": ["popen", "_popen", "_wpopen"],
+    "execve": ["execve", "execv", "execl", "execvp", "execlp"],
+    # Network Functions
+    "socket": ["socket", "WSASocket", "WSASocketA", "WSASocketW"],
+    "connect": ["connect", "WSAConnect"],
+    "send": ["send", "sendto", "WSASend", "WSASendTo"],
+    "recv": ["recv", "recvfrom", "WSARecv", "WSARecvFrom"],
+    # Crypto Functions
+    "cryptencrypt": ["CryptEncrypt", "CryptDecrypt"],
+    "cryptgenkey": ["CryptGenKey", "CryptDeriveKey"],
+    "cryptacquirecontext": ["CryptAcquireContextA", "CryptAcquireContextW"],
+}
+
+# Pre-compute reverse lookup for O(1) alias checking
+_ALIAS_REVERSE_LOOKUP: dict[str, str] = {}
+for _base, _aliases in _SYMBOL_ALIASES.items():
+    for _alias in _aliases:
+        _ALIAS_REVERSE_LOOKUP[_alias.lower()] = _base
+
+
+def _clean_symbol_name(name: str) -> str:
+    """Remove common prefixes and normalize symbol name."""
+    if not name:
+        return ""
+    # Remove common radare2/binary prefixes
+    clean = name
+    for prefix in ["sym.imp.", "sym.", "imp.", "fcn.", "sub_", "loc_"]:
+        if clean.lower().startswith(prefix):
+            clean = clean[len(prefix):]
+            break
+    # Remove leading/trailing underscores
+    return clean.strip("_").lower()
+
+
+def _fuzzy_match_symbol(target: str, symbol: str) -> tuple[float, str]:
+    """
+    Calculate fuzzy match score between target and symbol.
+    
+    Returns:
+        Tuple of (score, match_method) where score is 0.0-1.0
+    """
+    target_clean = _clean_symbol_name(target)
+    symbol_clean = _clean_symbol_name(symbol)
+    
+    if not target_clean or not symbol_clean:
+        return (0.0, "none")
+    
+    # Exact match (after cleaning)
+    if target_clean == symbol_clean:
+        return (1.0, "exact")
+    
+    # Check alias database
+    if target_clean in _SYMBOL_ALIASES:
+        for alias in _SYMBOL_ALIASES[target_clean]:
+            if alias.lower() == symbol_clean or symbol_clean.endswith(alias.lower()):
+                return (0.95, "alias")
+    
+    # Reverse alias check
+    if symbol_clean in _ALIAS_REVERSE_LOOKUP:
+        base = _ALIAS_REVERSE_LOOKUP[symbol_clean]
+        if base == target_clean:
+            return (0.95, "alias_reverse")
+    
+    # Suffix match (e.g., "system" matches "msvcrt.system")
+    if symbol_clean.endswith(target_clean):
+        return (0.85, "suffix")
+    
+    # Prefix match
+    if symbol_clean.startswith(target_clean):
+        return (0.75, "prefix")
+    
+    # Contains match
+    if target_clean in symbol_clean:
+        return (0.65, "contains")
+    
+    # Reverse contains (symbol in target)
+    if symbol_clean in target_clean:
+        return (0.55, "contains_reverse")
+    
+    return (0.0, "none")
+
+
+def _find_best_symbol_match(target: str, symbols: list[dict]) -> tuple[dict | None, float, str]:
+    """
+    Find the best matching symbol from a list.
+    
+    Args:
+        target: Target function name to find
+        symbols: List of symbol dicts with 'name' field
+    
+    Returns:
+        Tuple of (best_match_dict, score, match_method)
+    """
+    best_match = None
+    best_score = 0.0
+    best_method = "none"
+    
+    for sym in symbols:
+        if not isinstance(sym, dict):
+            continue
+        
+        # Check both 'name' and 'realname' fields
+        for name_field in ["name", "realname"]:
+            name = sym.get(name_field, "")
+            if not name:
+                continue
+            
+            score, method = _fuzzy_match_symbol(target, name)
+            if score > best_score:
+                best_score = score
+                best_match = sym
+                best_method = method
+    
+    return (best_match, best_score, best_method)
+
+
 # OPTIMIZATION: Pre-define translation table for faster function name cleaning
 # Use empty second argument to delete characters
 _FUNC_NAME_CLEAN_TABLE = str.maketrans("", "", "_")
@@ -225,63 +383,64 @@ async def trace_execution_path(
         clean_name = clean_name.translate(_FUNC_NAME_CLEAN_TABLE)
         return any(sink in clean_name.lower() for sink in _DANGEROUS_SINKS)
 
-    # Helper to get address of a function name
-    async def get_address(func_name):
-        # OPTIMIZATION: Batch both symbol and function lookups in one r2 call
-        # This eliminates the overhead of a second subprocess call when the symbol
-        # isn't found in the first lookup (common for stripped binaries)
-        cmd = _build_r2_cmd(str(validated_path), ["isj", "aflj"], "aaa")
+    # Enhanced symbol resolution with fuzzy matching
+    match_info = {"score": 0.0, "method": "none", "resolved_name": None}
+    
+    async def resolve_symbol_address(func_name: str) -> int | None:
+        """Enhanced symbol resolution with fuzzy matching and multi-source lookup."""
+        nonlocal match_info
+        
+        # If already an address, return as-is
+        if func_name.startswith("0x"):
+            try:
+                match_info = {"score": 1.0, "method": "direct_address", "resolved_name": func_name}
+                return int(func_name, 16)
+            except ValueError:
+                return None
+        
+        # Multi-source lookup: symbols, functions, imports
+        cmd = _build_r2_cmd(str(validated_path), ["isj", "aflj", "iij"], "aaa")
         out, _ = await execute_subprocess_async(cmd, timeout=effective_timeout)
-
-        # Parse output: radare2 outputs one JSON per command line
-        # We expect 2 lines: first from isj (symbols), second from aflj (functions)
+        
         lines = [line.strip() for line in out.strip().split("\n") if line.strip()]
-
-        # Validate we have at least one line with potential JSON
         if not lines:
             return None
-
-        # Try symbols first (isj output)
-        # Use robust parsing that handles both JSON arrays and error messages
-        if len(lines) >= 1:
+        
+        all_symbols = []
+        
+        # Parse all sources
+        for line in lines:
             try:
-                symbols = _parse_json_output(lines[0])
-                # Validate it's a list (not an error dict or string)
-                if isinstance(symbols, list):
-                    for sym in symbols:
-                        if isinstance(sym, dict):
-                            if sym.get("name") == func_name or sym.get("realname") == func_name:
-                                return sym.get("vaddr")
-            except (json.JSONDecodeError, TypeError, IndexError):
-                # First line wasn't valid JSON or wasn't in expected format
-                # This is OK - fall through to try functions
-                pass
-
-        # If not found in symbols, try functions (aflj output)
-        if len(lines) >= 2:
-            try:
-                funcs = _parse_json_output(lines[1])
-                # Validate it's a list (not an error dict or string)
-                if isinstance(funcs, list):
-                    for f in funcs:
-                        if isinstance(f, dict) and f.get("name") == func_name:
-                            return f.get("offset")
-            except (json.JSONDecodeError, TypeError, IndexError):
-                # Second line wasn't valid JSON or wasn't in expected format
-                # This is OK - just means function not found
-                pass
-
+                parsed = _parse_json_output(line)
+                if isinstance(parsed, list):
+                    all_symbols.extend(parsed)
+            except (json.JSONDecodeError, TypeError):
+                continue
+        
+        if not all_symbols:
+            return None
+        
+        # Use fuzzy matching to find best match
+        best_match, score, method = _find_best_symbol_match(func_name, all_symbols)
+        
+        if best_match and score >= 0.5:  # Minimum confidence threshold
+            match_info = {
+                "score": score,
+                "method": method,
+                "resolved_name": best_match.get("name") or best_match.get("realname"),
+            }
+            # Get address from match (different fields for symbols vs functions)
+            addr = best_match.get("vaddr") or best_match.get("offset") or best_match.get("plt")
+            return addr
+        
         return None
 
     # Resolve target address
     target_addr = target_function
-    if not target_function.startswith("0x"):
-        addr = await get_address(target_function)
-        if addr:
-            target_addr = hex(addr)
-        else:
-            # If we can't resolve it, try using it directly if it looks like a symbol
-            pass
+    resolved_addr = await resolve_symbol_address(target_function)
+    if resolved_addr:
+        target_addr = hex(resolved_addr)
+    # If we can't resolve it, use the original name (might work as r2 symbol)
 
     paths = []
     visited = set()
@@ -363,7 +522,11 @@ async def trace_execution_path(
         {"paths": formatted_paths, "raw_paths": paths},
         path_count=len(paths),
         target=target_function,
-        description=f"Found {len(paths)} execution paths to {target_function}",
+        resolved_address=target_addr,
+        match_confidence=match_info["score"],
+        match_method=match_info["method"],
+        resolved_name=match_info["resolved_name"],
+        description=f"Found {len(paths)} execution paths to {target_function} (match: {match_info['method']}, confidence: {match_info['score']:.0%})",
     )
 
 
