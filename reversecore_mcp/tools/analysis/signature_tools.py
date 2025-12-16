@@ -401,5 +401,176 @@ async def generate_yara_rule(
     )
 
 
+@log_execution(tool_name="generate_enhanced_yara_rule")
+@track_metrics("generate_enhanced_yara_rule")
+@handle_tool_errors
+async def generate_enhanced_yara_rule(
+    file_path: str,
+    rule_name: str,
+    strings: list[str],
+    imports: list[str] = None,
+    file_type: str = "PE",
+    min_filesize: int = None,
+    max_filesize: int = None,
+    section_names: list[str] = None,
+    entry_point_pattern: str = None,
+    description: str = "",
+    author: str = "Reversecore_MCP",
+    min_string_matches: int = None,
+) -> ToolResult:
+    """
+    Generate an enhanced YARA rule with structural conditions to reduce false positives.
+    
+    This function creates YARA rules that combine:
+    - String patterns (required)
+    - Structural conditions (PE characteristics, file size)
+    - Import table checks (optional)
+    - Section name checks (optional)
+    - Entry point patterns (optional)
+    
+    **Why Enhanced Rules?**
+    Simple string-only rules cause high false positive rates. By adding structural
+    conditions, rules become more precise and suitable for production use.
+    
+    Args:
+        file_path: Path to reference binary (for metadata extraction)
+        rule_name: Name for the YARA rule
+        strings: List of strings to include in the rule
+        imports: List of imported functions to check (e.g., ["CryptEncrypt", "WriteFile"])
+        file_type: Target file type - "PE" or "ELF" (default: "PE")
+        min_filesize: Minimum file size in bytes (optional)
+        max_filesize: Maximum file size in bytes (optional)
+        section_names: Required section names (e.g., [".rsrc", ".text"])
+        entry_point_pattern: Hex pattern at entry point (optional)
+        description: Rule description for metadata
+        author: Rule author for metadata
+        min_string_matches: Minimum number of strings that must match (default: 2/3 of total)
+    
+    Returns:
+        ToolResult with enhanced YARA rule string
+    
+    Example:
+        generate_enhanced_yara_rule(
+            "/app/workspace/wannacry.exe",
+            "WannaCry_Ransomware",
+            strings=["WANACRY!", "WNcry@2ol7", "bitcoin"],
+            imports=["CryptEncrypt", "CreateServiceA"],
+            min_filesize=3000000,
+            max_filesize=4000000,
+            section_names=[".rsrc"],
+        )
+    """
+    # 1. Validate parameters
+    validated_path = validate_file_path(file_path)
+    
+    if not _RULE_NAME_PATTERN.match(rule_name):
+        return failure(
+            "VALIDATION_ERROR",
+            "rule_name must start with a letter and contain only alphanumeric characters and underscores",
+        )
+    
+    if not strings or len(strings) == 0:
+        return failure(
+            "VALIDATION_ERROR",
+            "At least one string is required for YARA rule generation",
+        )
+    
+    # 2. Build strings section (max 10 strings)
+    string_definitions = []
+    for i, s in enumerate(strings[:10]):
+        # Escape special characters
+        escaped = s.replace("\\", "\\\\").replace('"', '\\"')
+        string_definitions.append(f'        $str{i} = "{escaped}" ascii wide nocase')
+    
+    strings_section = "\n".join(string_definitions)
+    
+    # 3. Build imports section (optional)
+    import_definitions = []
+    if imports:
+        for i, imp in enumerate(imports[:10]):
+            escaped = imp.replace("\\", "\\\\").replace('"', '\\"')
+            import_definitions.append(f'        $imp{i} = "{escaped}" ascii')
+        strings_section += "\n" + "\n".join(import_definitions)
+    
+    # 4. Calculate min_string_matches (default: 2/3 of total, minimum 1)
+    total_strings = len(strings[:10])
+    if min_string_matches is None:
+        min_string_matches = max(1, (total_strings * 2) // 3)
+    min_string_matches = min(min_string_matches, total_strings)
+    
+    # 5. Build condition section
+    conditions = []
+    
+    # File type condition
+    if file_type.upper() == "PE":
+        conditions.append("uint16(0) == 0x5A4D")  # MZ header
+        conditions.append("uint32(uint32(0x3C)) == 0x00004550")  # PE signature
+    elif file_type.upper() == "ELF":
+        conditions.append("uint32(0) == 0x464C457F")  # ELF magic
+    
+    # File size conditions
+    if min_filesize:
+        conditions.append(f"filesize > {min_filesize}")
+    if max_filesize:
+        conditions.append(f"filesize < {max_filesize}")
+    
+    # String match condition
+    if total_strings > 1:
+        conditions.append(f"{min_string_matches} of ($str*)")
+    else:
+        conditions.append("$str0")
+    
+    # Import conditions (if provided)
+    if imports and len(imports) > 0:
+        min_import_matches = max(1, len(imports[:10]) // 2)
+        conditions.append(f"{min_import_matches} of ($imp*)")
+    
+    # Section name conditions (optional)
+    if section_names:
+        for section in section_names[:5]:
+            # Use pe module for section checks
+            conditions.append(f'pe.sections[pe.number_of_sections - 1].name contains "{section}"')
+    
+    # Entry point pattern (optional)
+    if entry_point_pattern:
+        conditions.append(f"$ep at pe.entry_point")
+        string_definitions.append(f'        $ep = {{ {entry_point_pattern} }}')
+    
+    # 6. Build condition string
+    condition_str = " and\n        ".join(conditions)
+    
+    # 7. Generate complete rule
+    imports_declaration = ""
+    if section_names or entry_point_pattern:
+        imports_declaration = 'import "pe"\n\n'
+    
+    yara_rule = f'''{imports_declaration}rule {rule_name} {{
+    meta:
+        description = "{description or f'Enhanced detection rule for {rule_name}'}"
+        author = "{author}"
+        date = "auto-generated"
+        reference = "Generated by Reversecore MCP"
+        false_positive_reduction = "Structural conditions applied"
+        min_string_matches = {min_string_matches}
+        
+    strings:
+{strings_section}
+
+    condition:
+        {condition_str}
+}}'''
+    
+    return success(
+        yara_rule,
+        rule_name=rule_name,
+        string_count=len(strings[:10]),
+        import_count=len(imports[:10]) if imports else 0,
+        condition_count=len(conditions),
+        min_string_matches=min_string_matches,
+        format="yara",
+        description=f"Enhanced YARA rule '{rule_name}' with {len(conditions)} structural conditions",
+    )
+
+
 # Note: SignatureToolsPlugin has been removed.
 # The signature tools are now registered via AnalysisToolsPlugin in analysis/__init__.py.
