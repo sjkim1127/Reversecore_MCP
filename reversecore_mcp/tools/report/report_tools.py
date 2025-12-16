@@ -15,6 +15,7 @@ import logging
 import os
 import platform
 import smtplib
+import uuid
 from datetime import datetime, timedelta, timezone
 from email import encoders
 from email.mime.base import MIMEBase

@@ -24,6 +24,18 @@ from reversecore_mcp.tools.radare2 import r2_analysis
 # Ghidra tools
 from reversecore_mcp.tools.ghidra import decompilation
 
+# Malware tools - backward compatibility aliases
+from reversecore_mcp.tools.malware import dormant_detector
+from reversecore_mcp.tools.malware import adaptive_vaccine
+from reversecore_mcp.tools.malware import vulnerability_hunter
+
+# Legacy aliases for renamed modules
+ghost_trace = dormant_detector  # ghost_trace was renamed to dormant_detector
+
+# Report tools - backward compatibility
+from reversecore_mcp.tools.report import report_tools
+from reversecore_mcp.tools.report import report_mcp_tools
+
 __all__ = [
     "static_analysis",
     "diff_tools",
@@ -33,4 +45,12 @@ __all__ = [
     "lib_tools",
     "r2_analysis",
     "decompilation",
+    # Malware tools
+    "dormant_detector",
+    "adaptive_vaccine",
+    "vulnerability_hunter",
+    "ghost_trace",  # Legacy alias
+    # Report tools
+    "report_tools",
+    "report_mcp_tools",
 ]
