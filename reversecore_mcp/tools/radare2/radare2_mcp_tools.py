@@ -36,6 +36,7 @@ from reversecore_mcp.tools.radare2.r2_session import (
     _paginate_text,
     _sanitize_for_r2_cmd,
     _validate_expression,
+    _validate_identifier,
     _validate_r2_command,
     DEFAULT_PAGE_SIZE,
     MAX_PAGE_SIZE,
