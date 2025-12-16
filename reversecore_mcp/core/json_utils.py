@@ -36,7 +36,7 @@ try:
             s = s.encode("utf-8")
         return orjson.loads(s)
 
-    def dumps(obj: Any, indent: int | None = None) -> str:
+    def dumps(obj: Any, indent: int | None = None, ensure_ascii: bool = True) -> str:
         """
         Serialize object to JSON with orjson (fast path).
 
@@ -44,9 +44,13 @@ try:
         Any non-None indent value will result in 2-space pretty-printing.
         This differs slightly from stdlib json which respects the exact indent value.
 
+        Note: orjson always outputs UTF-8 (never escapes non-ASCII).
+        The ensure_ascii parameter is accepted for API compatibility but ignored.
+
         Args:
             obj: Python object to serialize
             indent: If provided (any non-None value), pretty-print with 2-space indentation
+            ensure_ascii: Ignored (orjson always uses UTF-8). Kept for API compatibility.
 
         Returns:
             JSON string
@@ -81,18 +85,19 @@ except ImportError:
             s = s.decode("utf-8")
         return _stdlib_json.loads(s)
 
-    def dumps(obj: Any, indent: int | None = None) -> str:
+    def dumps(obj: Any, indent: int | None = None, ensure_ascii: bool = True) -> str:
         """
         Serialize object to JSON with standard library (fallback).
 
         Args:
             obj: Python object to serialize
             indent: If provided, pretty-print with indentation
+            ensure_ascii: If True, escape non-ASCII characters
 
         Returns:
             JSON string
         """
-        return _stdlib_json.dumps(obj, indent=indent)
+        return _stdlib_json.dumps(obj, indent=indent, ensure_ascii=ensure_ascii)
 
 
 def is_orjson_available() -> bool:

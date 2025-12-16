@@ -42,14 +42,14 @@ async def run_file(file_path: str, timeout: int = DEFAULT_TIMEOUT) -> ToolResult
         mime_type = "image/" + output.split()[0].lower()
         
     return success(
-        output,
-        bytes_read=bytes_read,
-        data={
+        {
             "file_type": output,
             "file_path": str(validated_path),
             "file_name": validated_path.name,
             "mime_type": mime_type
-        }
+        },
+        bytes_read=bytes_read,
+        raw_output=output,
     )
 
 
