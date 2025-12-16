@@ -3,6 +3,8 @@
 import sys
 import types
 
+import pytest
+
 from reversecore_mcp.tools.common import lib_tools
 
 
@@ -105,6 +107,7 @@ def test_run_yara_timeout(
     assert "timed out" in out.message.lower()
 
 
+@pytest.mark.skip(reason="disassemble_with_capstone was removed")
 def test_disassemble_capstone_import_error(
     monkeypatch,
     workspace_dir,
@@ -126,6 +129,7 @@ def test_disassemble_capstone_import_error(
     assert "capstone" in out.message.lower()
 
 
+@pytest.mark.skip(reason="disassemble_with_capstone was removed")
 def test_disassemble_capstone_runtime_error(
     monkeypatch,
     workspace_dir,

@@ -79,6 +79,7 @@ def test_run_yara_formatter(
     assert data["match_count"] == 1
 
 
+@pytest.mark.skip(reason="disassemble_with_capstone was removed")
 def test_disassemble_invalid_arch_mode(
     monkeypatch,
     workspace_dir,
@@ -242,6 +243,7 @@ def test_run_yara_formatter_with_none_values(
     assert data["matches"][0]["strings"][0]["matched_data"] is None
 
 
+@pytest.mark.skip(reason="disassemble_with_capstone was removed")
 def test_disassemble_no_data_at_offset(
     monkeypatch,
     workspace_dir,
@@ -273,6 +275,7 @@ def test_disassemble_no_data_at_offset(
     assert out.error_code == "NO_DATA"
 
 
+@pytest.mark.skip(reason="disassemble_with_capstone was removed")
 def test_disassemble_no_instructions(
     workspace_dir,
     patched_workspace_config,

@@ -49,6 +49,7 @@ class TestRunYara:
         assert result.error_code == "VALIDATION_ERROR"
 
 
+@pytest.mark.skip(reason="disassemble_with_capstone was removed")
 class TestDisassembleWithCapstone:
     """Integration tests for disassemble_with_capstone tool."""
 
