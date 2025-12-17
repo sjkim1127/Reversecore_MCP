@@ -28,6 +28,9 @@ slowapi>=0.1.9
 # Caching for async functions
 async-lru>=2.0.4
 
+# Async file I/O
+aiofiles>=23.2.0
+
 # Async SQLite for AI memory storage
 aiosqlite>=0.19.0
 
@@ -38,7 +41,7 @@ angr>=9.2.0
 # fastmcp may include these, but we need them explicitly for server.py
 fastapi>=0.100.0
 uvicorn>=0.23.0
-python-multipart>=0.0.20  
+python-multipart>=0.0.20
 
 # Ghidra Python bindings (optional for enhanced decompilation)
 # Note: pyghidra 2.2.0 is compatible with Ghidra 11.2 installed in Dockerfile
