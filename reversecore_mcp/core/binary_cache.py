@@ -112,7 +112,11 @@ class BinaryMetadataCache:
             mtime = Path(file_path).stat().st_mtime
             self._file_timestamps[cache_key] = (mtime, time.time())
         except FileNotFoundError:
-            pass
+            # For memory/stream analysis or temp files that no longer exist,
+            # use current time as mtime to enable caching
+            # Without this, cache always misses because _is_valid returns False
+            current_time = time.time()
+            self._file_timestamps[cache_key] = (current_time, current_time)
 
         self._cache[cache_key][key] = value
         logger.debug(f"Cached {key} for {file_path}")
