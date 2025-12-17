@@ -51,6 +51,18 @@ def get_timezone(tz_name: str):
     except Exception:
         return ZoneInfo("UTC")
 
+# Timezone offsets (standard time)
+TIMEZONE_OFFSETS: dict[str, int] = {
+    "UTC": 0,
+    "Asia/Seoul": 9,
+    "Asia/Tokyo": 9,
+    "Asia/Shanghai": 8,
+    "America/New_York": -5,
+    "America/Los_Angeles": -8,
+    "Europe/Paris": 1,
+    "Europe/London": 0,
+}
+
 # Timezone abbreviation mapping (kept for display purposes)
 TIMEZONE_ABBRS: dict[str, str] = {
     "UTC": "UTC",

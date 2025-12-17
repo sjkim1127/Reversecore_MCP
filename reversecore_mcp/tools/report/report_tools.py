@@ -10,6 +10,7 @@ Features:
 - Environment variable support for email configuration
 """
 
+import asyncio
 import hashlib
 import logging
 import os
@@ -22,13 +23,10 @@ from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
-from typing import Any
 
-# Use optimized JSON implementation (3-5x faster than standard json)
-from reversecore_mcp.core import json_utils as json
-import asyncio
 import aiofiles
 
+# Use optimized JSON implementation (3-5x faster than standard json)
 # Import session and email utilities from submodules
 from reversecore_mcp.tools.report.session import (
     AnalysisSession,
@@ -47,7 +45,7 @@ logger = logging.getLogger(__name__)
 class ReportTools:
     """
     Malware Analysis Report Generation Tools
-    
+
     Features:
     - OS-level accurate timestamps
     - Analysis session tracking
@@ -62,7 +60,7 @@ class ReportTools:
         template_dir: Path,
         output_dir: Path,
         default_timezone: str = "UTC",
-        email_config: EmailConfig | None = None
+        email_config: EmailConfig | None = None,
     ):
         self.template_dir = Path(template_dir)
         self.output_dir = Path(output_dir)
@@ -88,7 +86,7 @@ class ReportTools:
     def set_timezone(self, tz: str) -> dict:
         """
         Set default timezone.
-        
+
         Args:
             tz: Timezone name (UTC, Asia/Seoul, America/New_York, etc.)
         """
@@ -96,15 +94,16 @@ class ReportTools:
             return {
                 "success": False,
                 "error": f"Unknown timezone: {tz}",
-                "available": list(TIMEZONE_OFFSETS.keys())
+                "available": list(TIMEZONE_OFFSETS.keys()),
             }
 
+        offset = TIMEZONE_OFFSETS.get(tz, 0)
         return {
             "success": True,
             "timezone": tz,
             "utc_offset": f"UTC{'+' if offset >= 0 else ''}{offset}",
             "abbreviation": TIMEZONE_ABBRS.get(tz, ""),
-            "current_time": self._format_time(datetime.now(timezone.utc), tz_name=tz)
+            "current_time": self._format_time(datetime.now(timezone.utc), tz_name=tz),
         }
 
     def get_timezone_info(self) -> dict:
@@ -116,10 +115,10 @@ class ReportTools:
             "available_timezones": {
                 name: {
                     "offset": f"UTC{'+' if offset >= 0 else ''}{offset}",
-                    "abbreviation": TIMEZONE_ABBRS.get(name, "")
+                    "abbreviation": TIMEZONE_ABBRS.get(name, ""),
                 }
                 for name, offset in TIMEZONE_OFFSETS.items()
-            }
+            },
         }
 
     def _get_local_time(self) -> datetime:
@@ -128,18 +127,20 @@ class ReportTools:
         local_tz = timezone(timedelta(hours=self.timezone_offset))
         return utc_now.astimezone(local_tz)
 
-    def _format_time(self, dt: datetime, include_tz: bool = True, tz_name: str | None = None) -> str:
+    def _format_time(
+        self, dt: datetime, include_tz: bool = True, tz_name: str | None = None
+    ) -> str:
         """Format datetime to configured timezone"""
         target_tz_name = tz_name or self.default_timezone
         offset = TIMEZONE_OFFSETS.get(target_tz_name, 0)
-        
+
         local_tz = timezone(timedelta(hours=offset))
         local_dt = dt.astimezone(local_tz)
 
         if include_tz:
             abbr = TIMEZONE_ABBRS.get(target_tz_name, f"UTC{'+' if offset >= 0 else ''}{offset}")
             return f"{local_dt.strftime('%Y-%m-%d %H:%M:%S')} ({abbr})"
-        return local_dt.strftime('%Y-%m-%d %H:%M:%S')
+        return local_dt.strftime("%Y-%m-%d %H:%M:%S")
 
     # =========================================================================
     # Timestamp Generation
@@ -152,7 +153,7 @@ class ReportTools:
         """
         target_tz_name = tz_name or self.default_timezone
         offset = TIMEZONE_OFFSETS.get(target_tz_name, 0)
-        
+
         utc_now = datetime.now(timezone.utc)
         local_tz = timezone(timedelta(hours=offset))
         local_now = utc_now.astimezone(local_tz)
@@ -161,39 +162,33 @@ class ReportTools:
         return {
             # For Report ID generation
             "report_id": f"MAR-{local_now.strftime('%Y%m%d-%H%M%S')}",
-
             # Date formats (ISO, localized)
             "date": local_now.strftime("%Y-%m-%d"),
             "date_long": local_now.strftime("%B %d, %Y"),  # December 05, 2025
             "date_short": local_now.strftime("%d %b %Y"),  # 05 Dec 2025
-            "date_eu": local_now.strftime("%d/%m/%Y"),     # 05/12/2025
-            "date_us": local_now.strftime("%m/%d/%Y"),     # 12/05/2025
-
+            "date_eu": local_now.strftime("%d/%m/%Y"),  # 05/12/2025
+            "date_us": local_now.strftime("%m/%d/%Y"),  # 12/05/2025
             # Time formats
             "time": local_now.strftime("%H:%M:%S"),
             "time_12h": local_now.strftime("%I:%M:%S %p"),  # 02:30:45 PM
             "datetime": local_now.strftime("%Y-%m-%d %H:%M:%S"),
             "datetime_full": self._format_time(utc_now, tz_name=target_tz_name),
             "datetime_iso": local_now.isoformat(),
-
             # UTC based
             "datetime_utc": utc_now.strftime("%Y-%m-%d %H:%M:%S UTC"),
             "timestamp_unix": int(utc_now.timestamp()),
-
             # Individual fields
             "year": local_now.strftime("%Y"),
             "month": local_now.strftime("%m"),
-            "month_name": local_now.strftime("%B"),        # December
+            "month_name": local_now.strftime("%B"),  # December
             "month_name_short": local_now.strftime("%b"),  # Dec
             "day": local_now.strftime("%d"),
-            "weekday": local_now.strftime("%A"),           # Thursday
-            "weekday_short": local_now.strftime("%a"),     # Thu
-
+            "weekday": local_now.strftime("%A"),  # Thursday
+            "weekday_short": local_now.strftime("%a"),  # Thu
             # Timezone info
             "timezone": target_tz_name,
             "timezone_abbr": abbr,
             "timezone_offset": f"UTC{'+' if offset >= 0 else ''}{offset}",
-
             # System info
             "hostname": platform.node(),
             "platform": platform.system(),
@@ -213,18 +208,18 @@ class ReportTools:
         analyst: str = "Security Researcher",
         severity: str = "medium",
         malware_family: str | None = None,
-        tags: list[str] | None = None
+        tags: list[str] | None = None,
     ) -> dict:
         """
         Start a new analysis session.
-        
+
         Args:
             sample_path: Path to the sample file
             analyst: Analyst name
             severity: Severity level (low, medium, high, critical)
             malware_family: Malware family name
             tags: Tag list
-            
+
         Returns:
             Session information
         """
@@ -236,7 +231,7 @@ class ReportTools:
             sample_name=Path(sample_path).name if sample_path else None,
             analyst=analyst,
             severity=severity,
-            malware_family=malware_family
+            malware_family=malware_family,
         )
 
         if tags:
@@ -267,18 +262,15 @@ class ReportTools:
             "analyst": analyst,
             "severity": severity,
             "malware_family": malware_family,
-            "message": f"Analysis session started. Use session_id '{session_id}' to track."
+            "message": f"Analysis session started. Use session_id '{session_id}' to track.",
         }
 
     async def end_session(
-        self,
-        session_id: str | None = None,
-        status: str = "completed",
-        summary: str | None = None
+        self, session_id: str | None = None, status: str = "completed", summary: str | None = None
     ) -> dict:
         """
         End an analysis session.
-        
+
         Args:
             session_id: Session ID (uses current session if not provided)
             status: End status (completed, aborted)
@@ -307,7 +299,7 @@ class ReportTools:
             "iocs_collected": sum(len(v) for v in session.iocs.values()),
             "mitre_techniques": len(session.mitre_techniques),
             "notes": len(session.notes),
-            "tags": session.tags
+            "tags": session.tags,
         }
 
         if sid == self.current_session_id:
@@ -323,7 +315,7 @@ class ReportTools:
             return {
                 "success": False,
                 "error": "No session found",
-                "active_sessions": list(self.sessions.keys())
+                "active_sessions": list(self.sessions.keys()),
             }
 
         session = self.sessions[sid]
@@ -335,15 +327,12 @@ class ReportTools:
         if session.ended_at:
             info["ended_at_formatted"] = self._format_time(session.ended_at)
 
-        info["is_current"] = (sid == self.current_session_id)
+        info["is_current"] = sid == self.current_session_id
 
         return {"success": True, "session": info}
 
     async def add_session_ioc(
-        self,
-        ioc_type: str,
-        value: str,
-        session_id: str | None = None
+        self, ioc_type: str, value: str, session_id: str | None = None
     ) -> dict:
         """Add IOC to session"""
         sid = session_id or self.current_session_id
@@ -358,7 +347,7 @@ class ReportTools:
             return {
                 "success": False,
                 "error": f"Invalid IOC type: {ioc_type}",
-                "valid_types": valid_types
+                "valid_types": valid_types,
             }
 
         added = session.add_ioc(ioc_type, value)
@@ -368,14 +357,11 @@ class ReportTools:
             "added": added,
             "ioc": {"type": ioc_type, "value": value},
             "message": "IOC added" if added else "IOC already exists",
-            "total_iocs": sum(len(v) for v in session.iocs.values())
+            "total_iocs": sum(len(v) for v in session.iocs.values()),
         }
 
     async def add_session_note(
-        self,
-        note: str,
-        category: str = "general",
-        session_id: str | None = None
+        self, note: str, category: str = "general", session_id: str | None = None
     ) -> dict:
         """Add analysis note to session"""
         sid = session_id or self.current_session_id
@@ -391,15 +377,11 @@ class ReportTools:
             "note_added": note[:100] + "..." if len(note) > 100 else note,
             "category": category,
             "timestamp": self._format_time(datetime.now(timezone.utc)),
-            "total_notes": len(session.notes)
+            "total_notes": len(session.notes),
         }
 
     async def add_session_mitre(
-        self,
-        technique_id: str,
-        technique_name: str,
-        tactic: str,
-        session_id: str | None = None
+        self, technique_id: str, technique_name: str, tactic: str, session_id: str | None = None
     ) -> dict:
         """Add MITRE ATT&CK technique to session"""
         sid = session_id or self.current_session_id
@@ -414,14 +396,10 @@ class ReportTools:
             "success": True,
             "added": f"{technique_id} - {technique_name}",
             "tactic": tactic,
-            "total_techniques": len(session.mitre_techniques)
+            "total_techniques": len(session.mitre_techniques),
         }
 
-    async def add_session_tag(
-        self,
-        tag: str,
-        session_id: str | None = None
-    ) -> dict:
+    async def add_session_tag(self, tag: str, session_id: str | None = None) -> dict:
         """Add tag to session"""
         sid = session_id or self.current_session_id
 
@@ -431,17 +409,9 @@ class ReportTools:
         session = self.sessions[sid]
         session.add_tag(tag)
 
-        return {
-            "success": True,
-            "tag_added": tag,
-            "all_tags": session.tags
-        }
+        return {"success": True, "tag_added": tag, "all_tags": session.tags}
 
-    async def set_session_severity(
-        self,
-        severity: str,
-        session_id: str | None = None
-    ) -> dict:
+    async def set_session_severity(self, severity: str, session_id: str | None = None) -> dict:
         """Set session severity"""
         sid = session_id or self.current_session_id
 
@@ -453,39 +423,39 @@ class ReportTools:
             return {
                 "success": False,
                 "error": f"Invalid severity: {severity}",
-                "valid_severities": valid_severities
+                "valid_severities": valid_severities,
             }
 
         session = self.sessions[sid]
         session.severity = severity.lower()
 
-        return {
-            "success": True,
-            "severity": session.severity,
-            "session_id": sid
-        }
+        return {"success": True, "severity": session.severity, "session_id": sid}
 
     async def list_sessions(self) -> dict:
         """List all sessions"""
         sessions_list = []
 
         for sid, session in self.sessions.items():
-            sessions_list.append({
-                "session_id": sid,
-                "sample": session.sample_name,
-                "status": session.status,
-                "severity": session.severity,
-                "malware_family": session.malware_family,
-                "started_at": self._format_time(session.started_at) if session.started_at else None,
-                "duration": session.get_duration_str(),
-                "iocs_count": sum(len(v) for v in session.iocs.values()),
-                "is_current": sid == self.current_session_id
-            })
+            sessions_list.append(
+                {
+                    "session_id": sid,
+                    "sample": session.sample_name,
+                    "status": session.status,
+                    "severity": session.severity,
+                    "malware_family": session.malware_family,
+                    "started_at": self._format_time(session.started_at)
+                    if session.started_at
+                    else None,
+                    "duration": session.get_duration_str(),
+                    "iocs_count": sum(len(v) for v in session.iocs.values()),
+                    "is_current": sid == self.current_session_id,
+                }
+            )
 
         return {
             "total": len(sessions_list),
             "current_session": self.current_session_id,
-            "sessions": sessions_list
+            "sessions": sessions_list,
         }
 
     # =========================================================================
@@ -501,7 +471,7 @@ class ReportTools:
         classification: str = "TLP:AMBER",
         custom_fields: dict | None = None,
         output_format: str = "markdown",
-        timezone: str | None = None  # Add per-request timezone
+        timezone: str | None = None,  # Add per-request timezone
     ) -> dict:
         """
         Generate an analysis report.
@@ -517,10 +487,10 @@ class ReportTools:
             return {
                 "success": False,
                 "error": f"Template not found: {template_type}",
-                "available_templates": available
+                "available_templates": available,
             }
 
-        async with aiofiles.open(template_path, mode='r', encoding='utf-8') as f:
+        async with aiofiles.open(template_path, encoding="utf-8") as f:
             template = await f.read()
 
         # Basic fields
@@ -557,17 +527,23 @@ class ReportTools:
         session = self.sessions.get(sid) if sid else None
 
         if session:
-            fields.update({
-                "SESSION_ID": session.session_id,
-                "SESSION_STATUS": session.status,
-                "SEVERITY": session.severity.upper(),
-                "SEVERITY_EMOJI": self._get_severity_emoji(session.severity),
-                "MALWARE_FAMILY": session.malware_family or "Unknown",
-                "ANALYSIS_START": self._format_time(session.started_at) if session.started_at else "N/A",
-                "ANALYSIS_END": self._format_time(session.ended_at) if session.ended_at else "In Progress",
-                "ANALYSIS_DURATION": session.get_duration_str(),
-                "TAGS": ", ".join(session.tags) if session.tags else "None",
-            })
+            fields.update(
+                {
+                    "SESSION_ID": session.session_id,
+                    "SESSION_STATUS": session.status,
+                    "SEVERITY": session.severity.upper(),
+                    "SEVERITY_EMOJI": self._get_severity_emoji(session.severity),
+                    "MALWARE_FAMILY": session.malware_family or "Unknown",
+                    "ANALYSIS_START": self._format_time(session.started_at)
+                    if session.started_at
+                    else "N/A",
+                    "ANALYSIS_END": self._format_time(session.ended_at)
+                    if session.ended_at
+                    else "In Progress",
+                    "ANALYSIS_DURATION": session.get_duration_str(),
+                    "TAGS": ", ".join(session.tags) if session.tags else "None",
+                }
+            )
 
             # 세션에서 샘플 정보 가져오기
             if "sample_info" in session.findings:
@@ -631,7 +607,7 @@ class ReportTools:
 
         # 리포트 저장
         output_path = self.output_dir / f"{ts['report_id']}.md"
-        async with aiofiles.open(output_path, mode='w', encoding='utf-8') as f:
+        async with aiofiles.open(output_path, mode="w", encoding="utf-8") as f:
             await f.write(report)
 
         return {
@@ -643,7 +619,7 @@ class ReportTools:
             "generated_at": ts["datetime_full"],
             "timezone": ts["timezone"],
             "fields_filled": len(fields),
-            "report_content": report  # 미리보기용
+            "report_content": report,  # 미리보기용
         }
 
     async def list_templates(self) -> dict:
@@ -651,7 +627,7 @@ class ReportTools:
         templates = []
 
         for f in self.template_dir.glob("*.md"):
-            async with aiofiles.open(f, mode='r', encoding='utf-8') as tf:
+            async with aiofiles.open(f, encoding="utf-8") as tf:
                 content = await tf.read()
             # 첫 줄에서 설명 추출 (<!-- description --> 형식)
             desc = ""
@@ -660,16 +636,9 @@ class ReportTools:
                 if end > 0:
                     desc = content[4:end].strip()
 
-            templates.append({
-                "name": f.stem,
-                "description": desc,
-                "path": str(f)
-            })
+            templates.append({"name": f.stem, "description": desc, "path": str(f)})
 
-        return {
-            "total": len(templates),
-            "templates": templates
-        }
+        return {"total": len(templates), "templates": templates}
 
     async def get_report(self, report_id: str) -> dict:
         """Retrieve a generated report"""
@@ -681,10 +650,10 @@ class ReportTools:
             return {
                 "success": False,
                 "error": f"Report not found: {report_id}",
-                "available_reports": reports
+                "available_reports": reports,
             }
 
-        async with aiofiles.open(report_path, mode='r', encoding='utf-8') as f:
+        async with aiofiles.open(report_path, encoding="utf-8") as f:
             content = await f.read()
 
         return {
@@ -692,7 +661,7 @@ class ReportTools:
             "report_id": report_id,
             "path": str(report_path),
             "content": content,
-            "size": len(content)
+            "size": len(content),
         }
 
     async def list_reports(self) -> dict:
@@ -701,21 +670,20 @@ class ReportTools:
 
         for f in self.output_dir.glob("*.md"):
             stat = f.stat()
-            reports.append({
-                "report_id": f.stem,
-                "path": str(f),
-                "size": stat.st_size,
-                "created": datetime.fromtimestamp(stat.st_ctime).isoformat(),
-                "modified": datetime.fromtimestamp(stat.st_mtime).isoformat()
-            })
+            reports.append(
+                {
+                    "report_id": f.stem,
+                    "path": str(f),
+                    "size": stat.st_size,
+                    "created": datetime.fromtimestamp(stat.st_ctime).isoformat(),
+                    "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                }
+            )
 
         # 최신순 정렬
         reports.sort(key=lambda x: x["created"], reverse=True)
 
-        return {
-            "total": len(reports),
-            "reports": reports
-        }
+        return {"total": len(reports), "reports": reports}
 
     # =========================================================================
     # Email / Delivery
@@ -731,7 +699,9 @@ class ReportTools:
             "use_tls": self.email_config.use_tls,
             "sender_name": self.email_config.sender_name,
             "quick_contacts_count": len(self.quick_contacts),
-            "hint": "Set environment variables or use configure_report_email tool" if not self.email_config.is_configured else None
+            "hint": "Set environment variables or use configure_report_email tool"
+            if not self.email_config.is_configured
+            else None,
         }
 
     async def configure_email(
@@ -741,7 +711,7 @@ class ReportTools:
         username: str = "",
         password: str = "",
         use_tls: bool = True,
-        sender_name: str = "Reversecore_MCP"
+        sender_name: str = "Reversecore_MCP",
     ) -> dict:
         """Configure email settings (runtime override, takes precedence over env vars)"""
         self.email_config = EmailConfig(
@@ -750,7 +720,7 @@ class ReportTools:
             username=username,
             password=password,
             use_tls=use_tls,
-            sender_name=sender_name
+            sender_name=sender_name,
         )
 
         return {
@@ -760,35 +730,26 @@ class ReportTools:
             "use_tls": use_tls,
             "sender_name": sender_name,
             "configured": self.email_config.is_configured,
-            "message": "Email configuration updated (runtime override)"
+            "message": "Email configuration updated (runtime override)",
         }
 
     async def add_quick_contact(
-        self,
-        name: str,
-        email: str,
-        role: str = "Security Analyst"
+        self, name: str, email: str, role: str = "Security Analyst"
     ) -> dict:
         """Add quick contact"""
-        self.quick_contacts[name] = {
-            "email": email,
-            "role": role
-        }
+        self.quick_contacts[name] = {"email": email, "role": role}
 
         return {
             "success": True,
             "contact": {"name": name, "email": email, "role": role},
-            "total_contacts": len(self.quick_contacts)
+            "total_contacts": len(self.quick_contacts),
         }
 
     async def list_quick_contacts(self) -> dict:
         """List quick contacts"""
         return {
             "total": len(self.quick_contacts),
-            "contacts": [
-                {"name": name, **info}
-                for name, info in self.quick_contacts.items()
-            ]
+            "contacts": [{"name": name, **info} for name, info in self.quick_contacts.items()],
         }
 
     async def send_report(
@@ -797,11 +758,11 @@ class ReportTools:
         recipients: list[str],
         subject: str | None = None,
         message: str | None = None,
-        include_attachment: bool = True
+        include_attachment: bool = True,
     ) -> dict:
         """
         Send a report via email.
-        
+
         Args:
             report_id: Report ID to send
             recipients: List of recipient email addresses
@@ -812,17 +773,14 @@ class ReportTools:
         # 리포트 확인
         report_path = self.output_dir / f"{report_id}.md"
         if not report_path.exists():
-            return {
-                "success": False,
-                "error": f"Report not found: {report_id}"
-            }
+            return {"success": False, "error": f"Report not found: {report_id}"}
 
         # 이메일 설정 확인
         if not self.email_config.is_configured:
             return {
                 "success": False,
                 "error": "Email not configured. Set environment variables (REPORT_SMTP_SERVER, REPORT_SMTP_USERNAME, REPORT_SMTP_PASSWORD) or use configure_report_email tool.",
-                "hint": "Copy .env.example to .env and fill in your SMTP settings"
+                "hint": "Copy .env.example to .env and fill in your SMTP settings",
             }
 
         # 빠른 연락처 이름을 이메일로 변환
@@ -833,7 +791,7 @@ class ReportTools:
             else:
                 resolved_recipients.append(r)
 
-        async with aiofiles.open(report_path, mode='r', encoding='utf-8') as f:
+        async with aiofiles.open(report_path, encoding="utf-8") as f:
             report_content = await f.read()
 
         # 기본 제목
@@ -848,13 +806,13 @@ class ReportTools:
 새로운 악성코드 분석 리포트가 생성되었습니다.
 
 리포트 ID: {report_id}
-생성 시간: {ts['datetime_full']}
+생성 시간: {ts["datetime_full"]}
 
 상세 내용은 첨부 파일 또는 아래 내용을 확인해주세요.
 
 ---
 
-{report_content[:2000]}{'...(truncated)' if len(report_content) > 2000 else ''}
+{report_content[:2000]}{"...(truncated)" if len(report_content) > 2000 else ""}
 
 ---
 
@@ -873,31 +831,22 @@ class ReportTools:
             # 첨부파일
             if include_attachment:
                 attachment = MIMEBase("application", "octet-stream")
-                attachment.set_payload(report_content.encode('utf-8'))
+                attachment.set_payload(report_content.encode("utf-8"))
                 encoders.encode_base64(attachment)
-                attachment.add_header(
-                    "Content-Disposition",
-                    f"attachment; filename={report_id}.md"
-                )
+                attachment.add_header("Content-Disposition", f"attachment; filename={report_id}.md")
                 msg.attach(attachment)
 
             # 전송 (Run in thread to avoid blocking event loop)
             def _send_sync():
                 with smtplib.SMTP(
-                    self.email_config.smtp_server,
-                    self.email_config.smtp_port
+                    self.email_config.smtp_server, self.email_config.smtp_port
                 ) as server:
                     if self.email_config.use_tls:
                         server.starttls()
                     if self.email_config.username and self.email_config.password:
-                        server.login(
-                            self.email_config.username,
-                            self.email_config.password
-                        )
+                        server.login(self.email_config.username, self.email_config.password)
                     server.sendmail(
-                        self.email_config.username,
-                        resolved_recipients,
-                        msg.as_string()
+                        self.email_config.username, resolved_recipients, msg.as_string()
                     )
 
             await asyncio.to_thread(_send_sync)
@@ -908,7 +857,7 @@ class ReportTools:
                 "recipients": resolved_recipients,
                 "subject": subject,
                 "attachment_included": include_attachment,
-                "sent_at": self._format_time(datetime.now(timezone.utc))
+                "sent_at": self._format_time(datetime.now(timezone.utc)),
             }
 
         except Exception as e:
@@ -917,7 +866,7 @@ class ReportTools:
                 "success": False,
                 "error": str(e),
                 "report_id": report_id,
-                "recipients": resolved_recipients
+                "recipients": resolved_recipients,
             }
 
     # =========================================================================
@@ -929,21 +878,17 @@ class ReportTools:
         path = Path(sample_path)
 
         if not path.exists():
-            return {
-                "filename": path.name,
-                "error": "File not found"
-            }
+            return {"filename": path.name, "error": "File not found"}
 
-        
         # Stream file read to prevent memory explosion with large files
         md5_hash = hashlib.md5()
         sha1_hash = hashlib.sha1()
         sha256_hash = hashlib.sha256()
-        
+
         file_size = 0
         first_chunk = b""
-        
-        async with aiofiles.open(path, mode='rb') as f:
+
+        async with aiofiles.open(path, mode="rb") as f:
             while chunk := await f.read(64 * 1024):  # 64KB chunks
                 if not first_chunk:
                     first_chunk = chunk
@@ -951,7 +896,7 @@ class ReportTools:
                 md5_hash.update(chunk)
                 sha1_hash.update(chunk)
                 sha256_hash.update(chunk)
-                
+
         stat = path.stat()
 
         info = {
@@ -978,21 +923,21 @@ class ReportTools:
             return "Unknown (too small)"
 
         magic_bytes = {
-            b'MZ': "PE Executable (Windows)",
-            b'\x7fELF': "ELF Executable (Linux)",
-            b'%PDF': "PDF Document",
-            b'PK': "ZIP Archive / Office Document",
-            b'\xd0\xcf\x11\xe0': "OLE Compound File (Office)",
-            b'Rar!': "RAR Archive",
-            b'\x1f\x8b': "GZIP Archive",
-            b'BZ': "BZIP2 Archive",
-            b'\x89PNG': "PNG Image",
-            b'\xff\xd8\xff': "JPEG Image",
-            b'GIF8': "GIF Image",
-            b'<!DO': "HTML Document",
-            b'<?xm': "XML Document",
-            b'{\n  ': "JSON Document",
-            b'#!': "Script (Shell/Python)",
+            b"MZ": "PE Executable (Windows)",
+            b"\x7fELF": "ELF Executable (Linux)",
+            b"%PDF": "PDF Document",
+            b"PK": "ZIP Archive / Office Document",
+            b"\xd0\xcf\x11\xe0": "OLE Compound File (Office)",
+            b"Rar!": "RAR Archive",
+            b"\x1f\x8b": "GZIP Archive",
+            b"BZ": "BZIP2 Archive",
+            b"\x89PNG": "PNG Image",
+            b"\xff\xd8\xff": "JPEG Image",
+            b"GIF8": "GIF Image",
+            b"<!DO": "HTML Document",
+            b"<?xm": "XML Document",
+            b"{\n  ": "JSON Document",
+            b"#!": "Script (Shell/Python)",
         }
 
         for magic, file_type in magic_bytes.items():
@@ -1001,7 +946,7 @@ class ReportTools:
 
         # ASCII 텍스트 체크
         try:
-            data[:1000].decode('utf-8')
+            data[:1000].decode("utf-8")
             return "Text/Script File"
         except UnicodeDecodeError:
             pass
@@ -1011,7 +956,7 @@ class ReportTools:
     @staticmethod
     def _human_readable_size(size: int) -> str:
         """Convert bytes to human-readable format"""
-        for unit in ['B', 'KB', 'MB', 'GB']:
+        for unit in ["B", "KB", "MB", "GB"]:
             if size < 1024:
                 return f"{size:,.1f} {unit}"
             size /= 1024
@@ -1020,12 +965,7 @@ class ReportTools:
     @staticmethod
     def _get_severity_emoji(severity: str) -> str:
         """Get severity emoji"""
-        emojis = {
-            "low": "🟢",
-            "medium": "🟡",
-            "high": "🟠",
-            "critical": "🔴"
-        }
+        emojis = {"low": "🟢", "medium": "🟡", "high": "🟠", "critical": "🔴"}
         return emojis.get(severity.lower(), "⚪")
 
     def _format_iocs_yaml(self, iocs: dict[str, list[str]]) -> str:
@@ -1073,7 +1013,7 @@ class ReportTools:
                 "finding": "🔍",
                 "warning": "⚠️",
                 "important": "❗",
-                "behavior": "🎯"
+                "behavior": "🎯",
             }.get(category, "📝")
             lines.append(f"- {category_emoji} **[{ts}]** {n['note']}")
         return "\n".join(lines)
@@ -1086,11 +1026,11 @@ _default_report_tools: ReportTools | None = None
 def get_report_tools(
     template_dir: Path | None = None,
     output_dir: Path | None = None,
-    default_timezone: str | None = None
+    default_timezone: str | None = None,
 ) -> ReportTools:
     """
     ReportTools 싱글톤 인스턴스 반환
-    
+
     환경변수 지원:
     - REPORT_DEFAULT_TIMEZONE: 기본 타임존 (default: Asia/Seoul)
     - REPORT_SMTP_SERVER: SMTP 서버 주소
@@ -1117,17 +1057,19 @@ def get_report_tools(
             template_dir=template_dir or Path("templates/reports"),
             output_dir=output_dir or Path("reports"),
             default_timezone=default_timezone or env_timezone,
-            email_config=email_config
+            email_config=email_config,
         )
 
         # 환경변수에서 빠른 연락처 로드
-        env_contacts = _load_quick_contacts_from_env()
+        env_contacts = load_quick_contacts_from_env()
         _default_report_tools.quick_contacts.update(env_contacts)
 
         # 로그 출력
         logger.info("📋 ReportTools initialized:")
         logger.info(f"   - Timezone: {_default_report_tools.default_timezone}")
-        logger.info(f"   - Email: {'✅ Configured' if email_config.is_configured else '❌ Not configured'}")
+        logger.info(
+            f"   - Email: {'✅ Configured' if email_config.is_configured else '❌ Not configured'}"
+        )
         logger.info(f"   - Quick contacts: {len(_default_report_tools.quick_contacts)}")
 
     return _default_report_tools
