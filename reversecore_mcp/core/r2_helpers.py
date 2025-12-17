@@ -232,16 +232,10 @@ async def execute_r2_command(
         Tuple of (output, bytes_read)
     """
     file_path_str = str(file_path)
-    pool = _get_r2_pool()
     
-    # Check if file was already analyzed (P0 optimization)
-    already_analyzed = False
-    if pool and not skip_cache:
-        already_analyzed = pool.is_analyzed(file_path_str)
-        if already_analyzed:
-            # Skip analysis - file already analyzed in this session
-            logger.debug(f"Cache hit: skipping analysis for {file_path_str}")
-            analysis_level = "-n"  # No analysis needed
+    # NOTE: Previously had is_analyzed() cache that set "-n" flag, but this was buggy.
+    # Subprocess is independent from r2_pool sessions - analysis state is NOT shared.
+    # Each subprocess must perform its own analysis.
     
     # Apply adaptive analysis based on file size (P1 optimization)
     effective_level = get_adaptive_analysis_level(file_path_str, analysis_level)
@@ -254,11 +248,6 @@ async def execute_r2_command(
         max_output_size=max_output_size,
         timeout=effective_timeout,
     )
-    
-    # Mark file as analyzed for future calls (if analysis was performed)
-    if pool and effective_level not in ("-n",) and not already_analyzed:
-        pool.mark_analyzed(file_path_str)
-        logger.debug(f"Marked {file_path_str} as analyzed (level: {effective_level})")
 
     return output, bytes_read
 

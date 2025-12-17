@@ -127,19 +127,17 @@ def copy_to_workspace(
     config = get_config()
     destination = config.workspace / dest_name
 
-    # Check if file already exists
-    if destination.exists():
-        raise ValidationError(
-            f"File already exists in workspace: {dest_name}",
-            details={
-                "destination": str(destination),
-                "hint": "Use a different destination_name or remove the existing file first",
-            },
-        )
-
-    # Copy file to workspace
+    # Copy file to workspace using atomic exclusive creation
+    # This prevents TOCTOU race condition where another process could create
+    # the file between exists() check and copy2() call
     try:
-        shutil.copy2(source, destination)
+        # mode 'xb' = exclusive create + binary, fails if file already exists
+        with open(destination, 'xb') as dest_file:
+            with open(source, 'rb') as src_file:
+                shutil.copyfileobj(src_file, dest_file)
+        
+        # Preserve metadata (like copy2)
+        shutil.copystat(source, destination)
         copied_size = destination.stat().st_size
 
         return success(
@@ -148,6 +146,14 @@ def copy_to_workspace(
             destination_path=str(destination),
             file_size=copied_size,
             message=f"File copied successfully to workspace: {dest_name}",
+        )
+    except FileExistsError:
+        raise ValidationError(
+            f"File already exists in workspace: {dest_name}",
+            details={
+                "destination": str(destination),
+                "hint": "Use a different destination_name or remove the existing file first",
+            },
         )
     except PermissionError as e:
         raise ValidationError(
