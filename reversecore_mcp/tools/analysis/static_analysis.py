@@ -90,18 +90,28 @@ async def run_strings(
     
     if len(output) > LLM_SAFE_LIMIT:
         truncated = True
-        # Save full output to file
+        # Save full output to temp file (NOT source directory)
+        # This avoids: read-only mount failures, race conditions, leftover files
+        import tempfile
         strings_filename = f"{validated_path.name}_strings.txt"
-        strings_path = validated_path.parent / strings_filename
         
         try:
-            with open(strings_path, "w", encoding="utf-8") as f:
+            # Use system temp directory for output files
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                suffix="_strings.txt",
+                prefix=f"{validated_path.stem}_",
+                delete=False,  # Keep file so user can access it
+                encoding="utf-8",
+            ) as f:
                 f.write(text_output)
-            output_files["full_output"] = str(strings_path)
+                strings_path = f.name
+            
+            output_files["full_output"] = strings_path
             
             # Create preview
             preview_limit = min(2000, len(text_output)) # First 2000 chars
-            preview_text = text_output[:preview_limit] + f"\n... (truncated, full content in {strings_filename})"
+            preview_text = text_output[:preview_limit] + f"\n... (truncated, full content in {strings_path})"
             
             return success(
                 preview_text,
@@ -110,7 +120,7 @@ async def run_strings(
                 data={
                     "count": count,
                     "preview": lines[:50], # First 50 lines list
-                    "file_path": str(strings_path),
+                    "file_path": strings_path,
                     "full_size": len(text_output)
                 }
             )

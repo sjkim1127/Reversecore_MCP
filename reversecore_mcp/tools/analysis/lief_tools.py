@@ -164,15 +164,19 @@ def parse_binary_with_lief(file_path: str, format: str = "json") -> ToolResult:
             hint="Set LIEF_MAX_FILE_SIZE environment variable to increase limit",
         )
     
+    # CRITICAL: Reject files over limit BEFORE lief.parse() to prevent OOM
+    # lief.parse() loads entire binary structure into memory, which can cause
+    # Python to consume several GB of RAM for large binaries due to object overhead.
+    if file_size_mb > LIEF_LIMIT_SIZE_MB:
+        return failure(
+            "FILE_TOO_LARGE_FOR_LIEF",
+            f"File size ({file_size_mb:.0f}MB) exceeds LIEF parsing limit ({LIEF_LIMIT_SIZE_MB}MB)",
+            hint="Use radare2 or other lightweight tools for analysis of very large binaries",
+        )
+    
     # P2: Determine extraction limits based on file size
     extraction_warning = None
-    if file_size_mb > LIEF_LIMIT_SIZE_MB:
-        # Very large file: minimal extraction
-        max_imports = 10
-        max_exports = 10
-        max_sections = 10
-        extraction_warning = f"Large file ({file_size_mb:.0f}MB): extraction limited to prevent OOM"
-    elif file_size_mb > LIEF_WARN_SIZE_MB:
+    if file_size_mb > LIEF_WARN_SIZE_MB:
         # Large file: reduced extraction
         max_imports = 50
         max_exports = 50
