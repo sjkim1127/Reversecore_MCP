@@ -3,7 +3,7 @@
 ![Icon](icon.png)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python Version](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/)
+[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
 [![FastMCP](https://img.shields.io/badge/FastMCP-2.13.1-green)](https://github.com/jlowin/fastmcp)
 [![Docker](https://img.shields.io/badge/docker-ready-blue)](https://www.docker.com/)
 [![Tests](https://img.shields.io/badge/tests-852%20passed-brightgreen)](tests/)
@@ -82,12 +82,14 @@ docker compose --profile arm64 up -d
 
 **1단계: Docker 이미지 빌드**
 
-```bash
-# macOS Apple Silicon (M1/M2/M3/M4)
-docker build -f Dockerfile.arm64 -t reversecore-mcp:arm64 .
+통합 Dockerfile이 시스템 아키텍처를 자동으로 감지합니다:
 
-# macOS Intel / Linux / Windows (x86_64)
-docker build -f Dockerfile -t reversecore-mcp:latest .
+```bash
+# 자동 아키텍처 감지 (모든 플랫폼에서 작동)
+docker build -t reversecore-mcp:latest .
+
+# 또는 편의 스크립트 사용
+./scripts/run-docker.sh
 ```
 
 **2단계: MCP 클라이언트 설정**
@@ -95,7 +97,7 @@ docker build -f Dockerfile -t reversecore-mcp:latest .
 `~/.cursor/mcp.json`에 추가:
 
 <details>
-<summary>🍎 <b>macOS Apple Silicon (M1/M2/M3/M4)</b></summary>
+<summary>🍎 <b>macOS (모든 프로세서)</b></summary>
 
 ```json
 {
@@ -107,7 +109,7 @@ docker build -f Dockerfile -t reversecore-mcp:latest .
         "-v", "/Users/YOUR_USERNAME/Reversecore_Workspace:/app/workspace",
         "-e", "REVERSECORE_WORKSPACE=/app/workspace",
         "-e", "MCP_TRANSPORT=stdio",
-        "reversecore-mcp:arm64"
+        "reversecore-mcp:latest"
       ]
     }
   }
@@ -116,7 +118,7 @@ docker build -f Dockerfile -t reversecore-mcp:latest .
 </details>
 
 <details>
-<summary>🖥️ <b>macOS Intel / Linux (x86_64)</b></summary>
+<summary>🐧 <b>Linux</b></summary>
 
 ```json
 {
@@ -137,7 +139,7 @@ docker build -f Dockerfile -t reversecore-mcp:latest .
 </details>
 
 <details>
-<summary>🪟 <b>Windows (x86_64)</b></summary>
+<summary>🪟 <b>Windows</b></summary>
 
 ```json
 {
@@ -157,58 +159,75 @@ docker build -f Dockerfile -t reversecore-mcp:latest .
 ```
 </details>
 
+> ⚠️ **중요: Docker에서의 파일 경로 사용**
+>
+> MCP 서버는 Docker 컨테이너 내부에서 실행됩니다. 분석 도구를 사용할 때는 **전체 로컬 경로가 아닌 파일 이름만 사용하세요**.
+>
+> | ❌ 잘못된 예 | ✅ 올바른 예 |
+> |----------|-----------|
+> | `run_file("/Users/john/Reversecore_Workspace/sample.exe")` | `run_file("sample.exe")` |
+>
+> **이유:** 로컬 경로(예: `/Users/.../Reversecore_Workspace/`)가 컨테이너 내부의 `/app/workspace/`로 마운트됩니다. 도구는 자동으로 작업 공간 디렉토리에서 파일을 찾습니다.
+>
+> **팁:** `list_workspace()`를 사용하여 작업 공간에서 사용 가능한 모든 파일을 확인하세요.
+
 ## ✨ 핵심 기능
 
-### 🔱 Trinity Defense System
+### 🔍 정적 분석
 
-완전 자동화된 위협 탐지 및 무력화 파이프라인:
+포괄적인 파일 분석 및 메타데이터 추출:
 
-- **Phase 1 (DISCOVER)**: Ghost Trace가 숨겨진 위협 스캔
-- **Phase 2 (UNDERSTAND)**: Neural Decompiler가 의도 분석
-- **Phase 3 (NEUTRALIZE)**: Adaptive Vaccine이 방어 생성
+- **파일 타입 감지**: 바이너리 형식, 아키텍처, 컴파일러 정보 식별 (`run_file`)
+- **문자열 추출**: 설정 가능한 제한으로 ASCII/Unicode 문자열 추출 (`run_strings`)
+- **펌웨어 분석**: 임베디드 파일 및 시그니처 심층 스캔 (`run_binwalk`)
+- **바이너리 파싱**: LIEF를 사용한 PE/ELF/Mach-O 헤더 및 섹션 파싱 (`parse_binary_with_lief`)
 
-### 👻 Ghost Trace
+### ⚙️ 디스어셈블리 및 디컴파일
 
-샌드박스 탐지를 우회하는 "논리 폭탄" 및 "잠복형 악성코드" 탐지:
+지능형 도구를 사용한 멀티 아키텍처 바이너리 분석:
 
-- 고립된 함수 탐지 (숨겨진 백도어)
-- 매직 값 트리거 식별
-- AI 기반 부분 에뮬레이션
+- **Radare2 통합**: 연결 풀링을 사용한 전체 r2 명령 접근 (`run_radare2`, `Radare2_disassemble`)
+- **Ghidra 디컴파일**: 16GB JVM 힙을 사용한 엔터프라이즈급 디컴파일 (`smart_decompile`, `get_pseudo_code`)
+- **멀티 아키텍처 지원**: Capstone을 통한 x86, x86-64, ARM, ARM64, MIPS, PowerPC 지원 (`disassemble_with_capstone`)
+- **스마트 폴백**: 최상의 결과를 위한 Ghidra 우선, r2 폴백 전략
 
-### 🧠 Neural Decompiler
+### 🧬 고급 분석
 
-원시 디컴파일 코드를 읽기 쉬운 형식으로 변환:
+심층 코드 분석 및 동작 이해:
 
-- 의미론적 변수 명명 (`iVar1` → `sock_fd`)
-- 포인터 연산에서 구조체 추론
-- 설명 주석이 포함된 스마트 어노테이션
+- **크로스 레퍼런스 분석**: 함수 호출, 데이터 참조, 제어 흐름 추적 (`analyze_xrefs`)
+- **구조 복구**: 포인터 연산 및 메모리 접근 패턴에서 데이터 구조 추론 (`recover_structures`)
+- **에뮬레이션**: 동적 동작 분석을 위한 ESIL 기반 코드 에뮬레이션 (`emulate_machine_code`)
+- **바이너리 비교**: 바이너리 비교 및 라이브러리 함수 매칭 (`diff_binaries`, `match_libraries`)
 
-### 🎮 게임 보안 분석 (신규!)
+### 🦠 악성코드 분석 및 방어
 
-게임 클라이언트 리버스 엔지니어링을 위한 전문 도구:
+위협 탐지 및 완화를 위한 전문 도구:
 
-- **치트 포인트 파인더**: 스피드핵, 텔레포트, 무적, 아이템 복제, 월핵 자동 탐지
-- **안티치트 프로파일러**: GameGuard, XIGNCODE, EAC, VAC 패턴 식별
-- **프로토콜 분석기**: 한국 MMO 프로토콜 패턴 탐지 (CS_/SC_, MSG_/PKT_)
-- **함수 패턴 매칭**: 속도 배수, 좌표 조작, 체력 수정 탐지
+- **잠복 위협 탐지**: 숨겨진 백도어, 고립된 함수, 논리 폭탄 발견 (`dormant_detector`)
+- **IOC 추출**: IP, URL, 도메인, 이메일, 해시, 암호화폐 주소 자동 추출 (`extract_iocs`)
+- **YARA 스캔**: 사용자 정의 규칙을 사용한 패턴 기반 악성코드 탐지 (`run_yara`)
+- **적응형 백신**: 방어 조치 생성 (YARA 규칙, 바이너리 패치, NOP 주입) (`adaptive_vaccine`)
+- **취약점 헌터**: 위험한 API 패턴 및 익스플로잇 경로 탐지 (`vulnerability_hunter`)
 
-### 📈 서버 상태 및 모니터링 (신규!)
+### 📊 서버 상태 및 모니터링
 
-엔터프라이즈 환경을 위한 내장 관측 가능성 도구:
+엔터프라이즈 환경을 위한 내장 관측 도구:
 
 - **헬스 체크**: 가동 시간, 메모리 사용량, 운영 상태 모니터링 (`get_server_health`)
 - **성능 메트릭**: 도구 실행 시간, 오류율, 호출 횟수 추적 (`get_tool_metrics`)
-- **자동 복구**: 일시적 장애에 대응하는 지수 백오프(exponential backoff) 기반 자동 재시도 메커니즘
+- **자동 복구**: 일시적 장애에 대응하는 지수 백오프 기반 자동 재시도 메커니즘
 
-### 📝 리포트 생성 도구 (신규!)
+### 📝 리포트 생성 (v3.1)
 
 정확한 타임스탬프를 포함한 전문적인 악성코드 분석 리포트 생성:
 
-- **원샷 제출(One-Shot Submission)**: 단일 명령으로 표준화된 JSON 리포트 자동 생성 (`generate_malware_submission`)
-- **세션 추적**: 분석 세션 시작/종료 및 자동 소요 시간 계산
-- **IOC 수집**: 분석 중 지표 수집 및 정리 (해시, IP, 도메인, URL)
-- **MITRE ATT&CK 매핑**: 프레임워크 참조와 함께 기법 문서화
-- **이메일 전송**: 보안 팀에 리포트 직접 전송 (SMTP 지원)
+- **원샷 제출**: 단일 명령으로 표준화된 JSON 리포트 생성 (`generate_malware_submission`)
+- **세션 추적**: 자동 소요 시간 계산을 통한 분석 세션 시작/종료 (`start_analysis_session`, `end_analysis_session`)
+- **IOC 수집**: 분석 중 지표 수집 및 정리 (`add_session_ioc`)
+- **MITRE ATT&CK 매핑**: 적절한 프레임워크 참조로 기법 문서화 (`add_session_mitre`)
+- **이메일 전송**: SMTP 지원으로 보안 팀에 리포트 직접 전송 (`send_report_email`)
+- **다중 템플릿**: 전체 분석, 빠른 분류, IOC 요약, 경영진 보고서
 
 ```python
 # 예시 1: 원샷 JSON 제출
@@ -218,13 +237,14 @@ generate_malware_submission(
     tags="ransomware,critical"
 )
 
-# 예시 2: 대화형 세션
+# 예시 2: 대화형 세션 워크플로우
 get_system_time()
 start_analysis_session(sample_path="malware.exe")
 add_session_ioc("ips", "192.168.1.100")
 add_session_mitre("T1059.001", "PowerShell", "Execution")
 end_analysis_session(summary="랜섬웨어 탐지")
 create_analysis_report(template_type="full_analysis")
+send_report_email(to="security-team@company.com")
 ```
 
 ### ⚡ 성능 및 신뢰성 (v3.1)
@@ -247,18 +267,16 @@ create_analysis_report(template_type="full_analysis")
 
 | 카테고리 | 도구 |
 |----------|------|
-| **기본 분석** | `run_file`, `run_strings`, `run_binwalk` |
-| **디스어셈블리** | `run_radare2`, `disassemble_with_capstone` |
-| **디컴파일** | `smart_decompile`, `get_pseudo_code` (Ghidra/r2) |
-| **악성코드 분석 및 백신 (Malware Analysis & Vaccine)** |
-    - `dormant_detector`: 휴면 기능(지연 실행) 탐지
-    - `adaptive_vaccine`: 식별된 악성 행위에 대한 백신 로직 생성
-    - `vulnerability_hunter`: 바이너리 코드 내 취약점 스캔
-    - `extract_iocs`: IP, URL, 이메일, 해시 등 침해 지표 추출
-    - `run_yara`: YARA 규칙을 사용한 파일 스캔 |
-| **비교** | `diff_binaries`, `match_libraries` |
-| **게임 분석** | `find_cheat_points`, `analyze_game_protocol` |
-| **리포팅** | `get_system_time`, `start_analysis_session`, `create_analysis_report` |
+| **파일 작업** | `list_workspace`, `get_file_info` |
+| **정적 분석** | `run_file`, `run_strings`, `run_binwalk` |
+| **디스어셈블리** | `run_radare2`, `Radare2_disassemble`, `disassemble_with_capstone` |
+| **디컴파일** | `smart_decompile`, `get_pseudo_code` |
+| **고급 분석** | `analyze_xrefs`, `recover_structures`, `emulate_machine_code` |
+| **바이너리 파싱** | `parse_binary_with_lief` |
+| **바이너리 비교** | `diff_binaries`, `match_libraries` |
+| **악성코드 분석** | `dormant_detector`, `extract_iocs`, `run_yara`, `adaptive_vaccine`, `vulnerability_hunter` |
+| **리포트 생성** | `get_system_time`, `set_timezone`, `start_analysis_session`, `add_session_ioc`, `add_session_mitre`, `end_analysis_session`, `create_analysis_report`, `send_report_email`, `generate_malware_submission` |
+| **서버 관리** | `get_server_health`, `get_tool_metrics` |
 
 ## 📊 분석 워크플로우
 
@@ -268,44 +286,85 @@ create_analysis_report(template_type="full_analysis")
 
 **가이드 분석을 위한 내장 프롬프트 사용:**
 
-- `full_analysis_mode` - **6단계 전문가 추론**을 갖춘 포괄적인 악성코드 분석
-- `basic_analysis_mode` - 빠른 분류
-- `game_analysis_mode` - **치트 탐지 휴리스틱**을 갖춘 게임 클라이언트 분석
-- `firmware_analysis_mode` - IoT/펌웨어 분석
-- `report_generation_mode` - 전문적인 리포트 생성 워크플로우 **(신규!)**
+- `full_analysis_mode` - **6단계 전문가 추론** 및 증거 분류를 갖춘 포괄적인 악성코드 분석
+- `basic_analysis_mode` - 빠른 초기 평가를 위한 신속 분류
+- `game_analysis_mode` - 치트 탐지 가이드를 포함한 게임 클라이언트 분석
+- `firmware_analysis_mode` - 임베디드 시스템에 초점을 맞춘 IoT/펌웨어 보안 분석
+- `report_generation_mode` - MITRE ATT&CK 매핑을 포함한 전문적인 리포트 생성 워크플로우
 
-> 💡 **AI 추론 강화**: 프롬프트는 전문가 페르소나 프라이밍, Chain-of-Thought 체크포인트, 구조화된 추론을 사용하여 AI 분석 능력을 극대화합니다.
+> 💡 **AI 추론 강화**: 분석 프롬프트는 전문가 페르소나 프라이밍, Chain-of-Thought 체크포인트, 구조화된 추론 단계, 증거 분류(OBSERVED/INFERRED/POSSIBLE)를 사용하여 AI 분석 능력을 극대화하고 철저한 문서화를 보장합니다.
 
 ## 🏗️ 아키텍처
 
 ```
 reversecore_mcp/
-├── core/                 # 인프라
-│   ├── config.py         # 설정 관리
-│   ├── container.py      # 의존성 주입
-│   ├── ghidra.py         # Ghidra 통합 (16GB JVM 힙)
-│   ├── r2_helpers.py     # Radare2 유틸리티
-│   ├── result.py         # ToolSuccess/ToolError 모델
-│   └── security.py       # 입력 검증
-├── tools/                # MCP 도구
-│   ├── cli_tools.py      # CLI 래퍼
-│   ├── decompilation.py  # 디컴파일러
-│   ├── game_analysis.py  # 게임 보안 분석 (신규!)
-│   ├── ghost_trace.py    # 숨겨진 위협 탐지
-│   ├── r2_analysis.py    # R2 분석 (v3.0 최적화)
-│   ├── trinity_defense.py # 자동화된 방어
-│   └── ...
-├── prompts.py            # AI 추론 프롬프트 (강화)
-└── resources.py          # 동적 리소스
+├── core/                           # 인프라 및 서비스
+│   ├── config.py                   # 설정 관리
+│   ├── ghidra.py, ghidra_manager.py, ghidra_helper.py  # Ghidra 통합 (16GB JVM)
+│   ├── r2_helpers.py, r2_pool.py   # Radare2 연결 풀링
+│   ├── security.py                 # 경로 검증 및 입력 위생화
+│   ├── result.py                   # ToolSuccess/ToolError 응답 모델
+│   ├── metrics.py                  # 도구 실행 메트릭
+│   ├── report_generator.py         # 리포트 생성 서비스
+│   ├── plugin.py                   # 확장성을 위한 플러그인 인터페이스
+│   ├── decorators.py               # @log_execution, @track_metrics
+│   ├── error_handling.py           # @handle_tool_errors 데코레이터
+│   ├── logging_config.py           # 구조화된 로깅 설정
+│   ├── memory.py                   # AI 메모리 저장소 (비동기 SQLite)
+│   ├── mitre_mapper.py             # MITRE ATT&CK 프레임워크 매핑
+│   ├── resource_manager.py         # 서브프로세스 수명 주기 관리
+│   └── validators.py               # 입력 검증
+│
+├── tools/                          # MCP 도구 구현
+│   ├── analysis/                   # 기본 분석 도구
+│   │   ├── static_analysis.py      # file, strings, binwalk
+│   │   ├── lief_tools.py           # PE/ELF/Mach-O 파싱
+│   │   ├── diff_tools.py           # 바이너리 비교
+│   │   └── signature_tools.py      # YARA 스캔
+│   │
+│   ├── radare2/                    # Radare2 통합
+│   │   ├── r2_analysis.py          # 핵심 r2 분석
+│   │   ├── radare2_mcp_tools.py    # 고급 r2 도구 (CFG, ESIL)
+│   │   ├── r2_session.py           # 세션 관리
+│   │   └── r2_pool.py              # 연결 풀링
+│   │
+│   ├── ghidra/                     # Ghidra 디컴파일
+│   │   ├── decompilation.py        # smart_decompile, pseudo-code
+│   │   └── ghidra_tools.py         # 구조체/열거형 관리
+│   │
+│   ├── malware/                    # 악성코드 분석 및 방어
+│   │   ├── dormant_detector.py     # 숨겨진 위협 탐지
+│   │   ├── adaptive_vaccine.py     # 방어 생성
+│   │   ├── vulnerability_hunter.py # 취약점 탐지
+│   │   ├── ioc_tools.py            # IOC 추출
+│   │   └── yara_tools.py           # YARA 규칙 관리
+│   │
+│   ├── common/                     # 범용 관심사
+│   │   ├── file_operations.py      # 작업 공간 파일 관리
+│   │   ├── server_tools.py         # 헬스 체크, 메트릭
+│   │   └── memory_tools.py         # AI 메모리 작업
+│   │
+│   └── report/                     # 리포트 생성 (v3.1)
+│       ├── report_tools.py         # 핵심 리포트 엔진
+│       ├── report_mcp_tools.py     # MCP 도구 등록
+│       ├── session.py              # 분석 세션 추적
+│       └── email.py                # SMTP 통합
+│
+├── prompts.py                      # AI 추론 프롬프트 (5가지 모드)
+├── resources.py                    # 동적 MCP 리소스 (reversecore:// URI)
+└── server.py                       # FastMCP 서버 초기화 및 HTTP 설정
 ```
 
 ## 🐳 Docker 배포
 
 ### 멀티 아키텍처 지원
 
-| 파일 | 아키텍처 | 사용 사례 |
-|------|----------|----------|
-| `Dockerfile` | 멀티 아키텍처 (x86_64, ARM64) | 모든 플랫폼 |
+통합 `Dockerfile`이 시스템 아키텍처를 자동으로 감지합니다:
+
+| 아키텍처 | 자동 감지 | 지원 |
+|---------|-----------|------|
+| x86_64 (Intel/AMD) | ✅ | 완전 지원 |
+| ARM64 (Apple Silicon M1-M4) | ✅ | 완전 지원 |
 
 ### 실행 명령
 
@@ -316,12 +375,11 @@ reversecore_mcp/
 ./scripts/run-docker.sh logs         # 로그 보기
 ./scripts/run-docker.sh shell        # 셸 접근
 
-# 수동 Docker 빌드 명령
-# Apple Silicon (M1/M2/M3/M4)
-docker build -f Dockerfile -t reversecore-mcp:arm64 .
+# 수동 Docker 빌드 (모든 아키텍처에서 작동)
+docker build -t reversecore-mcp:latest .
 
-# Intel/AMD (x86_64)
-docker build -f Dockerfile -t reversecore-mcp:latest .
+# 또는 Docker Compose 사용
+docker compose up -d
 ```
 
 ### 환경 변수
@@ -360,7 +418,7 @@ black reversecore_mcp/
 ### 테스트 현황
 
 - ✅ **852 테스트 통과**
-- 📊 **75% 커버리지**
+- 📊 **76% 커버리지**
 - ⏱️ ~14초 실행 시간
 
 ## 📚 API 참조

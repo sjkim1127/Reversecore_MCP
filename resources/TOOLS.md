@@ -1,54 +1,771 @@
 # Reversecore MCP Tools Documentation
 
-This document provides a detailed reference for all available tools in the Reversecore MCP server.
+Comprehensive reference for all 96 tools available in the Reversecore MCP server for reverse engineering and malware analysis.
 
-## Plugin: adaptive_vaccine
-Automated defense generation tool (YARA rules, binary patching).
+## Table of Contents
 
-### `adaptive_vaccine`
-
-Generate automated defenses against detected threats.
-
-Actions:
-- "yara": Generate YARA detection rule
-- "patch": Generate binary patch (requires file_path)
-- "both": Generate both YARA rule and patch
-
-Args:
-    threat_report: Threat information from Ghost Trace or Trinity Defense
-                  Format: {
-                      "function": "func_name",
-                      "address": "0x401000",
-                      "instruction": "cmp eax, 0xDEADBEEF",
-                      "reason": "Magic value detected",
-                      "refined_code": "if (magic_val == 0xDEADBEEF) ..." (optional)
-                  }
-    action: Type of defense to generate
-    file_path: Path to binary (required for "patch" action)
-    dry_run: If True, only preview patch without applying
-
-Returns:
-    ToolResult containing generated defenses
-
-**Arguments:**
-
-- `threat_report` (dict)
-- `action` (str) (default: `yara`)
-- `file_path` (str | None) (default: `None`)
-- `dry_run` (bool) (default: `True`)
+1. [Analysis Tools](#analysis-tools) (11 tools) - Binary diffing, signature generation, static analysis
+2. [Common Tools](#common-tools) (17 tools) - Memory management, file operations, server monitoring
+3. [Ghidra Tools](#ghidra-tools) (17 tools) - Structure recovery, decompilation, patching
+4. [Malware Tools](#malware-tools) (5 tools) - Threat detection, IOC extraction, YARA scanning
+5. [Radare2 Tools](#radare2-tools) (34 tools) - Comprehensive binary analysis suite
+6. [Report Tools](#report-tools) (12 tools) - Professional malware analysis reporting
 
 ---
 
-## Plugin: decompilation
-Decompilation and code recovery tools for binary analysis.
+## Analysis Tools
 
-### `emulate_machine_code`
+**Plugin:** `AnalysisToolsPlugin` - Tools for binary comparison, signature generation, and static analysis.
+
+### Binary Diffing Tools
+
+#### `diff_binaries`
+
+Compare two binary files to identify code changes and modifications.
+
+Essential for:
+- **Patch Analysis (1-day Exploits)**: Compare pre-patch and post-patch binaries to identify security vulnerabilities
+- **Game Hacking**: Find offset changes after game updates to maintain functionality
+- **Malware Variant Analysis**: Identify code differences between malware variants (e.g., "90% similar to Lazarus malware, but C2 address generation changed")
+
+**Arguments:**
+- `file_path_a` (str) - Path to the first binary file (e.g., pre-patch version)
+- `file_path_b` (str) - Path to the second binary file (e.g., post-patch version)
+- `function_name` (str | None) - Optional function name to compare (default: None)
+- `max_output_size` (int) - Maximum output size in bytes (default: 10MB)
+- `timeout` (int) - Timeout in seconds (default: 120)
+
+**Returns:**
+Structured JSON containing:
+- `similarity`: Float between 0.0 and 1.0 indicating code similarity
+- `changes`: List of detected changes with addresses and descriptions
+- `function_specific`: Boolean indicating if function-level diff was performed
+- `total_changes`: Number of changes detected
+
+---
+
+#### `analyze_variant_changes`
+
+Analyze structural changes between two binary variants (Lineage Mapper).
+
+Combines binary diffing with control flow analysis to understand *how* a binary has evolved. Identifies the most modified functions and generates their Control Flow Graphs (CFG) for comparison.
+
+**Use Cases:**
+- **Malware Lineage**: "How did Lazarus Group modify their backdoor?"
+- **Patch Diffing**: "What logic changed in the vulnerable function?"
+- **Variant Analysis**: "Is this a new version of the same malware?"
+
+**Arguments:**
+- `file_path_a` (str) - Path to the original binary
+- `file_path_b` (str) - Path to the variant binary
+- `top_n` (int) - Number of top changed functions to analyze in detail (default: 3)
+- `timeout` (int) - Execution timeout in seconds (default: 120)
+
+**Returns:**
+ToolResult with diff summary and CFG data for top changed functions.
+
+---
+
+#### `match_libraries`
+
+Match and filter known library functions to focus on user code.
+
+Uses radare2's zignatures (FLIRT-compatible signature matching) to:
+- **Reduce Analysis Noise**: Skip analysis of known library functions (strcpy, malloc, etc.)
+- **Focus on User Code**: Identify which functions are original vs library code
+- **Save Time & Tokens**: Reduce analysis scope by 80% by filtering out standard libraries
+- **Improve Accuracy**: Focus AI analysis on the actual malicious/interesting code
+
+**Arguments:**
+- `file_path` (str) - Path to the binary file to analyze
+- `signature_db` (str | None) - Optional path to custom signature database file (.sig format) (default: None)
+- `max_output_size` (int) - Maximum output size in bytes (default: 10MB)
+- `timeout` (int) - Timeout in seconds (default: 600)
+
+**Returns:**
+Structured JSON containing:
+- `total_functions`: Total number of functions found
+- `library_functions`: Number of matched library functions
+- `user_functions`: Number of unmatched (user) functions to analyze
+- `library_matches`: List of matched library functions with details
+- `user_function_list`: List of user function addresses/names for further analysis
+- `noise_reduction_percentage`: Percentage of functions filtered out
+
+---
+
+### Binary Parsing Tools
+
+#### `parse_binary_with_lief`
+
+Parse binary metadata using LIEF (Library to Instrument Executable Formats).
+
+Extracts comprehensive information about PE/ELF/Mach-O binaries including headers, sections, imports, exports, and more.
+
+**Arguments:**
+- `file_path` (str) - Path to the binary file
+- `format` (str) - Output format: 'json' or 'text' (default: 'json')
+
+**Returns:**
+Structured binary metadata including:
+- File format (PE, ELF, Mach-O)
+- Architecture and machine type
+- Entry point address
+- Sections with attributes
+- Imported/exported symbols
+- Library dependencies
+
+---
+
+### Signature Generation Tools
+
+#### `generate_signature`
+
+Generate a YARA signature from opcode bytes at a specific address.
+
+Extracts opcode bytes from a function or code section and formats them as a YARA rule, enabling automated malware detection. Attempts to mask variable values (addresses, offsets) to create more flexible signatures.
+
+**Arguments:**
+- `file_path` (str) - Path to the binary file (must be in workspace)
+- `address` (str) - Start address for signature extraction (e.g., 'main', '0x401000')
+- `length` (int) - Number of bytes to extract (default: 32, recommended 16-64)
+- `timeout` (int) - Execution timeout in seconds (default: 120)
+
+**Returns:**
+ToolResult with YARA rule string ready for use in threat hunting.
+
+---
+
+#### `generate_yara_rule`
+
+Generate a YARA rule from function bytes.
+
+Extracts bytes from a function and generates a ready-to-use YARA rule for malware detection and threat hunting.
+
+**Arguments:**
+- `file_path` (str) - Path to the binary file (must be in workspace)
+- `function_address` (str) - Function address to extract bytes from (e.g., 'main', '0x401000')
+- `rule_name` (str) - Name for the YARA rule (default: 'auto_generated_rule')
+- `byte_length` (int) - Number of bytes to extract (default: 64, max: 1024)
+- `timeout` (int) - Execution timeout in seconds (default: 300)
+
+**Returns:**
+ToolResult with complete YARA rule string.
+
+---
+
+### Static Analysis Tools
+
+#### `run_strings`
+
+Extract printable strings using the `strings` CLI utility.
+
+**Arguments:**
+- `file_path` (str) - Path to the binary file
+- `min_length` (int) - Minimum string length (default: 4)
+- `max_output_size` (int) - Maximum output size in bytes (default: 10MB)
+- `timeout` (int) - Execution timeout in seconds (default: 120)
+
+**Returns:**
+List of extracted strings with statistics (total count, unique count).
+
+---
+
+#### `run_binwalk`
+
+Analyze binaries for embedded content using binwalk.
+
+Scans for signatures of embedded files, compressed data, and file systems without extraction.
+
+**Arguments:**
+- `file_path` (str) - Path to the binary file
+- `depth` (int) - Maximum signature scanning depth (default: 8)
+- `max_output_size` (int) - Maximum output size in bytes (default: 10MB)
+- `timeout` (int) - Execution timeout in seconds (default: 120)
+
+**Returns:**
+List of detected embedded content with offsets and types.
+
+---
+
+#### `run_binwalk_extract`
+
+Extract embedded files and file systems from a binary using binwalk.
+
+Performs deep extraction of embedded content, including:
+- Compressed archives (gzip, bzip2, lzma, xz)
+- File systems (squashfs, cramfs, jffs2, ubifs)
+- Firmware images and bootloaders
+- Nested/matryoshka content (files within files)
+
+**Use Cases:**
+- **Firmware Analysis**: Extract file systems from router/IoT firmware
+- **Malware Unpacking**: Extract payloads from packed/embedded malware
+- **Forensics**: Recover embedded files from disk images
+- **CTF Challenges**: Extract hidden data from challenge files
+
+**Arguments:**
+- `file_path` (str) - Path to the binary file to extract
+- `output_dir` (str | None) - Directory to extract files to (default: creates temp dir)
+- `matryoshka` (bool) - Enable recursive extraction (files within files) (default: True)
+- `depth` (int) - Maximum extraction depth for nested content (default: 8)
+- `max_output_size` (int) - Maximum output size in bytes (default: 50MB)
+- `timeout` (int) - Extraction timeout in seconds (default: 600)
+
+**Returns:**
+Extraction summary including:
+- `extracted_files`: List of extracted files with paths and types
+- `output_directory`: Path to extraction output
+- `total_size`: Total size of extracted content
+- `extraction_depth`: Maximum depth reached during extraction
+
+---
+
+#### `scan_for_versions`
+
+Extract library version strings and CVE clues from a binary.
+
+Acts as a "Version Detective", scanning the binary for strings that look like version numbers or library identifiers (e.g., "OpenSSL 1.0.2g", "GCC 5.4.0"). Helps identify outdated components and potential CVEs.
+
+**Use Cases:**
+- **SCA (Software Composition Analysis)**: Identify open source components
+- **Vulnerability Scanning**: Find outdated libraries (e.g., Heartbleed-vulnerable OpenSSL)
+- **Firmware Analysis**: Determine OS and toolchain versions
+
+**Arguments:**
+- `file_path` (str) - Path to the binary file
+- `timeout` (int) - Execution timeout in seconds (default: 120)
+
+**Returns:**
+List of detected libraries and versions with confidence scores.
+
+---
+
+#### `extract_rtti_info`
+
+Extract RTTI (Run-Time Type Information) from C++ binaries.
+
+RTTI provides class names and inheritance hierarchies in C++ binaries, invaluable for understanding object-oriented malware and game clients.
+
+**Arguments:**
+- `file_path` (str) - Path to the binary file
+- `timeout` (int) - Execution timeout in seconds (default: 120)
+
+**Returns:**
+List of extracted class names, type information, and inheritance hierarchies.
+
+---
+
+## Common Tools
+
+**Plugin:** `CommonToolsPlugin` - File operations, memory management, and server monitoring tools.
+
+### Memory Management Tools
+
+The Memory Tools provide AI long-term memory capabilities for multi-session analysis, enabling knowledge transfer across different reverse engineering projects.
+
+#### `create_analysis_session`
+
+Create a new analysis session to store memories.
+
+Use this when starting a new reverse engineering analysis. The session name should be descriptive and follow a template format like 'malware_analysis_2024_001' or 'game_cheat_detection'.
+
+**Arguments:**
+- `name` (str) - Template name for the session (e.g., 'malware_sample_001')
+- `binary_name` (str | None) - Name of the binary being analyzed (optional)
+- `binary_path` (str | None) - Path to binary for automatic hash calculation (optional)
+
+**Returns:**
+Session information including ID for future reference.
+
+---
+
+#### `save_analysis_memory`
+
+Save important information to long-term memory.
+
+Use this to remember:
+- Function addresses and their purposes
+- Vulnerability patterns discovered
+- API call sequences
+- User instructions and preferences
+
+**Arguments:**
+- `session_id` (str) - The session ID to save memory to
+- `memory_type` (str) - Type of memory: 'function', 'vulnerability', 'api_sequence', 'instruction', etc.
+- `content` (str) - The memory content to save
+- `category` (str | None) - Optional category for organization
+- `user_prompt` (str | None) - Optional user prompt that triggered this memory
+- `importance` (int) - Importance level 1-10 (default: 5)
+
+**Returns:**
+Confirmation of memory saved with memory ID.
+
+---
+
+#### `recall_analysis_memory`
+
+Search and recall memories from past analyses.
+
+Query past analysis memories using semantic search to find relevant information from previous sessions.
+
+**Arguments:**
+- `query` (str) - Search query to find relevant memories
+- `session_id` (str | None) - Optional session ID to limit search (default: searches all sessions)
+- `memory_type` (str | None) - Optional memory type filter
+- `limit` (int) - Maximum number of memories to return (default: 10)
+
+**Returns:**
+List of matching memories with relevance scores.
+
+---
+
+#### `list_analysis_sessions`
+
+List all analysis sessions.
+
+**Arguments:**
+- `status` (str | None) - Optional status filter: 'active', 'completed', 'archived'
+- `limit` (int) - Maximum number of sessions to return (default: 50)
+
+**Returns:**
+List of sessions with metadata.
+
+---
+
+#### `get_session_detail`
+
+Get complete details for a specific session.
+
+**Arguments:**
+- `session_id` (str) - The session ID to retrieve
+
+**Returns:**
+Complete session information including all memories and metadata.
+
+---
+
+#### `resume_session`
+
+Resume a previous analysis session.
+
+**Arguments:**
+- `session_id` (str) - The session ID to resume
+- `binary_name` (str | None) - Optional new binary name if context changed
+
+**Returns:**
+Session context and recent memories for continuation.
+
+---
+
+#### `complete_session`
+
+Mark a session as completed with a summary.
+
+**Arguments:**
+- `session_id` (str) - The session ID to complete
+- `summary` (str) - Analysis summary and key findings
+
+**Returns:**
+Confirmation of session completion.
+
+---
+
+#### `save_pattern`
+
+Save a code/behavior pattern for cross-session matching.
+
+Enables pattern recognition across different binaries and analyses.
+
+**Arguments:**
+- `session_id` (str) - Current session ID
+- `pattern_type` (str) - Type: 'code_pattern', 'behavior', 'exploit_technique'
+- `pattern_signature` (str) - Pattern signature (hash, regex, or description)
+- `description` (str) - Human-readable description
+
+**Returns:**
+Pattern ID for future reference.
+
+---
+
+#### `find_similar_patterns`
+
+Find similar patterns from previous analyses.
+
+**Arguments:**
+- `pattern_signature` (str) - Pattern to match against
+- `pattern_type` (str | None) - Optional pattern type filter
+- `current_session_id` (str | None) - Exclude patterns from this session
+- `limit` (int) - Maximum matches to return (default: 5)
+
+**Returns:**
+List of similar patterns with similarity scores and original contexts.
+
+---
+
+#### `get_relevant_context`
+
+Get relevant context from past analyses.
+
+Automatically finds relevant memories based on current analysis context.
+
+**Arguments:**
+- `description` (str) - Description of current analysis task
+- `current_session_id` (str | None) - Current session to get context for
+- `limit` (int) - Maximum context items to return (default: 5)
+
+**Returns:**
+Relevant memories and patterns from previous sessions.
+
+---
+
+#### `update_analysis_time`
+
+Update cumulative analysis time for a session.
+
+**Arguments:**
+- `session_id` (str) - Session ID to update
+- `duration_seconds` (int) - Duration to add in seconds
+
+**Returns:**
+Updated total analysis time.
+
+---
+
+### Server Monitoring Tools
+
+#### `get_server_health`
+
+Get the current health status and resource usage of the MCP server.
+
+Use this to monitor the server's uptime, memory consumption, and tool execution statistics.
+
+**Arguments:** None
+
+**Returns:**
+ToolResult containing:
+- `status`: 'healthy' or 'degraded'
+- `uptime_seconds`: Server uptime
+- `uptime_formatted`: Human-readable uptime
+- `memory_usage_mb`: Current memory usage in MB
+- `total_calls`: Total tool execution count
+- `total_errors`: Total error count
+- `error_rate`: Percentage error rate
+- `active_tools`: Number of tools that have been used
+
+---
+
+#### `get_tool_metrics`
+
+Get detailed execution metrics for specific or all tools.
+
+**Arguments:**
+- `tool_name` (str | None) - Optional tool name to filter results (default: None, returns all tools)
+
+**Returns:**
+Detailed metrics including:
+- Execution times (min, max, average)
+- Call counts
+- Error rates and error types
+- Performance trends
+
+---
+
+### File Operation Tools
+
+#### `run_file`
+
+Identify file metadata using the `file` CLI utility.
+
+**Arguments:**
+- `file_path` (str) - Path to the file to identify
+- `timeout` (int) - Execution timeout in seconds (default: 120)
+
+**Returns:**
+File type information including format, architecture, and file magic details.
+
+---
+
+#### `copy_to_workspace`
+
+Copy any accessible file to the workspace directory.
+
+Allows copying files from any location (including AI agent upload directories) to the workspace where other reverse engineering tools can access them.
+
+Supports files from:
+- Claude Desktop uploads (/mnt/user-data/uploads)
+- Cursor uploads
+- Windsurf uploads
+- Local file paths
+- Any other accessible location
+
+**Arguments:**
+- `source_path` (str) - Absolute or relative path to the source file
+- `destination_name` (str | None) - Optional custom filename in workspace (defaults to original name)
+
+**Returns:**
+New file path in workspace.
+
+---
+
+#### `list_workspace`
+
+List all files in the workspace directory.
+
+**Arguments:** None
+
+**Returns:**
+List of files with sizes and modification times.
+
+---
+
+#### `scan_workspace`
+
+Batch scan all files in the workspace using multiple tools in parallel.
+
+Performs a comprehensive scan to identify files, analyze binaries, and detect threats. Runs 'run_file', 'parse_binary_with_lief', and 'run_yara' (if rules exist) on all matching files concurrently.
+
+**Workflow:**
+1. Identify files matching patterns (default: all files)
+2. Run 'file' command on all files
+3. Run 'LIEF' analysis on executable files
+4. Run 'YARA' scan if rules are available
+5. Aggregate results into a single report
+
+**Arguments:**
+- `file_patterns` (list | None) - List of glob patterns to include (e.g., ["*.exe", "*.dll"]) (default: ["*"])
+- `timeout` (int) - Global timeout for the batch operation in seconds (default: 600)
+
+**Returns:**
+Aggregated scan results for all files.
+
+---
+
+### Patch Analysis Tools
+
+#### `explain_patch`
+
+Analyze differences between binaries and explain in natural language.
+
+Uses binary diffing combined with AI to provide human-readable explanations of what changed and why.
+
+**Arguments:**
+- `file_path_a` (str) - Path to the original binary
+- `file_path_b` (str) - Path to the patched binary
+- `function_name` (str | None) - Optional specific function to focus on
+- `ctx` - FastMCP Context (auto-injected)
+
+**Returns:**
+Natural language explanation of patch changes including:
+- Security implications
+- Functionality changes
+- Risk assessment
+
+---
+
+## Ghidra Tools
+
+**Plugin:** `GhidraToolsPlugin` - Advanced binary analysis using Ghidra decompiler with project caching.
+
+### Structure Management Tools
+
+#### `Ghidra_list_structures`
+
+List all defined structures in the binary.
+
+**Arguments:**
+- `file_path` (str) - Path to the binary file
+- `offset` (int) - Pagination offset (default: 0)
+- `limit` (int) - Maximum structures to return (default: 100)
+
+**Returns:**
+List of structure definitions with fields and sizes.
+
+---
+
+#### `Ghidra_get_structure`
+
+Get detailed information about a specific structure.
+
+**Arguments:**
+- `file_path` (str) - Path to the binary file
+- `name` (str) - Structure name to retrieve
+
+**Returns:**
+Complete structure definition including:
+- Field names, types, and offsets
+- Structure size
+- Alignment information
+
+---
+
+#### `Ghidra_create_structure`
+
+Create a new structure definition in Ghidra.
+
+**Arguments:**
+- `file_path` (str) - Path to the binary file
+- `name` (str) - Structure name
+- `fields` (list) - List of field definitions: [{"name": "field1", "type": "int", "offset": 0}, ...]
+- `size` (int) - Total structure size
+
+**Returns:**
+Confirmation of structure creation.
+
+---
+
+### Enum Management Tools
+
+#### `Ghidra_list_enums`
+
+List all defined enums in the binary.
+
+**Arguments:**
+- `file_path` (str) - Path to the binary file
+- `offset` (int) - Pagination offset (default: 0)
+- `limit` (int) - Maximum enums to return (default: 100)
+
+**Returns:**
+List of enum definitions with members and values.
+
+---
+
+### Data Type Tools
+
+#### `Ghidra_list_data_types`
+
+List all data types defined in Ghidra's analysis.
+
+**Arguments:**
+- `file_path` (str) - Path to the binary file
+- `category` (str | None) - Optional category filter (e.g., "pointer", "struct", "typedef")
+- `offset` (int) - Pagination offset (default: 0)
+- `limit` (int) - Maximum types to return (default: 100)
+
+**Returns:**
+List of data types with categories and sizes.
+
+---
+
+### Bookmark Tools
+
+#### `Ghidra_list_bookmarks`
+
+List all bookmarks in the binary.
+
+**Arguments:**
+- `file_path` (str) - Path to the binary file
+- `bookmark_type` (str | None) - Optional type filter (e.g., "Note", "Warning", "Error")
+- `offset` (int) - Pagination offset (default: 0)
+- `limit` (int) - Maximum bookmarks to return (default: 100)
+
+**Returns:**
+List of bookmarks with addresses, types, and comments.
+
+---
+
+#### `Ghidra_add_bookmark`
+
+Add a bookmark at a specific address.
+
+**Arguments:**
+- `file_path` (str) - Path to the binary file
+- `address` (str) - Address to bookmark (e.g., '0x401000')
+- `category` (str) - Bookmark category
+- `comment` (str) - Bookmark comment
+- `bookmark_type` (str) - Type: 'Note', 'Warning', 'Error', etc. (default: 'Note')
+
+**Returns:**
+Confirmation of bookmark creation.
+
+---
+
+### Memory Access Tools
+
+#### `Ghidra_read_memory`
+
+Read raw bytes from memory at a specific address.
+
+**Arguments:**
+- `file_path` (str) - Path to the binary file
+- `address` (str) - Starting address (e.g., '0x401000')
+- `length` (int) - Number of bytes to read
+
+**Returns:**
+Raw byte array.
+
+---
+
+#### `Ghidra_get_bytes`
+
+Get bytes at address as hex string.
+
+**Arguments:**
+- `file_path` (str) - Path to the binary file
+- `address` (str) - Starting address (e.g., '0x401000')
+- `length` (int) - Number of bytes to read
+
+**Returns:**
+Hex string representation of bytes.
+
+---
+
+### Patching Tools
+
+#### `Ghidra_simulate_patch`
+
+Simulate patching bytes in Ghidra's cache (does not modify actual file).
+
+Useful for testing patches before applying them permanently.
+
+**Arguments:**
+- `file_path` (str) - Path to the binary file
+- `address` (str) - Address to patch (e.g., '0x401000')
+- `hex_bytes` (str) - Hex bytes to patch (e.g., '90 90 90')
+
+**Returns:**
+Confirmation of simulated patch.
+
+---
+
+### Analysis Tools
+
+#### `Ghidra_analyze_function`
+
+Trigger Ghidra's analysis on a specific function.
+
+Forces re-analysis with Ghidra's full suite of analyzers.
+
+**Arguments:**
+- `file_path` (str) - Path to the binary file
+- `address` (str) - Function address (e.g., 'main', '0x401000')
+
+**Returns:**
+Analysis results and detected patterns.
+
+---
+
+#### `Ghidra_get_call_graph`
+
+Get call graph for a function.
+
+**Arguments:**
+- `file_path` (str) - Path to the binary file
+- `address` (str) - Function address (e.g., 'main', '0x401000')
+- `depth` (int) - Call graph depth (default: 2)
+- `direction` (str) - 'callers', 'callees', or 'both' (default: 'both')
+
+**Returns:**
+Call graph data in structured format.
+
+---
+
+### Decompilation Tools
+
+#### `emulate_machine_code`
 
 Emulate machine code execution using radare2 ESIL (Evaluable Strings Intermediate Language).
 
-This tool provides safe, sandboxed emulation of binary code without actual execution.
-Perfect for analyzing obfuscated code, understanding register states, and predicting
-execution outcomes without security risks.
+Provides safe, sandboxed emulation of binary code without actual execution. Perfect for analyzing obfuscated code, understanding register states, and predicting execution outcomes without security risks.
 
 **Key Use Cases:**
 - De-obfuscation: Reveal hidden strings by emulating XOR/shift operations
@@ -60,68 +777,57 @@ execution outcomes without security risks.
 - Instruction count limit (max 1000) prevents infinite loops
 - Memory sandboxing (changes don't affect host system)
 
-Args:
-    file_path: Path to the binary file (must be in workspace)
-    start_address: Address to start emulation (e.g., 'main', '0x401000', 'sym.decrypt')
-    instructions: Number of instructions to execute (default 50, max 1000)
-    timeout: Execution timeout in seconds
-
-Returns:
-    ToolResult with register states and emulation summary
-
 **Arguments:**
+- `file_path` (str) - Path to the binary file (must be in workspace)
+- `address` (str) - Address to start emulation (e.g., 'main', '0x401000', 'sym.decrypt')
+- `steps` (int) - Number of instructions to execute (default: 50, max: 1000)
+- `timeout` (int) - Execution timeout in seconds (default: 120)
 
-- `file_path` (str)
-- `start_address` (str)
-- `instructions` (int) (default: `50`)
-- `timeout` (int) (default: `120`)
+**Returns:**
+Register states and emulation summary.
 
 ---
 
-### `get_pseudo_code`
+#### `get_pseudo_code`
 
 Generate pseudo C code (decompilation) for a function using radare2's pdc command.
 
-This tool decompiles binary code into C-like pseudocode, making it much easier
-to understand program logic compared to raw assembly. The output can be further
-refined by AI for better readability.
-
-**Use Cases:**
-- Quick function understanding without reading assembly
-- AI-assisted code analysis and refactoring
-- Documentation generation from binaries
-- Reverse engineering workflow optimization
-
-**Note:** The output is "pseudo C" - it may not be syntactically perfect C,
-but provides a high-level representation of the function logic.
-
-Args:
-    file_path: Path to the binary file (must be in workspace)
-    address: Function address to decompile (e.g., 'main', '0x401000', 'sym.foo')
-    timeout: Execution timeout in seconds (default 300)
-
-Returns:
-    ToolResult with pseudo C code string
-
-Example:
-    get_pseudo_code("/app/workspace/sample.exe", "main")
-    # Returns C-like code representation of the main function
+Decompiles binary code into C-like pseudocode, making it much easier to understand program logic compared to raw assembly.
 
 **Arguments:**
+- `file_path` (str) - Path to the binary file (must be in workspace)
+- `address` (str) - Function address to decompile (e.g., 'main', '0x401000', 'sym.foo')
+- `timeout` (int) - Execution timeout in seconds (default: 300)
 
-- `file_path` (str)
-- `address` (str) (default: `main`)
-- `timeout` (int) (default: `300`)
+**Returns:**
+Pseudo C code string.
 
 ---
 
-### `recover_structures`
+#### `smart_decompile`
+
+Decompile a function to pseudo C code using Ghidra or radare2.
+
+**Decompiler Selection:**
+- Ghidra (default): More accurate, better type recovery, industry-standard
+- radare2 (fallback): Faster, lighter weight, good for quick analysis
+
+**Arguments:**
+- `file_path` (str) - Path to the binary file (must be in workspace)
+- `address` (str) - Function address to decompile (e.g., 'main', '0x401000')
+- `timeout` (int) - Execution timeout in seconds (default: 120)
+- `use_ghidra` (bool) - Use Ghidra decompiler if available (default: True)
+
+**Returns:**
+Decompiled pseudo C code.
+
+---
+
+#### `recover_structures`
 
 Recover C++ class structures and data types from binary code.
 
-This is THE game-changer for C++ reverse engineering. Transforms cryptic
-"this + 0x4" memory accesses into meaningful "Player.health" structure fields.
-Uses Ghidra's powerful data type propagation and structure recovery algorithms.
+THE game-changer for C++ reverse engineering. Transforms cryptic "this + 0x4" memory accesses into meaningful "Player.health" structure fields. Uses Ghidra's powerful data type propagation and structure recovery algorithms.
 
 **Why Structure Recovery Matters:**
 - **C++ Analysis**: 99% of game clients and commercial apps are C++
@@ -134,849 +840,887 @@ Uses Ghidra's powerful data type propagation and structure recovery algorithms.
 - Use `use_ghidra=False` for quick radare2-based analysis
 - For best results on first run, set `fast_mode=False` but expect longer wait
 
-**How It Works:**
-1. Analyze memory access patterns in the function
-2. Identify structure layouts from offset usage
-3. Use data type propagation to infer field types
-4. Generate C structure definitions with meaningful names
-
-**Use Cases:**
-- Game hacking: Recover Player, Entity, Weapon structures
-- Malware analysis: Understand malware configuration structures
-- Vulnerability research: Find buffer overflow candidates in structs
-- Software auditing: Document undocumented data structures
-
-**Ghidra vs Radare2:**
-- Ghidra (default): Superior type recovery, structure propagation, C++ support
-- Radare2 (fallback): Basic structure definition, faster but less intelligent
-
-Args:
-    file_path: Path to the binary file (must be in workspace)
-    function_address: Function to analyze for structure usage (e.g., 'main', '0x401000')
-    use_ghidra: Use Ghidra for advanced recovery (default True), or radare2 for basic
-    fast_mode: Skip full binary analysis for faster startup (default True)
-    timeout: Execution timeout in seconds (default 300 seconds)
-    ctx: FastMCP Context (auto-injected)
-
-Returns:
-    ToolResult with recovered structures in C format:
-    {
-        "structures": [
-            {
-                "name": "Player",
-                "size": 64,
-                "fields": [
-                    {"offset": "0x0", "type": "int", "name": "health"},
-                    {"offset": "0x4", "type": "int", "name": "armor"},
-                    {"offset": "0x8", "type": "Vector3", "name": "position"}
-                ]
-            }
-        ],
-        "c_definitions": "struct Player { int health; int armor; Vector3 position; };"
-    }
-
-Example:
-    # Fast structure recovery (recommended for large binaries)
-    recover_structures("/app/workspace/game.exe", "main")
-
-    # More thorough analysis (slower but more accurate)
-    recover_structures("/app/workspace/game.exe", "main", fast_mode=False)
-
-    # Use radare2 for quick analysis
-    recover_structures("/app/workspace/binary", "0x401000", use_ghidra=False)
-
 **Arguments:**
+- `file_path` (str) - Path to the binary file (must be in workspace)
+- `address` (str) - Function to analyze for structure usage (e.g., 'main', '0x401000')
+- `timeout` (int) - Execution timeout in seconds (default: 600)
+- `use_ghidra` (bool) - Use Ghidra for advanced recovery (default: True)
+- `fast_mode` (bool) - Skip full binary analysis for faster startup (default: True)
 
-- `file_path` (str)
-- `function_address` (str)
-- `use_ghidra` (bool) (default: `True`)
-- `fast_mode` (bool) (default: `True`)
-- `timeout` (int) (default: `600`)
+**Returns:**
+Recovered structures in C format with field names, types, and offsets.
 
 ---
 
-### `smart_decompile`
+## Malware Tools
 
-Decompile a function to pseudo C code using Ghidra or radare2.
+**Plugin:** `MalwareToolsPlugin` - Specialized tools for malware analysis and threat detection.
 
-This tool provides decompilation for a specific function in a binary,
-making it easier to understand the logic without reading raw assembly.
+### `dormant_detector`
 
-**Decompiler Selection:**
-- Ghidra (default): More accurate, better type recovery, industry-standard
-- radare2 (fallback): Faster, lighter weight, good for quick analysis
+Detect dormant/time-triggered malware behaviors.
 
-Args:
-    file_path: Path to the binary file (must be in workspace)
-    function_address: Function address to decompile (e.g., 'main', '0x401000')
-    timeout: Execution timeout in seconds (default 300)
-    use_ghidra: Use Ghidra decompiler if available (default True)
-    ctx: FastMCP Context (auto-injected)
-
-Returns:
-    ToolResult with decompiled pseudo C code
+Identifies malware that remains dormant until specific conditions are met (time bombs, logic bombs, environment checks).
 
 **Arguments:**
+- `file_path` (str) - Path to the binary file
+- `timeout` (int) - Execution timeout in seconds (default: 300)
 
-- `file_path` (str)
-- `function_address` (str)
-- `timeout` (int) (default: `120`)
-- `use_ghidra` (bool) (default: `True`)
+**Returns:**
+List of potential dormant behaviors with:
+- Trigger conditions (time checks, environment variables, etc.)
+- Activation mechanisms
+- Risk assessment
 
 ---
 
-## Plugin: diff_tools
-Tools for binary diffing, variant analysis, and library matching.
+### `adaptive_vaccine`
 
-### `analyze_variant_changes`
+Generate vaccine/neutralization code for malware.
 
-Analyze structural changes between two binary variants (Lineage Mapper).
-
-This tool combines binary diffing with control flow analysis to understand
-*how* a binary has evolved. It identifies the most modified functions and
-generates their Control Flow Graphs (CFG) for comparison.
-
-**Use Cases:**
-- **Malware Lineage**: "How did Lazarus Group modify their backdoor?"
-- **Patch Diffing**: "What logic changed in the vulnerable function?"
-- **Variant Analysis**: "Is this a new version of the same malware?"
-
-Args:
-    file_path_a: Path to the original binary
-    file_path_b: Path to the variant binary
-    top_n: Number of top changed functions to analyze in detail (default: 3)
-    timeout: Execution timeout in seconds
-
-Returns:
-    ToolResult with diff summary and CFG data for top changed functions.
+Creates patches or defensive signatures to neutralize identified malware behaviors.
 
 **Arguments:**
+- `file_path` (str) - Path to the malware binary
+- `target_behavior` (str) - Specific behavior to neutralize (e.g., "C2_communication", "file_encryption")
+- `timeout` (int) - Execution timeout in seconds (default: 300)
 
-- `file_path_a` (str)
-- `file_path_b` (str)
-- `top_n` (int) (default: `3`)
-- `timeout` (int) (default: `120`)
+**Returns:**
+Vaccine code including:
+- Binary patch instructions
+- YARA detection rules
+- Neutralization scripts
 
 ---
 
-### `diff_binaries`
+### `vulnerability_hunter`
 
-Compare two binary files to identify code changes and modifications.
+Hunt for vulnerabilities in binary code.
 
-This tool uses radiff2 to perform binary diffing, which is essential for:
-- **Patch Analysis (1-day Exploits)**: Compare pre-patch and post-patch binaries
-  to identify security vulnerabilities fixed in updates
-- **Game Hacking**: Find offset changes after game updates to maintain functionality
-- **Malware Variant Analysis**: Identify code differences between malware variants
-  (e.g., "90% similar to Lazarus malware, but C2 address generation changed")
-
-The tool provides:
-- Similarity score (0.0-1.0) between binaries
-- List of code changes with addresses and descriptions
-- Optional function-level comparison for targeted analysis
-
-Args:
-    file_path_a: Path to the first binary file (e.g., pre-patch version)
-    file_path_b: Path to the second binary file (e.g., post-patch version)
-    function_name: Optional function name to compare (e.g., "main", "sym.decrypt").
-                  If None, performs whole-binary comparison.
-    max_output_size: Maximum output size in bytes (default: 10MB)
-    timeout: Timeout in seconds (default: 300s)
-
-Returns:
-    ToolResult with structured JSON containing:
-    - similarity: Float between 0.0 and 1.0 indicating code similarity
-    - changes: List of detected changes with addresses and descriptions
-    - function_specific: Boolean indicating if function-level diff was performed
-
-Example:
-    # Compare two versions of a patched binary
-    diff_binaries("/app/workspace/app_v1.0.exe", "/app/workspace/app_v1.1.exe")
-
-    # Compare specific function between versions
-    diff_binaries("/app/workspace/malware_old.exe", "/app/workspace/malware_new.exe", "main")
-
-Output Format:
-    {
-      "similarity": 0.95,
-      "function_specific": false,
-      "changes": [
-        {
-          "address": "0x401050",
-          "type": "code_change",
-          "description": "Instruction changed from JNZ to JZ"
-        },
-        {
-          "address": "0x401080",
-          "type": "new_block",
-          "description": "Added security check"
-        }
-      ],
-      "total_changes": 2
-    }
+Automatically searches for common vulnerability patterns including:
+- Buffer overflows
+- Format string vulnerabilities
+- Integer overflows
+- Use-after-free
+- Race conditions
 
 **Arguments:**
+- `file_path` (str) - Path to the binary file
+- `timeout` (int) - Execution timeout in seconds (default: 300)
 
-- `file_path_a` (str)
-- `file_path_b` (str)
-- `function_name` (str) (default: `None`)
-- `max_output_size` (int) (default: `10000000`)
-- `timeout` (int) (default: `120`)
-
----
-
-### `match_libraries`
-
-Match and filter known library functions to focus on user code.
-
-This tool uses radare2's zignatures (FLIRT-compatible signature matching) to:
-- **Reduce Analysis Noise**: Skip analysis of known library functions (strcpy, malloc, etc.)
-- **Focus on User Code**: Identify which functions are original vs library code
-- **Save Time & Tokens**: Reduce analysis scope by 80% by filtering out standard libraries
-- **Improve Accuracy**: Focus AI analysis on the actual malicious/interesting code
-
-Common use cases:
-- Analyzing large binaries (>25MB) where most code is OpenSSL, zlib, MFC, etc.
-- Game client reverse engineering (filter out Unreal Engine / Unity standard library)
-- Malware analysis (focus on custom malware code, skip Windows API wrappers)
-
-The tool automatically uses built-in signature databases for common libraries
-and can optionally use custom signature databases for specialized analysis.
-
-Args:
-    file_path: Path to the binary file to analyze
-    signature_db: Optional path to custom signature database file (.sig format).
-                 If None, uses radare2's built-in signature databases.
-    max_output_size: Maximum output size in bytes (default: 10MB)
-    timeout: Timeout in seconds (default: 600s)
-    ctx: FastMCP Context (auto-injected)
-
-Returns:
-    ToolResult with structured JSON containing:
-    - total_functions: Total number of functions found
-    - library_functions: Number of matched library functions
-    - user_functions: Number of unmatched (user) functions to analyze
-    - library_matches: List of matched library functions with details
-    - user_function_list: List of user function addresses/names for further analysis
-    - noise_reduction_percentage: Percentage of functions filtered out
-
-Example:
-    # Auto-detect standard libraries
-    match_libraries("/app/workspace/large_app.exe")
-
-    # Use custom signature database
-    match_libraries("/app/workspace/game.exe", "/app/rules/game_engine.sig")
-
-Output Format:
-    {
-      "total_functions": 1250,
-      "library_functions": 1000,
-      "user_functions": 250,
-      "noise_reduction_percentage": 80.0,
-      "library_matches": [
-        {
-          "address": "0x401000",
-          "name": "strcpy",
-          "library": "msvcrt"
-        },
-        {
-          "address": "0x401050",
-          "name": "malloc",
-          "library": "msvcrt"
-        }
-      ],
-      "user_function_list": [
-        "0x402000",
-        "0x402100",
-        "sym.custom_decrypt"
-      ]
-    }
-
-**Arguments:**
-
-- `file_path` (str)
-- `signature_db` (str) (default: `None`)
-- `max_output_size` (int) (default: `10000000`)
-- `timeout` (int) (default: `600`)
-
----
-
-## Plugin: file_operations
-File management tools for workspace operations.
-
-### `copy_to_workspace`
-
-Copy any accessible file to the workspace directory.
-
-This tool allows copying files from any location (including AI agent upload directories)
-to the workspace where other reverse engineering tools can access them.
-
-Supports files from:
-- Claude Desktop uploads (/mnt/user-data/uploads)
-- Cursor uploads
-- Windsurf uploads
-- Local file paths
-- Any other accessible location
-
-Args:
-    source_path: Absolute or relative path to the source file
-    destination_name: Optional custom filename in workspace (defaults to original name)
-
-Returns:
-    ToolResult with the new file path in workspace
-
-**Arguments:**
-
-- `source_path` (str)
-- `destination_name` (str) (default: `None`)
-
----
-
-### `list_workspace`
-
-List all files in the workspace directory.
-
-Returns:
-    ToolResult with list of files in workspace
-
-**Arguments:**
-
-
----
-
-### `run_file`
-
-Identify file metadata using the ``file`` CLI utility.
-
-**Arguments:**
-
-- `file_path` (str)
-- `timeout` (int) (default: `120`)
-
----
-
-### `scan_workspace`
-
-Batch scan all files in the workspace using multiple tools in parallel.
-
-This tool performs a comprehensive scan of the workspace to identify files,
-analyze binaries, and detect threats. It runs 'run_file', 'parse_binary_with_lief',
-and 'run_yara' (if rules exist) on all matching files concurrently.
-
-**Workflow:**
-1. Identify files matching patterns (default: all files)
-2. Run 'file' command on all files
-3. Run 'LIEF' analysis on executable files
-4. Run 'YARA' scan if rules are available
-5. Aggregate results into a single report
-
-Args:
-    file_patterns: List of glob patterns to include (e.g., ["*.exe", "*.dll"]).
-                  Default is ["*"] (all files).
-    timeout: Global timeout for the batch operation in seconds.
-    ctx: FastMCP Context for progress reporting (auto-injected)
-
-Returns:
-    ToolResult with aggregated scan results for all files.
-
-**Arguments:**
-
-- `file_patterns` (list) (default: `None`)
-- `timeout` (int) (default: `600`)
-
----
-
-## Plugin: ghost_trace
-Hybrid reverse engineering tool (Static + Emulation) for detecting hidden malicious behaviors.
-
-### `ghost_trace`
-
-Detect hidden malicious behaviors using "Ghost Trace" (Static + Emulation).
-
-This tool performs a hybrid analysis:
-1. **Scan**: Finds "Orphan Functions" (not called by main) and "Suspicious Logic" (magic value checks).
-2. **Hypothesize**: (Optional) If `hypothesis` is provided, it sets up emulation conditions.
-3. **Emulate**: (Optional) If `focus_function` is provided, it emulates that specific function
-   to verify the hypothesis (e.g., "If register eax=0x1234, does it call system()?").
-
-Args:
-    file_path: Path to the binary.
-    focus_function: (Optional) Name or address of a specific function to emulate.
-    hypothesis: (Optional) Dictionary defining emulation parameters:
-                {
-                    "registers": {"eax": "0x1234", "zf": "1"},
-                    "args": ["arg1", "arg2"],
-                    "max_steps": 100
-                }
-    timeout: Execution timeout.
-
-Returns:
-    ToolResult containing suspicious candidates or emulation results.
-
-**Arguments:**
-
-- `file_path` (str)
-- `focus_function` (str | None) (default: `None`)
-- `hypothesis` (dict[str, typing.Any] | None) (default: `None`)
-- `timeout` (int) (default: `300`)
-
----
-
-## Plugin: lib_tools
-Library-backed tools for YARA scanning, disassembly, binary parsing, and IOC extraction.
-
-### `disassemble_with_capstone`
-
-Disassemble binary blobs using the Capstone framework.
-
-**Arguments:**
-
-- `file_path` (str)
-- `offset` (int) (default: `0`)
-- `size` (int) (default: `1024`)
-- `arch` (str) (default: `x86`)
-- `mode` (str) (default: `64`)
+**Returns:**
+List of potential vulnerabilities with:
+- Vulnerability type
+- Location (function and address)
+- Severity rating
+- Exploitation difficulty
+- Suggested mitigations
 
 ---
 
 ### `extract_iocs`
 
-Extract Indicators of Compromise (IOCs) from text using regex.
+Extract Indicators of Compromise (IOCs) from text or binary using regex.
 
-This tool automatically finds and extracts potential IOCs like IP addresses,
-URLs, and email addresses from any text input (e.g., strings output,
-decompiled code, logs).
-
-Args:
-    text: The text to analyze for IOCs (or path to a file)
-    extract_ips: Whether to extract IPv4 addresses (default: True)
-    extract_urls: Whether to extract URLs (default: True)
-    extract_emails: Whether to extract email addresses (default: True)
-    limit: Maximum number of IOCs to return per category (default: 100)
-
-Returns:
-    ToolResult with extracted IOCs in structured format
+Automatically finds and extracts potential IOCs like IP addresses, URLs, email addresses, hashes, Bitcoin addresses, CVEs, Registry keys, and MAC addresses.
 
 **Arguments:**
+- `text` (str) - The text to analyze for IOCs (can also be a file path) (default: "")
+- `file_path` (str) - Alternative: path to a file to extract IOCs from (default: "")
+- `extract_ips` (bool) - Whether to extract IPv4 addresses (default: True)
+- `extract_urls` (bool) - Whether to extract URLs (default: True)
+- `extract_emails` (bool) - Whether to extract email addresses (default: True)
+- `extract_bitcoin` (bool) - Whether to extract Bitcoin addresses (default: True)
+- `extract_hashes` (bool) - Whether to extract MD5/SHA1/SHA256 hashes (default: True)
+- `extract_others` (bool) - Whether to extract CVEs, Registry keys, MAC addresses (default: True)
+- `limit` (int) - Maximum number of IOCs to return per category (default: 100)
 
-- `text` (str)
-- `extract_ips` (bool) (default: `True`)
-- `extract_urls` (bool) (default: `True`)
-- `extract_emails` (bool) (default: `True`)
-- `limit` (int) (default: `100`)
-
----
-
-### `parse_binary_with_lief`
-
-Parse binary metadata using LIEF and return structured results.
-
-**Arguments:**
-
-- `file_path` (str)
-- `format` (str) (default: `json`)
+**Returns:**
+Structured JSON with categorized IOCs:
+- `ipv4`: List of IPv4 addresses
+- `urls`: List of URLs
+- `emails`: List of email addresses
+- `bitcoin`: List of Bitcoin addresses
+- `hashes`: Dict with MD5, SHA1, SHA256 lists
+- `cves`: List of CVE identifiers
+- `registry_keys`: List of Windows Registry keys
+- `mac_addresses`: List of MAC addresses
+- `total_count`: Total IOCs found
 
 ---
 
 ### `run_yara`
 
-Scan binaries against YARA rules via ``yara-python``.
+Scan binaries against YARA rules via `yara-python`.
 
 **Arguments:**
+- `file_path` (str) - Path to the binary file to scan
+- `rules_path` (str) - Path to YARA rules file (.yar or .yara)
+- `timeout` (int) - Execution timeout in seconds (default: 300)
 
-- `file_path` (str)
-- `rule_file` (str)
-- `timeout` (int) (default: `300`)
+**Returns:**
+List of YARA rule matches with:
+- Rule name
+- Tags
+- Metadata
+- Matched strings and offsets
 
 ---
 
-## Plugin: neural_decompiler
-AI-Simulated Code Refinement Tool for transforming raw decompilation into human-like code.
+## Radare2 Tools
 
-### `neural_decompile`
+**Plugin:** `Radare2ToolsPlugin` - Comprehensive binary analysis suite powered by radare2.
 
-Decompile a function and refine it into "human-like" code using the Neural Decompiler.
+### File Management Tools
 
-This tool:
-1.  Decompiles the function using Ghidra (preferred) or radare2 (fallback).
-2.  Refines the code by renaming variables based on API usage (e.g., `socket` -> `sock_fd`).
-3.  Infers structures and adds semantic comments.
+#### `Radare2_open_file`
 
-Args:
-    file_path: Path to the binary.
-    function_address: Address or name of the function.
-    timeout: Execution timeout.
-    use_ghidra: Use Ghidra decompiler if available (default True), fallback to radare2.
-    ctx: FastMCP Context (auto-injected).
+Open a binary file with radare2.
 
-Returns:
-    ToolResult containing the refined "Neural" code.
+Initializes a radare2 session for analysis.
 
 **Arguments:**
+- `file_path` (str) - Path to the binary file
 
-- `file_path` (str)
-- `function_address` (str)
-- `timeout` (int) (default: `300`)
-- `use_ghidra` (bool) (default: `True`)
+**Returns:**
+Session ID for subsequent operations.
 
 ---
 
-## Plugin: r2_analysis
-Radare2-based analysis tools for binary analysis, cross-references, and execution tracing.
+#### `Radare2_close_file`
 
-### `analyze_xrefs`
-
-Analyze cross-references (xrefs) for a specific address using radare2.
-
-Cross-references show the relationships between code blocks - who calls this
-function (callers) and what it calls (callees). This is essential for:
-- Understanding program flow
-- Tracing data dependencies
-- Identifying attack surfaces
-- Reverse engineering malware C&C
-
-**xref_type Options:**
-- **"to"**: Show who references this address (callers/jumps TO here)
-- **"from"**: Show what this address references (calls/jumps FROM here)
-- **"all"**: Show both directions (complete relationship map)
-
-Args:
-    file_path: Path to the binary file (must be in workspace)
-    address: Function or address to analyze (e.g., 'main', '0x401000', 'sym.decrypt')
-    xref_type: Type of cross-references to show: 'all', 'to', 'from' (default: 'all')
-    timeout: Execution timeout in seconds (default: 300)
-    ctx: FastMCP Context for progress reporting (auto-injected)
-
-Returns:
-    ToolResult with structured JSON containing xrefs data:
-    {
-        "address": "main",
-        "xref_type": "all",
-        "xrefs_to": [{"from": "0x401050", "type": "call", "fcn_name": "entry0"}],
-        "xrefs_from": [{"addr": "0x401100", "type": "call", "fcn_name": "printf"}],
-        "summary": "2 reference(s) TO this address (callers), 1 reference(s) FROM this address (callees)",
-        "total_refs_to": 2,
-        "total_refs_from": 1
-    }
-
-Example:
-    # Find who calls the suspicious 'decrypt' function
-    analyze_xrefs("/app/workspace/malware.exe", "sym.decrypt", "to")
-
-    # Find what APIs a malware function uses
-    analyze_xrefs("/app/workspace/malware.exe", "0x401000", "from")
-
-    # Get complete relationship map
-    analyze_xrefs("/app/workspace/malware.exe", "main", "all")
+Close the current radare2 session.
 
 **Arguments:**
+- `session_id` (str) - Session ID to close
 
-- `file_path` (str)
-- `address` (str)
-- `xref_type` (str) (default: `all`)
-- `timeout` (int) (default: `120`)
+**Returns:**
+Confirmation of session closure.
 
 ---
 
-### `generate_function_graph`
+#### `Radare2_analyze`
 
-Generate a Control Flow Graph (CFG) for a specific function.
-
-This tool uses radare2 to analyze the function structure and returns
-a visualization code (Mermaid by default) or PNG image that helps AI understand
-the code flow without reading thousands of lines of assembly.
-
-Args:
-    file_path: Path to the binary file (must be in workspace)
-    function_address: Function address (e.g., 'main', '0x140001000', 'sym.foo')
-    format: Output format ('mermaid', 'json', 'dot', or 'png'). Default is 'mermaid'.
-    timeout: Execution timeout in seconds
-
-Returns:
-    ToolResult with CFG visualization, JSON data, or PNG image
+Analyze the binary with radare2's analysis engine.
 
 **Arguments:**
+- `session_id` (str) - Active session ID
+- `level` (str) - Analysis level: 'basic', 'standard', 'advanced', 'experimental' (default: 'standard')
 
-- `file_path` (str)
-- `function_address` (str)
-- `format` (str) (default: `mermaid`)
-- `timeout` (int) (default: `120`)
+**Returns:**
+Analysis summary including functions found, strings extracted, and imports identified.
 
 ---
 
-### `run_radare2`
+### Command Execution Tools
+
+#### `Radare2_run_command`
+
+Execute an arbitrary radare2 command.
+
+**Security Note:** Use with caution. Only vetted commands are allowed.
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+- `command` (str) - Radare2 command to execute
+
+**Returns:**
+Command output.
+
+---
+
+#### `Radare2_calculate`
+
+Calculate expressions using radare2's calculator.
+
+Useful for address calculations, hex/decimal conversions, etc.
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+- `expression` (str) - Expression to calculate (e.g., "0x401000 + 0x100")
+
+**Returns:**
+Calculation result.
+
+---
+
+### Function Analysis Tools
+
+#### `Radare2_list_functions`
+
+List all functions detected in the binary.
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+- `offset` (int) - Pagination offset (default: 0)
+- `limit` (int) - Maximum functions to return (default: 100)
+
+**Returns:**
+List of functions with addresses, sizes, and names.
+
+---
+
+#### `Radare2_list_functions_tree`
+
+List functions in a tree/hierarchical view showing call relationships.
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+
+**Returns:**
+Tree-structured function list.
+
+---
+
+#### `Radare2_show_function_details`
+
+Show detailed information about a specific function.
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+- `address` (str) - Function address or name
+
+**Returns:**
+Function details including:
+- Address and size
+- Basic blocks
+- Complexity metrics
+- Local variables
+- Call graph
+
+---
+
+#### `Radare2_get_current_address`
+
+Get the current seek address in radare2.
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+
+**Returns:**
+Current address.
+
+---
+
+#### `Radare2_get_function_prototype`
+
+Get the function signature/prototype.
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+- `address` (str) - Function address or name
+
+**Returns:**
+Function prototype with return type and parameters.
+
+---
+
+#### `Radare2_set_function_prototype`
+
+Set a function signature/prototype.
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+- `address` (str) - Function address or name
+- `prototype` (str) - Function prototype (e.g., "int main(int argc, char** argv)")
+
+**Returns:**
+Confirmation of prototype update.
+
+---
+
+### Binary Information Tools
+
+#### `Radare2_show_headers`
+
+Show binary file headers.
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+
+**Returns:**
+Binary headers including:
+- File format (PE, ELF, Mach-O)
+- Architecture
+- Entry point
+- Compilation timestamp
+
+---
+
+#### `Radare2_list_sections`
+
+List all binary sections.
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+
+**Returns:**
+List of sections with:
+- Name
+- Virtual address
+- Size
+- Permissions (read, write, execute)
+
+---
+
+#### `Radare2_list_imports`
+
+List imported functions.
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+- `offset` (int) - Pagination offset (default: 0)
+- `limit` (int) - Maximum imports to return (default: 100)
+
+**Returns:**
+List of imported functions with library names.
+
+---
+
+#### `Radare2_list_symbols`
+
+List all symbols in the binary.
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+- `offset` (int) - Pagination offset (default: 0)
+- `limit` (int) - Maximum symbols to return (default: 100)
+
+**Returns:**
+List of symbols with addresses, types, and names.
+
+---
+
+#### `Radare2_list_entrypoints`
+
+List entry points.
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+
+**Returns:**
+List of entry point addresses.
+
+---
+
+#### `Radare2_list_libraries`
+
+List linked libraries.
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+
+**Returns:**
+List of library dependencies.
+
+---
+
+#### `Radare2_list_strings`
+
+List strings with filters.
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+- `min_length` (int) - Minimum string length (default: 4)
+- `filter` (str | None) - Optional regex filter pattern
+
+**Returns:**
+List of strings with addresses and content.
+
+---
+
+#### `Radare2_list_all_strings`
+
+List all strings without filters.
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+
+**Returns:**
+Complete list of strings in the binary.
+
+---
+
+### OOP Analysis Tools
+
+#### `Radare2_list_classes`
+
+List classes (C++/Objective-C).
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+
+**Returns:**
+List of classes with methods and virtual tables.
+
+---
+
+#### `Radare2_list_methods`
+
+List methods for a specific class.
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+- `class_name` (str) - Name of the class
+
+**Returns:**
+List of methods with addresses and signatures.
+
+---
+
+### Disassembly and Decompilation Tools
+
+#### `Radare2_disassemble`
+
+Disassemble code at a specific address.
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+- `address` (str) - Address to disassemble
+- `instructions` (int) - Number of instructions (default: 20)
+
+**Returns:**
+Disassembled instructions.
+
+---
+
+#### `Radare2_disassemble_function`
+
+Disassemble an entire function.
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+- `address` (str) - Function address or name
+
+**Returns:**
+Complete function disassembly.
+
+---
+
+#### `Radare2_decompile_function`
+
+Decompile a function to C-like pseudocode.
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+- `address` (str) - Function address or name
+
+**Returns:**
+Decompiled C-like code.
+
+---
+
+### Decompiler Management Tools
+
+#### `Radare2_list_decompilers`
+
+List available decompilers.
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+
+**Returns:**
+List of available decompiler plugins (pdc, pdg, r2ghidra, etc.).
+
+---
+
+#### `Radare2_use_decompiler`
+
+Switch to a different decompiler.
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+- `decompiler` (str) - Decompiler name (e.g., 'pdc', 'pdg', 'r2ghidra')
+
+**Returns:**
+Confirmation of decompiler switch.
+
+---
+
+### Cross-Reference Tools
+
+#### `Radare2_xrefs_to`
+
+Get cross-references to a specific address.
+
+Shows what code references this address (callers).
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+- `address` (str) - Target address
+
+**Returns:**
+List of xrefs TO this address with caller addresses and types (call, jump, data).
+
+---
+
+### Annotation Tools
+
+#### `Radare2_rename_function`
+
+Rename a function.
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+- `address` (str) - Function address
+- `new_name` (str) - New function name
+
+**Returns:**
+Confirmation of rename.
+
+---
+
+#### `Radare2_rename_flag`
+
+Rename a flag/label.
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+- `old_name` (str) - Current flag name
+- `new_name` (str) - New flag name
+
+**Returns:**
+Confirmation of rename.
+
+---
+
+#### `Radare2_set_comment`
+
+Set a comment at a specific address.
+
+**Arguments:**
+- `session_id` (str) - Active session ID
+- `address` (str) - Address to comment
+- `comment` (str) - Comment text
+
+**Returns:**
+Confirmation of comment addition.
+
+---
+
+### Advanced Analysis Tools
+
+#### `run_radare2`
 
 Execute vetted radare2 commands for binary triage.
 
 **Arguments:**
+- `file_path` (str) - Path to the binary file
+- `r2_command` (str) - Radare2 command to execute
+- `max_output_size` (int) - Maximum output size in bytes (default: 10MB)
+- `timeout` (int) - Execution timeout in seconds (default: 120)
 
-- `file_path` (str)
-- `r2_command` (str)
-- `max_output_size` (int) (default: `10000000`)
-- `timeout` (int) (default: `120`)
+**Returns:**
+Command output.
 
 ---
 
-### `trace_execution_path`
+#### `trace_execution_path`
 
 Trace function calls backwards from a target function (Sink) to find potential execution paths.
 
-This tool helps identify "Exploit Paths" by finding which functions call a dangerous
-target function (like 'system', 'strcpy', 'execve'). It performs a recursive
-cross-reference analysis (backtrace) to map out how execution reaches the target.
+Helps identify "Exploit Paths" by finding which functions call a dangerous target function (like 'system', 'strcpy', 'execve'). Performs recursive cross-reference analysis (backtrace).
 
 **Use Cases:**
 - **Vulnerability Analysis**: Check if user input (main/recv) reaches 'system'
 - **Reachability Analysis**: Verify if a vulnerable function is actually called
 - **Taint Analysis Helper**: Provide the path for AI to perform manual taint checking
 
-Args:
-    file_path: Path to the binary file
-    target_function: Name or address of the target function (e.g., 'sym.imp.system', '0x401000')
-    max_depth: Maximum depth of backtrace (default: 3)
-    max_paths: Maximum number of paths to return (default: 5)
-    timeout: Execution timeout in seconds
-
-Returns:
-    ToolResult with a list of execution paths (call chains).
-
 **Arguments:**
+- `file_path` (str) - Path to the binary file
+- `target_function` (str) - Name or address of the target function (e.g., 'sym.imp.system', '0x401000')
+- `max_depth` (int) - Maximum depth of backtrace (default: 3)
+- `max_paths` (int) - Maximum number of paths to return (default: 5)
+- `timeout` (int) - Execution timeout in seconds (default: 120)
 
-- `file_path` (str)
-- `target_function` (str)
-- `max_depth` (int) (default: `3`)
-- `max_paths` (int) (default: `5`)
-- `timeout` (int) (default: `120`)
+**Returns:**
+List of execution paths (call chains) from entry points to target.
 
 ---
 
-## Plugin: signature_tools
-Tools for generating YARA rules and binary signatures.
+#### `generate_function_graph`
 
-### `generate_signature`
+Generate a Control Flow Graph (CFG) for a specific function.
 
-Generate a YARA signature from opcode bytes at a specific address.
-
-This tool extracts opcode bytes from a function or code section and formats
-them as a YARA rule, enabling automated malware detection. It attempts to
-mask variable values (addresses, offsets) to create more flexible signatures.
-
-**Use Cases:**
-- Generate detection signatures for malware samples
-- Create YARA rules for threat hunting
-- Automate IOC (Indicator of Compromise) generation
-- Build malware family signatures
-
-**Workflow:**
-1. Extract opcode bytes from specified address
-2. Apply basic masking for variable values (optional)
-3. Format as YARA rule template
-4. Return ready-to-use YARA rule
-
-Args:
-    file_path: Path to the binary file (must be in workspace)
-    address: Start address for signature extraction (e.g., 'main', '0x401000')
-    length: Number of bytes to extract (default 32, recommended 16-64)
-    timeout: Execution timeout in seconds (default 300)
-
-Returns:
-    ToolResult with YARA rule string
-
-Example:
-    generate_signature("/app/workspace/malware.exe", "0x401000", 48)
-    # Returns a YARA rule with extracted byte pattern
+Uses radare2 to analyze function structure and returns a visualization code (Mermaid by default) or PNG image.
 
 **Arguments:**
+- `file_path` (str) - Path to the binary file (must be in workspace)
+- `function_address` (str) - Function address (e.g., 'main', '0x140001000', 'sym.foo')
+- `format` (str) - Output format: 'mermaid', 'json', 'dot', or 'png' (default: 'mermaid')
+- `timeout` (int) - Execution timeout in seconds (default: 120)
 
-- `file_path` (str)
-- `address` (str)
-- `length` (int) (default: `32`)
-- `timeout` (int) (default: `120`)
+**Returns:**
+CFG visualization, JSON data, or PNG image.
 
 ---
 
-### `generate_yara_rule`
+#### `analyze_xrefs`
 
-Generate a YARA rule from function bytes.
+Analyze cross-references (xrefs) for a specific address using radare2.
 
-This tool extracts bytes from a function and generates a ready-to-use
-YARA rule for malware detection and threat hunting.
+Shows relationships between code blocks - who calls this function (callers) and what it calls (callees).
 
-Args:
-    file_path: Path to the binary file (must be in workspace)
-    function_address: Function address to extract bytes from (e.g., 'main', '0x401000')
-    rule_name: Name for the YARA rule (default 'auto_generated_rule')
-    byte_length: Number of bytes to extract (default 64, max 1024)
-    timeout: Execution timeout in seconds (default 300)
-
-Returns:
-    ToolResult with YARA rule string
+**xref_type Options:**
+- **"to"**: Show who references this address (callers/jumps TO here)
+- **"from"**: Show what this address references (calls/jumps FROM here)
+- **"all"**: Show both directions (complete relationship map)
 
 **Arguments:**
+- `file_path` (str) - Path to the binary file (must be in workspace)
+- `address` (str) - Function or address to analyze (e.g., 'main', '0x401000', 'sym.decrypt')
+- `direction` (str) - Direction: 'all', 'to', 'from' (default: 'all')
+- `max_depth` (int) - Maximum depth for recursive xref analysis (default: 1)
+- `timeout` (int) - Execution timeout in seconds (default: 120)
 
-- `file_path` (str)
-- `function_address` (str)
-- `rule_name` (str) (default: `auto_generated_rule`)
-- `byte_length` (int) (default: `64`)
-- `timeout` (int) (default: `300`)
+**Returns:**
+Structured JSON with xrefs data:
+- `xrefs_to`: List of references TO this address (callers)
+- `xrefs_from`: List of references FROM this address (callees)
+- `summary`: Human-readable summary
+- `total_refs_to`, `total_refs_from`: Count statistics
 
 ---
 
-## Plugin: static_analysis
-Static analysis tools for string extraction, version scanning, and RTTI analysis.
+## Report Tools
 
-### `extract_rtti_info`
+**Plugin:** `ReportToolsPlugin` - Professional malware analysis reporting with session management, IOC tracking, and MITRE ATT&CK mapping.
 
-Extract RTTI (Run-Time Type Information) from C++ binaries.
+### Time Management Tools
 
-RTTI provides class names and inheritance hierarchies in C++ binaries,
-which is invaluable for understanding object-oriented malware and game clients.
+#### `get_system_time`
 
-Args:
-    file_path: Path to the binary file
-    timeout: Execution timeout in seconds
+Get accurate system timestamp with timezone information.
 
-Returns:
-    ToolResult with extracted class names and type information
+**Arguments:** None
 
-**Arguments:**
-
-- `file_path` (str)
-- `timeout` (int) (default: `120`)
+**Returns:**
+Current system time in ISO 8601 format with timezone.
 
 ---
 
-### `run_binwalk`
+#### `set_timezone`
 
-Analyze binaries for embedded content using binwalk.
+Set the default timezone for timestamps.
 
 **Arguments:**
+- `timezone` (str) - Timezone name (e.g., 'America/New_York', 'UTC', 'Asia/Seoul')
 
-- `file_path` (str)
-- `depth` (int) (default: `8`)
-- `max_output_size` (int) (default: `10000000`)
-- `timeout` (int) (default: `120`)
+**Returns:**
+Confirmation of timezone change.
 
 ---
 
-### `run_binwalk_extract`
+#### `get_timezone_info`
 
-Extract embedded files and file systems from a binary using binwalk.
+Get the current timezone configuration.
 
-This tool performs deep extraction of embedded content, including:
-- Compressed archives (gzip, bzip2, lzma, xz)
-- File systems (squashfs, cramfs, jffs2, ubifs)
-- Firmware images and bootloaders
-- Nested/matryoshka content (files within files)
+**Arguments:** None
 
-**Use Cases:**
-- **Firmware Analysis**: Extract file systems from router/IoT firmware
-- **Malware Unpacking**: Extract payloads from packed/embedded malware
-- **Forensics**: Recover embedded files from disk images
-- **CTF Challenges**: Extract hidden data from challenge files
-
-Args:
-    file_path: Path to the binary file to extract
-    output_dir: Directory to extract files to (default: creates temp dir)
-    matryoshka: Enable recursive extraction (files within files)
-    depth: Maximum extraction depth for nested content (default: 8)
-    max_output_size: Maximum output size in bytes
-    timeout: Extraction timeout in seconds (default: 600 for large files)
-
-Returns:
-    ToolResult with extraction summary including:
-    - extracted_files: List of extracted files with paths and types
-    - output_directory: Path to extraction output
-    - total_size: Total size of extracted content
-    - extraction_depth: Maximum depth reached during extraction
-
-Example:
-    >>> result = await run_binwalk_extract("/path/to/firmware.bin")
-    >>> print(result.data["extracted_files"])
-    [{"path": "squashfs-root/etc/passwd", "type": "ASCII text", "size": 1234}, ...]
-
-**Arguments:**
-
-- `file_path` (str)
-- `output_dir` (str) (default: `None`)
-- `matryoshka` (bool) (default: `True`)
-- `depth` (int) (default: `8`)
-- `max_output_size` (int) (default: `50000000`)
-- `timeout` (int) (default: `600`)
+**Returns:**
+Current timezone name and offset.
 
 ---
 
-### `run_strings`
+### Session Management Tools
 
-Extract printable strings using the ``strings`` CLI.
+#### `start_analysis_session`
+
+Start a new malware analysis session with metadata tracking.
 
 **Arguments:**
+- `sample_path` (str) - Path to the malware sample
+- `analyst` (str) - Analyst name
+- `severity` (str) - Initial severity assessment: 'low', 'medium', 'high', 'critical' (default: 'medium')
+- `malware_family` (str | None) - Optional malware family classification
+- `tags` (list | None) - Optional list of tags
 
-- `file_path` (str)
-- `min_length` (int) (default: `4`)
-- `max_output_size` (int) (default: `10000000`)
-- `timeout` (int) (default: `120`)
+**Returns:**
+Session ID and metadata for future reference.
 
 ---
 
-### `scan_for_versions`
+#### `end_analysis_session`
 
-Extract library version strings and CVE clues from a binary.
-
-This tool acts as a "Version Detective", scanning the binary for strings that
-look like version numbers or library identifiers (e.g., "OpenSSL 1.0.2g",
-"GCC 5.4.0"). It helps identify outdated components and potential CVEs.
-
-**Use Cases:**
-- **SCA (Software Composition Analysis)**: Identify open source components
-- **Vulnerability Scanning**: Find outdated libraries (e.g., Heartbleed-vulnerable OpenSSL)
-- **Firmware Analysis**: Determine OS and toolchain versions
-
-Args:
-    file_path: Path to the binary file
-    timeout: Execution timeout in seconds
-
-Returns:
-    ToolResult with detected libraries and versions.
+End an analysis session with status and summary.
 
 **Arguments:**
+- `session_id` (str) - Session ID to end
+- `status` (str) - Final status: 'completed', 'incomplete', 'pending_review' (default: 'completed')
+- `summary` (str) - Analysis summary and key findings
 
-- `file_path` (str)
-- `timeout` (int) (default: `120`)
+**Returns:**
+Final session report with statistics.
 
 ---
 
-## Plugin: trinity_defense
-Integrated automated defense framework (Ghost Trace, Neural Decompiler, Adaptive Vaccine).
+#### `get_session_status`
 
-### `trinity_defense`
-
-Trinity Defense System - Full-cycle automated threat detection and neutralization.
-
-This orchestrator runs a 3-phase pipeline:
-- Phase 1 (DISCOVER): Ghost Trace finds hidden threats
-- Phase 2 (UNDERSTAND): Neural Decompiler analyzes threat intent
-- Phase 3 (NEUTRALIZE): Adaptive Vaccine generates defenses
-
-Modes:
-- "discover": Phase 1 only (Ghost Trace)
-- "analyze": Phase 1+2 (Ghost Trace + Neural Decompiler)
-- "full": All 3 phases (+ Adaptive Vaccine)
-
-Args:
-    file_path: Path to the binary to analyze
-    mode: Analysis mode ("discover", "analyze", or "full")
-    max_threats: Maximum number of threats to analyze in detail (default: 5)
-    generate_vaccine: Whether to generate YARA rules (default: True)
-
-Returns:
-    ToolResult containing comprehensive threat report
+Get the current status and information for a session.
 
 **Arguments:**
+- `session_id` (str | None) - Optional session ID (default: current active session)
 
-- `file_path` (str)
-- `mode` (str) (default: `full`)
-- `max_threats` (int) (default: `5`)
-- `generate_vaccine` (bool) (default: `True`)
+**Returns:**
+Session status including:
+- Start time and duration
+- Analyst name
+- Number of IOCs collected
+- MITRE techniques identified
+- Analysis notes count
 
 ---
+
+#### `list_analysis_sessions`
+
+List all analysis sessions.
+
+**Arguments:**
+- `status` (str | None) - Optional status filter: 'active', 'completed', 'incomplete', 'pending_review'
+- `limit` (int) - Maximum sessions to return (default: 50)
+
+**Returns:**
+List of sessions with summary metadata.
+
+---
+
+### Data Collection Tools
+
+#### `add_ioc`
+
+Add an Indicator of Compromise (IOC) to the current session.
+
+**Arguments:**
+- `ioc_type` (str) - IOC type: 'ip', 'domain', 'url', 'hash', 'email', 'filename', 'registry', 'mutex'
+- `value` (str) - IOC value
+- `session_id` (str | None) - Optional session ID (default: current session)
+
+**Returns:**
+Confirmation of IOC addition with IOC ID.
+
+---
+
+#### `add_analysis_note`
+
+Add a timestamped note to the analysis session.
+
+**Arguments:**
+- `note` (str) - Note content
+- `category` (str) - Note category: 'observation', 'hypothesis', 'finding', 'question' (default: 'observation')
+- `session_id` (str | None) - Optional session ID (default: current session)
+
+**Returns:**
+Confirmation with note ID and timestamp.
+
+---
+
+#### `add_mitre_technique`
+
+Add a MITRE ATT&CK technique to the session.
+
+**Arguments:**
+- `technique_id` (str) - MITRE technique ID (e.g., 'T1055', 'T1053.005')
+- `technique_name` (str) - Human-readable technique name
+- `tactic` (str) - MITRE tactic (e.g., 'Defense Evasion', 'Persistence')
+- `session_id` (str | None) - Optional session ID (default: current session)
+
+**Returns:**
+Confirmation of technique addition.
+
+---
+
+#### `set_severity`
+
+Update the severity level of the current analysis.
+
+**Arguments:**
+- `severity` (str) - New severity: 'low', 'medium', 'high', 'critical'
+- `session_id` (str | None) - Optional session ID (default: current session)
+
+**Returns:**
+Confirmation of severity update.
+
+---
+
+### Report Generation Tools
+
+#### `create_analysis_report`
+
+Generate a comprehensive malware analysis report.
+
+Produces a professional report including:
+- Executive summary
+- Technical analysis details
+- IOC list with categorization
+- MITRE ATT&CK mapping
+- Timeline of analysis
+- Recommendations
+
+**Arguments:**
+- `template_type` (str) - Report template: 'full', 'executive', 'technical', 'ioc_only' (default: 'full')
+- `session_id` (str | None) - Optional session ID (default: current session)
+- `sample_path` (str | None) - Path to analyzed sample
+- `analyst` (str | None) - Analyst name override
+- `classification` (str) - Report classification: 'TLP:WHITE', 'TLP:GREEN', 'TLP:AMBER', 'TLP:RED' (default: 'TLP:WHITE')
+- `output_format` (str) - Output format: 'markdown', 'html', 'pdf', 'json' (default: 'markdown')
+
+**Returns:**
+Generated report content or file path.
+
+---
+
+## Summary Statistics
+
+- **Total Tools**: 96 tools
+- **Analysis Tools**: 11 tools
+- **Common Tools**: 17 tools (Memory: 11, Server: 2, File: 4, Patch: 1)
+- **Ghidra Tools**: 17 tools
+- **Malware Tools**: 5 tools
+- **Radare2 Tools**: 34 tools
+- **Report Tools**: 12 tools
+
+---
+
+## Tool Categories by Purpose
+
+### Binary Analysis
+- Disassembly: `Radare2_disassemble*`, `run_radare2`
+- Decompilation: `smart_decompile`, `get_pseudo_code`, `Radare2_decompile_function`, `Ghidra_*`
+- Structure Recovery: `recover_structures`, `Ghidra_list_structures`
+- Emulation: `emulate_machine_code`
+
+### Malware Analysis
+- Detection: `dormant_detector`, `vulnerability_hunter`, `run_yara`
+- IOC Extraction: `extract_iocs`, `add_ioc`
+- Defense Generation: `adaptive_vaccine`, `generate_yara_rule`, `generate_signature`
+- Reporting: `create_analysis_report`, `start_analysis_session`
+
+### Binary Comparison
+- Diffing: `diff_binaries`, `analyze_variant_changes`
+- Patch Analysis: `explain_patch`
+- Variant Analysis: `match_libraries`
+
+### Static Analysis
+- Strings: `run_strings`, `Radare2_list_strings`
+- Imports/Exports: `Radare2_list_imports`, `Radare2_list_symbols`
+- Sections: `Radare2_list_sections`, `Radare2_show_headers`
+- Embedded Content: `run_binwalk`, `run_binwalk_extract`
+- Version Detection: `scan_for_versions`
+- RTTI: `extract_rtti_info`
+
+### Control Flow Analysis
+- Call Graphs: `Ghidra_get_call_graph`, `Radare2_list_functions_tree`
+- CFG Generation: `generate_function_graph`
+- Xref Analysis: `analyze_xrefs`, `Radare2_xrefs_to`
+- Path Tracing: `trace_execution_path`
+
+### Project Management
+- Sessions: `create_analysis_session`, `start_analysis_session`, `resume_session`
+- Memory: `save_analysis_memory`, `recall_analysis_memory`
+- Patterns: `save_pattern`, `find_similar_patterns`
+- Monitoring: `get_server_health`, `get_tool_metrics`
+
+---
+
+**Last Updated**: 2024 (Generated from codebase analysis)
+**Reversecore MCP Version**: 0.1.0

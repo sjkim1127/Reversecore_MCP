@@ -4,7 +4,6 @@ Session management for malware analysis reports.
 Provides AnalysisSession dataclass and timezone utilities.
 """
 
-import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
@@ -13,14 +12,15 @@ from typing import Any
 
 class TimezonePreset(Enum):
     """Frequently used timezone presets"""
+
     UTC = "UTC"
-    KST = "Asia/Seoul"          # UTC+9
-    JST = "Asia/Tokyo"          # UTC+9
-    CST = "Asia/Shanghai"       # UTC+8
-    EST = "America/New_York"    # UTC-5/-4
-    PST = "America/Los_Angeles" # UTC-8/-7
-    CET = "Europe/Paris"        # UTC+1/+2
-    GMT = "Europe/London"       # UTC+0/+1
+    KST = "Asia/Seoul"  # UTC+9
+    JST = "Asia/Tokyo"  # UTC+9
+    CST = "Asia/Shanghai"  # UTC+8
+    EST = "America/New_York"  # UTC-5/-4
+    PST = "America/Los_Angeles"  # UTC-8/-7
+    CET = "Europe/Paris"  # UTC+1/+2
+    GMT = "Europe/London"  # UTC+0/+1
 
 
 # Timezone handling using standard library zoneinfo (Python 3.9+)
@@ -28,21 +28,27 @@ try:
     from zoneinfo import ZoneInfo
 except ImportError:
     # Fallback for older python versions if backports.zoneinfo not installed
-    from datetime import timezone, timedelta
-    
+    from datetime import timedelta, timezone
+
     class ZoneInfo:
         def __init__(self, key: str):
             self.key = key
-            
+
         def utcoffset(self, dt):
             # Very basic fallback - DOES NOT HANDLE DST
             # This is just to prevent crashes if zoneinfo missing
             offsets = {
-                "Asia/Seoul": 9, "Asia/Tokyo": 9, "Asia/Shanghai": 8,
-                "America/New_York": -5, "America/Los_Angeles": -8,
-                "Europe/Paris": 1, "Europe/London": 0, "UTC": 0
+                "Asia/Seoul": 9,
+                "Asia/Tokyo": 9,
+                "Asia/Shanghai": 8,
+                "America/New_York": -5,
+                "America/Los_Angeles": -8,
+                "Europe/Paris": 1,
+                "Europe/London": 0,
+                "UTC": 0,
             }
             return timedelta(hours=offsets.get(self.key, 0))
+
 
 def get_timezone(tz_name: str):
     """Get timezone object by name with DST support."""
@@ -50,6 +56,7 @@ def get_timezone(tz_name: str):
         return ZoneInfo(tz_name)
     except Exception:
         return ZoneInfo("UTC")
+
 
 # Timezone offsets (standard time)
 TIMEZONE_OFFSETS: dict[str, int] = {
@@ -79,6 +86,7 @@ TIMEZONE_ABBRS: dict[str, str] = {
 @dataclass
 class AnalysisSession:
     """Data class for tracking analysis session information"""
+
     session_id: str
     sample_path: str | None = None
     sample_name: str | None = None
@@ -93,18 +101,20 @@ class AnalysisSession:
 
     # Data collected during analysis
     findings: dict[str, Any] = field(default_factory=dict)
-    iocs: dict[str, list[str]] = field(default_factory=lambda: {
-        "hashes": [],
-        "ips": [],
-        "domains": [],
-        "urls": [],
-        "files": [],
-        "registry": [],
-        "mutexes": [],
-        "emails": [],
-        "bitcoin_addresses": [],   # For ransomware BTC wallets
-        "crypto_wallets": [],      # ETH, XMR, etc.
-    })
+    iocs: dict[str, list[str]] = field(
+        default_factory=lambda: {
+            "hashes": [],
+            "ips": [],
+            "domains": [],
+            "urls": [],
+            "files": [],
+            "registry": [],
+            "mutexes": [],
+            "emails": [],
+            "bitcoin_addresses": [],  # For ransomware BTC wallets
+            "crypto_wallets": [],  # ETH, XMR, etc.
+        }
+    )
     mitre_techniques: list[dict[str, str]] = field(default_factory=list)
     notes: list[dict[str, str]] = field(default_factory=list)
 
@@ -159,11 +169,7 @@ class AnalysisSession:
     def add_note(self, note: str, category: str = "general"):
         """Add analysis note"""
         timestamp = datetime.now(timezone.utc).isoformat()
-        self.notes.append({
-            "timestamp": timestamp,
-            "note": note,
-            "category": category
-        })
+        self.notes.append({"timestamp": timestamp, "note": note, "category": category})
 
     def add_mitre(self, technique_id: str, technique_name: str, tactic: str):
         """Add MITRE ATT&CK technique"""

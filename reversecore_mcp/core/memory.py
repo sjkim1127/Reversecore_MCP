@@ -10,7 +10,6 @@ Storage backend: SQLite with FTS5 for full-text search.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import uuid
 from contextlib import asynccontextmanager
@@ -69,10 +68,10 @@ class MemoryStore:
         self._db.row_factory = aiosqlite.Row
 
         await self._create_schema()
-        
+
         # Enable WAL mode for better concurrency
         await self._db.execute("PRAGMA journal_mode=WAL;")
-        
+
         self._initialized = True
         logger.info(f"Memory store initialized at {self.db_path} (WAL enabled)")
 
@@ -125,25 +124,25 @@ class MemoryStore:
 
         # Indexes for faster queries
         await self._db.execute("""
-            CREATE INDEX IF NOT EXISTS idx_memories_session 
+            CREATE INDEX IF NOT EXISTS idx_memories_session
             ON memories(session_id)
         """)
         await self._db.execute("""
-            CREATE INDEX IF NOT EXISTS idx_memories_type 
+            CREATE INDEX IF NOT EXISTS idx_memories_type
             ON memories(memory_type, category)
         """)
         await self._db.execute("""
-            CREATE INDEX IF NOT EXISTS idx_patterns_signature 
+            CREATE INDEX IF NOT EXISTS idx_patterns_signature
             ON patterns(pattern_signature)
         """)
         await self._db.execute("""
-            CREATE INDEX IF NOT EXISTS idx_sessions_status 
+            CREATE INDEX IF NOT EXISTS idx_sessions_status
             ON analysis_sessions(status)
         """)
 
         # FTS5 virtual table for full-text search
         await self._db.execute("""
-            CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts 
+            CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts
             USING fts5(content, content=memories, content_rowid=id)
         """)
 
@@ -155,13 +154,13 @@ class MemoryStore:
         """)
         await self._db.execute("""
             CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
-                INSERT INTO memories_fts(memories_fts, rowid, content) 
+                INSERT INTO memories_fts(memories_fts, rowid, content)
                 VALUES('delete', old.id, old.content);
             END
         """)
         await self._db.execute("""
             CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories BEGIN
-                INSERT INTO memories_fts(memories_fts, rowid, content) 
+                INSERT INTO memories_fts(memories_fts, rowid, content)
                 VALUES('delete', old.id, old.content);
                 INSERT INTO memories_fts(rowid, content) VALUES (new.id, new.content);
             END
@@ -211,7 +210,7 @@ class MemoryStore:
 
             await db.execute(
                 """
-                INSERT INTO analysis_sessions 
+                INSERT INTO analysis_sessions
                 (id, name, binary_name, binary_hash, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
@@ -261,7 +260,7 @@ class MemoryStore:
             if status:
                 cursor = await db.execute(
                     """
-                    SELECT * FROM analysis_sessions 
+                    SELECT * FROM analysis_sessions
                     WHERE status = ?
                     ORDER BY updated_at DESC
                     LIMIT ? OFFSET ?
@@ -271,7 +270,7 @@ class MemoryStore:
             else:
                 cursor = await db.execute(
                     """
-                    SELECT * FROM analysis_sessions 
+                    SELECT * FROM analysis_sessions
                     ORDER BY updated_at DESC
                     LIMIT ? OFFSET ?
                     """,
@@ -317,7 +316,7 @@ class MemoryStore:
             params.append(session_id)
 
             cursor = await db.execute(
-                f"UPDATE analysis_sessions SET {', '.join(updates)} WHERE id = ?",
+                f"UPDATE analysis_sessions SET {', '.join(updates)} WHERE id = ?",  # nosec
                 params,
             )
             await db.commit()
@@ -338,7 +337,7 @@ class MemoryStore:
             if binary_name:
                 cursor = await db.execute(
                     """
-                    SELECT * FROM analysis_sessions 
+                    SELECT * FROM analysis_sessions
                     WHERE binary_name = ?
                     ORDER BY updated_at DESC
                     LIMIT 1
@@ -348,7 +347,7 @@ class MemoryStore:
             else:
                 cursor = await db.execute(
                     """
-                    SELECT * FROM analysis_sessions 
+                    SELECT * FROM analysis_sessions
                     ORDER BY updated_at DESC
                     LIMIT 1
                     """
@@ -389,7 +388,7 @@ class MemoryStore:
 
             cursor = await db.execute(
                 """
-                INSERT INTO memories 
+                INSERT INTO memories
                 (session_id, memory_type, category, content, user_prompt, importance)
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
@@ -437,11 +436,11 @@ class MemoryStore:
             safe_query = query.replace('"', '""')
             # 2. Wrap in quotes to treat as phrase if it contains spaces or symbols
             # This prevents syntax errors from FTS5 operators in user input
-            if any(c in safe_query for c in ' .-_'):
+            if any(c in safe_query for c in " .-_"):
                 safe_query = f'"{safe_query}"'
-            
+
             # Use raw query if it seems to be an explicit FTS query (this is a heuristic)
-            if ' OR ' in query or ' AND ' in query or 'NEAR(' in query:
+            if " OR " in query or " AND " in query or "NEAR(" in query:
                 # Trust the user if they look like they know FTS syntax, but still risk error
                 # For safety in this fix, we prioritize stability over advanced syntax for raw inputs
                 # so we stick to the safe version unless we validate it.
@@ -467,9 +466,7 @@ class MemoryStore:
             except Exception as e:
                 # FTS match might fail on invalid queries, fall back to LIKE
                 logger.warning(f"FTS search failed, falling back to LIKE: {e}")
-                return await self._recall_memories_fallback(
-                    query, session_id, memory_type, limit
-                )
+                return await self._recall_memories_fallback(query, session_id, memory_type, limit)
 
     async def _recall_memories_fallback(
         self,
@@ -523,7 +520,7 @@ class MemoryStore:
             if memory_type:
                 cursor = await db.execute(
                     """
-                    SELECT * FROM memories 
+                    SELECT * FROM memories
                     WHERE session_id = ? AND memory_type = ?
                     ORDER BY importance DESC, created_at ASC
                     """,
@@ -532,7 +529,7 @@ class MemoryStore:
             else:
                 cursor = await db.execute(
                     """
-                    SELECT * FROM memories 
+                    SELECT * FROM memories
                     WHERE session_id = ?
                     ORDER BY importance DESC, created_at ASC
                     """,
@@ -568,7 +565,7 @@ class MemoryStore:
         async with self._ensure_connection() as db:
             cursor = await db.execute(
                 """
-                INSERT INTO patterns 
+                INSERT INTO patterns
                 (session_id, pattern_type, pattern_signature, description)
                 VALUES (?, ?, ?, ?)
                 """,
