@@ -12,9 +12,15 @@ import re
 import uuid
 from datetime import datetime
 from functools import lru_cache
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-import r2pipe
+# Lazy import for r2pipe to allow tests to run without it
+try:
+    import r2pipe
+    R2PIPE_AVAILABLE = True
+except ImportError:
+    r2pipe = None  # type: ignore
+    R2PIPE_AVAILABLE = False
 
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.exceptions import ValidationError
@@ -166,7 +172,7 @@ class R2Session:
     def __init__(self, file_path: str | None = None):
         self.session_id = str(uuid.uuid4())
         self.file_path = file_path
-        self._r2: r2pipe.open_sync | None = None
+        self._r2: Any = None  # r2pipe.open_sync when available
         self._analyzed = False
         self.created_at = datetime.now()
         self.status = "initialized"  # initialized, active, error, closed
@@ -175,6 +181,12 @@ class R2Session:
 
     def open(self, file_path: str) -> bool:
         """Open a binary file with radare2."""
+        if not R2PIPE_AVAILABLE:
+            self.status = "error"
+            self.last_error = "r2pipe module not installed"
+            logger.error("r2pipe module not available - install with: pip install r2pipe")
+            return False
+        
         try:
             self.close()
             # Verify file exists strictly before passing to r2
