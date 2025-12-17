@@ -239,12 +239,21 @@ end_analysis_session(summary="Ransomware detected")
 create_analysis_report(template_type="full_analysis")
 ```
 
-### ⚡ Performance Optimizations (v3.0)
-
-- **Dynamic Timeout**: Auto-scales with file size (base + 2s/MB, max +600s)
-- **Ghidra JVM**: 16GB heap for modern systems (24-32GB RAM)
-- **Sink-Aware Pruning**: 39 dangerous sink APIs for intelligent path prioritization
-- **Trace Depth Optimization**: Reduced from 3 to 2 for faster execution path analysis
+### ⚡ Performance & Reliability (v3.1)
+ 
+- **Resource Management**:
+  - **Zombie Killer**: Guaranteed subprocess termination with `try...finally` blocks
+  - **Memory Guard**: Strict 2MB limit on `strings` output to prevent OOM
+  - **Crash Isolation**: LIEF parser runs in isolated process to handle segfaults safely
+- **Optimizations**:
+  - **Dynamic Timeout**: Auto-scales with file size (base + 2s/MB, max +600s)
+  - **Ghidra JVM**: 16GB heap for modern systems (24-32GB RAM)
+  - **Sink-Aware Pruning**: 39 dangerous sink APIs for intelligent path prioritization
+  - **Trace Depth Optimization**: Reduced from 3 to 2 for faster execution path analysis
+- **Infrastructure**:
+  - **Stateless Reports**: Timezone-aware reporting without global state mutation
+  - **Robust Retries**: Decorators now correctly propagate exceptions for auto-recovery
+  - **Config-Driven**: Validation limits synchronized with central configuration
 
 ### 🛠️ Core Tools
 
