@@ -188,9 +188,9 @@ async def generate_signature(
     if _ALL_FF_PATTERN.match(hex_bytes) or _ALL_00_PATTERN.match(hex_bytes):
         # If we used -n, try again without it to force mapping
         if analysis_level == "-n":
-            from reversecore_mcp.tools.radare2.r2_analysis import _calculate_dynamic_timeout
-
-            effective_timeout = _calculate_dynamic_timeout(str(validated_path), timeout)
+            from reversecore_mcp.core.r2_helpers import calculate_dynamic_timeout
+            
+            effective_timeout = calculate_dynamic_timeout(str(validated_path))
             cmd = _build_r2_cmd(str(validated_path), r2_cmds, "aaa")
             output, _ = await execute_subprocess_async(
                 cmd,
