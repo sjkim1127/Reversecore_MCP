@@ -44,6 +44,10 @@ _FUNCTION_ADDRESS_PATTERN = re.compile(r"^[a-zA-Z0-9_.:<>]+$")
 # Uses exact match for common types (O(1) dict lookup) and substring match for compound types.
 # Note: Types appear in both collections intentionally - _TYPE_SIZES_EXACT for exact matches,
 # _TYPE_SIZES_CONTAINS for substring matching in compound types like "unsigned int".
+#
+# LIMITATION: Pointer types (void*, size_t, intptr_t) assume 64-bit architecture (8 bytes).
+# For 32-bit binaries, these should be 4 bytes. A future improvement would be to pass
+# the binary's architecture (Bits field) and adjust pointer sizes dynamically.
 _TYPE_SIZES_EXACT = {
     "char": 1,
     "byte": 1,
@@ -66,6 +70,7 @@ _TYPE_SIZES_EXACT = {
     "int64_t": 8,
     "qword": 8,
     "double": 8,
+    # Pointer-sized types - assuming 64-bit (see LIMITATION note above)
     "size_t": 8,
     "void *": 8,
     "intptr_t": 8,
@@ -501,9 +506,13 @@ async def _smart_decompile_impl(
     function_address: str,
     timeout: int = DEFAULT_TIMEOUT,
     use_ghidra: bool = True,
+    _file_mtime: float = 0.0,  # Cache key includes mtime for invalidation on file change
 ) -> ToolResult:
     """
     Internal implementation of smart_decompile with caching.
+    
+    Note: _file_mtime parameter is used for cache invalidation when the file
+    is modified (e.g., after patching with adaptive_vaccine).
     """
     # 1. Validate parameters
     validate_tool_parameters("smart_decompile", {"function_address": function_address})
@@ -617,9 +626,18 @@ async def smart_decompile(
     Returns:
         ToolResult with decompiled pseudo C code
     """
+    import os
     import time
 
-    result = await _smart_decompile_impl(file_path, function_address, timeout, use_ghidra)
+    # Get file mtime for cache invalidation (cache busts when file is modified)
+    try:
+        file_mtime = os.path.getmtime(file_path)
+    except OSError:
+        file_mtime = 0.0
+
+    result = await _smart_decompile_impl(
+        file_path, function_address, timeout, use_ghidra, _file_mtime=file_mtime
+    )
 
     # Check for cache hit
     if result.status == "success" and result.metadata:
