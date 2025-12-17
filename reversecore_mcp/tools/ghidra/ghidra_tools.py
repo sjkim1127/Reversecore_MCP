@@ -31,6 +31,7 @@ from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.plugin import Plugin
 from reversecore_mcp.core.result import ToolResult, failure, success
 from reversecore_mcp.core.security import validate_file_path
+from reversecore_mcp.core import json_utils as json  # Optimized JSON (3-5x faster)
 
 logger = get_logger(__name__)
 
@@ -218,13 +219,11 @@ async def Ghidra_create_structure(
     Returns:
         Success message with created structure info
     """
-    import json as stdlib_json
-    
     validated_path = validate_file_path(file_path)
     
     try:
-        field_list = stdlib_json.loads(fields)
-    except stdlib_json.JSONDecodeError as e:
+        field_list = json.loads(fields)
+    except json.JSONDecodeError as e:
         return failure("INVALID_FIELDS_JSON", f"Invalid fields JSON: {e}")
     
     try:
