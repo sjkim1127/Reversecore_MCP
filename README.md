@@ -231,7 +231,7 @@ generate_malware_submission(
 )
 
 # Example 2: Interactive Session
-get_system_time()                    
+get_system_time()
 start_analysis_session(sample_path="malware.exe")
 add_session_ioc("ips", "192.168.1.100")
 add_session_mitre("T1059.001", "PowerShell", "Execution")
@@ -240,7 +240,7 @@ create_analysis_report(template_type="full_analysis")
 ```
 
 ### ⚡ Performance & Reliability (v3.1)
- 
+
 - **Resource Management**:
   - **Zombie Killer**: Guaranteed subprocess termination with `try...finally` blocks
   - **Memory Guard**: Strict 2MB limit on `strings` output to prevent OOM
@@ -263,8 +263,8 @@ create_analysis_report(template_type="full_analysis")
 | **Disassembly** | \`run_radare2\`, \`disassemble_with_capstone\` |
 | **Decompilation** | \`smart_decompile\`, \`get_pseudo_code\` (Ghidra/r2) |
 | **Advanced** | \`analyze_xrefs\`, \`recover_structures\`, \`emulate_machine_code\` |
-| **Defense** | \`generate_yara_rule\`, \`adaptive_vaccine\` |
-| **Binary Parsing** | \`parse_binary_with_lief\`, \`extract_iocs\` |
+| **Malware Analysis & Vaccine** | \`dormant_detector\`, \`adaptive_vaccine\`, \`vulnerability_hunter\`, \`extract_iocs\`, \`run_yara\` |
+| **Binary Parsing** | \`parse_binary_with_lief\` |
 | **Diffing** | \`diff_binaries\`, \`match_libraries\` |
 | **Game Analysis** | \`find_cheat_points\`, \`analyze_game_protocol\` |
 | **Reporting** | \`get_system_time\`, \`start_analysis_session\`, \`create_analysis_report\` |

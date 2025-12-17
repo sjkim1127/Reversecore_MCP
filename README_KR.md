@@ -54,7 +54,7 @@ chmod +x ./scripts/install-ghidra.sh
    ```bash
    # Linux/macOS (~/.bashrc 또는 ~/.zshrc)
    export GHIDRA_INSTALL_DIR=/path/to/ghidra_11.4.3_PUBLIC_YYYYMMDD
-   
+
    # Windows (PowerShell - 영구 설정)
    [Environment]::SetEnvironmentVariable("GHIDRA_INSTALL_DIR", "C:\path\to\ghidra", "User")
    ```
@@ -219,7 +219,7 @@ generate_malware_submission(
 )
 
 # 예시 2: 대화형 세션
-get_system_time()                    
+get_system_time()
 start_analysis_session(sample_path="malware.exe")
 add_session_ioc("ips", "192.168.1.100")
 add_session_mitre("T1059.001", "PowerShell", "Execution")
@@ -228,7 +228,7 @@ create_analysis_report(template_type="full_analysis")
 ```
 
 ### ⚡ 성능 및 신뢰성 (v3.1)
- 
+
 - **리소스 관리**:
   - **좀비 킬러(Zombie Killer)**: `try...finally` 블록으로 서브프로세스 종료 보장 및 리소스 누수 방지
   - **메모리 가드(Memory Guard)**: `strings` 등 도구 출력의 엄격한 2MB 제한으로 OOM(메모리 부족) 방지
@@ -250,9 +250,12 @@ create_analysis_report(template_type="full_analysis")
 | **기본 분석** | `run_file`, `run_strings`, `run_binwalk` |
 | **디스어셈블리** | `run_radare2`, `disassemble_with_capstone` |
 | **디컴파일** | `smart_decompile`, `get_pseudo_code` (Ghidra/r2) |
-| **고급** | `analyze_xrefs`, `recover_structures`, `emulate_machine_code` |
-| **방어** | `generate_yara_rule`, `adaptive_vaccine` |
-| **바이너리 파싱** | `parse_binary_with_lief`, `extract_iocs` |
+| **악성코드 분석 및 백신 (Malware Analysis & Vaccine)** |
+    - `dormant_detector`: 휴면 기능(지연 실행) 탐지
+    - `adaptive_vaccine`: 식별된 악성 행위에 대한 백신 로직 생성
+    - `vulnerability_hunter`: 바이너리 코드 내 취약점 스캔
+    - `extract_iocs`: IP, URL, 이메일, 해시 등 침해 지표 추출
+    - `run_yara`: YARA 규칙을 사용한 파일 스캔 |
 | **비교** | `diff_binaries`, `match_libraries` |
 | **게임 분석** | `find_cheat_points`, `analyze_game_protocol` |
 | **리포팅** | `get_system_time`, `start_analysis_session`, `create_analysis_report` |
