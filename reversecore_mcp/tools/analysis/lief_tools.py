@@ -188,53 +188,85 @@ def parse_binary_with_lief(file_path: str, format: str = "json") -> ToolResult:
         max_exports = 100
         max_sections = None  # No limit
 
-    try:
-        import lief
-    except ImportError:
-        return failure(
-            "DEPENDENCY_MISSING",
-            "lief library is not installed",
-            hint="Install with: pip install lief",
-        )
-
-    try:
-        binary = lief.parse(str(validated_path))
-    except Exception as exc:  # noqa: BLE001 - lief exposes custom exception types
-        lief_error = getattr(lief, "exception", None)
-        lief_bad_file = getattr(lief, "bad_file", None)
-        if (lief_bad_file and isinstance(exc, lief_bad_file)) or (
-            lief_error and isinstance(exc, lief_error)
-        ):
-            return failure("LIEF_ERROR", f"LIEF failed to parse binary: {exc}")
-        raise
-    if binary is None:
-        return failure(
-            "UNSUPPORTED_FORMAT",
-            "Unsupported binary format",
-            hint="LIEF supports ELF, PE, and Mach-O formats",
-        )
-
-    result_data: dict[str, Any] = {
-        "format": str(binary.format).split(".")[-1].lower(),
-        "entry_point": (hex(binary.entrypoint) if hasattr(binary, "entrypoint") else None),
-    }
+    # Isolate potentially dangerous LIEF parsing in a separate process
+    # This protects the main server from C++ level crashes (segfaults) in the LIEF library
+    import concurrent.futures
     
+    try:
+        # Use ProcessPoolExecutor to run parsing in a separate process
+        with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
+            # Prepare arguments
+            future = executor.submit(
+                _run_lief_in_process, 
+                str(validated_path), 
+                max_imports, 
+                max_exports, 
+                max_sections
+            )
+            
+            # Wait for result with timeout
+            try:
+                result_data = future.result(timeout=60) # 60s timeout for LIEF
+            except concurrent.futures.TimeoutError:
+                # Kill the worker via shutdown (not perfect but best effort)
+                executor.shutdown(wait=False, cancel_futures=True)
+                return failure(
+                    "TIMEOUT",
+                    "LIEF parsing timed out (possible hang in C++ library)",
+                )
+            except concurrent.futures.ProcessBrokenExecutor:
+                # This catches SEGFAULTs!
+                return failure(
+                    "CRASH_DETECTED",
+                    "LIEF parser crashed (segmentation fault detected). Analysis aborted safely.",
+                    hint="The file may be malformed intentionally to crash analysis tools."
+                )
+            except Exception as e:
+                return failure("LIEF_ERROR", f"LIEF failed to parse binary: {e}")
+
+    except Exception as e:
+        return failure("EXECUTION_ERROR", f"Failed to run LIEF isolation: {e}")
+
     # P2: Add warning if extraction was limited
     if extraction_warning:
         result_data["_warning"] = extraction_warning
-
-    # P2: Apply extraction limits based on file size
-    sections = _extract_sections(binary)
-    if sections:
-        if max_sections is not None:
-            sections = sections[:max_sections]
-        result_data["sections"] = sections
-
-    symbols = _extract_symbols(binary, max_imports=max_imports, max_exports=max_exports)
-    result_data.update(symbols)
 
     if format.lower() == "json":
         return success(result_data)
 
     formatted_text = _format_lief_output(result_data, format)
     return success(formatted_text)
+
+
+def _run_lief_in_process(file_path: str, max_imports: int, max_exports: int, max_sections: int | None) -> dict[str, Any]:
+    """
+    Worker function to run LIEF parsing in a separate process.
+    Must be a standalone function (not closure) to be picklable.
+    """
+    import lief
+    
+    try:
+        binary = lief.parse(file_path)
+    except Exception as exc:
+        raise RuntimeError(f"LIEF parse failed: {exc}")
+
+    if binary is None:
+        raise ValueError("Unsupported binary format")
+
+    result_data: dict[str, Any] = {
+        "format": str(binary.format).split(".")[-1].lower(),
+        "entry_point": (hex(binary.entrypoint) if hasattr(binary, "entrypoint") else None),
+    }
+
+    # Extract sections
+    sections = _extract_sections(binary)
+    if sections:
+        if max_sections is not None:
+            sections = sections[:max_sections]
+        result_data["sections"] = sections
+
+    # Extract symbols
+    symbols = _extract_symbols(binary, max_imports=max_imports, max_exports=max_exports)
+    result_data.update(symbols)
+    
+    return result_data

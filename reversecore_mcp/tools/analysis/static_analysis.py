@@ -55,8 +55,8 @@ _RTTI_CLASS_PATTERNS = (
 @handle_tool_errors
 async def run_strings(
     file_path: str,
-    min_length: int = 4,
-    max_output_size: int = 10_000_000,
+    min_length: int = 10,  # Increased default from 4 to 10 to reduce noise and memory usage
+    max_output_size: int = 2_000_000,  # Reduced default to 2MB for safety
     timeout: int = DEFAULT_TIMEOUT,
 ) -> ToolResult:
     """Extract printable strings using the ``strings`` CLI."""
@@ -66,13 +66,20 @@ async def run_strings(
         {"min_length": min_length, "max_output_size": max_output_size},
     )
 
+    # Enforce strict output limits
+    if max_output_size > 10_000_000:
+        max_output_size = 10_000_000  # Cap at 10MB hard limit
+
     # Enforce a reasonable minimum output size to prevent accidental truncation
-    # 1KB is too small for meaningful string analysis
     if max_output_size < MIN_OUTPUT_SIZE:
         max_output_size = MIN_OUTPUT_SIZE
 
     validated_path = validate_file_path(file_path)
+    
+    # Use -n option to filter short strings at source
     cmd = ["strings", "-n", str(min_length), str(validated_path)]
+    
+    # Use execute_subprocess_async which now has robust streaming and memory limits
     output, bytes_read = await execute_subprocess_async(
         cmd,
         max_output_size=max_output_size,

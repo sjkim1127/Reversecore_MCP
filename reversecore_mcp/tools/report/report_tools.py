@@ -99,15 +99,12 @@ class ReportTools:
                 "available": list(TIMEZONE_OFFSETS.keys())
             }
 
-        self.default_timezone = tz
-        self.timezone_offset = TIMEZONE_OFFSETS[tz]
-
         return {
             "success": True,
             "timezone": tz,
-            "utc_offset": f"UTC{'+' if self.timezone_offset >= 0 else ''}{self.timezone_offset}",
+            "utc_offset": f"UTC{'+' if offset >= 0 else ''}{offset}",
             "abbreviation": TIMEZONE_ABBRS.get(tz, ""),
-            "current_time": self._format_time(datetime.now(timezone.utc))
+            "current_time": self._format_time(datetime.now(timezone.utc), tz_name=tz)
         }
 
     def get_timezone_info(self) -> dict:
@@ -131,13 +128,16 @@ class ReportTools:
         local_tz = timezone(timedelta(hours=self.timezone_offset))
         return utc_now.astimezone(local_tz)
 
-    def _format_time(self, dt: datetime, include_tz: bool = True) -> str:
+    def _format_time(self, dt: datetime, include_tz: bool = True, tz_name: str | None = None) -> str:
         """Format datetime to configured timezone"""
-        local_tz = timezone(timedelta(hours=self.timezone_offset))
+        target_tz_name = tz_name or self.default_timezone
+        offset = TIMEZONE_OFFSETS.get(target_tz_name, 0)
+        
+        local_tz = timezone(timedelta(hours=offset))
         local_dt = dt.astimezone(local_tz)
 
         if include_tz:
-            abbr = TIMEZONE_ABBRS.get(self.default_timezone, f"UTC{'+' if self.timezone_offset >= 0 else ''}{self.timezone_offset}")
+            abbr = TIMEZONE_ABBRS.get(target_tz_name, f"UTC{'+' if offset >= 0 else ''}{offset}")
             return f"{local_dt.strftime('%Y-%m-%d %H:%M:%S')} ({abbr})"
         return local_dt.strftime('%Y-%m-%d %H:%M:%S')
 
@@ -145,14 +145,18 @@ class ReportTools:
     # Timestamp Generation
     # =========================================================================
 
-    def get_timestamp_data(self) -> dict:
+    def get_timestamp_data(self, tz_name: str | None = None) -> dict:
         """
         Generate accurate timestamp data at OS level.
         Provided directly from server to prevent AI from guessing dates.
         """
+        target_tz_name = tz_name or self.default_timezone
+        offset = TIMEZONE_OFFSETS.get(target_tz_name, 0)
+        
         utc_now = datetime.now(timezone.utc)
-        local_now = self._get_local_time()
-        abbr = TIMEZONE_ABBRS.get(self.default_timezone, "")
+        local_tz = timezone(timedelta(hours=offset))
+        local_now = utc_now.astimezone(local_tz)
+        abbr = TIMEZONE_ABBRS.get(target_tz_name, "")
 
         return {
             # For Report ID generation
@@ -169,7 +173,7 @@ class ReportTools:
             "time": local_now.strftime("%H:%M:%S"),
             "time_12h": local_now.strftime("%I:%M:%S %p"),  # 02:30:45 PM
             "datetime": local_now.strftime("%Y-%m-%d %H:%M:%S"),
-            "datetime_full": self._format_time(utc_now),
+            "datetime_full": self._format_time(utc_now, tz_name=target_tz_name),
             "datetime_iso": local_now.isoformat(),
 
             # UTC based
@@ -186,9 +190,9 @@ class ReportTools:
             "weekday_short": local_now.strftime("%a"),     # Thu
 
             # Timezone info
-            "timezone": self.default_timezone,
+            "timezone": target_tz_name,
             "timezone_abbr": abbr,
-            "timezone_offset": f"UTC{'+' if self.timezone_offset >= 0 else ''}{self.timezone_offset}",
+            "timezone_offset": f"UTC{'+' if offset >= 0 else ''}{offset}",
 
             # System info
             "hostname": platform.node(),
@@ -496,14 +500,15 @@ class ReportTools:
         analyst: str = "Security Researcher",
         classification: str = "TLP:AMBER",
         custom_fields: dict | None = None,
-        output_format: str = "markdown"
+        output_format: str = "markdown",
+        timezone: str | None = None  # Add per-request timezone
     ) -> dict:
         """
         Generate an analysis report.
         If a session exists, session data is automatically included.
         """
-        # 타임스탬프 생성 (서버 시간 기준)
-        ts = self.get_timestamp_data()
+        # 타임스탬프 생성 (서버 시간 기준, 타임존 지정 가능)
+        ts = self.get_timestamp_data(tz_name=timezone)
 
         # 템플릿 로드
         template_path = self.template_dir / f"{template_type}.md"

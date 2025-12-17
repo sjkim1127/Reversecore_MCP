@@ -14,6 +14,10 @@ import threading
 from collections.abc import Coroutine
 from typing import Any
 
+from reversecore_mcp.core.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 from reversecore_mcp.core.exceptions import (
     ExecutionTimeoutError,
     ToolNotFoundError,
@@ -123,13 +127,26 @@ async def execute_subprocess_async(
                     output_chunks.append(decoded_chunk)
 
         # Wait for process to complete with timeout
+        # Wait for process to complete with timeout
         try:
             await asyncio.wait_for(read_stream(), timeout=timeout)
             await asyncio.wait_for(process.wait(), timeout=1.0)
         except asyncio.TimeoutError:
-            process.kill()
-            await process.wait()
+            logger.warning(f"Command timed out after {timeout}s: {' '.join(cmd)}")
             raise ExecutionTimeoutError(timeout)
+        finally:
+            # Critical: Ensure process is terminated to prevent zombies
+            if process.returncode is None:
+                try:
+                    process.kill()
+                    # Wait for process to die to reap the zombie
+                    # We can't await indefinitely here, but usually kill is fast
+                    try:
+                        await asyncio.wait_for(process.wait(), timeout=2.0)
+                    except asyncio.TimeoutError:
+                        logger.error(f"Process {process.pid} refused to die after kill")
+                except Exception as e:
+                    logger.error(f"Failed to kill process {process.pid}: {e}")
 
         # Read any remaining stderr
         stderr_data = await process.stderr.read()
@@ -156,17 +173,12 @@ async def execute_subprocess_async(
 
         return output_text, bytes_read
 
-    except asyncio.TimeoutError:
-        process.kill()
-        await process.wait()
-        raise ExecutionTimeoutError(timeout)
-    except Exception:
-        # Ensure process is terminated
-        try:
-            process.kill()
-            await process.wait()
-        except Exception:
-            pass
+    except ImportError:
+        # Re-raise import errors (e.g. from missing dependencies)
+        raise
+    except Exception as e:
+        if not isinstance(e, (ToolNotFoundError, ExecutionTimeoutError, subprocess.CalledProcessError)):
+             logger.error(f"Command execution failed: {e}")
         raise
 
 
