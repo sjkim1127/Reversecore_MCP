@@ -83,6 +83,14 @@ class GhidraManager:
                 logger.error(f"Failed to start Ghidra JVM: {e}")
                 raise
 
+    def _close_project(self, file_path: str, ctx: Any) -> None:
+        """Properly close a Ghidra project context manager."""
+        try:
+            ctx.__exit__(None, None, None)
+            logger.info(f"Closed Ghidra project: {file_path}")
+        except Exception as e:
+            logger.warning(f"Error closing Ghidra project {file_path}: {e}")
+
     def _get_project(self, file_path: str):
         """Get or load a project for the given file."""
         with self._project_lock:
@@ -92,16 +100,13 @@ class GhidraManager:
                 self._projects[file_path] = val
                 return val
 
-            # Evict if needed
+            # Evict if needed - properly close the context manager
             if len(self._projects) >= self._max_projects:
-                oldest_path, (oldest_prog, oldest_api) = (
+                oldest_path, (oldest_prog, oldest_api, oldest_ctx) = (
                     self._projects.popitem()
                 )  # pop first (oldest)
                 logger.info(f"Evicting Ghidra project: {oldest_path}")
-                # Note: We can't easily 'close' a FlatProgram created via open_program
-                # if we want to be safe, but we can release references.
-                # In a real persistent scenario, we might need to handle transactions.
-                # For now, we just drop the reference.
+                self._close_project(oldest_path, oldest_ctx)
 
             logger.info(f"Loading Ghidra project: {file_path}")
             # We use open_program but we need to keep it alive.
@@ -111,11 +116,17 @@ class GhidraManager:
             flat_api = ctx.__enter__()
             program = flat_api.getCurrentProgram()
 
-            # Store context too so we can exit it later if needed (though we might just keep it open)
-            # Actually, if we exit the context, it might close the program.
-            # So we keep the context open until eviction.
+            # Store context so we can exit it on eviction
             self._projects[file_path] = (program, flat_api, ctx)
             return program, flat_api, ctx
+
+    def close_all(self) -> None:
+        """Close all cached projects. Call on shutdown to prevent resource leaks."""
+        with self._project_lock:
+            for path, (prog, api, ctx) in list(self._projects.items()):
+                self._close_project(path, ctx)
+            self._projects.clear()
+            logger.info("All Ghidra projects closed")
 
     def decompile(self, file_path: str, function_address: str | None = None) -> str:
         """
