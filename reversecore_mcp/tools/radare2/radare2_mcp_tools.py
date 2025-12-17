@@ -57,6 +57,7 @@ class Radare2ToolsPlugin(Plugin):
     def __init__(self):
         self._sessions: dict[str, R2Session] = {} # session_id -> Session
         self._file_to_session: dict[str, str] = {} # file_path -> session_id
+        self._lock = asyncio.Lock()  # Protects session creation race conditions
 
     def _diagnose_error(self, file_path: str, error: Exception) -> dict[str, Any]:
         """Diagnose why r2 failed to open a file."""
@@ -79,45 +80,58 @@ class Radare2ToolsPlugin(Plugin):
         
         return diagnosis
 
-    def _get_or_create_session(self, file_path: str, auto_analyze: bool = False) -> R2Session:
+    async def _get_or_create_session(self, file_path: str, auto_analyze: bool = False) -> R2Session:
         """
         Get existing session or create new one with strict validation.
+        Protected by lock to prevent race conditions.
         """
         # 1. Normalize Path
         try:
             validated_path = validate_file_path(file_path)
             file_path = str(validated_path)
         except ValidationError:
-            # If validation fails, we can't proceed safely
-            # Return a dummy session that is not open, caller will handle is_open check
             return R2Session(file_path)
 
-        # 2. Check existing session
-        if file_path in self._file_to_session:
-            sid = self._file_to_session[file_path]
-            if sid in self._sessions:
-                session = self._sessions[sid]
-                if session.is_open:
-                    return session
-                else:
-                    # Clean up dead session
-                    del self._sessions[sid]
-                    del self._file_to_session[file_path]
+        async with self._lock:
+            # 2. Check existing session (double-checked locking pattern)
+            if file_path in self._file_to_session:
+                sid = self._file_to_session[file_path]
+                if sid in self._sessions:
+                    session = self._sessions[sid]
+                    if session.is_open:
+                        return session
+                    else:
+                        # Stale session, remove it
+                        del self._sessions[sid]
+                        del self._file_to_session[file_path]
 
-        # 3. Create new session
-        session = R2Session(file_path)
-        if session.open(file_path):
-            self._sessions[session.session_id] = session
-            self._file_to_session[file_path] = session.session_id
-            
-            if auto_analyze:
-                session.analyze(1)
-            return session
-            
-        # 4. Open failed - Log diagnosis
-        # Note: We don't return diagnosis here as return type is R2Session
-        # The caller (Radare2_open_file) should handle the error diagnosis
-        return session
+            # 3. Create new session (blocking I/O wrapped in thread)
+            try:
+                # Validate file availability again inside lock
+                if not os.path.exists(file_path):
+                     raise ValueError(f"File not found: {file_path}")
+                
+                # Use to_thread for blocking R2 spawning
+                session = await asyncio.to_thread(R2Session, file_path)
+                
+                # 4. Store session
+                self._sessions[session.session_id] = session
+                self._file_to_session[file_path] = session.session_id
+                
+                # 5. Auto analyze if requested
+                if auto_analyze:
+                    # Async analysis call (assuming session.analyze is async or needs wrapping)
+                    # For now, R2Session methods are sync, so we wrap them
+                    await asyncio.to_thread(session.cmd, "aaa")
+                    
+                return session
+
+            except Exception as e:
+                logger.error(f"Failed to create R2 session for {file_path}: {e}")
+                # Return dummy session on error
+                return R2Session(file_path)
+
+
 
     def _ensure_analyzed(self, session: R2Session, level: int = 1) -> None:
         """
@@ -157,7 +171,7 @@ class Radare2ToolsPlugin(Plugin):
             except ValidationError as e:
                 return {"status": "error", "message": str(e), "error_code": "INVALID_PATH"}
 
-            session = self._get_or_create_session(abs_path)
+            session = await self._get_or_create_session(abs_path)
             
             if session.is_open:
                 return {
@@ -236,7 +250,7 @@ class Radare2ToolsPlugin(Plugin):
             if not isinstance(level, int) or level < 0 or level > 4:
                 return {"status": "error", "message": "level must be 0-4"}
 
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -272,7 +286,7 @@ class Radare2ToolsPlugin(Plugin):
             except ValidationError as e:
                 return {"status": "error", "message": str(e)}
 
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -303,7 +317,7 @@ class Radare2ToolsPlugin(Plugin):
             except ValidationError as e:
                 return {"status": "error", "message": str(e)}
 
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -336,7 +350,7 @@ class Radare2ToolsPlugin(Plugin):
             Returns:
                 List of functions with addresses and names
             """
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -370,7 +384,7 @@ class Radare2ToolsPlugin(Plugin):
             Returns:
                 Function call tree
             """
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -392,7 +406,7 @@ class Radare2ToolsPlugin(Plugin):
             Returns:
                 Detailed function information
             """
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -421,7 +435,7 @@ class Radare2ToolsPlugin(Plugin):
             Returns:
                 Current address and function name
             """
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -455,7 +469,7 @@ class Radare2ToolsPlugin(Plugin):
             except ValidationError as e:
                 return {"status": "error", "message": str(e)}
 
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -490,7 +504,7 @@ class Radare2ToolsPlugin(Plugin):
             if not safe_prototype:
                 return {"status": "error", "message": "Invalid prototype"}
 
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -514,7 +528,7 @@ class Radare2ToolsPlugin(Plugin):
             Returns:
                 Binary header information
             """
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -540,7 +554,7 @@ class Radare2ToolsPlugin(Plugin):
             Returns:
                 Sections and segments information
             """
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -570,7 +584,7 @@ class Radare2ToolsPlugin(Plugin):
             Returns:
                 List of imports
             """
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -596,7 +610,7 @@ class Radare2ToolsPlugin(Plugin):
             Returns:
                 List of symbols
             """
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -620,7 +634,7 @@ class Radare2ToolsPlugin(Plugin):
             Returns:
                 Entrypoint information
             """
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -640,7 +654,7 @@ class Radare2ToolsPlugin(Plugin):
             Returns:
                 List of linked libraries
             """
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -666,7 +680,7 @@ class Radare2ToolsPlugin(Plugin):
             Returns:
                 List of strings with pagination
             """
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -708,7 +722,7 @@ class Radare2ToolsPlugin(Plugin):
             Returns:
                 List of all strings with pagination
             """
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -748,7 +762,7 @@ class Radare2ToolsPlugin(Plugin):
             Returns:
                 List of classes
             """
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -780,7 +794,7 @@ class Radare2ToolsPlugin(Plugin):
             except ValidationError as e:
                 return {"status": "error", "message": str(e)}
 
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -823,7 +837,7 @@ class Radare2ToolsPlugin(Plugin):
             if num_instructions > 1000:
                 num_instructions = 1000
 
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -855,7 +869,7 @@ class Radare2ToolsPlugin(Plugin):
             except ValidationError as e:
                 return {"status": "error", "message": str(e)}
 
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -900,7 +914,7 @@ class Radare2ToolsPlugin(Plugin):
             except ValidationError as e:
                 return {"status": "error", "message": str(e)}
 
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -930,7 +944,7 @@ class Radare2ToolsPlugin(Plugin):
             Returns:
                 List of available decompilers
             """
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -952,7 +966,7 @@ class Radare2ToolsPlugin(Plugin):
             Returns:
                 Confirmation or error
             """
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -1004,7 +1018,7 @@ class Radare2ToolsPlugin(Plugin):
             except ValidationError as e:
                 return {"status": "error", "message": str(e)}
 
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -1039,7 +1053,7 @@ class Radare2ToolsPlugin(Plugin):
             except ValidationError as e:
                 return {"status": "error", "message": str(e)}
 
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -1073,7 +1087,7 @@ class Radare2ToolsPlugin(Plugin):
             except ValidationError as e:
                 return {"status": "error", "message": str(e)}
 
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
@@ -1110,7 +1124,7 @@ class Radare2ToolsPlugin(Plugin):
             if not safe_message:
                 return {"status": "error", "message": "Comment message is empty or invalid"}
 
-            session = self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 

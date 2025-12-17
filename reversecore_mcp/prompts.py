@@ -1231,12 +1231,14 @@ def register_prompts(mcp: FastMCP):
         [STEP 2] Perform Analysis
         Conduct your analysis using appropriate tools:
 
-        ```
-        run_file("{filename}")
-        run_strings("{filename}")
-        parse_binary_with_lief("{filename}")
-        extract_iocs("{filename}")
-        dormant_detector("{filename}")
+        # 1. Start session
+        create_analysis_session(file_path="{filename}")
+
+        # 2. Extract metadata
+        parse_binary_with_lief(file_path="{filename}")
+        
+        # 3. Analyze code
+        # ...dormant_detector("{filename}")
         ```
 
         [STEP 3] Collect IOCs During Analysis
