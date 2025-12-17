@@ -1,5 +1,5 @@
 # Reversecore_MCP Dockerfile with Multi-stage Build
-# 
+#
 # This Dockerfile uses a multi-stage build to reduce final image size and improve security.
 # Build stage includes compilation tools, while runtime stage only contains necessary dependencies.
 #
@@ -149,7 +149,7 @@ RUN wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gp
 
 # Set JAVA_HOME environment variable (required for PyGhidra to find Java 21 JDK)
 ENV JAVA_HOME="/usr/lib/jvm/temurin-21-jdk-hotspot"
-# Note: Debian adoptium package usually links to -hotspot suffix regardless of arch, 
+# Note: Debian adoptium package usually links to -hotspot suffix regardless of arch,
 # or we can rely on standard java in path.
 # Updating PATH guarantees java works.
 
@@ -173,6 +173,9 @@ COPY server.py ./
 
 # Copy resources (AI knowledge base)
 COPY resources/ /app/resources/
+
+# Copy templates (Report templates)
+COPY templates/ /app/templates/
 
 
 # Set Python path to use the venv and configure application
