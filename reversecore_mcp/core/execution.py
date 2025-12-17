@@ -95,6 +95,11 @@ async def execute_subprocess_async(
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
+        
+        # Track PID for zombie cleanup in case of abnormal termination
+        from reversecore_mcp.core.resource_manager import resource_manager
+        resource_manager.track_pid(process.pid)
+        
     except FileNotFoundError:
         # Extract command name from cmd list
         tool_name = cmd[0] if cmd else "unknown"

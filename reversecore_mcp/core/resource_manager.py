@@ -8,6 +8,9 @@ to prevent resource exhaustion over time.
 import asyncio
 import time
 
+import os
+from contextlib import suppress
+
 from reversecore_mcp.core import config
 from reversecore_mcp.core.logging_config import get_logger
 
@@ -17,35 +20,48 @@ logger = get_logger(__name__)
 class ResourceManager:
     """
     Manages background cleanup tasks.
+    
+    Responsibilities:
+    1. Clean up stale temporary files (disk)
+    2. Reap zombie processes (kernel)
     """
 
-    def __init__(self, cleanup_interval: int = 3600):  # Default: 1 hour
+    def __init__(self, cleanup_interval: int = 3600, pid_check_interval: int = 60):  # Default: 1h files, 60s PIDs
         self.cleanup_interval = cleanup_interval
+        self.pid_check_interval = pid_check_interval
         self._task: asyncio.Task | None = None
+        self._pid_task: asyncio.Task | None = None
         self._running = False
+        self._tracked_pids: set[int] = set()
+
+    def track_pid(self, pid: int) -> None:
+        """Track a subprocess PID for zombie cleanup."""
+        self._tracked_pids.add(pid)
 
     async def start(self):
-        """Start the background cleanup task."""
+        """Start the background cleanup tasks."""
         if self._running:
             return
 
         self._running = True
         self._task = asyncio.create_task(self._cleanup_loop())
-        logger.info(f"Resource Manager started (interval: {self.cleanup_interval}s)")
+        self._pid_task = asyncio.create_task(self._pid_check_loop())
+        logger.info(
+            f"Resource Manager started (cleanup: {self.cleanup_interval}s, pid_check: {self.pid_check_interval}s)"
+        )
 
     async def stop(self):
-        """Stop the background cleanup task."""
+        """Stop all background cleanup tasks."""
         self._running = False
-        if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                pass
+        for task in [self._task, self._pid_task]:
+            if task:
+                task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await task
         logger.info("Resource Manager stopped")
 
     async def _cleanup_loop(self):
-        """Main cleanup loop."""
+        """Main resource cleanup loop (files, logs)."""
         while self._running:
             try:
                 await asyncio.sleep(self.cleanup_interval)
@@ -54,6 +70,45 @@ class ResourceManager:
                 break
             except Exception as e:
                 logger.error(f"Error in cleanup loop: {e}")
+
+    async def _pid_check_loop(self):
+        """FAST PID health check loop (zombies)."""
+        while self._running:
+            try:
+                await asyncio.sleep(self.pid_check_interval)
+                self._reap_zombies()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in PID check loop: {e}")
+
+    def _reap_zombies(self):
+        """Reap tracked zombie processes."""
+        if not self._tracked_pids:
+            return
+
+        reaped_count = 0
+        dead_pids = set()
+
+        for pid in list(self._tracked_pids):
+            try:
+                # Check if process is still alive and defunct
+                # waitpid with WNOHANG returns (pid, status) if dead, (0, 0) if running
+                wpid, status = os.waitpid(pid, os.WNOHANG)
+                if wpid > 0:
+                    # Process was a zombie and is now reaped
+                    dead_pids.add(pid)
+                    reaped_count += 1
+            except ChildProcessError:
+                # Process already gone or not our child
+                dead_pids.add(pid)
+            except Exception as e:
+                logger.debug(f"Failed to check PID {pid}: {e}")
+
+        if dead_pids:
+            self._tracked_pids -= dead_pids
+            if reaped_count > 0:
+                logger.info(f"Reaped {reaped_count} zombie processes")
 
     async def cleanup(self):
         """Perform cleanup operations."""

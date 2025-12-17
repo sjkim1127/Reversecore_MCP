@@ -1,58 +1,58 @@
 # Reversecore_MCP Python Dependencies
 #
 # Core MCP framework (Latest: v2.13.1 - Nov 15, 2025)
-fastmcp>=2.13.0
+fastmcp==2.13.1
 
 # MCP SDK - explicitly pinned to fix CVE-2025-66416 (DNS Rebinding vulnerability)
+# Note: Current env has 1.22.0, but we mandate >=1.23.0 for security.
 mcp>=1.23.0
 
 # Data validation for tool responses
-pydantic>=2.6.0
+pydantic==2.12.5
 
 # Settings management with environment variables
-pydantic-settings>=2.2.0
+pydantic-settings==2.12.0
 
 # Radare2 Python bindings (preferred over subprocess for stability)
-r2pipe>=1.7.0
+r2pipe>=1.7.0  # Kept open as not present in env
 
 # YARA Python bindings
 yara-python==4.5.4
 
-
 # LIEF binary parsing library
-lief>=0.13.0
+lief==0.17.1
 
 # Rate limiting for HTTP mode
-slowapi>=0.1.9
+slowapi>=0.1.9  # Kept open
 
 # Caching for async functions
-async-lru>=2.0.4
+async-lru==2.0.5
 
 # Async file I/O
-aiofiles>=23.2.0
+aiofiles==25.1.0
 
 # Async SQLite for AI memory storage
-aiosqlite>=0.19.0
+aiosqlite>=0.19.0  # Kept open
 
 # Async SMTP for non-blocking email sending
-aiosmtplib>=3.0.0
+aiosmtplib==5.0.0
 
 # Symbolic Execution
-angr>=9.2.0
+angr>=9.2.0  # Kept open
 
 # Additional dependencies for HTTP transport mode
 # fastmcp may include these, but we need them explicitly for server.py
-fastapi>=0.100.0
-uvicorn>=0.23.0
-python-multipart>=0.0.20
+fastapi>=0.100.0  # fastmcp dependency
+uvicorn==0.38.0
+python-multipart==0.0.20
 
 # Ghidra Python bindings (optional for enhanced decompilation)
 # Note: pyghidra 2.2.0 is compatible with Ghidra 11.2 installed in Dockerfile
 pyghidra>=2.0.0,<4.0.0
-jpype1>=1.4.0  # PyGhidra dependency
+jpype1>=1.4.0
 
 # Environment variable management
-python-dotenv>=1.0.0
+python-dotenv==1.2.1
 
 # High-performance JSON parsing (3-5x faster than standard json)
 # Note: Using >=3.9.15 to avoid recursion depth vulnerability
