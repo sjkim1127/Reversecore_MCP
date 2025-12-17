@@ -7,6 +7,7 @@ when external tools (like Radare2 or Ghidra) become unstable.
 
 import functools
 import inspect
+import threading
 import time
 from collections.abc import Callable
 from enum import Enum
@@ -28,7 +29,7 @@ class CircuitState(Enum):
 
 class CircuitBreaker:
     """
-    Circuit Breaker implementation.
+    Circuit Breaker implementation with thread-safe state transitions.
 
     If a tool fails 'failure_threshold' times within a window, the circuit opens
     and blocks requests for 'recovery_timeout' seconds.
@@ -43,51 +44,55 @@ class CircuitBreaker:
         self.failures = 0
         self.last_failure_time = 0.0
         self.next_attempt_time = 0.0
+        
+        # Thread lock for atomic state transitions
+        self._lock = threading.Lock()
 
     def allow_request(self) -> bool:
-        """Check if a request is allowed."""
-        if self.state == CircuitState.CLOSED:
-            return True
-
-        if self.state == CircuitState.OPEN:
-            if time.time() >= self.next_attempt_time:
-                logger.info(f"Circuit {self.name} entering HALF_OPEN state")
-                self.state = CircuitState.HALF_OPEN
+        """Check if a request is allowed (thread-safe)."""
+        with self._lock:
+            if self.state == CircuitState.CLOSED:
                 return True
-            return False
 
-        if self.state == CircuitState.HALF_OPEN:
-            # Allow one request to test recovery
-            # In a real concurrent system, we might need a lock here to allow ONLY one.
-            # For simplicity, we allow requests in HALF_OPEN, and the first success/fail determines fate.
+            if self.state == CircuitState.OPEN:
+                if time.time() >= self.next_attempt_time:
+                    logger.info(f"Circuit {self.name} entering HALF_OPEN state")
+                    self.state = CircuitState.HALF_OPEN
+                    return True
+                return False
+
+            if self.state == CircuitState.HALF_OPEN:
+                # Only one request allowed in HALF_OPEN - lock ensures this
+                return True
+
             return True
-
-        return True
 
     def record_success(self):
-        """Record a successful execution."""
-        if self.state == CircuitState.HALF_OPEN:
-            logger.info(f"Circuit {self.name} recovered (CLOSED)")
-            self.state = CircuitState.CLOSED
-            self.failures = 0
-        elif self.state == CircuitState.CLOSED:
-            self.failures = 0
+        """Record a successful execution (thread-safe)."""
+        with self._lock:
+            if self.state == CircuitState.HALF_OPEN:
+                logger.info(f"Circuit {self.name} recovered (CLOSED)")
+                self.state = CircuitState.CLOSED
+                self.failures = 0
+            elif self.state == CircuitState.CLOSED:
+                self.failures = 0
 
     def record_failure(self):
-        """Record a failed execution."""
-        self.failures += 1
-        self.last_failure_time = time.time()
+        """Record a failed execution (thread-safe)."""
+        with self._lock:
+            self.failures += 1
+            self.last_failure_time = time.time()
 
-        if self.state == CircuitState.CLOSED:
-            if self.failures >= self.failure_threshold:
-                logger.warning(f"Circuit {self.name} opened due to {self.failures} failures")
+            if self.state == CircuitState.CLOSED:
+                if self.failures >= self.failure_threshold:
+                    logger.warning(f"Circuit {self.name} opened due to {self.failures} failures")
+                    self.state = CircuitState.OPEN
+                    self.next_attempt_time = time.time() + self.recovery_timeout
+
+            elif self.state == CircuitState.HALF_OPEN:
+                logger.warning(f"Circuit {self.name} failed recovery, reopening")
                 self.state = CircuitState.OPEN
                 self.next_attempt_time = time.time() + self.recovery_timeout
-
-        elif self.state == CircuitState.HALF_OPEN:
-            logger.warning(f"Circuit {self.name} failed recovery, reopening")
-            self.state = CircuitState.OPEN
-            self.next_attempt_time = time.time() + self.recovery_timeout
 
 
 # Global registry of circuit breakers

@@ -133,7 +133,9 @@ def _validate_r2_command(command: str) -> None:
             )
 
     # Block shell metacharacters in command
-    if any(c in command for c in ["`", "$", "|", "&", ">", "<", "\n", "\r"]):
+    # SECURITY: `;` is critical - it allows command chaining in radare2
+    # Example attack: "px 10; !rm -rf /" would execute both commands
+    if any(c in command for c in ["`", "$", ";", "|", "&", ">", "<", "~", "\n", "\r"]):
         raise ValidationError("Command contains forbidden shell metacharacters")
 
 

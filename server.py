@@ -5,7 +5,10 @@ This module initializes the FastMCP server and registers all available tools.
 It includes health and metrics endpoints for monitoring in HTTP mode.
 """
 
+import asyncio
+import re
 import shutil
+import uuid
 from contextlib import asynccontextmanager
 
 from fastmcp import FastMCP
@@ -369,18 +372,37 @@ def main():
             Returns:
                 JSON response with file path and status
             """
+            def _secure_filename(filename: str) -> str:
+                """Sanitize filename to prevent path traversal and injection."""
+                # Remove path components
+                filename = filename.replace("/", "_").replace("\\", "_")
+                # Remove dangerous characters, keep only safe ones
+                filename = re.sub(r'[^\w\-.]', '_', filename)
+                # Limit length
+                if len(filename) > 200:
+                    name, ext = filename.rsplit('.', 1) if '.' in filename else (filename, '')
+                    filename = name[:195] + ('.' + ext if ext else '')
+                return filename or "unnamed_file"
+            
+            def _save_file_sync(file_path, file_obj):
+                """Synchronous file save - run in thread to avoid blocking."""
+                with open(file_path, "wb") as buffer:
+                    shutil.copyfileobj(file_obj, buffer)
+            
             try:
                 # Ensure workspace exists
                 workspace = settings.workspace
                 workspace.mkdir(parents=True, exist_ok=True)
 
-                # Save uploaded file to workspace
-                file_path = workspace / file.filename
+                # SECURITY: Sanitize filename and add UUID prefix to prevent overwrites
+                original_filename = file.filename or "unnamed"
+                safe_filename = f"{uuid.uuid4().hex[:8]}_{_secure_filename(original_filename)}"
+                file_path = workspace / safe_filename
 
-                with open(file_path, "wb") as buffer:
-                    shutil.copyfileobj(file.file, buffer)
+                # PERFORMANCE: Use asyncio.to_thread to avoid blocking event loop
+                await asyncio.to_thread(_save_file_sync, file_path, file.file)
 
-                logger.info(f"File uploaded: {file.filename} -> {file_path}")
+                logger.info(f"File uploaded: {original_filename} -> {file_path}")
 
                 return JSONResponse(
                     content={
@@ -388,7 +410,8 @@ def main():
                         "message": "File uploaded successfully",
                         "file_path": str(file_path),
                         "workspace_path": str(file_path),
-                        "filename": file.filename,
+                        "original_filename": original_filename,
+                        "safe_filename": safe_filename,
                         "size": file_path.stat().st_size,
                     }
                 )
