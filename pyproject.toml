@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 dependencies = [
+    # Core MCP server dependencies
     "mcp[cli]>=1.0.0",
     "fastmcp",
     "fastapi",
@@ -14,19 +15,44 @@ dependencies = [
     "aiofiles",
     "pydantic>=2.0",
     "loguru",
-    "psutil",
-    "requests",
-    "typer",
-    "rich",
     "orjson",
+]
+
+[project.optional-dependencies]
+# Binary analysis tools
+analysis = [
     "pefile",
     "lief",
     "capstone",
     "keystone-engine",
     "yara-python",
+    "r2pipe>=1.7.0",
+]
+
+# Visualization (CFG, graphs)
+viz = [
     "graphviz",
     "networkx",
     "matplotlib",
+]
+
+# Ghidra integration
+ghidra = [
+    "pyghidra>=2.0.0,<4.0.0",
+    "jpype1>=1.4.0",
+]
+
+# CLI and utilities
+cli = [
+    "psutil",
+    "requests",
+    "typer",
+    "rich",
+]
+
+# Full installation (all features)
+full = [
+    "reversecore-mcp[analysis,viz,ghidra,cli]",
 ]
 
 [tool.ruff]
