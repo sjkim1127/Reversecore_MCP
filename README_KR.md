@@ -218,6 +218,28 @@ docker build -t reversecore-mcp:latest .
 - **성능 메트릭**: 도구 실행 시간, 오류율, 호출 횟수 추적 (`get_tool_metrics`)
 - **자동 복구**: 일시적 장애에 대응하는 지수 백오프 기반 자동 재시도 메커니즘
 
+### 🖥️ 웹 대시보드 (NEW)
+
+LLM 없이 바이너리 분석을 위한 시각적 인터페이스:
+
+```bash
+# HTTP 모드로 서버 시작
+MCP_TRANSPORT=http MCP_API_KEY=your-secret-key python server.py
+
+# 대시보드 접속
+open http://localhost:8000/dashboard/
+```
+
+**기능:**
+- **Overview**: 업로드된 파일 목록 및 통계
+- **Analysis**: 함수 목록, 디스어셈블리 뷰어
+- **IOCs**: 추출된 URL, IP, 이메일, 문자열
+
+**보안:**
+- XSS 방지를 위한 HTML 이스케이프
+- 경로 탐색(Path Traversal) 방지
+- API 키 인증 (선택사항)
+
 ### 📝 리포트 생성 (v3.1)
 
 정확한 타임스탬프를 포함한 전문적인 악성코드 분석 리포트 생성:

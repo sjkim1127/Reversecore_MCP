@@ -218,6 +218,28 @@ Built-in observability tools for enterprise environments:
 - **Performance Metrics**: Track tool execution times, error rates, and call counts (`get_tool_metrics`)
 - **Auto-Recovery**: Automatic retry mechanism with exponential backoff for transient failures
 
+### 🖥️ Web Dashboard (NEW)
+
+Visual interface for binary analysis without LLM:
+
+```bash
+# Start server in HTTP mode
+MCP_TRANSPORT=http MCP_API_KEY=your-secret-key python server.py
+
+# Access dashboard
+open http://localhost:8000/dashboard/
+```
+
+**Features:**
+- **Overview**: File list with upload stats
+- **Analysis**: Functions list, disassembly viewer
+- **IOCs**: Extracted URLs, IPs, emails, strings
+
+**Security:**
+- XSS protection with HTML sanitization
+- Path traversal prevention
+- API key authentication (optional)
+
 ### 📝 Report Generation (v3.1)
 
 Professional malware analysis report generation with accurate timestamps:
