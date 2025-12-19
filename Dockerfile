@@ -77,13 +77,12 @@ RUN curl -sSL "https://github.com/VirusTotal/yara/archive/refs/tags/v${YARA_VERS
 # - Binary analysis (aaa, afl, afi)
 # - String and import extraction (iz, ii)
 # - Hex dump and byte printing (px, p8)
-RUN curl -sSL "https://github.com/radareorg/radare2/releases/download/${RADARE2_VERSION}/radare2-${RADARE2_VERSION}.tar.xz" -o /tmp/radare2.tar.xz \
-    && tar -xJf /tmp/radare2.tar.xz -C /tmp \
-    && cd /tmp/radare2-${RADARE2_VERSION} \
+RUN git clone --depth 1 --branch ${RADARE2_VERSION} https://github.com/radareorg/radare2.git /tmp/radare2 \
+    && cd /tmp/radare2 \
     && ./configure --prefix=/opt/radare2 \
     && make -j"$(nproc)" \
     && make install \
-    && rm -rf /tmp/radare2*
+    && rm -rf /tmp/radare2
 
 # Download and install Ghidra for enhanced decompilation
 # Ghidra provides industry-standard decompilation with better type recovery
