@@ -31,7 +31,7 @@ async def run_file(file_path: str, timeout: int = DEFAULT_TIMEOUT) -> ToolResult
         timeout=timeout,
     )
     output = output.strip()
-    
+
     # Try to infer mime type from output (simple heuristic)
     mime_type = "application/octet-stream"
     if "text" in output.lower():
@@ -40,13 +40,13 @@ async def run_file(file_path: str, timeout: int = DEFAULT_TIMEOUT) -> ToolResult
         mime_type = "application/x-executable"
     elif "image" in output.lower():
         mime_type = "image/" + output.split()[0].lower()
-        
+
     return success(
         {
             "file_type": output,
             "file_path": str(validated_path),
             "file_name": validated_path.name,
-            "mime_type": mime_type
+            "mime_type": mime_type,
         },
         bytes_read=bytes_read,
         raw_output=output,
@@ -132,10 +132,10 @@ def copy_to_workspace(
     # the file between exists() check and copy2() call
     try:
         # mode 'xb' = exclusive create + binary, fails if file already exists
-        with open(destination, 'xb') as dest_file:
-            with open(source, 'rb') as src_file:
+        with open(destination, "xb") as dest_file:
+            with open(source, "rb") as src_file:
                 shutil.copyfileobj(src_file, dest_file)
-        
+
         # Preserve metadata (like copy2)
         shutil.copystat(source, destination)
         copied_size = destination.stat().st_size
@@ -233,7 +233,7 @@ async def scan_workspace(
     import asyncio
 
     from reversecore_mcp.core import json_utils as json
-    from reversecore_mcp.tools.common.lib_tools import parse_binary_with_lief
+    from reversecore_mcp.tools.analysis.lief_tools import parse_binary_with_lief
 
     config = get_config()
     workspace = config.workspace
@@ -350,4 +350,3 @@ async def scan_workspace(
 
 # Note: FileOperationsPlugin has been removed.
 # The file operation tools are now registered via CommonToolsPlugin in common/__init__.py.
-

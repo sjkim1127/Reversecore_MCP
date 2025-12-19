@@ -10,18 +10,20 @@ import re
 import shutil
 import time
 import uuid
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
 import aiofiles
+
 try:
     import magic
 except ImportError:
     magic = None
 
 from fastmcp import FastMCP
-from reversecore_mcp.core.audit import audit_logger, AuditAction
-from reversecore_mcp.core.config import get_config, TransportMode
+
+from reversecore_mcp.core.audit import AuditAction, audit_logger
+from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.logging_config import get_logger, setup_logging
 from reversecore_mcp.core.resource_manager import resource_manager
 
@@ -41,7 +43,7 @@ async def server_lifespan(server: FastMCP) -> AsyncGenerator[None, None]:
     # Startup
     logger.info("🚀 Reversecore MCP Server starting...")
     settings = get_config()
-    
+
     # 1. Ensure workspace exists
     try:
         settings.workspace.mkdir(parents=True, exist_ok=True)
@@ -92,23 +94,23 @@ async def server_lifespan(server: FastMCP) -> AsyncGenerator[None, None]:
     # Initialize async resources (e.g. SQLite memory)
     # This ensures "lazy" resources are ready before first request
     from reversecore_mcp.core.execution import initialize_async
-    
+
     await initialize_async()
     logger.info("Async resources initialized")
-    
+
     # Start cleanup task
     cleanup_task = asyncio.create_task(_cleanup_old_files())
-    
+
     # ============================================================================
     # SERVER RUNNING (yield control)
     # ============================================================================
     yield
-    
+
     # ============================================================================
     # SHUTDOWN
     # ============================================================================
     logger.info("🛑 Reversecore MCP Server shutting down...")
-    
+
     # Stop Resource Manager
     await resource_manager.stop()
 
@@ -128,19 +130,19 @@ async def server_lifespan(server: FastMCP) -> AsyncGenerator[None, None]:
         await cleanup_task
     except asyncio.CancelledError:
         pass
-        
+
     try:
         # Perform cleanup
         from reversecore_mcp.core.ghidra_manager import ghidra_manager
-        
+
         ghidra_manager.close_all()
-        
+
         # Cleanup temp directory if it exists
         temp_dir = settings.workspace / "tmp"
         if temp_dir.exists():
             shutil.rmtree(temp_dir, ignore_errors=True)
             logger.info("Cleaned up temporary directory")
-            
+
     except Exception as e:
         logger.error(f"Error during shutdown cleanup: {e}")
 
@@ -169,58 +171,64 @@ async def _cleanup_old_files():
     settings = get_config()
     retention_seconds = settings.file_retention_minutes * 60
     logger.info(f"Started workspace cleaner (Retention: {settings.file_retention_minutes} mins)")
-    
+
     while True:
         try:
             # Check every hour (or frequent enough)
             await asyncio.sleep(3600)
-            
+
             workspace = settings.workspace
             if not workspace.exists():
                 continue
-                
+
             now = time.time()
             count = 0
-            
+
             # Scan only tmp/ or uploads/ if organized, but here we scan workspace root files carefully
-            # Usually safer to scan a dedicated uploads/tmp folder. 
+            # Usually safer to scan a dedicated uploads/tmp folder.
             # Assuming temporary files are in workspace root.
             # We will conservatively clean only things that look temp or explicitly marked.
             # For now, let's target the 'tmp' folder and specific file patterns if needed.
-            
-            targets = [workspace / "tmp", workspace] # Include workspace root for files not in 'tmp'
-            
+
+            targets = [
+                workspace / "tmp",
+                workspace,
+            ]  # Include workspace root for files not in 'tmp'
+
             for target_dir in targets:
                 if not target_dir.exists():
                     continue
-                    
+
                 for p in target_dir.rglob("*"):
                     if p.is_file():
                         # Check mtime
                         if now - p.stat().st_mtime > retention_seconds:
                             # Only delete files that are clearly temporary or uploaded
                             # This is a safety measure to avoid deleting user's important files
-                            if p.name.startswith(f"{uuid.UUID(int=0).hex[:8]}_") or p.suffix in [".tmp", ".r2_"]: # Placeholder for UUID prefix
+                            if p.name.startswith(f"{uuid.UUID(int=0).hex[:8]}_") or p.suffix in [
+                                ".tmp",
+                                ".r2_",
+                            ]:  # Placeholder for UUID prefix
                                 try:
                                     p.unlink()
                                     count += 1
                                 except Exception:
                                     pass
-            
+
             if count > 0:
                 logger.info(f"Cleaner: Removed {count} old files")
-                
+
         except asyncio.CancelledError:
             break
         except Exception as e:
             logger.error(f"Cleaner task error: {e}")
-            await asyncio.sleep(300) # Retry sooner on error
+            await asyncio.sleep(300)  # Retry sooner on error
 
 
 async def _validate_file_magic(file_path: str, filename: str):
     """
     Validate file content matches extension using libmagic.
-    
+
     prevents malicious renaming (e.g. malware.exe -> report.pdf).
     """
     if not magic:
@@ -231,20 +239,41 @@ async def _validate_file_magic(file_path: str, filename: str):
         # Get MIME type from content
         mime = magic.from_file(file_path, mime=True)
         ext = filename.lower().split(".")[-1] if "." in filename else ""
-        
+
         # Define suspicious mismatches
         # executing header but safe extension
-        is_executable = mime in ["application/x-dosexec", "application/x-executable", "application/x-elf", "application/x-mach-binary"]
-        is_safe_ext = ext in ["txt", "pdf", "json", "yml", "yaml", "md", "csv", "log", "png", "jpg", "jpeg", "gif"]
-        
+        is_executable = mime in [
+            "application/x-dosexec",
+            "application/x-executable",
+            "application/x-elf",
+            "application/x-mach-binary",
+        ]
+        is_safe_ext = ext in [
+            "txt",
+            "pdf",
+            "json",
+            "yml",
+            "yaml",
+            "md",
+            "csv",
+            "log",
+            "png",
+            "jpg",
+            "jpeg",
+            "gif",
+        ]
+
         if is_executable and is_safe_ext:
             logger.warning(f"SECURITY: Executable content detected in {filename} (MIME: {mime})")
-            # In high security mode, we might delete it. 
+            # In high security mode, we might delete it.
             # For now, log a prominent warning or rename it to .dangerous
             import os
+
             new_path = file_path + ".dangerous"
             os.rename(file_path, new_path)
-            raise ValueError(f"Security Alert: File {filename} contains executable code but has safe extension. Renamed to .dangerous")
+            raise ValueError(
+                f"Security Alert: File {filename} contains executable code but has safe extension. Renamed to .dangerous"
+            )
 
     except Exception as e:
         if "Security Alert" in str(e):
@@ -256,19 +285,12 @@ async def _validate_file_magic(file_path: str, filename: str):
 
 
 # Initialize the FastMCP server with lifespan management
-# Added Metadata for OpenAPI/Swagger
-mcp = FastMCP(
-    name="Reversecore_MCP", 
-    lifespan=server_lifespan,
-    title="Reversecore MCP",
-    description="Advanced Malware Analysis & Reverse Engineering Platform",
-    version="1.0.0"
-)
+mcp = FastMCP(name="Reversecore_MCP", lifespan=server_lifespan)
 
 # Register plugins dynamically
-import os
+import os  # noqa: E402
 
-from reversecore_mcp.core.loader import PluginLoader
+from reversecore_mcp.core.loader import PluginLoader  # noqa: E402
 
 # Initialize plugin loader
 loader = PluginLoader()
@@ -304,7 +326,6 @@ resources.register_resources(mcp)
 from reversecore_mcp.tools.report.report_mcp_tools import register_report_tools  # noqa: E402
 
 # Register report tools for malware analysis reporting
-from reversecore_mcp.tools.report.report_mcp_tools import register_report_tools  # noqa: E402
 
 report_tools = register_report_tools(mcp)
 logger.info("Registered report tools")
@@ -312,8 +333,9 @@ logger.info("Registered report tools")
 # ============================================================================
 # Security Middleware
 # ============================================================================
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
+from starlette.middleware.base import BaseHTTPMiddleware  # noqa: E402
+from starlette.requests import Request  # noqa: E402
+
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -323,6 +345,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Content-Security-Policy"] = "default-src 'self'"
         return response
+
 
 # Access underlying FastAPI app to add middleware
 # Note: FastMCP 2.13.1 exposes _fastapi_app or we can use mcp.fastapi_app if available
@@ -436,7 +459,7 @@ def main():
             redoc_url="/redoc",
             openapi_url="/openapi.json",
             dependencies=dependencies,  # Apply authentication globally
-            lifespan=app_lifespan, # Register lifespan
+            lifespan=app_lifespan,  # Register lifespan
         )
         app.mount("/mcp", mcp_app)
 
@@ -536,18 +559,19 @@ def main():
             Returns:
                 JSON response with file path and status
             """
+
             def _secure_filename(filename: str) -> str:
                 """Sanitize filename to prevent path traversal and injection."""
                 # Remove path components
                 filename = filename.replace("/", "_").replace("\\", "_")
                 # Remove dangerous characters, keep only safe ones
-                filename = re.sub(r'[^\w\-.]', '_', filename)
+                filename = re.sub(r"[^\w\-.]", "_", filename)
                 # Limit length
                 if len(filename) > 200:
-                    name, ext = filename.rsplit('.', 1) if '.' in filename else (filename, '')
-                    filename = name[:195] + ('.' + ext if ext else '')
+                    name, ext = filename.rsplit(".", 1) if "." in filename else (filename, "")
+                    filename = name[:195] + ("." + ext if ext else "")
                 return filename or "unnamed_file"
-            
+
             try:
                 # Ensure workspace exists
                 workspace = settings.workspace
@@ -560,11 +584,11 @@ def main():
 
                 # PERFORMANCE: Use aiofiles for non-blocking async I/O
                 # This prevents blocking the event loop during large file uploads
-                
-                async with aiofiles.open(file_path, 'wb') as out_file:
+
+                async with aiofiles.open(file_path, "wb") as out_file:
                     while content := await file.read(1024 * 64):  # 64KB chunks
                         await out_file.write(content)
-                
+
                 # Security: Validate file content (Magic Number)
                 try:
                     await _validate_file_magic(str(file_path), safe_filename)
@@ -573,7 +597,7 @@ def main():
                         AuditAction.FILE_UPLOAD,
                         safe_filename,
                         "FAILURE",
-                        details={"error": str(e), "path": str(file_path)}
+                        details={"error": str(e), "path": str(file_path)},
                     )
                     # Cleanup malicious file
                     try:
@@ -586,7 +610,7 @@ def main():
                     AuditAction.FILE_UPLOAD,
                     safe_filename,
                     "SUCCESS",
-                    details={"path": str(file_path)}
+                    details={"path": str(file_path)},
                 )
 
                 logger.info(f"File uploaded successfully: {safe_filename} ({file_path})")
@@ -627,7 +651,9 @@ def main():
             app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
         except ImportError:
             # slowapi unavailable: log warning as this is a security risk
-            logger.warning("slowapi not installed: Rate limiting is DISABLED. This is a security risk in production.")
+            logger.warning(
+                "slowapi not installed: Rate limiting is DISABLED. This is a security risk in production."
+            )
         except Exception as e:
             # Version mismatch or other error
             logger.warning(f"Failed to setup rate limiting: {e}")

@@ -15,6 +15,7 @@ SECURITY PHILOSOPHY:
 
 from __future__ import annotations
 
+import asyncio
 import os
 import shutil
 from typing import Any
@@ -30,6 +31,8 @@ from reversecore_mcp.core.validators import validate_address_format
 
 # Import session management and utilities from r2_session module
 from reversecore_mcp.tools.radare2.r2_session import (
+    DEFAULT_PAGE_SIZE,
+    MAX_PAGE_SIZE,
     R2Session,
     _filter_lines_by_regex,
     _filter_named_functions,
@@ -38,8 +41,6 @@ from reversecore_mcp.tools.radare2.r2_session import (
     _validate_expression,
     _validate_identifier,
     _validate_r2_command,
-    DEFAULT_PAGE_SIZE,
-    MAX_PAGE_SIZE,
 )
 
 logger = get_logger(__name__)
@@ -55,8 +56,8 @@ class Radare2ToolsPlugin(Plugin):
     description = "Radare2 binary analysis tools (r2mcp compatible)"
 
     def __init__(self):
-        self._sessions: dict[str, R2Session] = {} # session_id -> Session
-        self._file_to_session: dict[str, str] = {} # file_path -> session_id
+        self._sessions: dict[str, R2Session] = {}  # session_id -> Session
+        self._file_to_session: dict[str, str] = {}  # file_path -> session_id
         self._lock = asyncio.Lock()  # Protects session creation race conditions
 
     def _diagnose_error(self, file_path: str, error: Exception) -> dict[str, Any]:
@@ -65,19 +66,23 @@ class Radare2ToolsPlugin(Plugin):
             "error": str(error),
             "file_exists": os.path.exists(file_path),
             "is_file": os.path.isfile(file_path) if os.path.exists(file_path) else False,
-            "permissions": oct(os.stat(file_path).st_mode)[-3:] if os.path.exists(file_path) else "N/A",
+            "permissions": oct(os.stat(file_path).st_mode)[-3:]
+            if os.path.exists(file_path)
+            else "N/A",
             "file_size": os.path.getsize(file_path) if os.path.exists(file_path) else 0,
             "r2_available": shutil.which("radare2") is not None,
-            "hints": []
+            "hints": [],
         }
-        
+
         if not diagnosis["file_exists"]:
-            diagnosis["hints"].append("Check if the file path is correct (relative to /app/workspace?)")
+            diagnosis["hints"].append(
+                "Check if the file path is correct (relative to /app/workspace?)"
+            )
         elif not diagnosis["is_file"]:
-             diagnosis["hints"].append("Path exists but is not a file (directory?)")
+            diagnosis["hints"].append("Path exists but is not a file (directory?)")
         elif diagnosis["file_size"] == 0:
-             diagnosis["hints"].append("File is empty (0 bytes)")
-        
+            diagnosis["hints"].append("File is empty (0 bytes)")
+
         return diagnosis
 
     async def _get_or_create_session(self, file_path: str, auto_analyze: bool = False) -> R2Session:
@@ -109,29 +114,27 @@ class Radare2ToolsPlugin(Plugin):
             try:
                 # Validate file availability again inside lock
                 if not os.path.exists(file_path):
-                     raise ValueError(f"File not found: {file_path}")
-                
+                    raise ValueError(f"File not found: {file_path}")
+
                 # Use to_thread for blocking R2 spawning
                 session = await asyncio.to_thread(R2Session, file_path)
-                
+
                 # 4. Store session
                 self._sessions[session.session_id] = session
                 self._file_to_session[file_path] = session.session_id
-                
+
                 # 5. Auto analyze if requested
                 if auto_analyze:
                     # Async analysis call (assuming session.analyze is async or needs wrapping)
                     # For now, R2Session methods are sync, so we wrap them
                     await asyncio.to_thread(session.cmd, "aaa")
-                    
+
                 return session
 
             except Exception as e:
                 logger.error(f"Failed to create R2 session for {file_path}: {e}")
                 # Return dummy session on error
                 return R2Session(file_path)
-
-
 
     def _ensure_analyzed(self, session: R2Session, level: int = 1) -> None:
         """
@@ -172,7 +175,7 @@ class Radare2ToolsPlugin(Plugin):
                 return {"status": "error", "message": str(e), "error_code": "INVALID_PATH"}
 
             session = await self._get_or_create_session(abs_path)
-            
+
             if session.is_open:
                 return {
                     "status": "success",
@@ -180,18 +183,20 @@ class Radare2ToolsPlugin(Plugin):
                     "file_path": abs_path,
                     "session_id": session.session_id,
                     "file_size": os.path.getsize(abs_path) if os.path.exists(abs_path) else 0,
-                    "status_code": "OPENED"
+                    "status_code": "OPENED",
                 }
-            
+
             # Diagnose failure
-            diagnosis = self._diagnose_error(abs_path, Exception(session.last_error or "Unknown error"))
+            diagnosis = self._diagnose_error(
+                abs_path, Exception(session.last_error or "Unknown error")
+            )
             return {
-                "status": "error", 
+                "status": "error",
                 "message": f"Failed to open file: {session.last_error}",
                 "error_code": "R2_OPEN_FAILED",
                 "diagnosis": diagnosis,
                 "hints": diagnosis["hints"],
-                "attempts": 1
+                "attempts": 1,
             }
 
         @mcp.tool()
@@ -208,7 +213,7 @@ class Radare2ToolsPlugin(Plugin):
             try:
                 validated_path = validate_file_path(file_path)
                 abs_path = str(validated_path)
-                
+
                 # Check mapping
                 if abs_path in self._file_to_session:
                     sid = self._file_to_session[abs_path]
@@ -216,8 +221,12 @@ class Radare2ToolsPlugin(Plugin):
                         self._sessions[sid].close()
                         del self._sessions[sid]
                     del self._file_to_session[abs_path]
-                    return {"status": "success", "message": "File closed successfully", "session_id": sid}
-                
+                    return {
+                        "status": "success",
+                        "message": "File closed successfully",
+                        "session_id": sid,
+                    }
+
                 return {"status": "success", "message": "File was not open (no active session)"}
             except ValidationError as e:
                 return {"status": "error", "message": str(e)}
@@ -1141,11 +1150,12 @@ class Radare2ToolsPlugin(Plugin):
         # =====================================================================
         # Import and register advanced analysis tools for unified plugin management
         from reversecore_mcp.tools.radare2.r2_analysis import (
+            analyze_xrefs,
+            generate_function_graph,
             run_radare2,
             trace_execution_path,
-            generate_function_graph,
-            analyze_xrefs,
         )
+
         mcp.tool(run_radare2)
         mcp.tool(trace_execution_path)
         mcp.tool(generate_function_graph)

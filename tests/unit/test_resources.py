@@ -298,7 +298,9 @@ class TestDynamicResources:
                 "reversecore_mcp.tools.static_analysis.run_strings",
                 return_value=mock_strings_result,
             ),
-            patch("reversecore_mcp.tools.lib_tools.extract_iocs", return_value=mock_ioc_result),
+            patch(
+                "reversecore_mcp.tools.malware.ioc_tools.extract_iocs", return_value=mock_ioc_result
+            ),
         ):
             result = await iocs_func("malware.exe")
             assert "# IOC Report for malware.exe" in result
@@ -458,7 +460,12 @@ class TestDynamicResources:
                 {"name": "orphan1", "address": "0x401000", "size": 100, "xrefs": 0}
             ],
             "suspicious_logic": [
-                {"function": "suspicious1", "address": "0x402000", "instruction": "cmp eax, 0xdeadbeef", "reason": "Magic values"}
+                {
+                    "function": "suspicious1",
+                    "address": "0x402000",
+                    "instruction": "cmp eax, 0xdeadbeef",
+                    "reason": "Magic values",
+                }
             ],
         }
 
