@@ -102,7 +102,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile.arm64
+          file: ./Dockerfile
           platforms: linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
@@ -131,7 +131,7 @@ jobs:
         run: |
           # Use dynamic tag based on ref_name (branch or tag)
           REF_NAME=${{ github.ref_name }}
-          
+
           # For latest tag (only on main branch push)
           if [[ "${{ github.ref_name }}" == "main" ]]; then
             docker manifest create ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
@@ -139,7 +139,7 @@ jobs:
               ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-arm64
             docker manifest push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           fi
-          
+
           # For version tags (v*) or feature branches
           docker manifest create ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${REF_NAME} \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${REF_NAME} \
