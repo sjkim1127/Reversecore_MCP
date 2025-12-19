@@ -133,8 +133,10 @@ class Radare2ToolsPlugin(Plugin):
 
             except Exception as e:
                 logger.error(f"Failed to create R2 session for {file_path}: {e}")
-                # Return dummy session on error
-                return R2Session(file_path)
+                # Raise exception instead of returning dummy session that may also fail
+                from reversecore_mcp.core.exceptions import ToolExecutionError
+
+                raise ToolExecutionError(f"Cannot open file with radare2: {file_path}") from e
 
     def _ensure_analyzed(self, session: R2Session, level: int = 1) -> None:
         """

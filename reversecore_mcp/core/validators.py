@@ -9,8 +9,8 @@ from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.exceptions import ValidationError
 
 # Pre-compile address validation pattern for performance
-# Allow alphanumeric, dots, underscores, and C++ symbol chars (:, <, >, ~, *, &, [, ])
-_ADDRESS_PATTERN = re.compile(r"^[a-zA-Z0-9_:.<>~*&\[\]]+$")
+# Allow alphanumeric, dots, underscores, and C++ symbol chars (:, <, >, ~, *, &, [, ], (, ), -, ,, @)
+_ADDRESS_PATTERN = re.compile(r"^[a-zA-Z0-9_:.<>~*&\[\]()\-,@]+$")
 
 # OPTIMIZATION: Pre-compile pattern for hex prefix removal
 _HEX_PREFIX_PATTERN = re.compile(r"^0[xX]")
