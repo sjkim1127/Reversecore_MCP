@@ -25,9 +25,13 @@ class AnalysisToolsPlugin(Plugin):
     def register(self, mcp_server: Any) -> None:
         """Register all analysis tools."""
         # Import tool functions from submodules
+        from reversecore_mcp.tools.analysis.die_tools import (
+            detect_packer,
+            detect_packer_deep,
+        )
         from reversecore_mcp.tools.analysis.diff_tools import (
-            diff_binaries,
             analyze_variant_changes,
+            diff_binaries,
             match_libraries,
         )
         from reversecore_mcp.tools.analysis.lief_tools import parse_binary_with_lief
@@ -36,11 +40,11 @@ class AnalysisToolsPlugin(Plugin):
             generate_yara_rule,
         )
         from reversecore_mcp.tools.analysis.static_analysis import (
-            run_strings,
+            extract_rtti_info,
             run_binwalk,
             run_binwalk_extract,
+            run_strings,
             scan_for_versions,
-            extract_rtti_info,
         )
 
         # Register all tools
@@ -55,8 +59,10 @@ class AnalysisToolsPlugin(Plugin):
         mcp_server.tool(run_binwalk_extract)
         mcp_server.tool(scan_for_versions)
         mcp_server.tool(extract_rtti_info)
+        mcp_server.tool(detect_packer)
+        mcp_server.tool(detect_packer_deep)
 
-        logger.info(f"Registered {self.name} plugin with 11 analysis tools (unified)")
+        logger.info(f"Registered {self.name} plugin with 13 analysis tools (unified)")
 
 
 __all__ = ["AnalysisToolsPlugin"]

@@ -134,6 +134,8 @@ RUN apt-get update \
     binwalk \
     # Graphviz for CFG image generation (FastMCP Image support)
     graphviz \
+    # Detect It Easy for packer/compiler detection
+    detect-it-easy \
     # Required for Adoptium GPG key
     wget \
     gnupg \
