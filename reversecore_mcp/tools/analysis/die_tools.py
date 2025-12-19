@@ -9,7 +9,7 @@ import shutil
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.execution import execute_subprocess_async
 from reversecore_mcp.core.logging_config import get_logger
-from reversecore_mcp.core.result import ToolResult
+from reversecore_mcp.core.result import success, failure
 from reversecore_mcp.core.security import validate_file_path
 
 logger = get_logger(__name__)
@@ -90,7 +90,7 @@ def _parse_die_output(output: str) -> dict:
 
 
 @log_execution()
-async def detect_packer(file_path: str) -> ToolResult:
+async def detect_packer(file_path: str):
     """
     Detect packer, compiler, and protector using Detect It Easy (DIE).
 
@@ -110,9 +110,10 @@ async def detect_packer(file_path: str) -> ToolResult:
 
     # Check if DIE is available
     if not _is_die_available():
-        return ToolResult.error_result(
-            "Detect It Easy (diec) is not installed. "
-            "Install with: apt install detect-it-easy (Linux) or brew install detect-it-easy (macOS)"
+        return failure(
+            error_code="DIE_NOT_INSTALLED",
+            message="Detect It Easy (diec) is not installed. "
+            "Install with: apt install detect-it-easy (Linux) or brew install detect-it-easy (macOS)",
         )
 
     # Run DIE
@@ -122,7 +123,7 @@ async def detect_packer(file_path: str) -> ToolResult:
             timeout_seconds=30,
         )
     except Exception as e:
-        return ToolResult.error_result(f"DIE execution failed: {e}")
+        return failure(error_code="DIE_EXECUTION_ERROR", message=f"DIE execution failed: {e}")
 
     # Parse output
     result = _parse_die_output(output)
@@ -130,20 +131,18 @@ async def detect_packer(file_path: str) -> ToolResult:
     # Determine if packed
     is_packed = result["packer"] is not None or result["protector"] is not None
 
-    return ToolResult.success_result(
+    return success(
         data=result,
         message=f"Detected: {result['file_type'] or 'Unknown'}"
         + (f" | Packer: {result['packer']}" if result["packer"] else "")
         + (f" | Compiler: {result['compiler']}" if result["compiler"] else ""),
-        metadata={
-            "is_packed": is_packed,
-            "detection_count": len(result["detections"]),
-        },
+        is_packed=is_packed,
+        detection_count=len(result["detections"]),
     )
 
 
 @log_execution()
-async def detect_packer_deep(file_path: str) -> ToolResult:
+async def detect_packer_deep(file_path: str):
     """
     Deep scan with DIE for more thorough detection.
 
@@ -158,7 +157,10 @@ async def detect_packer_deep(file_path: str) -> ToolResult:
     validated_path = validate_file_path(file_path)
 
     if not _is_die_available():
-        return ToolResult.error_result("Detect It Easy (diec) is not installed.")
+        return failure(
+            error_code="DIE_NOT_INSTALLED",
+            message="Detect It Easy (diec) is not installed.",
+        )
 
     try:
         # Use deep scan option
@@ -167,12 +169,12 @@ async def detect_packer_deep(file_path: str) -> ToolResult:
             timeout_seconds=60,
         )
     except Exception as e:
-        return ToolResult.error_result(f"DIE deep scan failed: {e}")
+        return failure(error_code="DIE_DEEP_SCAN_FAILED", message=f"DIE deep scan failed: {e}")
 
     result = _parse_die_output(output)
 
-    return ToolResult.success_result(
+    return success(
         data=result,
         message=f"Deep scan complete: {len(result['detections'])} detections",
-        metadata={"scan_type": "deep"},
+        scan_type="deep",
     )

@@ -7,7 +7,7 @@ providing high-level behavioral information like encryption, file deletion, etc.
 
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.logging_config import get_logger
-from reversecore_mcp.core.result import ToolResult
+from reversecore_mcp.core.result import success, failure, ToolSuccess
 from reversecore_mcp.core.security import validate_file_path
 
 logger = get_logger(__name__)
@@ -24,7 +24,7 @@ def _is_capa_available() -> bool:
 
 
 @log_execution()
-async def run_capa(file_path: str, output_format: str = "summary") -> ToolResult:
+async def run_capa(file_path: str, output_format: str = "summary"):
     """
     Analyze binary capabilities using CAPA (Mandiant FLARE).
 
@@ -48,8 +48,9 @@ async def run_capa(file_path: str, output_format: str = "summary") -> ToolResult
     validated_path = validate_file_path(file_path)
 
     if not _is_capa_available():
-        return ToolResult.error_result(
-            "CAPA is not installed. Install with: pip install flare-capa"
+        return failure(
+            error_code="CAPA_NOT_INSTALLED",
+            message="CAPA is not installed. Install with: pip install flare-capa",
         )
 
     try:
@@ -66,8 +67,9 @@ async def run_capa(file_path: str, output_format: str = "summary") -> ToolResult
         except Exception as e:
             # Falls back to no rules if default path fails
             logger.warning(f"Failed to load CAPA rules: {e}")
-            return ToolResult.error_result(
-                f"Failed to load CAPA rules. Run: capa --update-rules\nError: {e}"
+            return failure(
+                error_code="CAPA_RULES_LOAD_FAILED",
+                message=f"Failed to load CAPA rules. Run: capa --update-rules\nError: {e}",
             )
 
         # Analyze the file
@@ -81,7 +83,10 @@ async def run_capa(file_path: str, output_format: str = "summary") -> ToolResult
             )
         except Exception as e:
             logger.error(f"CAPA failed to load file: {e}")
-            return ToolResult.error_result(f"CAPA cannot analyze this file: {e}")
+            return failure(
+                error_code="CAPA_LOAD_FILE_FAILED",
+                message=f"CAPA cannot analyze this file: {e}",
+            )
 
         # Get capabilities
         capabilities, counts = capa.main.find_capabilities(rules, extractor)
@@ -147,22 +152,20 @@ async def run_capa(file_path: str, output_format: str = "summary") -> ToolResult
         if result["mitre_attack"]:
             message += f", {len(result['mitre_attack'])} MITRE ATT&CK techniques"
 
-        return ToolResult.success_result(
+        return success(
             data=result,
             message=message,
-            metadata={
-                "high_risk_count": high_risk_count,
-                "mitre_count": len(result["mitre_attack"]),
-            },
+            high_risk_count=high_risk_count,
+            mitre_count=len(result["mitre_attack"]),
         )
 
     except Exception as e:
         logger.error(f"CAPA analysis failed: {e}")
-        return ToolResult.error_result(f"CAPA analysis failed: {e}")
+        return failure(error_code="CAPA_ANALYSIS_FAILED", message=f"CAPA analysis failed: {e}")
 
 
 @log_execution()
-async def run_capa_quick(file_path: str) -> ToolResult:
+async def run_capa_quick(file_path: str):
     """
     Quick CAPA scan returning only high-risk capabilities.
 
@@ -181,7 +184,7 @@ async def run_capa_quick(file_path: str) -> ToolResult:
     """
     result = await run_capa(file_path)
 
-    if result.status != "success":
+    if not isinstance(result, ToolSuccess):
         return result
 
     # Filter to high-risk only
@@ -202,7 +205,7 @@ async def run_capa_quick(file_path: str) -> ToolResult:
         if any(ns in cap["namespace"] for ns in high_risk_namespaces)
     ]
 
-    return ToolResult.success_result(
+    return success(
         data={
             "high_risk_capabilities": filtered_caps,
             "mitre_attack": result.data["mitre_attack"],

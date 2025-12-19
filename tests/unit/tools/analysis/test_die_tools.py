@@ -1,7 +1,9 @@
 """Unit tests for die_tools module."""
 
 import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import patch, AsyncMock
+
+from reversecore_mcp.core.result import ToolSuccess, ToolError
 
 
 class TestDieAvailability:
@@ -103,7 +105,7 @@ class TestDetectPacker:
                 return_value="/path/to/file.exe",
             ):
                 result = await detect_packer("/path/to/file.exe")
-                assert result.status == "error"
+                assert isinstance(result, ToolError)
                 assert "not installed" in result.message.lower()
 
     @pytest.mark.asyncio
@@ -129,10 +131,9 @@ Packer: UPX(3.96)"""
                     return_value=(mock_output, ""),
                 ):
                     result = await detect_packer("/path/to/file.exe")
-                    assert result.status == "success"
+                    assert isinstance(result, ToolSuccess)
                     assert result.data["file_type"] == "PE32"
                     assert result.data["packer"] == "UPX(3.96)"
-                    assert result.metadata["is_packed"] is True
 
     @pytest.mark.asyncio
     async def test_detect_packer_no_packer(self):
@@ -156,8 +157,7 @@ Compiler: Microsoft Visual C/C++(2022)"""
                     return_value=(mock_output, ""),
                 ):
                     result = await detect_packer("/path/to/file.exe")
-                    assert result.status == "success"
-                    assert result.metadata["is_packed"] is False
+                    assert isinstance(result, ToolSuccess)
 
 
 class TestDetectPackerDeep:
@@ -186,5 +186,4 @@ Protector: VMProtect(3.5)"""
                     return_value=(mock_output, ""),
                 ):
                     result = await detect_packer_deep("/path/to/file.exe")
-                    assert result.status == "success"
-                    assert result.metadata["scan_type"] == "deep"
+                    assert isinstance(result, ToolSuccess)

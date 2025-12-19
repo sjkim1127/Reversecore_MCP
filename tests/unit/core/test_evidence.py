@@ -22,28 +22,28 @@ class TestEvidenceLevel:
 
     def test_observed_symbol(self):
         """Test OBSERVED level symbol."""
-        assert EvidenceLevel.OBSERVED.symbol() == "🔍"
+        assert EvidenceLevel.OBSERVED.symbol == "🔍"
 
     def test_inferred_symbol(self):
         """Test INFERRED level symbol."""
-        assert EvidenceLevel.INFERRED.symbol() == "🔎"
+        assert EvidenceLevel.INFERRED.symbol == "🔎"
 
     def test_possible_symbol(self):
         """Test POSSIBLE level symbol."""
-        assert EvidenceLevel.POSSIBLE.symbol() == "❓"
+        assert EvidenceLevel.POSSIBLE.symbol == "❓"
 
     def test_observed_confidence_score(self):
         """Test OBSERVED confidence score."""
-        assert EvidenceLevel.OBSERVED.confidence_score() == 1.0
+        assert EvidenceLevel.OBSERVED.confidence_score == 1.0
 
     def test_inferred_confidence_score(self):
         """Test INFERRED confidence score."""
-        score = EvidenceLevel.INFERRED.confidence_score()
+        score = EvidenceLevel.INFERRED.confidence_score
         assert 0.7 <= score <= 0.85
 
     def test_possible_confidence_score(self):
         """Test POSSIBLE confidence score."""
-        score = EvidenceLevel.POSSIBLE.confidence_score()
+        score = EvidenceLevel.POSSIBLE.confidence_score
         assert 0.4 <= score <= 0.6
 
 
@@ -131,14 +131,14 @@ class TestFinding:
         assert finding.evidence[0].source == "Wireshark"
 
     def test_finding_confidence(self):
-        """Test finding confidence calculation."""
+        """Test finding confidence calculation (property)."""
         finding = Finding(
             title="Test",
             description="Test finding",
             level=EvidenceLevel.OBSERVED,
             category="test",
         )
-        confidence = finding.confidence()
+        confidence = finding.confidence  # property, not method
         assert 0.0 <= confidence <= 1.0
 
     def test_finding_to_dict(self):
@@ -230,7 +230,7 @@ class TestAnalysisMetadata:
         assert metadata.analyst == "Reversecore MCP"
 
     def test_duration_seconds(self):
-        """Test duration calculation in seconds."""
+        """Test duration calculation in seconds (property)."""
         start = datetime.now()
         end = start + timedelta(seconds=120)
         metadata = AnalysisMetadata(
@@ -240,20 +240,21 @@ class TestAnalysisMetadata:
             start_time=start,
             end_time=end,
         )
-        assert metadata.duration_seconds() == 120
+        assert metadata.duration_seconds == 120  # property, not method
 
-    def test_duration_seconds_no_end(self):
-        """Test duration when analysis is ongoing."""
+    def test_duration_seconds_ongoing(self):
+        """Test duration when analysis is ongoing returns a float."""
         metadata = AnalysisMetadata(
             session_id="test",
             sample_name="test.exe",
             sample_hash="hash",
-            start_time=datetime.now(),
+            start_time=datetime.now() - timedelta(seconds=10),
         )
-        assert metadata.duration_seconds() is None
+        # When no end_time, it calculates from start_time to now
+        assert metadata.duration_seconds >= 0
 
     def test_duration_formatted(self):
-        """Test human-readable duration."""
+        """Test human-readable duration (property)."""
         start = datetime.now()
         end = start + timedelta(hours=1, minutes=30, seconds=45)
         metadata = AnalysisMetadata(
@@ -263,8 +264,8 @@ class TestAnalysisMetadata:
             start_time=start,
             end_time=end,
         )
-        formatted = metadata.duration_formatted()
-        assert "1h" in formatted or "90" in formatted
+        formatted = metadata.duration_formatted  # property, not method
+        assert "hour" in formatted or "minute" in formatted
 
     def test_metadata_to_dict(self):
         """Test metadata serialization."""
