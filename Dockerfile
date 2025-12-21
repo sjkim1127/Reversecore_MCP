@@ -40,6 +40,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     make \
+    cmake \
     automake \
     autoconf \
     libtool \
