@@ -10,7 +10,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-and-push:
@@ -22,6 +21,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+
+      - name: Set lowercase image name
+        id: image
+        run: echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -41,7 +44,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -73,6 +76,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Set lowercase image name
+        id: image
+        run: echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -90,7 +97,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}
           flavor: |
             suffix=-arm64
           tags: |
@@ -120,6 +127,10 @@ jobs:
       packages: write
 
     steps:
+      - name: Set lowercase image name
+        id: image
+        run: echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
       - name: Log in to Container Registry
         uses: docker/login-action@v3
         with:
@@ -128,20 +139,21 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create and push multi-arch manifest
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}
         run: |
-          # Use dynamic tag based on ref_name (branch or tag)
           REF_NAME=${{ github.ref_name }}
 
           # For latest tag (only on main branch push)
           if [[ "${{ github.ref_name }}" == "main" ]]; then
-            docker manifest create ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
-              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
-              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-arm64
-            docker manifest push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            docker manifest create ${IMAGE}:latest \
+              ${IMAGE}:latest \
+              ${IMAGE}:latest-arm64
+            docker manifest push ${IMAGE}:latest
           fi
 
           # For version tags (v*) or feature branches
-          docker manifest create ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${REF_NAME} \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${REF_NAME} \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${REF_NAME}-arm64
-          docker manifest push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${REF_NAME}
+          docker manifest create ${IMAGE}:${REF_NAME} \
+            ${IMAGE}:${REF_NAME} \
+            ${IMAGE}:${REF_NAME}-arm64
+          docker manifest push ${IMAGE}:${REF_NAME}
