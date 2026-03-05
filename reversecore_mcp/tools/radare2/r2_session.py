@@ -228,8 +228,8 @@ class R2Session:
         if self._r2:
             try:
                 self._r2.quit()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("r2 quit on close: %s", e)
             self._r2 = None
             self.status = "closed"
             self._analyzed = False

@@ -83,7 +83,7 @@ def get_r2_project_name(file_path: str) -> str:
         MD5 hash of the absolute file path
     """
     abs_path = str(Path(file_path).resolve())
-    return hashlib.md5(abs_path.encode()).hexdigest()
+    return hashlib.md5(abs_path.encode(), usedforsecurity=False).hexdigest()
 
 
 @lru_cache(maxsize=128)

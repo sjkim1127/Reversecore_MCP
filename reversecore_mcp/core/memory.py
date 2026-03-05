@@ -77,7 +77,8 @@ class MemoryStore:
 
     async def _create_schema(self) -> None:
         """Create database schema if not exists."""
-        assert self._db is not None
+        if self._db is None:
+            raise RuntimeError("Database not initialized")
 
         # Analysis sessions table
         await self._db.execute("""

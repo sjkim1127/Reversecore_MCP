@@ -228,8 +228,8 @@ class R2ConnectionPool:
         if file_path in self._pool:
             try:
                 self._pool[file_path].quit()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("r2 quit on remove: %s", e)
             del self._pool[file_path]
         self._last_access.pop(file_path, None)
         self._last_health_check.pop(file_path, None)
@@ -369,8 +369,8 @@ class R2ConnectionPool:
             for _file_path, r2 in self._pool.items():
                 try:
                     r2.quit()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("r2 quit on close_all: %s", e)
             self._pool.clear()
             self._last_access.clear()
             self._last_health_check.clear()

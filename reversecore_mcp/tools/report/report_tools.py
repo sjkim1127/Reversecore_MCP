@@ -876,8 +876,8 @@ class ReportTools:
             return {"filename": path.name, "error": "File not found"}
 
         # Stream file read to prevent memory explosion with large files
-        md5_hash = hashlib.md5()
-        sha1_hash = hashlib.sha1()
+        md5_hash = hashlib.md5(usedforsecurity=False)
+        sha1_hash = hashlib.sha1(usedforsecurity=False)
         sha256_hash = hashlib.sha256()
 
         file_size = 0

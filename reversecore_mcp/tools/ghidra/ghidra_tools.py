@@ -341,9 +341,9 @@ async def Ghidra_list_enums(
                             "name": dt.getName(i),
                             "value": dt.getValue(i),
                         })
-                except Exception:
-                    pass
-                
+                except Exception as e:
+                    logger.debug("enum value at %s: %s", i, e)
+
                 enums.append({
                     "name": dt.getName(),
                     "size": dt.getLength(),

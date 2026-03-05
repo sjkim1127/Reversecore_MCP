@@ -227,8 +227,8 @@ class GhidraService:
                 func = function_manager.getFunctionContaining(address)
                 if func is not None:
                     return func
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("getFunctionContaining at %s: %s", address, e)
 
         # If no function found and create_if_missing, create one at the address
         # This is needed when analyze=False (no auto function detection)

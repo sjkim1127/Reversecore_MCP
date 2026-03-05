@@ -8,7 +8,7 @@ Environment Variables:
     REVERSECORE_WORKSPACE: Path to workspace directory (default: current directory)
     REVERSECORE_READ_DIRS: Comma-separated list of read-only directories
     LOG_LEVEL: Logging level (default: INFO)
-    LOG_FILE: Path to log file (default: /tmp/reversecore/app.log)
+    LOG_FILE: Path to log file (default: <tempdir>/reversecore/app.log)
     LOG_FORMAT: Log format - "human" or "json" (default: human)
     STRUCTURED_ERRORS: Enable structured error responses (default: false)
     RATE_LIMIT: Rate limit per minute (default: 60)
@@ -24,6 +24,7 @@ Environment Variables:
 from __future__ import annotations
 
 import logging
+import tempfile
 from enum import Enum
 from pathlib import Path
 
@@ -82,7 +83,7 @@ class Settings(BaseSettings):
         description="Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL",
     )
     log_file: Path = Field(
-        default=Path("/tmp/reversecore/app.log"),
+        default_factory=lambda: Path(tempfile.gettempdir()) / "reversecore" / "app.log",
         alias="LOG_FILE",
         description="Path to log file",
     )
@@ -414,8 +415,8 @@ def reset_config() -> Config:
         from reversecore_mcp.core import security
 
         security.refresh_workspace_config()
-    except Exception:
-        pass
+    except Exception as e:
+        logging.getLogger(__name__).debug("refresh_workspace_config skipped: %s", e)
     return _CONFIG
 
 

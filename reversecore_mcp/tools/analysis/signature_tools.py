@@ -358,8 +358,8 @@ async def generate_yara_rule(
                     f"Try using a different address.",
                     hint=f"Suggested alternative: {suggested_name} at {suggested_addr}",
                 )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("YARA address validation fallback: %s", e)
 
         return failure(
             "YARA_GENERATION_ERROR",

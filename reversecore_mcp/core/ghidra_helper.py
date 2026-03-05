@@ -8,7 +8,7 @@ DecompInterface API through PyGhidra.
 import os
 import re
 import shutil
-import subprocess
+import subprocess  # nosec B404 - required for Ghidra headless/script execution
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional

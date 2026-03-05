@@ -9,7 +9,7 @@ This module provides functions to execute subprocess commands safely with:
 """
 
 import asyncio
-import subprocess
+import subprocess  # nosec B404 - required for safe subprocess execution in this module
 import threading
 from collections.abc import Coroutine
 from typing import Any

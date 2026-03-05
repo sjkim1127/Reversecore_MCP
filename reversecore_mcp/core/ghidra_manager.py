@@ -189,8 +189,8 @@ class GhidraManager:
                                 funcs = flat_api.getGlobalFunctions(function_address)
                                 if funcs:
                                     addr = funcs[0].getEntryPoint()
-                        except Exception:  # Catch all exceptions when parsing address
-                            pass
+                        except Exception as e:  # Catch all exceptions when parsing address
+                            logger.debug("parse address/symbol %s: %s", function_address, e)
 
                     if not addr:
                         raise ValueError(f"Invalid address or symbol: {function_address}")

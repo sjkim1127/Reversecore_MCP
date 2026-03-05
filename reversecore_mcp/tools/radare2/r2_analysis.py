@@ -726,7 +726,7 @@ async def generate_function_graph(
 
         # Convert DOT to PNG using graphviz
         try:
-            import subprocess
+            import subprocess  # nosec B404 - graphviz dot CLI required
             import tempfile
             from pathlib import Path as PathlibPath
 
