@@ -2,8 +2,10 @@
 
 import asyncio
 import os
+import sys
 import time
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -173,6 +175,24 @@ class TestResourceManager:
         await manager.stop()
 
         # No assertion needed, just verify it doesn't crash
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="waitpid behavior differs on Windows")
+    def test_reap_zombies_child_process_error(self):
+        """_reap_zombies handles ChildProcessError and removes PID from tracked."""
+        manager = ResourceManager()
+        manager._tracked_pids.add(99999)
+        with patch("reversecore_mcp.core.resource_manager.os.waitpid", side_effect=ChildProcessError):
+            manager._reap_zombies()
+        assert 99999 not in manager._tracked_pids
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="waitpid behavior differs on Windows")
+    def test_reap_zombies_generic_exception(self):
+        """_reap_zombies handles generic Exception for a PID and does not crash."""
+        manager = ResourceManager()
+        manager._tracked_pids.add(88888)
+        with patch("reversecore_mcp.core.resource_manager.os.waitpid", side_effect=PermissionError("denied")):
+            manager._reap_zombies()
+        assert manager._tracked_pids <= {88888}
 
     @pytest.mark.asyncio
     async def test_cleanup_loop_stops_on_cancel(self):

@@ -8,7 +8,9 @@ from reversecore_mcp.core.exceptions import ValidationError
 from reversecore_mcp.core.validators import (
     _validate_capstone_params,
     _validate_cfg_params,
+    _validate_diff_binaries_params,
     _validate_emulation_params,
+    _validate_match_libraries_params,
     _validate_pseudo_code_params,
     _validate_radare2_params,
     _validate_rtti_params,
@@ -328,3 +330,49 @@ class TestValidateRttiParams:
 
         with pytest.raises(ValidationError, match="timeout must be a positive integer"):
             _validate_rtti_params({"timeout": -30})
+
+
+class TestValidateDiffBinariesParams:
+    """Test suite for _validate_diff_binaries_params."""
+
+    def test_valid_params(self):
+        """Valid parameters do not raise."""
+        _validate_diff_binaries_params({})
+        _validate_diff_binaries_params({"function_name": "main"})
+        _validate_diff_binaries_params({"max_output_size": 10_000_000, "timeout": 300})
+
+    def test_invalid_function_name_type(self):
+        """function_name must be a string."""
+        with pytest.raises(ValidationError, match="function_name must be a string"):
+            _validate_diff_binaries_params({"function_name": 123})
+
+    def test_invalid_max_output_size(self):
+        """max_output_size must be a positive integer."""
+        with pytest.raises(ValidationError, match="max_output_size must be a positive integer"):
+            _validate_diff_binaries_params({"max_output_size": 0})
+        with pytest.raises(ValidationError, match="max_output_size must be a positive integer"):
+            _validate_diff_binaries_params({"max_output_size": -1})
+
+    def test_invalid_timeout(self):
+        """timeout must be a positive integer."""
+        with pytest.raises(ValidationError, match="timeout must be a positive integer"):
+            _validate_diff_binaries_params({"timeout": 0})
+
+
+class TestValidateMatchLibrariesParams:
+    """Test suite for _validate_match_libraries_params."""
+
+    def test_valid_params(self):
+        """Valid parameters do not raise."""
+        _validate_match_libraries_params({})
+        _validate_match_libraries_params({"max_output_size": 5_000_000, "timeout": 60})
+
+    def test_invalid_max_output_size(self):
+        """max_output_size must be a positive integer."""
+        with pytest.raises(ValidationError, match="max_output_size must be a positive integer"):
+            _validate_match_libraries_params({"max_output_size": 0})
+
+    def test_invalid_timeout(self):
+        """timeout must be a positive integer."""
+        with pytest.raises(ValidationError, match="timeout must be a positive integer"):
+            _validate_match_libraries_params({"timeout": -1})

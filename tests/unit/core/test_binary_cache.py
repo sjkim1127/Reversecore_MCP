@@ -170,3 +170,23 @@ class TestBinaryMetadataCache:
         """Test that the global instance is accessible."""
         assert binary_cache is not None
         assert isinstance(binary_cache, BinaryMetadataCache)
+
+    def test_is_valid_false_when_key_not_in_timestamps(self, tmp_path):
+        """_is_valid returns False when key is in cache but not in _file_timestamps."""
+        cache = BinaryMetadataCache(ttl_seconds=0)
+        test_file = tmp_path / "test.bin"
+        test_file.write_text("x")
+        key = cache._get_cache_key(str(test_file))
+        cache._cache[key] = {"format": "PE"}
+        # Do not set _file_timestamps[key]
+        assert cache._is_valid(str(test_file)) is False
+
+    def test_is_valid_file_not_found_invalidates_cache(self, tmp_path):
+        """When file is deleted after caching, _is_valid invalidates and returns False."""
+        cache = BinaryMetadataCache(ttl_seconds=0)
+        test_file = tmp_path / "gone.bin"
+        test_file.write_text("x")
+        cache.set(str(test_file), "format", "PE")
+        test_file.unlink()
+        assert cache._is_valid(str(test_file)) is False
+        assert cache.get(str(test_file), "format") is None

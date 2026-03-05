@@ -190,3 +190,15 @@ class TestJSONUtils:
         json_str = json_utils.dumps(obj)
         parsed = json_utils.loads(json_str)
         assert parsed == obj
+
+    def test_dumps_typeerror_fallback_to_stdlib(self):
+        """When orjson raises TypeError, dumps falls back to stdlib with default."""
+        # set() is not JSON-serializable by orjson; default lets stdlib handle it
+        obj = {"tag": "custom", "data": {1, 2, 3}}
+        result = json_utils.dumps(
+            obj,
+            default=lambda x: list(x) if isinstance(x, set) else type(x).__name__,
+        )
+        parsed = json_utils.loads(result)
+        assert parsed["tag"] == "custom"
+        assert set(parsed["data"]) == {1, 2, 3}

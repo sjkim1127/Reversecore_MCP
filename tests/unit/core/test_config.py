@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from reversecore_mcp.core.config import (
+    Config,
     LogFormat,
     Settings,
     TransportMode,
@@ -209,6 +210,86 @@ class TestConfigValidation:
 
         with pytest.raises(ValueError, match="Workspace directory does not exist"):
             reset_config()
+
+    def test_validate_paths_strict_false_workspace_missing(self, monkeypatch, tmp_path):
+        """When strict=False and workspace missing, validate_paths logs warning and does not raise."""
+        read_dir = tmp_path / "rules"
+        read_dir.mkdir()
+        workspace_missing = tmp_path / "nonexistent"
+        monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace_missing))
+        monkeypatch.setenv("REVERSECORE_READ_DIRS", str(read_dir))
+        config = reset_config()
+        config.validate_paths(strict=False)  # no raise
+
+    def test_validate_paths_workspace_not_dir_strict(self, monkeypatch, tmp_path):
+        """When workspace is a file and strict=True, validate_paths raises."""
+        workspace_file = tmp_path / "file.txt"
+        workspace_file.write_text("x")
+        read_dir = tmp_path / "rules"
+        read_dir.mkdir()
+        monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace_file))
+        monkeypatch.setenv("REVERSECORE_READ_DIRS", str(read_dir))
+        config = reset_config()
+        with pytest.raises(ValueError, match="not a directory"):
+            config.validate_paths(strict=True)
+
+    def test_validate_paths_workspace_not_dir_non_strict(self, monkeypatch, tmp_path):
+        """When workspace is a file and strict=False, validate_paths does not raise."""
+        workspace_file = tmp_path / "file.txt"
+        workspace_file.write_text("x")
+        read_dir = tmp_path / "rules"
+        read_dir.mkdir()
+        monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace_file))
+        monkeypatch.setenv("REVERSECORE_READ_DIRS", str(read_dir))
+        config = reset_config()
+        config.validate_paths(strict=False)
+
+    def test_validate_paths_read_dir_missing_strict(self, monkeypatch, tmp_path):
+        """When a read_only dir is missing and strict=True, validate_paths raises."""
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        read_missing = tmp_path / "missing_dir"
+        monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace))
+        monkeypatch.setenv("REVERSECORE_READ_DIRS", str(read_missing))
+        # Use override so the missing path is actually in read_only_dirs (Settings filters it out)
+        config = reset_config()
+        config._read_only_dirs_override = (read_missing,)
+        with pytest.raises(ValueError, match="Read directory does not exist"):
+            config.validate_paths(strict=True)
+
+    def test_validate_paths_read_dir_not_dir_strict(self, monkeypatch, tmp_path):
+        """When a read_only path is a file and strict=True, validate_paths raises."""
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        read_file = tmp_path / "read_file.txt"
+        read_file.write_text("x")
+        monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace))
+        monkeypatch.setenv("REVERSECORE_READ_DIRS", str(read_file))
+        config = reset_config()
+        # Settings filters out non-dirs; override to force the file path in
+        config._read_only_dirs_override = (read_file,)
+        with pytest.raises(ValueError, match="not a directory"):
+            config.validate_paths(strict=True)
+
+    def test_get_settings_returns_underlying_settings(self, monkeypatch, tmp_path):
+        """get_settings() returns the same Settings instance as get_config()._settings."""
+        _provision_env(monkeypatch, tmp_path)
+        reset_config()
+        settings = get_settings()
+        assert settings is get_config()._settings
+
+    def test_config_read_only_dirs_override(self, monkeypatch, tmp_path):
+        """When read_only_dirs override is set, Config uses it instead of settings."""
+        workspace = tmp_path / "ws_override"
+        workspace.mkdir()
+        read_dir = tmp_path / "rules_override"
+        read_dir.mkdir()
+        monkeypatch.setenv("REVERSECORE_WORKSPACE", str(workspace))
+        monkeypatch.setenv("REVERSECORE_READ_DIRS", str(read_dir))
+        settings = Settings()
+        override_dirs = (tmp_path / "override1", tmp_path / "override2")
+        config = Config(settings=settings, read_only_dirs=override_dirs)
+        assert config.read_only_dirs == override_dirs
 
 
 class TestPydanticSettings:

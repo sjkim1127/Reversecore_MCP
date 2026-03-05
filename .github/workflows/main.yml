@@ -45,13 +45,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
-          pip install bandit[toml] safety
+          pip install bandit[toml] pip-audit
 
       - name: Run Bandit security scan
         run: bandit -r reversecore_mcp/ -f txt
 
-      - name: Run Safety scan
-        run: safety scan
+      - name: Run pip-audit (dependency vulnerabilities)
+        run: pip-audit
 
       - name: Create test workspace
         run: |
@@ -65,7 +65,7 @@ jobs:
           REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
           LOG_LEVEL: INFO
         run: |
-          pytest tests/ -v --cov=reversecore_mcp --cov-report=xml --cov-report=term --cov-fail-under=50
+          pytest tests/ -v --cov=reversecore_mcp --cov-report=xml --cov-report=term --cov-fail-under=54
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4

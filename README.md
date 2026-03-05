@@ -6,8 +6,8 @@
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
 [![FastMCP](https://img.shields.io/badge/FastMCP-2.13.1-green)](https://github.com/jlowin/fastmcp)
 [![Docker](https://img.shields.io/badge/docker-ready-blue)](https://www.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-852%20passed-brightgreen)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-76%25-green)](htmlcov/)
+[![Tests](https://img.shields.io/badge/tests-700%2B%20passed-brightgreen)](tests/)
+[![Coverage](https://img.shields.io/badge/coverage-55%25-green)](htmlcov/)
 
 [![Watch the Demo](https://img.shields.io/badge/Watch_Demo-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtu.be/wJGW2bp3c5A)
 
@@ -347,8 +347,7 @@ reversecore_mcp/
 │   ├── radare2/                    # Radare2 integration
 │   │   ├── r2_analysis.py          # Core r2 analysis
 │   │   ├── radare2_mcp_tools.py    # Advanced r2 tools (CFG, ESIL)
-│   │   ├── r2_session.py           # Session management
-│   │   └── r2_pool.py              # Connection pooling
+│   │   └── r2_session.py           # Session management
 │   │
 │   ├── ghidra/                     # Ghidra decompilation
 │   │   ├── decompilation.py        # smart_decompile, pseudo-code
@@ -419,6 +418,7 @@ docker compose up -d
 - **Path validation**: Workspace-restricted file access
 - **Input sanitization**: All parameters validated
 - **Rate limiting**: Configurable request limits (HTTP mode)
+- **CI checks**: Bandit (static analysis), pip-audit (dependency vulnerabilities), Gitleaks (secrets)
 
 ## 🧪 Development
 
@@ -430,7 +430,7 @@ pip install -r requirements-dev.txt
 pytest tests/ -v
 
 # Run with coverage
-pytest tests/ --cov=reversecore_mcp --cov-fail-under=72
+pytest tests/ --cov=reversecore_mcp --cov-fail-under=54
 
 # Code quality
 ruff check reversecore_mcp/
@@ -439,9 +439,9 @@ black reversecore_mcp/
 
 ### Test Status
 
-- ✅ **852 tests passed**
-- 📊 **76% coverage**
-- ⏱️ ~14 seconds execution time
+- ✅ **700+ tests passed** (unit + integration)
+- 📊 **55% coverage** (minimum 54% enforced in CI)
+- ⏱️ Bandit security scan, pip-audit dependency check, pytest
 
 ## 📚 API Reference
 

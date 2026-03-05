@@ -6,8 +6,8 @@
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
 [![FastMCP](https://img.shields.io/badge/FastMCP-2.13.1-green)](https://github.com/jlowin/fastmcp)
 [![Docker](https://img.shields.io/badge/docker-ready-blue)](https://www.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-852%20passed-brightgreen)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-76%25-green)](htmlcov/)
+[![Tests](https://img.shields.io/badge/tests-700%2B%20passed-brightgreen)](tests/)
+[![Coverage](https://img.shields.io/badge/coverage-55%25-green)](htmlcov/)
 
 [![데모 영상 시청](https://img.shields.io/badge/데모_영상_시청-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtu.be/wJGW2bp3c5A)
 
@@ -347,8 +347,7 @@ reversecore_mcp/
 │   ├── radare2/                    # Radare2 통합
 │   │   ├── r2_analysis.py          # 핵심 r2 분석
 │   │   ├── radare2_mcp_tools.py    # 고급 r2 도구 (CFG, ESIL)
-│   │   ├── r2_session.py           # 세션 관리
-│   │   └── r2_pool.py              # 연결 풀링
+│   │   └── r2_session.py           # 세션 관리
 │   │
 │   ├── ghidra/                     # Ghidra 디컴파일
 │   │   ├── decompilation.py        # smart_decompile, pseudo-code
@@ -419,6 +418,7 @@ docker compose up -d
 - **경로 검증**: 작업 공간으로 제한된 파일 접근
 - **입력 위생화**: 모든 매개변수 검증
 - **속도 제한**: 설정 가능한 요청 제한 (HTTP 모드)
+- **CI 검사**: Bandit(정적 분석), pip-audit(의존성 취약점), Gitleaks(시크릿 검사)
 
 ## 🧪 개발
 
@@ -430,7 +430,7 @@ pip install -r requirements-dev.txt
 pytest tests/ -v
 
 # 커버리지와 함께 실행
-pytest tests/ --cov=reversecore_mcp --cov-fail-under=72
+pytest tests/ --cov=reversecore_mcp --cov-fail-under=54
 
 # 코드 품질
 ruff check reversecore_mcp/
@@ -439,9 +439,9 @@ black reversecore_mcp/
 
 ### 테스트 현황
 
-- ✅ **852 테스트 통과**
-- 📊 **76% 커버리지**
-- ⏱️ ~14초 실행 시간
+- ✅ **700+ 테스트 통과** (단위 + 통합)
+- 📊 **55% 커버리지** (CI 기준 54% 이상)
+- ⏱️ Bandit 보안 스캔, pip-audit 의존성 검사, pytest
 
 ## 📚 API 참조
 

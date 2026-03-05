@@ -172,6 +172,40 @@ class TestFinding:
         assert "🔍" in md
         assert "YARA" in md
 
+    def test_finding_format_markdown_with_long_raw_data(self):
+        """Test markdown includes evidence raw_data truncated at 200 chars."""
+        finding = Finding(
+            title="C2 Beacon",
+            description="Network callback",
+            level=EvidenceLevel.OBSERVED,
+            category="network",
+        )
+        finding.add_evidence(
+            source="Wireshark",
+            location="192.168.1.1:443",
+            description="Beacon",
+            raw_data="x" * 250,
+        )
+        md = finding.format_markdown()
+        assert "Evidence:" in md
+        assert "```" in md
+        assert "..." in md
+        assert "x" * 200 in md
+
+    def test_finding_format_markdown_with_mitre_techniques(self):
+        """Test markdown includes MITRE ATT&CK techniques when set."""
+        finding = Finding(
+            title="Persistence",
+            description="Registry run key",
+            level=EvidenceLevel.INFERRED,
+            category="persistence",
+            mitre_techniques=["T1547.001", "T1547"],
+        )
+        md = finding.format_markdown()
+        assert "MITRE ATT&CK" in md
+        assert "T1547.001" in md
+        assert "T1547" in md
+
 
 class TestMITRETechnique:
     """Tests for MITRETechnique dataclass."""
@@ -266,6 +300,34 @@ class TestAnalysisMetadata:
         )
         formatted = metadata.duration_formatted  # property, not method
         assert "hour" in formatted or "minute" in formatted
+
+    def test_duration_formatted_seconds_only(self):
+        """Test duration under 60 seconds shows seconds."""
+        start = datetime.now()
+        end = start + timedelta(seconds=45)
+        metadata = AnalysisMetadata(
+            session_id="test",
+            sample_name="test.exe",
+            sample_hash="hash",
+            start_time=start,
+            end_time=end,
+        )
+        formatted = metadata.duration_formatted
+        assert "second" in formatted
+
+    def test_duration_formatted_hours(self):
+        """Test duration >= 3600 seconds shows hours."""
+        start = datetime.now()
+        end = start + timedelta(hours=2, minutes=30)
+        metadata = AnalysisMetadata(
+            session_id="test",
+            sample_name="test.exe",
+            sample_hash="hash",
+            start_time=start,
+            end_time=end,
+        )
+        formatted = metadata.duration_formatted
+        assert "hour" in formatted
 
     def test_metadata_to_dict(self):
         """Test metadata serialization."""
