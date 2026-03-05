@@ -50,8 +50,8 @@ jobs:
       - name: Run Bandit security scan
         run: bandit -r reversecore_mcp/ -f txt
 
-      - name: Run Safety check
-        run: safety check
+      - name: Run Safety scan
+        run: safety scan
 
       - name: Create test workspace
         run: |

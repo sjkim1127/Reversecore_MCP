@@ -23,7 +23,7 @@ dependencies = [
 analysis = [
     "pefile",
     "lief",
-    "capstone",
+    "capstone>=6.0.0a1",  # 6.x fixes PVE-2024-73501; use 6.0.0a7 (see requirements.txt)
     "keystone-engine",
     "yara-python",
     "r2pipe>=1.7.0",
