@@ -302,15 +302,17 @@ async def run_binwalk_extract(
 
     # Parse binwalk output for additional info
     signatures_found = []
-    for line in output.split("\n"):
+    for line in output.splitlines():
         line = line.strip()
         if line and not line.startswith("DECIMAL") and not line.startswith("-"):
-            # Extract signature type from binwalk output
-            parts = line.split()
+            # Extract signature type from binwalk output.
+            # maxsplit=2 means parts[2] already holds the full remainder,
+            # so we avoid the " ".join(parts[2:]) re-join cost.
+            parts = line.split(maxsplit=2)
             if len(parts) >= 3:
                 try:
                     offset = int(parts[0])
-                    sig_type = " ".join(parts[2:])
+                    sig_type = parts[2]
                     signatures_found.append({"offset": offset, "type": sig_type[:100]})
                 except (ValueError, IndexError):
                     continue
@@ -440,7 +442,7 @@ async def extract_rtti_info(
     rtti_strings = []
     class_names = set()
 
-    for line in output.split("\n"):
+    for line in output.splitlines():
         line_stripped = line.strip()
         if _RTTI_MAIN_PATTERN.search(line_stripped):
             rtti_strings.append(line_stripped)
