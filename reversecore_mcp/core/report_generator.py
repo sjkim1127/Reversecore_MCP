@@ -181,10 +181,10 @@ class EvidenceBasedReport:
             lines.append("## 🎯 Indicators of Compromise (IOCs)")
             lines.append("")
             for ioc_type, values in self.iocs.items():
-                lines.append(f"### {ioc_type.title()} ({len(values)})")
+                ioc_type_title = ioc_type.title()
+                lines.append(f"### {ioc_type_title} ({len(values)})")
                 lines.append("")
-                for val in values:
-                    lines.append(f"- `{val}`")
+                lines.extend(f"- `{val}`" for val in values)
                 lines.append("")
         
         # YARA Rule

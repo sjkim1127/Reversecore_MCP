@@ -5,15 +5,37 @@ This module provides automated MITRE ATT&CK technique mapping based on
 observable evidence from binary analysis, with confidence-based scoring.
 """
 
-from dataclasses import dataclass, field
-from typing import Any, Optional
+from dataclasses import dataclass
+from typing import Optional
 
 from reversecore_mcp.core.evidence import MITREConfidence, MITRETechnique, Evidence
 
 
+# Pre-built at module level so generate_mitre_report never recreates this dict
+_CONFIDENCE_SYMBOLS: dict[str, str] = {
+    "confirmed": "✅",
+    "high": "🟢",
+    "medium": "🟡",
+    "low": "🔴",
+}
+
+# Pre-built sort-key mapping so map_indicators() never recreates it per call
+_CONFIDENCE_ORDER: dict[MITREConfidence, int] = {
+    MITREConfidence.CONFIRMED: 0,
+    MITREConfidence.HIGH: 1,
+    MITREConfidence.MEDIUM: 2,
+    MITREConfidence.LOW: 3,
+}
+
+
 @dataclass
 class MappingRule:
-    """A rule for mapping indicators to MITRE techniques."""
+    """A rule for mapping indicators to MITRE techniques.
+
+    After construction ``_indicators_lower`` holds a pre-computed tuple of
+    each indicator string lowercased.  This avoids repeated ``.lower()``
+    calls inside the ``MITREMapper.map_indicators`` hot loop.
+    """
     technique_id: str
     technique_name: str
     tactic: str
@@ -21,6 +43,12 @@ class MappingRule:
     min_indicators: int = 1         # Minimum indicators required
     confidence_boost_per_indicator: float = 0.1
     base_confidence: MITREConfidence = MITREConfidence.MEDIUM
+
+    def __post_init__(self) -> None:
+        # Cached lowercase versions computed once at construction time.
+        self._indicators_lower: tuple[str, ...] = tuple(
+            ind.lower() for ind in self.indicators
+        )
 
 
 # =============================================================================
@@ -239,29 +267,29 @@ class MITREMapper:
         Returns:
             List of MITRETechnique with confidence levels
         """
-        all_indicators = set()
-        
-        # Normalize and collect all indicators
-        for imp in imports:
-            all_indicators.add(imp.lower())
-        for s in strings:
-            all_indicators.add(s.lower())
-        if behaviors:
-            for b in behaviors:
-                all_indicators.add(b.lower())
-        
+        # Build the observed-indicator set with a single comprehension per
+        # source list; this avoids repeated .lower() in a loop and lets the
+        # interpreter use a fast path for set-union over generators.
+        all_indicators: set[str] = (
+            {imp.lower() for imp in imports}
+            | {s.lower() for s in strings}
+            | ({b.lower() for b in behaviors} if behaviors else set())
+        )
+
         results = []
-        
+
         for rule in self.rules:
             matched_indicators = []
-            
-            for indicator in rule.indicators:
-                indicator_lower = indicator.lower()
-                # Check if any observed indicator contains this pattern
-                for observed in all_indicators:
-                    if indicator_lower in observed or observed in indicator_lower:
-                        matched_indicators.append(indicator)
-                        break
+
+            # rule._indicators_lower is pre-computed in __post_init__, so we
+            # skip the per-call .lower() overhead entirely.
+            for original_indicator, ind_lower in zip(rule.indicators, rule._indicators_lower):
+                # Short-circuit: any() stops at the first match
+                if any(
+                    ind_lower in observed or observed in ind_lower
+                    for observed in all_indicators
+                ):
+                    matched_indicators.append(original_indicator)
             
             # Check if minimum indicators matched
             if len(matched_indicators) >= rule.min_indicators:
@@ -297,13 +325,7 @@ class MITREMapper:
                 results.append(technique)
         
         # Sort by confidence (CONFIRMED > HIGH > MEDIUM > LOW)
-        confidence_order = {
-            MITREConfidence.CONFIRMED: 0,
-            MITREConfidence.HIGH: 1,
-            MITREConfidence.MEDIUM: 2,
-            MITREConfidence.LOW: 3,
-        }
-        results.sort(key=lambda t: confidence_order[t.confidence])
+        results.sort(key=lambda t: _CONFIDENCE_ORDER[t.confidence])
         
         return results
     
@@ -319,12 +341,7 @@ class MITREMapper:
         ]
         
         for t in techniques:
-            conf_symbol = {
-                "confirmed": "✅",
-                "high": "🟢",
-                "medium": "🟡",
-                "low": "🔴",
-            }[t.confidence.value]
+            conf_symbol = _CONFIDENCE_SYMBOLS[t.confidence.value]
             
             lines.append(
                 f"| {t.technique_id} | {t.technique_name} | {t.tactic} | "
