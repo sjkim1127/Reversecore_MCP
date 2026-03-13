@@ -8,6 +8,7 @@ It includes health and metrics endpoints for monitoring in HTTP mode.
 import asyncio
 import re
 import shutil
+import stat
 import time
 import uuid
 from collections.abc import AsyncGenerator
@@ -195,22 +196,29 @@ async def _cleanup_old_files():
                     continue
 
                 for p in target_dir.rglob("*"):
-                    if p.is_file():
-                        # Check mtime
-                        if now - p.stat().st_mtime > retention_seconds:
-                            # Only delete files that are clearly temporary or uploaded
-                            # This is a safety measure to avoid deleting user's important files
-                            # Match UUID-prefixed uploads (8 hex chars followed by underscore)
-                            is_uuid_upload = bool(re.match(r"^[0-9a-f]{8}_", p.name))
-                            # Match temp files (.tmp suffix or .r2_* prefix for radare2)
-                            is_temp = p.suffix == ".tmp" or p.name.startswith(".r2_")
+                    # Use a single stat() call: S_ISREG checks for regular file,
+                    # avoiding a separate is_file() syscall followed by stat().
+                    try:
+                        st = p.stat()
+                    except OSError:
+                        continue
+                    if not stat.S_ISREG(st.st_mode):
+                        continue
+                    # Check mtime
+                    if now - st.st_mtime > retention_seconds:
+                        # Only delete files that are clearly temporary or uploaded
+                        # This is a safety measure to avoid deleting user's important files
+                        # Match UUID-prefixed uploads (8 hex chars followed by underscore)
+                        is_uuid_upload = bool(re.match(r"^[0-9a-f]{8}_", p.name))
+                        # Match temp files (.tmp suffix or .r2_* prefix for radare2)
+                        is_temp = p.suffix == ".tmp" or p.name.startswith(".r2_")
 
-                            if is_uuid_upload or is_temp:
-                                try:
-                                    p.unlink()
-                                    count += 1
-                                except Exception:
-                                    pass
+                        if is_uuid_upload or is_temp:
+                            try:
+                                p.unlink()
+                                count += 1
+                            except Exception:
+                                pass
 
             if count > 0:
                 logger.info(f"Cleaner: Removed {count} old files")
