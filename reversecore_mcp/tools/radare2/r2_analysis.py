@@ -162,6 +162,9 @@ _DANGEROUS_SINKS = frozenset(
     }
 )
 
+# Pre-lowercased version for case-insensitive matching without per-call .lower()
+_DANGEROUS_SINKS_LOWER = frozenset(s.lower() for s in _DANGEROUS_SINKS)
+
 # =============================================================================
 # Symbol Alias Database for Enhanced Matching
 # =============================================================================
@@ -228,10 +231,14 @@ def _clean_symbol_name(name: str) -> str:
     """Remove common prefixes and normalize symbol name."""
     if not name:
         return ""
-    # Remove common radare2/binary prefixes
+    # Remove common radare2/binary prefixes.
+    # OPTIMIZATION: compute .lower() once instead of inside each loop iteration.
+    # `name_lower` is safe to use throughout because `break` exits after the
+    # first (and only) match, so `clean` is never modified more than once.
     clean = name
+    name_lower = name.lower()
     for prefix in ["sym.imp.", "sym.", "imp.", "fcn.", "sub_", "loc_"]:
-        if clean.lower().startswith(prefix):
+        if name_lower.startswith(prefix):
             clean = clean[len(prefix):]
             break
     # Remove leading/trailing underscores
@@ -381,7 +388,9 @@ async def trace_execution_path(
         clean_name = func_name.replace("sym.imp.", "").replace("sym.", "")
         # Then remove underscores using translate (faster than replace)
         clean_name = clean_name.translate(_FUNC_NAME_CLEAN_TABLE)
-        return any(sink in clean_name.lower() for sink in _DANGEROUS_SINKS)
+        # OPTIMIZATION: compute .lower() once and compare against pre-lowercased set
+        clean_name_lower = clean_name.lower()
+        return any(sink in clean_name_lower for sink in _DANGEROUS_SINKS_LOWER)
 
     # Enhanced symbol resolution with fuzzy matching
     match_info = {"score": 0.0, "method": "none", "resolved_name": None}

@@ -380,9 +380,10 @@ def recover_structures_with_ghidra(
                         # Check if this is a structure or pointer to structure
                         if data_type is not None:
                             type_name = data_type.getName()
+                            type_name_lower = type_name.lower()
 
                             # Look for structure types (including pointers to structures)
-                            if "struct" in type_name.lower() or data_type.getLength() > 8:
+                            if "struct" in type_name_lower or data_type.getLength() > 8:
                                 # Try to get the underlying structure
                                 actual_type = data_type
 

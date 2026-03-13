@@ -47,10 +47,9 @@ class EvidenceBasedReport:
     
     def add_ioc(self, ioc_type: str, value: str) -> None:
         """Add an IOC."""
-        if ioc_type not in self.iocs:
-            self.iocs[ioc_type] = []
-        if value not in self.iocs[ioc_type]:
-            self.iocs[ioc_type].append(value)
+        ioc_list = self.iocs.setdefault(ioc_type, [])
+        if value not in ioc_list:
+            ioc_list.append(value)
     
     def set_family(self, family: str, confidence: float, evidence: list[str]) -> None:
         """Set malware family with confidence and evidence."""

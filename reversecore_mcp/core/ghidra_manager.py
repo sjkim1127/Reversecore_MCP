@@ -157,8 +157,6 @@ class GhidraManager:
         """
         self._ensure_jvm_started()
 
-        self._ensure_jvm_started()
-
         # [PERFORMANCE BOTTLENECK]
         # Ghidra/JPype requires single-threaded access to the JVM bridge via this lock.
         # This serializes all decompilation requests.

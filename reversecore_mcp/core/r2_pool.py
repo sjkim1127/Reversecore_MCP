@@ -200,16 +200,7 @@ class R2ConnectionPool:
 
             # Evict if full
             while len(self._pool) >= self.max_connections:
-                oldest_file, oldest_r2 = self._pool.popitem(last=False)
-                logger.debug(f"Evicting r2 connection for {oldest_file}")
-                self._stats["connections_evicted"] += 1
-                try:
-                    oldest_r2.quit()
-                except Exception as e:
-                    logger.warning(f"Error closing r2 connection: {e}")
-                self._last_access.pop(oldest_file, None)
-                self._last_health_check.pop(oldest_file, None)
-                self._analyzed_files.discard(oldest_file)
+                self._evict_oldest_connection()
 
             # Create new connection
             logger.info(f"Opening new r2 connection for {file_path}")
@@ -223,6 +214,23 @@ class R2ConnectionPool:
                 logger.error(f"Failed to open r2 connection for {file_path}: {e}")
                 raise
 
+    def _cleanup_connection_state(self, file_path: str) -> None:
+        """Remove auxiliary state for a connection (caller must hold lock)."""
+        self._last_access.pop(file_path, None)
+        self._last_health_check.pop(file_path, None)
+        self._analyzed_files.discard(file_path)
+
+    def _evict_oldest_connection(self) -> None:
+        """Evict the least-recently-used connection (caller must hold lock)."""
+        oldest_file, oldest_r2 = self._pool.popitem(last=False)
+        logger.debug(f"Evicting r2 connection for {oldest_file}")
+        self._stats["connections_evicted"] += 1
+        try:
+            oldest_r2.quit()
+        except Exception as e:
+            logger.warning(f"Error closing r2 connection: {e}")
+        self._cleanup_connection_state(oldest_file)
+
     def _remove_connection_unsafe(self, file_path: str) -> None:
         """Remove a connection without locking (caller must hold lock)."""
         if file_path in self._pool:
@@ -231,9 +239,7 @@ class R2ConnectionPool:
             except Exception as e:
                 logger.debug("r2 quit on remove: %s", e)
             del self._pool[file_path]
-        self._last_access.pop(file_path, None)
-        self._last_health_check.pop(file_path, None)
-        self._analyzed_files.discard(file_path)
+        self._cleanup_connection_state(file_path)
 
     def execute(self, file_path: str, command: str) -> str:
         """Execute a command on the r2 connection for the given file."""
@@ -304,16 +310,7 @@ class R2ConnectionPool:
 
         # Evict if full
         while len(self._pool) >= self.max_connections:
-            oldest_file, oldest_r2 = self._pool.popitem(last=False)
-            logger.debug(f"Evicting r2 connection for {oldest_file}")
-            self._stats["connections_evicted"] += 1
-            try:
-                oldest_r2.quit()
-            except Exception as e:
-                logger.warning(f"Error closing r2 connection: {e}")
-            self._last_access.pop(oldest_file, None)
-            self._last_health_check.pop(oldest_file, None)
-            self._analyzed_files.discard(oldest_file)
+            self._evict_oldest_connection()
 
         # Create new connection
         logger.info(f"Opening new r2 connection for {file_path}")
