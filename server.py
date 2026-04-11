@@ -134,6 +134,14 @@ async def server_lifespan(server: FastMCP) -> AsyncGenerator[None, None]:
 
         ghidra_manager.close_all()
 
+        # Stop and cleanup plugins explicitly
+        for plugin in plugins:
+            if hasattr(plugin, "cleanup"):
+                try:
+                    await plugin.cleanup()
+                except Exception as e:
+                    logger.debug(f"Error during {plugin.name} cleanup: {e}")
+
         # Cleanup temp directory if it exists
         temp_dir = settings.workspace / "tmp"
         if temp_dir.exists():
@@ -214,6 +222,27 @@ async def _cleanup_old_files():
                         is_temp = p.suffix == ".tmp" or p.name.startswith(".r2_")
 
                         if is_uuid_upload or is_temp:
+                            is_in_use = False
+                            try:
+                                for plugin in plugins:
+                                    if plugin.name == "radare2_mcp_tools":
+                                        if str(p) in plugin._file_to_session:
+                                            is_in_use = True
+                                            break
+                            except Exception as e:
+                                logger.debug(f"Error checking plugin sessions: {e}")
+
+                            if is_in_use:
+                                try:
+                                    import os
+
+                                    os.utime(
+                                        p, None
+                                    )  # Update mtime to prevent repeated cleanup warnings
+                                except Exception:
+                                    pass
+                                continue
+
                             try:
                                 p.unlink()
                                 count += 1
@@ -273,12 +302,8 @@ async def _validate_file_magic(file_path: str, filename: str):
             for magic_bytes, desc in EXECUTABLE_HEADERS:
                 if header.startswith(magic_bytes):
                     if is_safe_ext:
-                        import os
-
-                        new_path = file_path + ".dangerous"
-                        os.rename(file_path, new_path)
                         raise ValueError(
-                            f"Security Alert: File {filename} contains {desc} code but has safe extension. Renamed to .dangerous"
+                            f"Security Alert: File {filename} contains {desc} code but has safe extension. Upload rejected."
                         )
                     return  # Executable with executable extension is OK
             return  # No executable header found
@@ -318,14 +343,8 @@ async def _validate_file_magic(file_path: str, filename: str):
 
         if is_executable and is_safe_ext:
             logger.warning(f"SECURITY: Executable content detected in {filename} (MIME: {mime})")
-            # In high security mode, we might delete it.
-            # For now, log a prominent warning or rename it to .dangerous
-            import os
-
-            new_path = file_path + ".dangerous"
-            os.rename(file_path, new_path)
             raise ValueError(
-                f"Security Alert: File {filename} contains executable code but has safe extension. Renamed to .dangerous"
+                f"Security Alert: File {filename} contains executable code but has safe extension. Upload rejected."
             )
 
     except Exception as e:
@@ -452,9 +471,18 @@ def setup_authentication():
     api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
     async def verify_api_key(request: Request, key: str = Depends(api_key_header)):
-        # Allow health endpoint without authentication
-        if request.url.path == "/health":
-            return
+        # Allow specific endpoints without authentication
+        exempt_exact_paths = {
+            "/health",
+            "/health/live",
+            "/health/ready",
+            "/metrics",
+            "/openapi.json",
+        }
+        exempt_prefixes = ("/docs", "/dashboard", "/redoc")
+
+        if request.url.path in exempt_exact_paths or request.url.path.startswith(exempt_prefixes):
+            return key
 
         if key != api_key:
             logger.warning(f"⚠️ Unauthorized access attempt from {request.client.host}")
@@ -474,7 +502,7 @@ def main():
 
     # Validate paths at startup
     try:
-        settings.validate_paths()
+        settings.validate_paths(strict=False)
         logger.info("Path validation successful")
     except ValueError as e:
         logger.error(f"Path validation failed: {e}")
@@ -486,6 +514,7 @@ def main():
         # HTTP transport mode for network-based AI agents
         import uvicorn
         from fastapi import FastAPI, File, UploadFile
+        from fastapi.middleware.cors import CORSMiddleware
         from fastapi.responses import JSONResponse
 
         from reversecore_mcp.core.metrics import metrics_collector
@@ -514,7 +543,17 @@ def main():
             dependencies=dependencies,  # Apply authentication globally
             lifespan=app_lifespan,  # Register lifespan
         )
+        app.add_middleware(SecurityHeadersMiddleware)
         app.mount("/mcp", mcp_app)
+
+        # Add CORS middleware
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
 
         # Mount dashboard
         try:
@@ -648,8 +687,21 @@ def main():
                 # PERFORMANCE: Use aiofiles for non-blocking async I/O
                 # This prevents blocking the event loop during large file uploads
 
+                max_size = getattr(settings, "max_upload_size", 100_000_000)
+                total_size = 0
                 async with aiofiles.open(file_path, "wb") as out_file:
                     while content := await file.read(1024 * 64):  # 64KB chunks
+                        total_size += len(content)
+                        if total_size > max_size:
+                            # Clean up partial
+                            file_path.unlink(missing_ok=True)
+                            return JSONResponse(
+                                status_code=413,
+                                content={
+                                    "status": "error",
+                                    "message": f"File exceeds maximum upload size of {max_size} bytes",
+                                },
+                            )
                         await out_file.write(content)
 
                 # Security: Validate file content (Magic Number)
@@ -724,7 +776,7 @@ def main():
         # Run uvicorn with the FastMCP HTTP app
         # IMPORTANT: workers=1 is required because R2 sessions are stored in-memory
         # and not shareable across worker processes
-        uvicorn.run(app, host="0.0.0.0", port=8000, workers=1)
+        uvicorn.run(app, host=settings.host, port=settings.port, workers=1)
     else:
         # Stdio transport mode for local AI clients (default)
         # Rate limiting not needed for stdio mode (single client)

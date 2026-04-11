@@ -73,6 +73,7 @@ class Settings(BaseSettings):
     )
     strict_paths: bool = Field(
         default=False,
+        alias="REVERSECORE_STRICT_PATHS",
         description="Enable strict path validation (raise errors for missing paths)",
     )
 
@@ -96,6 +97,7 @@ class Settings(BaseSettings):
     # Error handling
     structured_errors: bool = Field(
         default=False,
+        alias="STRUCTURED_ERRORS",
         description="Enable structured error responses with error codes",
     )
 
@@ -104,6 +106,7 @@ class Settings(BaseSettings):
         default=60,
         ge=1,
         le=1000,
+        alias="RATE_LIMIT",
         description="Rate limit (requests per minute)",
     )
 
@@ -111,18 +114,42 @@ class Settings(BaseSettings):
     max_output_size: int = Field(
         default=10_000_000,
         ge=1000,
+        alias="MAX_OUTPUT_SIZE",
         description="Maximum output size for tools (bytes)",
     )
     lief_max_file_size: int = Field(
         default=1_000_000_000,
         ge=1_000_000,
+        alias="LIEF_MAX_FILE_SIZE",
         description="Maximum file size for LIEF parsing (bytes)",
     )
-    
+
+    # Transport configuration
+    host: str = Field(
+        default="0.0.0.0",  # nosec B104
+        alias="MCP_HOST",
+        description="Host interface to bind HTTP server to",
+    )
+    port: int = Field(
+        default=8000,
+        ge=1,
+        le=65535,
+        alias="MCP_PORT",
+        description="Port to bind HTTP server to",
+    )
+
     file_retention_minutes: int = Field(
         default=1440,  # 24 hours
         ge=60,
+        alias="FILE_RETENTION_MINUTES",
         description="Retention period for temporary files (minutes)",
+    )
+
+    max_upload_size: int = Field(
+        default=100_000_000,
+        ge=10_000,
+        alias="MAX_UPLOAD_SIZE",
+        description="Maximum upload size in bytes (default 100MB)",
     )
 
     # Transport configuration
@@ -146,12 +173,14 @@ class Settings(BaseSettings):
         default=3,
         ge=1,
         le=20,
+        alias="R2_POOL_SIZE",
         description="Number of radare2 connections in pool",
     )
     r2_pool_timeout: int = Field(
         default=30,
         ge=5,
         le=300,
+        alias="R2_POOL_TIMEOUT",
         description="Timeout for acquiring radare2 connection from pool",
     )
 
@@ -160,6 +189,7 @@ class Settings(BaseSettings):
         default=3,
         ge=1,
         le=10,
+        alias="GHIDRA_MAX_PROJECTS",
         description="Maximum number of Ghidra projects to cache (higher = more RAM)",
     )
 
@@ -168,6 +198,7 @@ class Settings(BaseSettings):
         default=1000,
         ge=1,
         le=1_000_000,
+        alias="MAX_EMULATION_INSTRUCTIONS",
         description="Maximum instructions for emulation safety limit",
     )
 
@@ -204,7 +235,7 @@ class Settings(BaseSettings):
         return Path(v).expanduser().resolve()
 
     @model_validator(mode="after")
-    def validate_workspace_exists(self) -> "Settings":
+    def validate_workspace_exists(self) -> Settings:
         """Validate workspace directory exists."""
         if self.strict_paths:
             if not self.workspace.exists():
@@ -217,7 +248,7 @@ class Settings(BaseSettings):
     def read_only_dirs(self) -> tuple[Path, ...]:
         """Parse and return read-only directories."""
         if not self.read_dirs:
-            return tuple()
+            return ()
         parts = [s.strip() for s in self.read_dirs.split(",") if s.strip()]
         dirs = []
         for part in parts:
@@ -260,6 +291,13 @@ class Config:
 
         For backward compatibility, individual values can be passed directly.
         """
+        import warnings
+
+        warnings.warn(
+            "Config wrapper is deprecated. Use get_settings() directly instead of get_config().",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if settings is not None:
             self._settings = settings
         else:
@@ -331,6 +369,18 @@ class Config:
         return self._settings.max_output_size
 
     @property
+    def host(self) -> str:
+        return self._settings.host
+
+    @property
+    def port(self) -> int:
+        return self._settings.port
+
+    @property
+    def max_upload_size(self) -> int:
+        return self._settings.max_upload_size
+
+    @property
     def mcp_transport(self) -> str:
         return self._settings.mcp_transport.value
 
@@ -355,7 +405,7 @@ class Config:
         return self._settings.max_emulation_instructions
 
     @classmethod
-    def from_env(cls) -> "Config":
+    def from_env(cls) -> Config:
         """Build a Config instance from environment variables."""
         return cls(Settings())
 

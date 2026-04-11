@@ -7,13 +7,14 @@ requires-python = ">=3.10"
 license = {text = "MIT"}
 dependencies = [
     # Core MCP server dependencies
-    "mcp[cli]>=1.0.0",
+    "mcp[cli]>=1.23.0",
     "fastmcp",
     "fastapi",
     "uvicorn",
     "python-multipart",
     "aiofiles",
     "pydantic>=2.0",
+    "pydantic-settings>=2.0.0",
     "loguru",
     "orjson",
 ]
@@ -50,9 +51,15 @@ cli = [
     "rich",
 ]
 
+# Optional dependencies
+magic = [
+    "python-magic",
+    "python-magic-bin; sys_platform == 'win32'",
+]
+
 # Full installation (all features)
 full = [
-    "reversecore-mcp[analysis,viz,ghidra,cli]",
+    "reversecore-mcp[analysis,viz,ghidra,cli,magic]",
 ]
 
 [tool.ruff]
