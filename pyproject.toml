@@ -27,7 +27,7 @@ analysis = [
     "capstone>=6.0.0a1",  # 6.x fixes PVE-2024-73501; use 6.0.0a7 (see requirements.txt)
     "keystone-engine",
     "yara-python",
-    "r2pipe>=1.7.0",
+    "r2pipe>=1.9.8",
 ]
 
 # Visualization (CFG, graphs)
