@@ -39,7 +39,7 @@ viz = [
 
 # Ghidra integration
 ghidra = [
-    "pyghidra>=2.0.0,<4.0.0",
+    "pyghidra>=3.0.2,<4.0.0",
     "jpype1>=1.4.0",
 ]
 
