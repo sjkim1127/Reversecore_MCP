@@ -40,7 +40,7 @@ viz = [
 # Ghidra integration
 ghidra = [
     "pyghidra>=2.0.0,<4.0.0",
-    "jpype1>=1.4.0",
+    "jpype1>=1.7.0",
 ]
 
 # CLI and utilities
