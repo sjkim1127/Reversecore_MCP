@@ -7,7 +7,7 @@ requires-python = ">=3.10"
 license = {text = "MIT"}
 dependencies = [
     # Core MCP server dependencies
-    "mcp[cli]>=1.23.0",
+    "mcp[cli]>=1.27.0",
     "fastmcp",
     "fastapi",
     "uvicorn",
