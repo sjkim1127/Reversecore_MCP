@@ -1,0 +1,37 @@
+{
+  "timestamp": "2026-04-18T15:07:03.070512",
+  "statistics": {
+    "total_tasks": 21,
+    "successful": 17,
+    "failed": 4,
+    "success_rate": "81.0%",
+    "total_time": "0.183s",
+    "avg_time": "0.009s"
+  },
+  "by_tool": {
+    "file": {
+      "success": 7,
+      "total": 7,
+      "avg_time": 0.0038343497685023715
+    },
+    "nm": {
+      "success": 3,
+      "total": 7,
+      "avg_time": 0.010386739458356584
+    },
+    "strings": {
+      "success": 7,
+      "total": 7,
+      "avg_time": 0.01194136483328683
+    }
+  },
+  "benchmark": {
+    "sequential_time": 0.16481924057006836,
+    "parallel_time": 0.05528974533081055,
+    "speedup": 2.981009219411648,
+    "efficiency": "74.5%",
+    "tasks_run": 21,
+    "workers": 4,
+    "use_threads": true
+  }
+}

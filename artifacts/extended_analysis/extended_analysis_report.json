@@ -1,0 +1,329 @@
+{
+  "timestamp": "2026-04-18T15:07:02.620448",
+  "tool_availability": [
+    {
+      "tool_name": "file",
+      "available": true,
+      "executable_path": "/usr/bin/file",
+      "version": "file-5.41",
+      "error": null
+    },
+    {
+      "tool_name": "strings",
+      "available": true,
+      "executable_path": "/usr/bin/strings",
+      "version": null,
+      "error": null
+    },
+    {
+      "tool_name": "objdump",
+      "available": true,
+      "executable_path": "/usr/bin/objdump",
+      "version": "Apple LLVM version 17.0.0",
+      "error": null
+    },
+    {
+      "tool_name": "nm",
+      "available": true,
+      "executable_path": "/usr/bin/nm",
+      "version": "llvm-nm, compatible with GNU nm",
+      "error": null
+    },
+    {
+      "tool_name": "otool",
+      "available": true,
+      "executable_path": "/usr/bin/otool",
+      "version": "",
+      "error": null
+    },
+    {
+      "tool_name": "readelf",
+      "available": false,
+      "executable_path": null,
+      "version": null,
+      "error": null
+    },
+    {
+      "tool_name": "ldd",
+      "available": false,
+      "executable_path": null,
+      "version": null,
+      "error": null
+    },
+    {
+      "tool_name": "strace",
+      "available": false,
+      "executable_path": null,
+      "version": null,
+      "error": null
+    },
+    {
+      "tool_name": "ltrace",
+      "available": false,
+      "executable_path": null,
+      "version": null,
+      "error": null
+    },
+    {
+      "tool_name": "radare2",
+      "available": false,
+      "executable_path": null,
+      "version": null,
+      "error": null
+    }
+  ],
+  "statistics": {
+    "file": {
+      "success_rate": "4/4",
+      "avg_time": "0.003s",
+      "min_time": "0.002s",
+      "max_time": "0.005s",
+      "total_output": 104,
+      "analysis_count": 4
+    },
+    "strings": {
+      "success_rate": "4/4",
+      "avg_time": "0.010s",
+      "min_time": "0.009s",
+      "max_time": "0.012s",
+      "total_output": 202,
+      "analysis_count": 4
+    },
+    "objdump": {
+      "success_rate": "0/4",
+      "avg_time": "0.010s",
+      "min_time": "0.009s",
+      "max_time": "0.011s",
+      "total_output": 998,
+      "analysis_count": 4
+    },
+    "nm": {
+      "success_rate": "3/4",
+      "avg_time": "0.009s",
+      "min_time": "0.009s",
+      "max_time": "0.010s",
+      "total_output": 491,
+      "analysis_count": 4
+    },
+    "otool": {
+      "success_rate": "4/4",
+      "avg_time": "0.011s",
+      "min_time": "0.010s",
+      "max_time": "0.013s",
+      "total_output": 716,
+      "analysis_count": 4
+    }
+  },
+  "detailed_results": {
+    "file": [
+      {
+        "tool_name": "file",
+        "binary_name": "loop_x64.asm",
+        "analysis_type": "file_info",
+        "success": true,
+        "execution_time": 0.004754066467285156,
+        "output_lines": 2,
+        "output_size": 11,
+        "error": null
+      },
+      {
+        "tool_name": "file",
+        "binary_name": "hello_x64_stripped",
+        "analysis_type": "file_info",
+        "success": true,
+        "execution_time": 0.0025730133056640625,
+        "output_lines": 2,
+        "output_size": 31,
+        "error": null
+      },
+      {
+        "tool_name": "file",
+        "binary_name": "pie_x64",
+        "analysis_type": "file_info",
+        "success": true,
+        "execution_time": 0.0023660659790039062,
+        "output_lines": 2,
+        "output_size": 31,
+        "error": null
+      },
+      {
+        "tool_name": "file",
+        "binary_name": "hello_x64",
+        "analysis_type": "file_info",
+        "success": true,
+        "execution_time": 0.0025017261505126953,
+        "output_lines": 2,
+        "output_size": 31,
+        "error": null
+      }
+    ],
+    "strings": [
+      {
+        "tool_name": "strings",
+        "binary_name": "loop_x64.asm",
+        "analysis_type": "string_extraction",
+        "success": true,
+        "execution_time": 0.011504888534545898,
+        "output_lines": 8,
+        "output_size": 156,
+        "error": null
+      },
+      {
+        "tool_name": "strings",
+        "binary_name": "hello_x64_stripped",
+        "analysis_type": "string_extraction",
+        "success": true,
+        "execution_time": 0.00922393798828125,
+        "output_lines": 2,
+        "output_size": 23,
+        "error": null
+      },
+      {
+        "tool_name": "strings",
+        "binary_name": "pie_x64",
+        "analysis_type": "string_extraction",
+        "success": true,
+        "execution_time": 0.00885772705078125,
+        "output_lines": 1,
+        "output_size": 0,
+        "error": null
+      },
+      {
+        "tool_name": "strings",
+        "binary_name": "hello_x64",
+        "analysis_type": "string_extraction",
+        "success": true,
+        "execution_time": 0.009392976760864258,
+        "output_lines": 2,
+        "output_size": 23,
+        "error": null
+      }
+    ],
+    "objdump": [
+      {
+        "tool_name": "objdump",
+        "binary_name": "loop_x64.asm",
+        "analysis_type": "disassembly",
+        "success": false,
+        "execution_time": 0.010500907897949219,
+        "output_lines": 2,
+        "output_size": 204,
+        "error": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/objdump: error: 'tests/fixtures/workspace/binaries/loop_x64.asm': The file was not recognized as a valid object file\n"
+      },
+      {
+        "tool_name": "objdump",
+        "binary_name": "hello_x64_stripped",
+        "analysis_type": "disassembly",
+        "success": false,
+        "execution_time": 0.009808063507080078,
+        "output_lines": 4,
+        "output_size": 278,
+        "error": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/objdump: error: 'tests/fixtures/workspace/binaries/hello_x64_stripped': Invalid/Unsupported object file format\n"
+      },
+      {
+        "tool_name": "objdump",
+        "binary_name": "pie_x64",
+        "analysis_type": "disassembly",
+        "success": false,
+        "execution_time": 0.008935928344726562,
+        "output_lines": 4,
+        "output_size": 256,
+        "error": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/objdump: error: 'tests/fixtures/workspace/binaries/pie_x64': Invalid/Unsupported object file format\n"
+      },
+      {
+        "tool_name": "objdump",
+        "binary_name": "hello_x64",
+        "analysis_type": "disassembly",
+        "success": false,
+        "execution_time": 0.009243249893188477,
+        "output_lines": 4,
+        "output_size": 260,
+        "error": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/objdump: error: 'tests/fixtures/workspace/binaries/hello_x64': Invalid/Unsupported object file format\n"
+      }
+    ],
+    "nm": [
+      {
+        "tool_name": "nm",
+        "binary_name": "loop_x64.asm",
+        "analysis_type": "symbol_analysis",
+        "success": false,
+        "execution_time": 0.010042905807495117,
+        "output_lines": 3,
+        "output_size": 198,
+        "error": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/nm: error: tests/fixtures/workspace/binaries/loop_x64.asm: The file was not recognized as a valid object file\n\n"
+      },
+      {
+        "tool_name": "nm",
+        "binary_name": "hello_x64_stripped",
+        "analysis_type": "symbol_analysis",
+        "success": true,
+        "execution_time": 0.009406089782714844,
+        "output_lines": 4,
+        "output_size": 114,
+        "error": null
+      },
+      {
+        "tool_name": "nm",
+        "binary_name": "pie_x64",
+        "analysis_type": "symbol_analysis",
+        "success": true,
+        "execution_time": 0.008721113204956055,
+        "output_lines": 4,
+        "output_size": 88,
+        "error": null
+      },
+      {
+        "tool_name": "nm",
+        "binary_name": "hello_x64",
+        "analysis_type": "symbol_analysis",
+        "success": true,
+        "execution_time": 0.008637189865112305,
+        "output_lines": 4,
+        "output_size": 91,
+        "error": null
+      }
+    ],
+    "otool": [
+      {
+        "tool_name": "otool",
+        "binary_name": "loop_x64.asm",
+        "analysis_type": "header_analysis",
+        "success": true,
+        "execution_time": 0.012907028198242188,
+        "output_lines": 2,
+        "output_size": 70,
+        "error": null
+      },
+      {
+        "tool_name": "otool",
+        "binary_name": "hello_x64_stripped",
+        "analysis_type": "header_analysis",
+        "success": true,
+        "execution_time": 0.010168075561523438,
+        "output_lines": 5,
+        "output_size": 222,
+        "error": null
+      },
+      {
+        "tool_name": "otool",
+        "binary_name": "pie_x64",
+        "analysis_type": "header_analysis",
+        "success": true,
+        "execution_time": 0.010009765625,
+        "output_lines": 5,
+        "output_size": 211,
+        "error": null
+      },
+      {
+        "tool_name": "otool",
+        "binary_name": "hello_x64",
+        "analysis_type": "header_analysis",
+        "success": true,
+        "execution_time": 0.009675979614257812,
+        "output_lines": 5,
+        "output_size": 213,
+        "error": null
+      }
+    ]
+  }
+}

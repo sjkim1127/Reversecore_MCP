@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-04-18T15:07:06",
+  "statistics": {
+    "total_scans": 7,
+    "total_signatures": 0,
+    "total_time": "0.436s",
+    "avg_time": "0.062s"
+  },
+  "signature_types": {},
+  "detailed_results": []
+}

@@ -1,0 +1,232 @@
+{
+  "timestamp": "2026-04-18 15:07:02",
+  "total_runs": 16,
+  "statistics": {
+    "file": {
+      "avg_time": 0.0031644701957702637,
+      "min_time": 0.0024089813232421875,
+      "max_time": 0.0048139095306396484,
+      "stdev": 0.0011092020743512837,
+      "runs": 4
+    },
+    "strings": {
+      "avg_time": 0.009340047836303711,
+      "min_time": 0.008512020111083984,
+      "max_time": 0.01105499267578125,
+      "stdev": 0.0011617636912826107,
+      "runs": 4
+    },
+    "objdump": {
+      "avg_time": 0.008932888507843018,
+      "min_time": 0.00855875015258789,
+      "max_time": 0.009260892868041992,
+      "stdev": 0.00028811241198218663,
+      "runs": 4
+    },
+    "capstone": {
+      "avg_time": 0,
+      "min_time": 0,
+      "max_time": 0,
+      "stdev": 0.0,
+      "runs": 4
+    }
+  },
+  "results": [
+    {
+      "tool_name": "file",
+      "binary_name": "loop_x64.asm",
+      "binary_size": 157,
+      "execution_time": 0.0048139095306396484,
+      "memory_peak": 0,
+      "success": true,
+      "error": null,
+      "details": {
+        "returncode": 0,
+        "stdout_lines": 1
+      }
+    },
+    {
+      "tool_name": "strings",
+      "binary_name": "loop_x64.asm",
+      "binary_size": 157,
+      "execution_time": 0.01105499267578125,
+      "memory_peak": 0,
+      "success": true,
+      "error": null,
+      "details": {
+        "returncode": 0,
+        "stdout_lines": 7
+      }
+    },
+    {
+      "tool_name": "objdump",
+      "binary_name": "loop_x64.asm",
+      "binary_size": 157,
+      "execution_time": 0.009260892868041992,
+      "memory_peak": 0,
+      "success": false,
+      "error": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/objdump: error: 'tests/fixtures/workspace/binaries/loop_x64.asm': The file was not recognized as a valid object file\n",
+      "details": {
+        "returncode": 1,
+        "stdout_lines": 0
+      }
+    },
+    {
+      "tool_name": "capstone",
+      "binary_name": "loop_x64.asm",
+      "binary_size": 0,
+      "execution_time": 0,
+      "memory_peak": 0,
+      "success": false,
+      "error": "Capstone not installed",
+      "details": {}
+    },
+    {
+      "tool_name": "file",
+      "binary_name": "hello_x64_stripped",
+      "binary_size": 33440,
+      "execution_time": 0.0027170181274414062,
+      "memory_peak": 0,
+      "success": true,
+      "error": null,
+      "details": {
+        "returncode": 0,
+        "stdout_lines": 1
+      }
+    },
+    {
+      "tool_name": "strings",
+      "binary_name": "hello_x64_stripped",
+      "binary_size": 33440,
+      "execution_time": 0.009017229080200195,
+      "memory_peak": 0,
+      "success": true,
+      "error": null,
+      "details": {
+        "returncode": 0,
+        "stdout_lines": 1
+      }
+    },
+    {
+      "tool_name": "objdump",
+      "binary_name": "hello_x64_stripped",
+      "binary_size": 33440,
+      "execution_time": 0.00855875015258789,
+      "memory_peak": 0,
+      "success": false,
+      "error": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/objdump: error: 'tests/fixtures/workspace/binaries/hello_x64_stripped': Invalid/Unsupported object file format\n",
+      "details": {
+        "returncode": 1,
+        "stdout_lines": 2
+      }
+    },
+    {
+      "tool_name": "capstone",
+      "binary_name": "hello_x64_stripped",
+      "binary_size": 0,
+      "execution_time": 0,
+      "memory_peak": 0,
+      "success": false,
+      "error": "Capstone not installed",
+      "details": {}
+    },
+    {
+      "tool_name": "file",
+      "binary_name": "pie_x64",
+      "binary_size": 16872,
+      "execution_time": 0.0024089813232421875,
+      "memory_peak": 0,
+      "success": true,
+      "error": null,
+      "details": {
+        "returncode": 0,
+        "stdout_lines": 1
+      }
+    },
+    {
+      "tool_name": "strings",
+      "binary_name": "pie_x64",
+      "binary_size": 16872,
+      "execution_time": 0.008512020111083984,
+      "memory_peak": 0,
+      "success": true,
+      "error": null,
+      "details": {
+        "returncode": 0,
+        "stdout_lines": 0
+      }
+    },
+    {
+      "tool_name": "objdump",
+      "binary_name": "pie_x64",
+      "binary_size": 16872,
+      "execution_time": 0.008941888809204102,
+      "memory_peak": 0,
+      "success": false,
+      "error": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/objdump: error: 'tests/fixtures/workspace/binaries/pie_x64': Invalid/Unsupported object file format\n",
+      "details": {
+        "returncode": 1,
+        "stdout_lines": 2
+      }
+    },
+    {
+      "tool_name": "capstone",
+      "binary_name": "pie_x64",
+      "binary_size": 0,
+      "execution_time": 0,
+      "memory_peak": 0,
+      "success": false,
+      "error": "Capstone not installed",
+      "details": {}
+    },
+    {
+      "tool_name": "file",
+      "binary_name": "hello_x64",
+      "binary_size": 33432,
+      "execution_time": 0.0027179718017578125,
+      "memory_peak": 0,
+      "success": true,
+      "error": null,
+      "details": {
+        "returncode": 0,
+        "stdout_lines": 1
+      }
+    },
+    {
+      "tool_name": "strings",
+      "binary_name": "hello_x64",
+      "binary_size": 33432,
+      "execution_time": 0.008775949478149414,
+      "memory_peak": 0,
+      "success": true,
+      "error": null,
+      "details": {
+        "returncode": 0,
+        "stdout_lines": 1
+      }
+    },
+    {
+      "tool_name": "objdump",
+      "binary_name": "hello_x64",
+      "binary_size": 33432,
+      "execution_time": 0.008970022201538086,
+      "memory_peak": 0,
+      "success": false,
+      "error": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/objdump: error: 'tests/fixtures/workspace/binaries/hello_x64': Invalid/Unsupported object file format\n",
+      "details": {
+        "returncode": 1,
+        "stdout_lines": 2
+      }
+    },
+    {
+      "tool_name": "capstone",
+      "binary_name": "hello_x64",
+      "binary_size": 0,
+      "execution_time": 0,
+      "memory_peak": 0,
+      "success": false,
+      "error": "Capstone not installed",
+      "details": {}
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "timestamp": "2026-04-18T15:07:06.966975",
+  "total_execution_time": 4.599073648452759,
+  "benchmarks_run": 5,
+  "successful": 5,
+  "failed": 0,
+  "success_rate": "100.0%",
+  "details": {
+    "Extended Tool Analysis": {
+      "script": "scripts/extended-tool-analysis.py",
+      "success": true,
+      "execution_time": 0.2569880485534668,
+      "returncode": 0,
+      "output_lines": 79,
+      "error_lines": 0
+    },
+    "Tool Performance Benchmark": {
+      "script": "scripts/benchmark-analysis-tools.py",
+      "success": true,
+      "execution_time": 0.1253340244293213,
+      "returncode": 0,
+      "output_lines": 62,
+      "error_lines": 0
+    },
+    "Parallel Analysis Framework": {
+      "script": "scripts/parallel_analysis_framework.py",
+      "success": true,
+      "execution_time": 0.32631421089172363,
+      "returncode": 0,
+      "output_lines": 98,
+      "error_lines": 0
+    },
+    "YARA Malware Scanner": {
+      "script": "scripts/yara_malware_scanner.py",
+      "success": true,
+      "execution_time": 1.8398799896240234,
+      "returncode": 0,
+      "output_lines": 66,
+      "error_lines": 3
+    },
+    "Binwalk Firmware Analyzer": {
+      "script": "scripts/binwalk_firmware_analyzer.py",
+      "success": true,
+      "execution_time": 2.049839973449707,
+      "returncode": 0,
+      "output_lines": 23,
+      "error_lines": 0
+    }
+  }
+}

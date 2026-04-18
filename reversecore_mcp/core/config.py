@@ -10,14 +10,14 @@ Environment Variables:
     LOG_LEVEL: Logging level (default: INFO)
     LOG_FILE: Path to log file (default: <tempdir>/reversecore/app.log)
     LOG_FORMAT: Log format - "human" or "json" (default: human)
-    STRUCTURED_ERRORS: Enable structured error responses (default: false)
-    RATE_LIMIT: Rate limit per minute (default: 60)
-    LIEF_MAX_FILE_SIZE: Max file size for LIEF parsing (default: 1GB)
+    REVERSECORE_STRUCTURED_ERRORS: Enable structured error responses (default: false)
+    REVERSECORE_RATE_LIMIT: Rate limit per minute (default: 60)
+    REVERSECORE_LIEF_MAX_FILE_SIZE: Max file size for LIEF parsing (default: 1GB)
     MCP_TRANSPORT: Transport mode - "stdio" or "http" (default: stdio)
-    DEFAULT_TOOL_TIMEOUT: Default timeout in seconds (default: 120)
-    R2_POOL_SIZE: Radare2 connection pool size (default: 3)
-    R2_POOL_TIMEOUT: Radare2 pool connection timeout (default: 30)
-    GHIDRA_MAX_PROJECTS: Max Ghidra projects to cache for multi-malware analysis (default: 3)
+    REVERSECORE_DEFAULT_TOOL_TIMEOUT: Default timeout in seconds (default: 120)
+    REVERSECORE_R2_POOL_SIZE: Radare2 connection pool size (default: 3)
+    REVERSECORE_R2_POOL_TIMEOUT: Radare2 pool connection timeout (default: 30)
+    REVERSECORE_GHIDRA_MAX_PROJECTS: Max Ghidra projects to cache for multi-malware analysis (default: 3)
     REVERSECORE_STRICT_PATHS: Strict path validation mode (default: false)
 """
 
@@ -97,7 +97,6 @@ class Settings(BaseSettings):
     # Error handling
     structured_errors: bool = Field(
         default=False,
-        alias="STRUCTURED_ERRORS",
         description="Enable structured error responses with error codes",
     )
 
@@ -106,7 +105,6 @@ class Settings(BaseSettings):
         default=60,
         ge=1,
         le=1000,
-        alias="RATE_LIMIT",
         description="Rate limit (requests per minute)",
     )
 
@@ -114,13 +112,11 @@ class Settings(BaseSettings):
     max_output_size: int = Field(
         default=10_000_000,
         ge=1000,
-        alias="MAX_OUTPUT_SIZE",
         description="Maximum output size for tools (bytes)",
     )
     lief_max_file_size: int = Field(
         default=1_000_000_000,
         ge=1_000_000,
-        alias="LIEF_MAX_FILE_SIZE",
         description="Maximum file size for LIEF parsing (bytes)",
     )
 
@@ -164,7 +160,6 @@ class Settings(BaseSettings):
         default=120,
         ge=10,
         le=3600,
-        alias="DEFAULT_TOOL_TIMEOUT",
         description="Default timeout for tool execution (seconds)",
     )
 
@@ -173,14 +168,12 @@ class Settings(BaseSettings):
         default=3,
         ge=1,
         le=20,
-        alias="R2_POOL_SIZE",
         description="Number of radare2 connections in pool",
     )
     r2_pool_timeout: int = Field(
         default=30,
         ge=5,
         le=300,
-        alias="R2_POOL_TIMEOUT",
         description="Timeout for acquiring radare2 connection from pool",
     )
 
@@ -189,7 +182,6 @@ class Settings(BaseSettings):
         default=3,
         ge=1,
         le=10,
-        alias="GHIDRA_MAX_PROJECTS",
         description="Maximum number of Ghidra projects to cache (higher = more RAM)",
     )
 

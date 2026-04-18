@@ -1,0 +1,499 @@
+{
+  "timestamp": "2026-04-18T15:07:04",
+  "statistics": {
+    "total_scans": 17,
+    "total_matches": 28,
+    "total_time": "0.351s",
+    "avg_time": "0.021s",
+    "match_rate": "164.7%"
+  },
+  "by_rule": {
+    "High_Entropy_Section": {
+      "count": 17,
+      "tags": [],
+      "binaries": [
+        "tests/fixtures/workspace/binaries/loop_x64.asm",
+        "tests/fixtures/workspace/binaries/hello_x64_stripped",
+        "tests/fixtures/workspace/binaries/hello.c",
+        "tests/fixtures/workspace/binaries/BINARIES_INFO.json",
+        "tests/fixtures/workspace/binaries/pie_x64",
+        "tests/fixtures/workspace/binaries/hello_x64",
+        "tests/fixtures/workspace/binaries/pie.c",
+        "tests/fixtures/workspace/binaries/pe/PE_BINARIES_INFO.json",
+        "tests/fixtures/workspace/binaries/pe/mingw_x86.exe",
+        "tests/fixtures/workspace/binaries/pe/hello.c",
+        "tests/fixtures/workspace/binaries/pe/minimal_x64.exe",
+        "tests/fixtures/workspace/binaries/pe/minimal_x86.exe",
+        "tests/fixtures/workspace/binaries/large/large_5mb.bin",
+        "tests/fixtures/workspace/binaries/large/large_1mb.bin",
+        "tests/fixtures/workspace/binaries/large/compiled_large_5mb",
+        "tests/fixtures/workspace/binaries/large/large_10mb.bin",
+        "tests/fixtures/workspace/binaries/large/compiled_large_5mb.c"
+      ]
+    },
+    "Obfuscation_Techniques": {
+      "count": 7,
+      "tags": [],
+      "binaries": [
+        "tests/fixtures/workspace/binaries/hello_x64_stripped",
+        "tests/fixtures/workspace/binaries/pie_x64",
+        "tests/fixtures/workspace/binaries/hello_x64",
+        "tests/fixtures/workspace/binaries/pe/mingw_x86.exe",
+        "tests/fixtures/workspace/binaries/pe/minimal_x64.exe",
+        "tests/fixtures/workspace/binaries/pe/minimal_x86.exe",
+        "tests/fixtures/workspace/binaries/large/compiled_large_5mb"
+      ]
+    },
+    "Shellcode_NOP_Sled": {
+      "count": 1,
+      "tags": [],
+      "binaries": [
+        "tests/fixtures/workspace/binaries/pe/mingw_x86.exe"
+      ]
+    },
+    "PE_Executable_Header": {
+      "count": 3,
+      "tags": [],
+      "binaries": [
+        "tests/fixtures/workspace/binaries/pe/mingw_x86.exe",
+        "tests/fixtures/workspace/binaries/pe/minimal_x64.exe",
+        "tests/fixtures/workspace/binaries/pe/minimal_x86.exe"
+      ]
+    }
+  },
+  "detailed_results": [
+    {
+      "binary_path": "tests/fixtures/workspace/binaries/loop_x64.asm",
+      "scan_time": 0.00011301040649414062,
+      "rules_loaded": 1,
+      "matches_found": 1,
+      "matches": [
+        {
+          "rule": "High_Entropy_Section",
+          "tags": [],
+          "meta": {
+            "description": "Detects high entropy sections (encryption/compression)",
+            "severity": "medium",
+            "category": "entropy"
+          },
+          "string_count": 1
+        }
+      ],
+      "error": null
+    },
+    {
+      "binary_path": "tests/fixtures/workspace/binaries/hello_x64_stripped",
+      "scan_time": 0.00862264633178711,
+      "rules_loaded": 1,
+      "matches_found": 2,
+      "matches": [
+        {
+          "rule": "Obfuscation_Techniques",
+          "tags": [],
+          "meta": {
+            "description": "Detects obfuscation techniques",
+            "severity": "medium",
+            "category": "obfuscation"
+          },
+          "string_count": 1
+        },
+        {
+          "rule": "High_Entropy_Section",
+          "tags": [],
+          "meta": {
+            "description": "Detects high entropy sections (encryption/compression)",
+            "severity": "medium",
+            "category": "entropy"
+          },
+          "string_count": 1
+        }
+      ],
+      "error": null
+    },
+    {
+      "binary_path": "tests/fixtures/workspace/binaries/hello.c",
+      "scan_time": 0.00011897087097167969,
+      "rules_loaded": 1,
+      "matches_found": 1,
+      "matches": [
+        {
+          "rule": "High_Entropy_Section",
+          "tags": [],
+          "meta": {
+            "description": "Detects high entropy sections (encryption/compression)",
+            "severity": "medium",
+            "category": "entropy"
+          },
+          "string_count": 1
+        }
+      ],
+      "error": null
+    },
+    {
+      "binary_path": "tests/fixtures/workspace/binaries/BINARIES_INFO.json",
+      "scan_time": 0.00018310546875,
+      "rules_loaded": 1,
+      "matches_found": 1,
+      "matches": [
+        {
+          "rule": "High_Entropy_Section",
+          "tags": [],
+          "meta": {
+            "description": "Detects high entropy sections (encryption/compression)",
+            "severity": "medium",
+            "category": "entropy"
+          },
+          "string_count": 1
+        }
+      ],
+      "error": null
+    },
+    {
+      "binary_path": "tests/fixtures/workspace/binaries/pie_x64",
+      "scan_time": 0.0033211708068847656,
+      "rules_loaded": 1,
+      "matches_found": 2,
+      "matches": [
+        {
+          "rule": "Obfuscation_Techniques",
+          "tags": [],
+          "meta": {
+            "description": "Detects obfuscation techniques",
+            "severity": "medium",
+            "category": "obfuscation"
+          },
+          "string_count": 1
+        },
+        {
+          "rule": "High_Entropy_Section",
+          "tags": [],
+          "meta": {
+            "description": "Detects high entropy sections (encryption/compression)",
+            "severity": "medium",
+            "category": "entropy"
+          },
+          "string_count": 1
+        }
+      ],
+      "error": null
+    },
+    {
+      "binary_path": "tests/fixtures/workspace/binaries/hello_x64",
+      "scan_time": 0.00594782829284668,
+      "rules_loaded": 1,
+      "matches_found": 2,
+      "matches": [
+        {
+          "rule": "Obfuscation_Techniques",
+          "tags": [],
+          "meta": {
+            "description": "Detects obfuscation techniques",
+            "severity": "medium",
+            "category": "obfuscation"
+          },
+          "string_count": 1
+        },
+        {
+          "rule": "High_Entropy_Section",
+          "tags": [],
+          "meta": {
+            "description": "Detects high entropy sections (encryption/compression)",
+            "severity": "medium",
+            "category": "entropy"
+          },
+          "string_count": 1
+        }
+      ],
+      "error": null
+    },
+    {
+      "binary_path": "tests/fixtures/workspace/binaries/pie.c",
+      "scan_time": 5.817413330078125e-05,
+      "rules_loaded": 1,
+      "matches_found": 1,
+      "matches": [
+        {
+          "rule": "High_Entropy_Section",
+          "tags": [],
+          "meta": {
+            "description": "Detects high entropy sections (encryption/compression)",
+            "severity": "medium",
+            "category": "entropy"
+          },
+          "string_count": 1
+        }
+      ],
+      "error": null
+    },
+    {
+      "binary_path": "tests/fixtures/workspace/binaries/pe/PE_BINARIES_INFO.json",
+      "scan_time": 0.0003139972686767578,
+      "rules_loaded": 1,
+      "matches_found": 1,
+      "matches": [
+        {
+          "rule": "High_Entropy_Section",
+          "tags": [],
+          "meta": {
+            "description": "Detects high entropy sections (encryption/compression)",
+            "severity": "medium",
+            "category": "entropy"
+          },
+          "string_count": 1
+        }
+      ],
+      "error": null
+    },
+    {
+      "binary_path": "tests/fixtures/workspace/binaries/pe/mingw_x86.exe",
+      "scan_time": 0.01619267463684082,
+      "rules_loaded": 1,
+      "matches_found": 4,
+      "matches": [
+        {
+          "rule": "Shellcode_NOP_Sled",
+          "tags": [],
+          "meta": {
+            "description": "Detects NOP sled patterns used in shellcode",
+            "severity": "high",
+            "category": "shellcode"
+          },
+          "string_count": 2
+        },
+        {
+          "rule": "Obfuscation_Techniques",
+          "tags": [],
+          "meta": {
+            "description": "Detects obfuscation techniques",
+            "severity": "medium",
+            "category": "obfuscation"
+          },
+          "string_count": 1
+        },
+        {
+          "rule": "PE_Executable_Header",
+          "tags": [],
+          "meta": {
+            "description": "Detects PE executable format",
+            "severity": "low",
+            "category": "format"
+          },
+          "string_count": 1
+        },
+        {
+          "rule": "High_Entropy_Section",
+          "tags": [],
+          "meta": {
+            "description": "Detects high entropy sections (encryption/compression)",
+            "severity": "medium",
+            "category": "entropy"
+          },
+          "string_count": 1
+        }
+      ],
+      "error": null
+    },
+    {
+      "binary_path": "tests/fixtures/workspace/binaries/pe/hello.c",
+      "scan_time": 0.0002892017364501953,
+      "rules_loaded": 1,
+      "matches_found": 1,
+      "matches": [
+        {
+          "rule": "High_Entropy_Section",
+          "tags": [],
+          "meta": {
+            "description": "Detects high entropy sections (encryption/compression)",
+            "severity": "medium",
+            "category": "entropy"
+          },
+          "string_count": 1
+        }
+      ],
+      "error": null
+    },
+    {
+      "binary_path": "tests/fixtures/workspace/binaries/pe/minimal_x64.exe",
+      "scan_time": 0.00017380714416503906,
+      "rules_loaded": 1,
+      "matches_found": 3,
+      "matches": [
+        {
+          "rule": "Obfuscation_Techniques",
+          "tags": [],
+          "meta": {
+            "description": "Detects obfuscation techniques",
+            "severity": "medium",
+            "category": "obfuscation"
+          },
+          "string_count": 1
+        },
+        {
+          "rule": "PE_Executable_Header",
+          "tags": [],
+          "meta": {
+            "description": "Detects PE executable format",
+            "severity": "low",
+            "category": "format"
+          },
+          "string_count": 1
+        },
+        {
+          "rule": "High_Entropy_Section",
+          "tags": [],
+          "meta": {
+            "description": "Detects high entropy sections (encryption/compression)",
+            "severity": "medium",
+            "category": "entropy"
+          },
+          "string_count": 1
+        }
+      ],
+      "error": null
+    },
+    {
+      "binary_path": "tests/fixtures/workspace/binaries/pe/minimal_x86.exe",
+      "scan_time": 0.00015211105346679688,
+      "rules_loaded": 1,
+      "matches_found": 3,
+      "matches": [
+        {
+          "rule": "Obfuscation_Techniques",
+          "tags": [],
+          "meta": {
+            "description": "Detects obfuscation techniques",
+            "severity": "medium",
+            "category": "obfuscation"
+          },
+          "string_count": 1
+        },
+        {
+          "rule": "PE_Executable_Header",
+          "tags": [],
+          "meta": {
+            "description": "Detects PE executable format",
+            "severity": "low",
+            "category": "format"
+          },
+          "string_count": 1
+        },
+        {
+          "rule": "High_Entropy_Section",
+          "tags": [],
+          "meta": {
+            "description": "Detects high entropy sections (encryption/compression)",
+            "severity": "medium",
+            "category": "entropy"
+          },
+          "string_count": 1
+        }
+      ],
+      "error": null
+    },
+    {
+      "binary_path": "tests/fixtures/workspace/binaries/large/large_5mb.bin",
+      "scan_time": 0.11027097702026367,
+      "rules_loaded": 1,
+      "matches_found": 1,
+      "matches": [
+        {
+          "rule": "High_Entropy_Section",
+          "tags": [],
+          "meta": {
+            "description": "Detects high entropy sections (encryption/compression)",
+            "severity": "medium",
+            "category": "entropy"
+          },
+          "string_count": 1
+        }
+      ],
+      "error": null
+    },
+    {
+      "binary_path": "tests/fixtures/workspace/binaries/large/large_1mb.bin",
+      "scan_time": 0.08117294311523438,
+      "rules_loaded": 1,
+      "matches_found": 1,
+      "matches": [
+        {
+          "rule": "High_Entropy_Section",
+          "tags": [],
+          "meta": {
+            "description": "Detects high entropy sections (encryption/compression)",
+            "severity": "medium",
+            "category": "entropy"
+          },
+          "string_count": 1
+        }
+      ],
+      "error": null
+    },
+    {
+      "binary_path": "tests/fixtures/workspace/binaries/large/compiled_large_5mb",
+      "scan_time": 0.006853818893432617,
+      "rules_loaded": 1,
+      "matches_found": 2,
+      "matches": [
+        {
+          "rule": "Obfuscation_Techniques",
+          "tags": [],
+          "meta": {
+            "description": "Detects obfuscation techniques",
+            "severity": "medium",
+            "category": "obfuscation"
+          },
+          "string_count": 1
+        },
+        {
+          "rule": "High_Entropy_Section",
+          "tags": [],
+          "meta": {
+            "description": "Detects high entropy sections (encryption/compression)",
+            "severity": "medium",
+            "category": "entropy"
+          },
+          "string_count": 1
+        }
+      ],
+      "error": null
+    },
+    {
+      "binary_path": "tests/fixtures/workspace/binaries/large/large_10mb.bin",
+      "scan_time": 0.11426377296447754,
+      "rules_loaded": 1,
+      "matches_found": 1,
+      "matches": [
+        {
+          "rule": "High_Entropy_Section",
+          "tags": [],
+          "meta": {
+            "description": "Detects high entropy sections (encryption/compression)",
+            "severity": "medium",
+            "category": "entropy"
+          },
+          "string_count": 1
+        }
+      ],
+      "error": null
+    },
+    {
+      "binary_path": "tests/fixtures/workspace/binaries/large/compiled_large_5mb.c",
+      "scan_time": 0.0031392574310302734,
+      "rules_loaded": 1,
+      "matches_found": 1,
+      "matches": [
+        {
+          "rule": "High_Entropy_Section",
+          "tags": [],
+          "meta": {
+            "description": "Detects high entropy sections (encryption/compression)",
+            "severity": "medium",
+            "category": "entropy"
+          },
+          "string_count": 1
+        }
+      ],
+      "error": null
+    }
+  ]
+}

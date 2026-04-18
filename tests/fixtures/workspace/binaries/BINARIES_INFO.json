@@ -1,0 +1,29 @@
+{
+  "test_binaries": {
+    "hello_x64": {
+      "type": "ELF x86-64",
+      "description": "Simple Hello World compiled with GCC",
+      "expected_strings": ["Hello from test binary"],
+      "architecture": "x86-64",
+      "has_symbols": true
+    },
+    "hello_x64_stripped": {
+      "type": "ELF x86-64 (Stripped)",
+      "description": "hello_x64 with symbols removed",
+      "architecture": "x86-64",
+      "has_symbols": false
+    },
+    "loop_x64": {
+      "type": "ELF x86-64",
+      "description": "Simple assembly loop with syscall",
+      "architecture": "x86-64",
+      "has_symbols": true
+    },
+    "pie_x64": {
+      "type": "ELF x86-64 (PIE)",
+      "description": "Position Independent Executable",
+      "architecture": "x86-64",
+      "has_symbols": true
+    }
+  }
+}
