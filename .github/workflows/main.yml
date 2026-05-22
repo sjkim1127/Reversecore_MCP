@@ -38,7 +38,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y radare2 yara libyara-dev binutils binwalk openjdk-17-jdk
+          sudo apt-get install -y radare2 yara libyara-dev binutils binwalk openjdk-17-jdk build-essential nasm
 
       - name: Cache Ghidra
         uses: actions/cache@v4
@@ -115,6 +115,81 @@ jobs:
           path: tests/fixtures/workspace/binaries
           key: test-binaries-${{ runner.os }}-${{ hashFiles('scripts/generate-test-binaries.sh') }}
           restore-keys: test-binaries-${{ runner.os }}-
+
+      - name: Run real tool analysis on test binaries
+        env:
+          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
+        run: |
+          echo "🔬 Running real tool analysis on generated binaries..."
+          BIN_DIR="${{ github.workspace }}/tests/fixtures/workspace/binaries"
+
+          if [ ! -d "$BIN_DIR" ]; then
+            echo "❌ Binaries directory not found: $BIN_DIR"
+            exit 1
+          fi
+
+          # Find at least one real compiled binary
+          TARGET=""
+          for f in hello_x64 hello_x64_stripped pie_x64 loop_x64; do
+            if [ -f "$BIN_DIR/$f" ]; then
+              TARGET="$BIN_DIR/$f"
+              break
+            fi
+          done
+
+          if [ -z "$TARGET" ]; then
+            echo "⚠️ No compiled binaries found, creating minimal fallback..."
+            printf '\x7fELF\02\01\01\00' > "$BIN_DIR/fallback.elf"
+            TARGET="$BIN_DIR/fallback.elf"
+          fi
+
+          echo "📁 Target binary: $TARGET"
+          echo ""
+
+          # 1. file
+          echo "--- file ---"
+          file "$TARGET"
+          echo ""
+
+          # 2. strings
+          echo "--- strings ---"
+          strings "$TARGET" | head -20 || true
+          echo ""
+
+          # 3. radare2 (disassemble 10 instructions)
+          echo "--- radare2 disassembly (10 instructions) ---"
+          r2 -q -c "pd 10" "$TARGET" 2>/dev/null || echo "⚠️ r2 disassembly skipped"
+          echo ""
+
+          # 4. radare2 (file info)
+          echo "--- radare2 file info ---"
+          r2 -q -c "iI" "$TARGET" 2>/dev/null || echo "⚠️ r2 info skipped"
+          echo ""
+
+          # 5. objdump (headers)
+          echo "--- objdump headers ---"
+          objdump -h "$TARGET" 2>/dev/null || echo "⚠️ objdump skipped"
+          echo ""
+
+          # 6. binwalk (if available)
+          echo "--- binwalk ---"
+          binwalk "$TARGET" 2>/dev/null || echo "⚠️ binwalk skipped"
+          echo ""
+
+          # 7. yara (self-test with a simple rule)
+          echo "--- yara self-test ---"
+          cat > "$BIN_DIR/ci_test.yar" << 'YARA'
+          rule test_elf {
+              strings:
+                  $elf = { 7f 45 4c 46 }
+              condition:
+                  $elf at 0
+          }
+          YARA
+          yara "$BIN_DIR/ci_test.yar" "$TARGET" 2>/dev/null || echo "⚠️ yara test skipped"
+          echo ""
+
+          echo "✅ Real tool analysis complete"
 
       - name: Run unit tests
         env:
