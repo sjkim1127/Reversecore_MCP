@@ -753,17 +753,15 @@ def main():
         try:
             from slowapi import Limiter, _rate_limit_exceeded_handler  # type: ignore
             from slowapi.errors import RateLimitExceeded  # type: ignore
+            from slowapi.middleware import SlowAPIMiddleware  # type: ignore
             from slowapi.util import get_remote_address  # type: ignore
 
             rate_limit = settings.rate_limit
             limiter = Limiter(key_func=get_remote_address, default_limits=[f"{rate_limit}/minute"])
-
-            # Attach middleware and exception handler
-            @app.middleware("http")
-            async def rate_limit_middleware(request, call_next):  # pragma: no cover - integration
-                return await limiter.middleware(request, call_next)
-
+            app.state.limiter = limiter
+            app.add_middleware(SlowAPIMiddleware)
             app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+            logger.info(f"Rate limiting enabled: {rate_limit}/minute")
         except ImportError:
             # slowapi unavailable: log warning as this is a security risk
             logger.warning(
