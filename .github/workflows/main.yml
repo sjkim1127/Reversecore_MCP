@@ -38,7 +38,30 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y radare2 yara libyara-dev binutils binwalk
+          sudo apt-get install -y radare2 yara libyara-dev binutils binwalk openjdk-17-jdk
+
+      - name: Cache Ghidra
+        uses: actions/cache@v4
+        id: ghidra-cache
+        with:
+          path: ${{ github.workspace }}/Tools
+          key: ghidra-${{ hashFiles('scripts/install-ghidra.sh') }}-${{ runner.os }}
+
+      - name: Install Ghidra
+        if: steps.ghidra-cache.outputs.cache-hit != 'true'
+        run: |
+          chmod +x scripts/install-ghidra.sh
+          scripts/install-ghidra.sh
+
+      - name: Set Ghidra environment
+        run: |
+          GHIDRA_DIR=$(find ${{ github.workspace }}/Tools -maxdepth 1 -type d -name "ghidra_*" | sort -r | head -1)
+          if [ -n "$GHIDRA_DIR" ]; then
+            echo "GHIDRA_INSTALL_DIR=$GHIDRA_DIR" >> $GITHUB_ENV
+            echo "✅ Ghidra found at $GHIDRA_DIR"
+          else
+            echo "⚠️ Ghidra not found in cache, skipping"
+          fi
 
       - name: Install Python dependencies
         run: |
@@ -62,6 +85,13 @@ jobs:
           strings --version || echo "⚠️  strings not found"
           binwalk --version || echo "⚠️  binwalk not found"
           objdump --version | head -1 || echo "⚠️  objdump not found"
+          java -version 2>&1 | head -1 || echo "⚠️  java not found"
+          if [ -n "$GHIDRA_INSTALL_DIR" ]; then
+            echo "✅ Ghidra: $GHIDRA_INSTALL_DIR"
+            ls "$GHIDRA_INSTALL_DIR/ghidraRun" 2>/dev/null || echo "⚠️  ghidraRun not found"
+          else
+            echo "⚠️  Ghidra not installed"
+          fi
           echo "=== Tool verification complete ==="
 
       - name: Create test workspace
