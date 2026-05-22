@@ -31,9 +31,13 @@ ARG RADARE2_VERSION=6.0.4
 ARG GHIDRA_VERSION=11.4.2
 ARG GHIDRA_DATE=20250826
 
+# Enable pipefail for safer RUN commands with pipes
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
 # Set working directory
 WORKDIR /app
 
+# hadolint ignore=DL3008
 # Install build dependencies for Python packages that may need compilation
 # These will NOT be included in the final image
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -55,19 +59,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     unzip \
-    wget \
     && rm -rf /var/lib/apt/lists/*
 
 # Build and install native YARA matching the pinned Python binding (4.3.1)
 RUN curl -sSL "https://github.com/VirusTotal/yara/archive/refs/tags/v${YARA_VERSION}.tar.gz" -o /tmp/yara.tar.gz \
-    && tar -xzf /tmp/yara.tar.gz -C /tmp \
-    && cd /tmp/yara-${YARA_VERSION} \
-    && ./bootstrap.sh \
+    && tar -xzf /tmp/yara.tar.gz -C /tmp
+WORKDIR /tmp/yara-${YARA_VERSION}
+RUN ./bootstrap.sh \
     && ./configure --disable-cuckoo --disable-magic --disable-dotnet \
     && make -j"$(nproc)" \
     && make install \
-    && ldconfig \
-    && rm -rf /tmp/yara*
+    && ldconfig
+WORKDIR /app
+RUN rm -rf /tmp/yara*
 
 # Build radare2 from source to ensure availability on Debian bookworm
 # Radare2 provides comprehensive reverse engineering capabilities:
@@ -78,16 +82,17 @@ RUN curl -sSL "https://github.com/VirusTotal/yara/archive/refs/tags/v${YARA_VERS
 # - Binary analysis (aaa, afl, afi)
 # - String and import extraction (iz, ii)
 # - Hex dump and byte printing (px, p8)
-RUN git clone --depth 1 --branch ${RADARE2_VERSION} https://github.com/radareorg/radare2.git /tmp/radare2 \
-    && cd /tmp/radare2 \
-    && ./configure --prefix=/opt/radare2 \
+RUN git clone --depth 1 --branch ${RADARE2_VERSION} https://github.com/radareorg/radare2.git /tmp/radare2
+WORKDIR /tmp/radare2
+RUN ./configure --prefix=/opt/radare2 \
     && make -j"$(nproc)" \
-    && make install \
-    && rm -rf /tmp/radare2
+    && make install
+WORKDIR /app
+RUN rm -rf /tmp/radare2
 
 # Download and install Ghidra for enhanced decompilation
 # Ghidra provides industry-standard decompilation with better type recovery
-RUN wget -q "https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_${GHIDRA_VERSION}_build/ghidra_${GHIDRA_VERSION}_PUBLIC_${GHIDRA_DATE}.zip" -O /tmp/ghidra.zip \
+RUN curl -sSL "https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_${GHIDRA_VERSION}_build/ghidra_${GHIDRA_VERSION}_PUBLIC_${GHIDRA_DATE}.zip" -o /tmp/ghidra.zip \
     && unzip -q /tmp/ghidra.zip -d /opt \
     && mv /opt/ghidra_${GHIDRA_VERSION}_PUBLIC /opt/ghidra \
     && rm /tmp/ghidra.zip \
@@ -118,6 +123,7 @@ WORKDIR /app
 # Create workspace and rules directories
 RUN mkdir -p /app/workspace /app/rules
 
+# hadolint ignore=DL3008
 # Install only runtime dependencies (no build tools)
 # Versions are pinned to ensure consistent behavior across builds
 # To check available versions: apt-cache madison <package-name>
@@ -135,7 +141,7 @@ RUN apt-get update \
     # Graphviz for CFG image generation (FastMCP Image support)
     graphviz \
     # Required for Adoptium GPG key
-    wget \
+    curl \
     gnupg \
     && rm -rf /var/lib/apt/lists/*
 
@@ -143,9 +149,10 @@ RUN apt-get update \
 # Install manually from: https://github.com/horsicq/DIE-engine/releases
 # Or use: detect_packer tool will gracefully fail if not installed.
 
+# hadolint ignore=DL3008
 # Install Eclipse Temurin (Adoptium) OpenJDK 21 for Ghidra 11.4+
 # Ghidra 11.4.2 requires Java 21+ JDK (not just JRE - needs javac for some operations)
-RUN wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /usr/share/keyrings/adoptium.gpg \
+RUN curl -sSL https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /usr/share/keyrings/adoptium.gpg \
     && echo "deb [signed-by=/usr/share/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb bookworm main" > /etc/apt/sources.list.d/adoptium.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends temurin-21-jdk \
