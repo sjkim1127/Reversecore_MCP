@@ -281,3 +281,14 @@ jobs:
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
+
+      - name: MCP Server Integration Test
+        env:
+          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
+          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
+          LOG_LEVEL: WARNING
+        run: |
+          echo "🧪 Starting MCP Server Integration Test..."
+          pip install requests 2>/dev/null || true
+          python scripts/test-mcp-server.py
+        timeout-minutes: 5
