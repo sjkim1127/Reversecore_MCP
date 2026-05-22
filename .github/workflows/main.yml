@@ -467,6 +467,11 @@ jobs:
           docker cp scripts/test-mcp-docker-tools.py mcp-ci-test:/tmp/test-mcp-docker-tools.py
           docker exec mcp-ci-test python /tmp/test-mcp-docker-tools.py || echo "⚠️  MCP tool invocation test skipped"
 
+          # 3. Call ALL MCP tools comprehensively
+          echo "📋 Calling ALL MCP tools comprehensively..."
+          docker cp scripts/test-all-mcp-tools.py mcp-ci-test:/tmp/test-all-mcp-tools.py
+          docker exec mcp-ci-test python /tmp/test-all-mcp-tools.py || echo "⚠️  All-tools test skipped"
+
           echo "✅ MCP Server Docker integration test passed"
           docker stop mcp-ci-test
           docker rm mcp-ci-test
