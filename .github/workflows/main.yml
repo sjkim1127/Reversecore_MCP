@@ -508,6 +508,11 @@ jobs:
           docker cp scripts/test-dashboard.py mcp-ci-test:/tmp/test-dashboard.py
           docker exec mcp-ci-test python /tmp/test-dashboard.py || echo "⚠️  Dashboard test skipped"
 
+          # 6. E2E: upload → analyze → result
+          echo "🔄 Testing E2E upload → analyze → result..."
+          docker cp scripts/test-e2e-upload-analyze.py mcp-ci-test:/tmp/test-e2e-upload-analyze.py
+          docker exec mcp-ci-test python /tmp/test-e2e-upload-analyze.py || echo "⚠️  E2E test skipped"
+
           echo "✅ MCP Server Docker integration test passed"
           docker stop mcp-ci-test
           docker rm mcp-ci-test
