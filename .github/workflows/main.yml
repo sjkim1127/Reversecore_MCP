@@ -283,6 +283,7 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: MCP Server Integration Test
+        if: always()
         env:
           REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
           REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules

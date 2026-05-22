@@ -35,7 +35,7 @@ class TestToolInstallation:
         result = shutil.which("yara")
         pytest.skip("yara is not installed", allow_module_level=False) \
             if result is None else None
-        
+
         # Test yara version
         output = subprocess.run(
             ["yara", "--version"],
@@ -44,7 +44,8 @@ class TestToolInstallation:
             timeout=5
         )
         assert output.returncode == 0, f"yara --version failed: {output.stderr}"
-        assert "yara" in output.stdout.lower(), "yara version check failed"
+        # yara --version outputs plain version number (e.g. "4.5.0")
+        assert output.stdout.strip(), "yara version output is empty"
 
     def test_strings_installed(self):
         """Verify strings utility is installed."""
