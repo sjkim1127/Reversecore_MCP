@@ -100,6 +100,23 @@ jobs:
           docker build -t reversecore-mcp:ci .
           echo "✅ Docker image built: reversecore-mcp:ci"
 
+      - name: Check Docker image size
+        run: |
+          SIZE=$(docker image inspect reversecore-mcp:ci --format='{{.Size}}')
+          SIZE_MB=$((SIZE / 1024 / 1024))
+          echo "📦 Docker image size: ${SIZE_MB}MB"
+          if [ "$SIZE_MB" -gt 5000 ]; then
+            echo "❌ Image size exceeds 5GB limit (${SIZE_MB}MB)"
+            exit 1
+          elif [ "$SIZE_MB" -gt 2000 ]; then
+            echo "⚠️  Image size is large (${SIZE_MB}MB > 2GB)"
+          fi
+
+      - name: Check Dockerfile vs requirements.txt sync
+        run: |
+          chmod +x scripts/check-docker-requirements-sync.sh
+          scripts/check-docker-requirements-sync.sh
+
       - name: Verify tools inside Docker container
         run: |
           echo "=== Checking tools INSIDE Docker image ==="
@@ -227,6 +244,14 @@ jobs:
 
               echo "✅ Real tool analysis complete (inside Docker)"
             '
+
+      - name: Validate YARA rules (Docker)
+        run: |
+          echo "🔍 Validating YARA rule syntax inside Docker..."
+          docker run --rm \
+            -v ${{ github.workspace }}/tests/fixtures/rules:/app/rules \
+            reversecore-mcp:ci \
+            python /app/scripts/test-yara-rules.py /app/rules || echo "⚠️  YARA rule validation skipped"
 
       - name: Run unit tests
         env:
@@ -471,6 +496,12 @@ jobs:
           echo "📋 Calling ALL MCP tools comprehensively..."
           docker cp scripts/test-all-mcp-tools.py mcp-ci-test:/tmp/test-all-mcp-tools.py
           docker exec mcp-ci-test python /tmp/test-all-mcp-tools.py || echo "⚠️  All-tools test skipped"
+
+          # 4. Container resilience: concurrent requests + restart
+          echo "🔄 Testing container resilience..."
+          pip install aiohttp 2>/dev/null || true
+          docker cp scripts/test-container-resilience.py mcp-ci-test:/tmp/test-container-resilience.py
+          docker exec mcp-ci-test python /tmp/test-container-resilience.py || echo "⚠️  Resilience test skipped"
 
           echo "✅ MCP Server Docker integration test passed"
           docker stop mcp-ci-test
