@@ -80,7 +80,7 @@ jobs:
           ls -lh tests/fixtures/workspace/binaries/ 2>/dev/null || echo "Binaries directory not yet populated"
 
       - name: Cache test binaries
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: tests/fixtures/workspace/binaries
           key: test-binaries-${{ runner.os }}-${{ hashFiles('scripts/generate-test-binaries.sh') }}
