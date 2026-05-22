@@ -76,9 +76,9 @@ jobs:
       - name: Run pip-audit (dependency vulnerabilities)
         run: pip-audit
 
-      - name: Verify tool installations
+      - name: Verify tool installations (host)
         run: |
-          echo "=== Checking installed analysis tools ==="
+          echo "=== Checking host analysis tools ==="
           r2 -v || echo "⚠️  radare2 not found"
           yara --version || echo "⚠️  yara not found"
           file --version || echo "⚠️  file not found"
@@ -92,7 +92,26 @@ jobs:
           else
             echo "⚠️  Ghidra not installed"
           fi
-          echo "=== Tool verification complete ==="
+          echo "=== Host tool verification complete ==="
+
+      - name: Build Docker image
+        run: |
+          echo "🐳 Building Docker image..."
+          docker build -t reversecore-mcp:ci .
+          echo "✅ Docker image built: reversecore-mcp:ci"
+
+      - name: Verify tools inside Docker container
+        run: |
+          echo "=== Checking tools INSIDE Docker image ==="
+          docker run --rm reversecore-mcp:ci sh -c 'r2 -v' || echo "⚠️  radare2 not found in Docker"
+          docker run --rm reversecore-mcp:ci sh -c 'yara --version' || echo "⚠️  yara not found in Docker"
+          docker run --rm reversecore-mcp:ci sh -c 'file --version' || echo "⚠️  file not found in Docker"
+          docker run --rm reversecore-mcp:ci sh -c 'strings --version' || echo "⚠️  strings not found in Docker"
+          docker run --rm reversecore-mcp:ci sh -c 'binwalk --version' || echo "⚠️  binwalk not found in Docker"
+          docker run --rm reversecore-mcp:ci sh -c 'objdump --version | head -1' || echo "⚠️  objdump not found in Docker"
+          docker run --rm reversecore-mcp:ci sh -c 'java -version 2>&1 | head -1' || echo "⚠️  java not found in Docker"
+          docker run --rm reversecore-mcp:ci sh -c 'ls /opt/ghidra/ghidraRun' || echo "⚠️  Ghidra not found in Docker"
+          echo "=== Docker tool verification complete ==="
 
       - name: Create test workspace
         run: |
@@ -387,14 +406,39 @@ jobs:
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
 
-      - name: MCP Server Integration Test
-        if: always()
+      - name: MCP Server Integration Test (Docker)
         env:
           REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
           REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
           LOG_LEVEL: WARNING
         run: |
-          echo "🧪 Starting MCP Server Integration Test..."
-          pip install requests 2>/dev/null || true
-          python scripts/test-mcp-server.py
+          echo "🧪 Starting MCP Server Integration Test (Docker)..."
+          docker run -d --name mcp-ci-test \
+            -p 8765:8000 \
+            -e REVERSECORE_WORKSPACE=/app/workspace \
+            -e REVERSECORE_READ_DIRS=/app/rules \
+            -e LOG_LEVEL=WARNING \
+            -v ${{ github.workspace }}/tests/fixtures/workspace:/app/workspace \
+            -v ${{ github.workspace }}/tests/fixtures/rules:/app/rules \
+            reversecore-mcp:ci
+          echo "⏳ Waiting for MCP server container to be ready..."
+          for i in $(seq 1 30); do
+            sleep 2
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8765/health || echo "000")
+            if [ "$code" = "200" ]; then
+              echo "✅ MCP server in Docker is healthy"
+              break
+            fi
+            echo "   Attempt $i/30: HTTP $code"
+          done
+          if [ "$code" != "200" ]; then
+            echo "❌ MCP server in Docker did not become healthy"
+            docker logs mcp-ci-test
+            docker stop mcp-ci-test
+            docker rm mcp-ci-test
+            exit 1
+          fi
+          echo "✅ MCP Server Docker integration test passed"
+          docker stop mcp-ci-test
+          docker rm mcp-ci-test
         timeout-minutes: 5
