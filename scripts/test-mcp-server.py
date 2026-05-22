@@ -44,12 +44,20 @@ def start_server(port: int) -> subprocess.Popen:
     env["REVERSECORE_WORKSPACE"] = str(PROJECT_ROOT / "tests" / "fixtures" / "workspace")
 
     print(f"🚀 Starting MCP server on port {port}...")
+    log_dir = PROJECT_ROOT / "artifacts" / "mcp-test-logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    stdout_path = log_dir / "mcp-server.stdout.log"
+    stderr_path = log_dir / "mcp-server.stderr.log"
+    stdout_fp = open(stdout_path, "w")
+    stderr_fp = open(stderr_path, "w")
     proc = subprocess.Popen(
         [sys.executable, str(PROJECT_ROOT / "server.py")],
         env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=stdout_fp,
+        stderr=stderr_fp,
     )
+    proc._stdout_fp = stdout_fp  # type: ignore[attr-defined]
+    proc._stderr_fp = stderr_fp  # type: ignore[attr-defined]
     return proc
 
 
@@ -61,12 +69,12 @@ def wait_for_health(port: int, timeout: int = 60) -> dict | None:
     start = time.time()
     while time.time() - start < timeout:
         try:
-            resp = requests.get(url, timeout=5)
+            resp = requests.get(url, timeout=10)
             if resp.status_code == 200:
                 data = resp.json()
                 print(f"✅ Server healthy: {data.get('status', 'unknown')}")
                 return data
-        except requests.ConnectionError:
+        except requests.RequestException:
             pass
         time.sleep(1)
 
@@ -153,15 +161,16 @@ def main() -> int:
         health = wait_for_health(port, timeout)
         if health is None:
             print("❌ Server failed to start within timeout")
-            # Print stdout/stderr for debugging
+            # Print latest log tail for debugging
             try:
-                stdout, stderr = proc.communicate(timeout=10)
-                if stdout:
-                    print("--- stdout ---")
-                    print(stdout.decode("utf-8", errors="replace")[-2000:])
-                if stderr:
-                    print("--- stderr ---")
-                    print(stderr.decode("utf-8", errors="replace")[-2000:])
+                stdout_path = PROJECT_ROOT / "artifacts" / "mcp-test-logs" / "mcp-server.stdout.log"
+                stderr_path = PROJECT_ROOT / "artifacts" / "mcp-test-logs" / "mcp-server.stderr.log"
+                for label, path in (("stdout", stdout_path), ("stderr", stderr_path)):
+                    if path.exists():
+                        text = path.read_text(errors="replace")
+                        if text:
+                            print(f"--- {label} tail ---")
+                            print(text[-2000:])
             except Exception:
                 pass
             return 1
@@ -178,6 +187,14 @@ def main() -> int:
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait()
+        # Close log file handles
+        try:
+            if hasattr(proc, "_stdout_fp"):
+                proc._stdout_fp.close()  # type: ignore[attr-defined]
+            if hasattr(proc, "_stderr_fp"):
+                proc._stderr_fp.close()  # type: ignore[attr-defined]
+        except Exception:
+            pass
         print("👋 Server stopped")
 
 
