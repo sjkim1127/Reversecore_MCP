@@ -191,14 +191,7 @@ jobs:
               echo ""
 
               echo "--- yara self-test ---"
-              cat > "$BIN_DIR/ci_test.yar" << "YARA"
-              rule test_elf {
-                  strings:
-                      $elf = { 7f 45 4c 46 }
-                  condition:
-                      $elf at 0
-              }
-              YARA
+              printf 'rule test_elf {\n    strings:\n        $elf = { 7f 45 4c 46 }\n    condition:\n        $elf at 0\n}\n' > "$BIN_DIR/ci_test.yar"
               yara "$BIN_DIR/ci_test.yar" "$TARGET" 2>/dev/null || echo "⚠️ yara test skipped"
               echo ""
 
