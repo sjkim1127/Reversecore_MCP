@@ -77,7 +77,7 @@ python-magic>=0.4.27
 # ============================================================================
 # Environment management
 # ============================================================================
-python-dotenv>=1.0.0
+python-dotenv>=1.2.2
 
 # ============================================================================
 # Optional: CAPA Capability Detection (complex dependencies, install separately)
