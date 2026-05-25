@@ -139,7 +139,7 @@ RUN apt-get update \
     binwalk \
     # Graphviz for CFG image generation (FastMCP Image support)
     graphviz \
-    # Required for Adoptium GPG key
+    # Required for downloading JDK tarball
     curl \
     gnupg \
     && rm -rf /var/lib/apt/lists/*
@@ -148,15 +148,22 @@ RUN apt-get update \
 # Install manually from: https://github.com/horsicq/DIE-engine/releases
 # Or use: detect_packer tool will gracefully fail if not installed.
 
-# hadolint ignore=DL3008
-# Install OpenJDK 21 JDK from Debian Bookworm for Ghidra 12.1+
-# Debian's native package is more reliable for multi-arch builds than third-party repos
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends openjdk-21-jdk \
-    && rm -rf /var/lib/apt/lists/*
+# Download and install Eclipse Temurin JDK 21 directly from Adoptium GitHub releases
+# Avoids apt repo issues on Debian Bookworm (which only provides openjdk-17 natively)
+# and works reliably across amd64 and arm64 architectures.
+ARG TARGETARCH
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+        TEMURIN_URL="https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.6%2B7/OpenJDK21U-jdk_aarch64_linux_hotspot_21.0.6_7.tar.gz"; \
+    else \
+        TEMURIN_URL="https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.6%2B7/OpenJDK21U-jdk_x64_linux_hotspot_21.0.6_7.tar.gz"; \
+    fi \
+    && curl -sSL "$TEMURIN_URL" -o /tmp/temurin.tar.gz \
+    && mkdir -p /usr/lib/jvm/temurin-21 \
+    && tar -xzf /tmp/temurin.tar.gz -C /usr/lib/jvm/temurin-21 --strip-components=1 \
+    && rm /tmp/temurin.tar.gz
 
 # Set JAVA_HOME environment variable (required for PyGhidra to find Java 21 JDK)
-ENV JAVA_HOME="/usr/lib/jvm/java-21-openjdk-amd64"
+ENV JAVA_HOME="/usr/lib/jvm/temurin-21"
 # Note: Debian adoptium package usually links to -hotspot suffix regardless of arch,
 # or we can rely on standard java in path.
 # Updating PATH guarantees java works.
