@@ -6,8 +6,8 @@
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
 [![FastMCP](https://img.shields.io/badge/FastMCP-2.13.1-green)](https://github.com/jlowin/fastmcp)
 [![Docker](https://img.shields.io/badge/docker-ready-blue)](https://www.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-700%2B%20passed-brightgreen)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-55%25-green)](htmlcov/)
+[![Tests](https://img.shields.io/badge/tests-1000%2B%20passed-brightgreen)](tests/)
+[![Coverage](https://img.shields.io/badge/coverage-67%25-green)](htmlcov/)
 
 [![Watch the Demo](https://img.shields.io/badge/Watch_Demo-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtu.be/wJGW2bp3c5A)
 [![SafeSkill 93/100](https://img.shields.io/badge/SafeSkill-93%2F100_Verified%20Safe-brightgreen)](https://safeskill.dev/scan/sjkim1127-reversecore-mcp)
@@ -29,7 +29,7 @@ Ghidra is required for advanced decompilation features. The installation scripts
 .\scripts\install-ghidra.ps1
 
 # With custom version/path (optional)
-.\scripts\install-ghidra.ps1 -Version "11.4.3" -InstallDir "C:\CustomPath"
+.\scripts\install-ghidra.ps1 -Version "12.1" -InstallDir "C:\CustomPath"
 ```
 
 ```bash
@@ -38,30 +38,30 @@ chmod +x ./scripts/install-ghidra.sh
 ./scripts/install-ghidra.sh
 
 # With custom version/path (optional)
-./scripts/install-ghidra.sh -v 11.4.3 -d /custom/path
+./scripts/install-ghidra.sh -v 12.1 -d /custom/path
 ```
 
 **What the scripts do:**
-- Downloads Ghidra 11.4.3 from GitHub (~400MB)
-- Extracts to `<project>/Tools/ghidra_11.4.3_PUBLIC_YYYYMMDD`
+- Downloads Ghidra 12.1 from GitHub (~400MB)
+- Extracts to `<project>/Tools/ghidra_12.1_PUBLIC_YYYYMMDD`
 - Sets `GHIDRA_INSTALL_DIR` environment variable
 - Updates project `.env` file
 
 **Option 2: Manual Installation**
 
-1. **Download**: [Ghidra 11.4.3](https://github.com/NationalSecurityAgency/ghidra/releases/tag/Ghidra_11.4.3_build)
+1. **Download**: [Ghidra 12.1](https://github.com/NationalSecurityAgency/ghidra/releases/tag/Ghidra_12.1_build)
 2. **Extract** to `<project>/Tools/` or any directory
 3. **Set environment variable**:
    ```bash
    # Linux/macOS (~/.bashrc or ~/.zshrc)
-   export GHIDRA_INSTALL_DIR=/path/to/ghidra_11.4.3_PUBLIC_YYYYMMDD
+   export GHIDRA_INSTALL_DIR=/path/to/ghidra_12.1_PUBLIC_YYYYMMDD
 
    # Windows (PowerShell - permanent)
    [Environment]::SetEnvironmentVariable("GHIDRA_INSTALL_DIR", "C:\path\to\ghidra", "User")
    ```
    Or add to `.env` file (copy from `.env.example`)
 
-> ⚠️ **Note**: JDK 17+ is required for Ghidra. Download from [Adoptium](https://adoptium.net/) if needed.
+> ⚠️ **Note**: JDK 21+ is required for Ghidra 12.1. Install via your OS package manager (e.g., `apt install openjdk-21-jdk`) or [Adoptium](https://adoptium.net/).
 
 ## 🚀 Quick Start
 

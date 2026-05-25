@@ -14,7 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Default values
-VERSION="11.4.3"
+VERSION="12.1"
 INSTALL_DIR=""
 
 # Colors
@@ -32,7 +32,7 @@ while getopts "v:d:h" opt; do
         d) INSTALL_DIR="$OPTARG" ;;
         h)
             echo "Usage: $0 [-v VERSION] [-d INSTALL_DIR]"
-            echo "  -v VERSION     Ghidra version (default: 11.4.3)"
+            echo "  -v VERSION     Ghidra version (default: 12.1)"
             echo "  -d INSTALL_DIR Installation directory (default: <project>/Tools)"
             exit 0
             ;;
@@ -83,7 +83,7 @@ if [ -z "$DOWNLOAD_URL" ]; then
     echo -e "  ${YELLOW}Could not fetch from API, trying known patterns...${NC}"
     
     # Try recent dates (compatible with both Linux and macOS)
-    DATES_TO_TRY="$(date +%Y%m%d) 20251204 20251203"
+    DATES_TO_TRY="$(date +%Y%m%d) 20260513 20260512"
     
     # Add yesterday for Linux
     if date -d "yesterday" +%Y%m%d &>/dev/null; then

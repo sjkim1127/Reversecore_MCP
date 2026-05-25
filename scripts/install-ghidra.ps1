@@ -2,12 +2,12 @@
 # Ghidra Installation Script for Windows
 # =============================================================================
 # This script downloads and installs Ghidra to the Reversecore MCP Tools directory
-# Usage: .\scripts\install-ghidra.ps1 [-Version "11.4.3"] [-InstallDir ".\Tools"]
+# Usage: .\scripts\install-ghidra.ps1 [-Version "12.1"] [-InstallDir ".\Tools"]
 #
 # Default installation: <project_root>\Tools\ghidra_<version>
 
 param(
-    [string]$Version = "11.4.3",
+    [string]$Version = "12.1",
     [string]$InstallDir = ""
 )
 
@@ -71,8 +71,8 @@ try {
         $today.ToString("yyyyMMdd"),
         $today.AddDays(-1).ToString("yyyyMMdd"),
         $today.AddDays(-2).ToString("yyyyMMdd"),
-        "20251204",  # Known release date for 11.4.3
-        "20251203"
+        "20260513",  # Known release date for 12.1
+        "20260512"
     )
     
     $downloadUrl = $null
