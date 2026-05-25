@@ -10,6 +10,7 @@
 [![Coverage](https://img.shields.io/badge/coverage-55%25-green)](htmlcov/)
 
 [![Watch the Demo](https://img.shields.io/badge/Watch_Demo-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtu.be/wJGW2bp3c5A)
+[![SafeSkill 93/100](https://img.shields.io/badge/SafeSkill-93%2F100_Verified%20Safe-brightgreen)](https://safeskill.dev/scan/sjkim1127-reversecore-mcp)
 
 [🇰🇷 한국어 (Korean)](README_KR.md)
 
