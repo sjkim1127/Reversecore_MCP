@@ -9,7 +9,7 @@ pytest-asyncio>=0.21.0
 # Code quality
 black>=26.3.1
 ruff>=0.1.0
-mypy>=1.20.2
+mypy>=2.1.0
 
 # Type stubs
 types-requests>=2.31.0
