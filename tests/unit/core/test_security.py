@@ -92,3 +92,38 @@ class TestValidateFilePath:
         # Should be blocked even though path starts with workspace
         with pytest.raises(ValidationError, match="outside allowed"):
             validate_file_path(str(attack_file), config=workspace_config)
+
+    def test_reset_workspace_config(self, workspace_dir):
+        """Test reset_workspace_config clears cached config."""
+        from reversecore_mcp.core.security import reset_workspace_config, get_workspace_config
+        config1 = get_workspace_config()
+        reset_workspace_config()
+        config2 = get_workspace_config()
+        assert config1 is not config2
+
+    def test_host_absolute_path_extracts_filename(self, workspace_dir, workspace_config):
+        """Test that host-style absolute path extracts filename if in workspace."""
+        test_file = workspace_dir / "sample.exe"
+        test_file.write_text("test")
+        # Pass a fake host path - should extract "sample.exe" and find it in workspace
+        result = validate_file_path("/Users/host/Reversecore_MCP/sample.exe", config=workspace_config)
+        assert result.name == "sample.exe"
+
+    def test_relative_path_resolves_in_workspace(self, workspace_dir, workspace_config):
+        """Test that relative path is resolved against workspace."""
+        test_file = workspace_dir / "relative.bin"
+        test_file.write_text("test")
+        result = validate_file_path("relative.bin", config=workspace_config)
+        assert result.name == "relative.bin"
+
+    def test_read_only_error_includes_allowed_dirs(self, workspace_dir, tmp_path):
+        """Test error message includes read-only dirs when read_only=True."""
+        rules_dir = tmp_path / "rules_ro"
+        rules_dir.mkdir(exist_ok=True)
+        outside_file = tmp_path / "outside_ro.txt"
+        outside_file.write_text("test")
+        config = WorkspaceConfig(workspace=workspace_dir, read_only_dirs=(rules_dir,))
+
+        with pytest.raises(ValidationError, match="Set REVERSECORE_WORKSPACE") as exc_info:
+            validate_file_path(str(outside_file), read_only=True, config=config)
+        assert str(rules_dir) in str(exc_info.value)
