@@ -257,20 +257,19 @@ class TestGetOrCreateSession:
     async def test_creates_new_session(self):
         """Should create a new session when none exists."""
         plugin = Radare2ToolsPlugin()
-        mock_session = MagicMock()
-        mock_session.is_open = True
-        mock_session.session_id = "test-id-123"
+
+        def mock_init(self, file_path):
+            self.session_id = "test-id-123"
+            self.last_error = None
 
         with patch("reversecore_mcp.tools.radare2.radare2_mcp_tools.validate_file_path", return_value="/app/test.bin"):
             with patch("os.path.exists", return_value=True):
-                with patch.object(R2Session, "__init__", return_value=None):
+                with patch.object(R2Session, "__init__", side_effect=mock_init, autospec=True):
                     with patch.object(R2Session, "open", return_value=True):
                         with patch.object(R2Session, "cmd", return_value=""):
                             with patch("asyncio.to_thread", side_effect=lambda f, *a, **k: f(*a, **k)):
                                 result = await plugin._get_or_create_session("/app/test.bin")
 
-        # Since we patch __init__ without proper setup, the session won't have
-        # the attributes set. The test verifies the path validation and locking logic runs.
         assert result is not None
 
     @pytest.mark.asyncio
@@ -295,9 +294,13 @@ class TestGetOrCreateSession:
         plugin._sessions["sid-1"] = stale
         plugin._file_to_session["/app/test.bin"] = "sid-1"
 
+        def mock_init(self, file_path):
+            self.session_id = "test-id-456"
+            self.last_error = None
+
         with patch("reversecore_mcp.tools.radare2.radare2_mcp_tools.validate_file_path", return_value="/app/test.bin"):
             with patch("os.path.exists", return_value=True):
-                with patch.object(R2Session, "__init__", return_value=None):
+                with patch.object(R2Session, "__init__", side_effect=mock_init, autospec=True):
                     with patch.object(R2Session, "open", return_value=True):
                         with patch("asyncio.to_thread", side_effect=lambda f, *a, **k: f(*a, **k)):
                             result = await plugin._get_or_create_session("/app/test.bin")
@@ -363,9 +366,10 @@ class TestMcpToolsMocked:
         plugin._sessions["mock-sid"] = mock_session
         plugin._file_to_session["/app/test.bin"] = "mock-sid"
 
-        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
-            tool = plugin._tools["Radare2_open_file"]
-            result = await tool("/app/test.bin")
+        with patch("reversecore_mcp.tools.radare2.radare2_mcp_tools.validate_file_path", return_value="/app/test.bin"):
+            with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+                tool = plugin._tools["Radare2_open_file"]
+                result = await tool("/app/test.bin")
 
         assert result["status"] == "success"
         assert result["status_code"] == "OPENED"
