@@ -226,7 +226,7 @@ class TestDiagnoseError:
         plugin = Radare2ToolsPlugin()
         with patch("os.path.exists", return_value=True):
             with patch("os.path.isfile", return_value=False):
-                with patch("os.stat"):
+                with patch("os.stat", return_value=type("Stat", (), {"st_mode": 0o40755, "st_size": 4096})()):
                     result = plugin._diagnose_error("/fake/dir", Exception("failed"))
         assert result["is_file"] is False
         assert "directory" in result["hints"][0].lower()
@@ -237,7 +237,7 @@ class TestDiagnoseError:
         with patch("os.path.exists", return_value=True):
             with patch("os.path.isfile", return_value=True):
                 with patch("os.path.getsize", return_value=0):
-                    with patch("os.stat"):
+                    with patch("os.stat", return_value=type("Stat", (), {"st_mode": 0o100644, "st_size": 0})()):
                         result = plugin._diagnose_error("/fake/file", Exception("failed"))
         assert result["file_size"] == 0
         assert "empty" in result["hints"][0].lower()
