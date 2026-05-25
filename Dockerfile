@@ -28,8 +28,8 @@ FROM python:3.14-slim-bookworm AS builder
 ARG TARGETARCH
 ARG YARA_VERSION=4.3.1
 ARG RADARE2_VERSION=6.0.4
-ARG GHIDRA_VERSION=11.4.2
-ARG GHIDRA_DATE=20250826
+ARG GHIDRA_VERSION=12.1
+ARG GHIDRA_DATE=20260513
 
 # Enable pipefail for safer RUN commands with pipes
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -96,7 +96,6 @@ RUN curl -sSL "https://github.com/NationalSecurityAgency/ghidra/releases/downloa
     && unzip -q /tmp/ghidra.zip -d /opt \
     && mv /opt/ghidra_${GHIDRA_VERSION}_PUBLIC /opt/ghidra \
     && rm /tmp/ghidra.zip \
-    # Remove unnecessary components to reduce image size
     && rm -rf /opt/ghidra/docs \
     && rm -rf /opt/ghidra/Extensions/Eclipse \
     && rm -rf /opt/ghidra/Extensions/sample
@@ -150,16 +149,14 @@ RUN apt-get update \
 # Or use: detect_packer tool will gracefully fail if not installed.
 
 # hadolint ignore=DL3008
-# Install Eclipse Temurin (Adoptium) OpenJDK 21 for Ghidra 11.4+
-# Ghidra 11.4.2 requires Java 21+ JDK (not just JRE - needs javac for some operations)
-RUN curl -sSL https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /usr/share/keyrings/adoptium.gpg \
-    && echo "deb [signed-by=/usr/share/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb bookworm main" > /etc/apt/sources.list.d/adoptium.list \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends temurin-21-jdk \
+# Install OpenJDK 21 JDK from Debian Bookworm for Ghidra 12.1+
+# Debian's native package is more reliable for multi-arch builds than third-party repos
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openjdk-21-jdk \
     && rm -rf /var/lib/apt/lists/*
 
 # Set JAVA_HOME environment variable (required for PyGhidra to find Java 21 JDK)
-ENV JAVA_HOME="/usr/lib/jvm/temurin-21-jdk-hotspot"
+ENV JAVA_HOME="/usr/lib/jvm/java-21-openjdk-amd64"
 # Note: Debian adoptium package usually links to -hotspot suffix regardless of arch,
 # or we can rely on standard java in path.
 # Updating PATH guarantees java works.
