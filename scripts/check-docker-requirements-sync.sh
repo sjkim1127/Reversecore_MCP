@@ -5,7 +5,13 @@ set -euo pipefail
 
 echo "🔍 Checking Dockerfile vs requirements.txt sync..."
 
-# Extract pip install lines from Dockerfile
+# Check if Dockerfile installs from requirements.txt (preferred pattern)
+if grep -qE 'pip install.*-r requirements\.txt' Dockerfile; then
+    echo "✅ Dockerfile uses 'pip install -r requirements.txt' — all requirements.txt packages are installed"
+    exit 0
+fi
+
+# Fallback: check explicit pip installs (legacy Dockerfile pattern)
 docker_pkgs=$(grep -oE 'pip install [^;]+' Dockerfile | grep -oE '\b[a-zA-Z0-9_-]+==[0-9.]+' | sort -u || true)
 
 # Extract pinned packages from requirements.txt
