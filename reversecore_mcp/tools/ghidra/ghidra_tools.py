@@ -18,6 +18,7 @@ Performance:
 - Projects are cached with LRU eviction
 """
 
+import asyncio
 from typing import Any, Optional
 
 from fastmcp import Context
@@ -67,8 +68,8 @@ def _get_ghidra_program(file_path: str):
 
 
 @handle_tool_errors
-@log_execution
-@track_metrics
+@log_execution()
+@track_metrics("Ghidra_list_structures")
 async def Ghidra_list_structures(
     file_path: str,
     offset: int = 0,
@@ -131,8 +132,8 @@ async def Ghidra_list_structures(
 
 
 @handle_tool_errors
-@log_execution
-@track_metrics
+@log_execution()
+@track_metrics("Ghidra_get_structure")
 async def Ghidra_get_structure(
     file_path: str,
     name: str,
@@ -204,8 +205,8 @@ async def Ghidra_get_structure(
 
 
 @handle_tool_errors
-@log_execution
-@track_metrics
+@log_execution()
+@track_metrics("Ghidra_create_structure")
 async def Ghidra_create_structure(
     file_path: str,
     name: str,
@@ -291,8 +292,8 @@ async def Ghidra_create_structure(
 
 
 @handle_tool_errors
-@log_execution
-@track_metrics
+@log_execution()
+@track_metrics("Ghidra_list_enums")
 async def Ghidra_list_enums(
     file_path: str,
     offset: int = 0,
@@ -372,8 +373,8 @@ async def Ghidra_list_enums(
 
 
 @handle_tool_errors
-@log_execution
-@track_metrics
+@log_execution()
+@track_metrics("Ghidra_list_data_types")
 async def Ghidra_list_data_types(
     file_path: str,
     category: str = None,
@@ -446,8 +447,8 @@ async def Ghidra_list_data_types(
 
 
 @handle_tool_errors
-@log_execution
-@track_metrics
+@log_execution()
+@track_metrics("Ghidra_list_bookmarks")
 async def Ghidra_list_bookmarks(
     file_path: str,
     bookmark_type: str = None,
@@ -515,8 +516,8 @@ async def Ghidra_list_bookmarks(
 
 
 @handle_tool_errors
-@log_execution
-@track_metrics
+@log_execution()
+@track_metrics("Ghidra_add_bookmark")
 async def Ghidra_add_bookmark(
     file_path: str,
     address: str,
@@ -582,8 +583,8 @@ async def Ghidra_add_bookmark(
 
 
 @handle_tool_errors
-@log_execution
-@track_metrics
+@log_execution()
+@track_metrics("Ghidra_read_memory")
 async def Ghidra_read_memory(
     file_path: str,
     address: str,
@@ -652,8 +653,8 @@ async def Ghidra_read_memory(
 
 
 @handle_tool_errors
-@log_execution
-@track_metrics
+@log_execution()
+@track_metrics("Ghidra_get_bytes")
 async def Ghidra_get_bytes(
     file_path: str,
     address: str,
@@ -713,11 +714,8 @@ async def Ghidra_get_bytes(
 
 
 @handle_tool_errors
-@log_execution
-@track_metrics
-@handle_tool_errors
-@log_execution
-@track_metrics
+@log_execution()
+@track_metrics("Ghidra_simulate_patch")
 async def Ghidra_simulate_patch(
     file_path: str,
     address: str,
@@ -794,8 +792,8 @@ async def Ghidra_simulate_patch(
 
 
 @handle_tool_errors
-@log_execution
-@track_metrics
+@log_execution()
+@track_metrics("Ghidra_analyze_function")
 async def Ghidra_analyze_function(
     file_path: str,
     address: str,
@@ -873,8 +871,8 @@ async def Ghidra_analyze_function(
 
 
 @handle_tool_errors
-@log_execution
-@track_metrics
+@log_execution()
+@track_metrics("Ghidra_get_call_graph")
 async def Ghidra_get_call_graph(
     file_path: str,
     address: str,
