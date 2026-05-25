@@ -1,0 +1,12 @@
+name: "Reversecore MCP CodeQL Config"
+
+paths-ignore:
+  - Tools/**
+  - tests/**
+  - docs/**
+  - scripts/**
+  - "**/*.md"
+  - "**/*.txt"
+  - "**/*.json"
+  - "**/*.yml"
+  - "**/*.yaml"
