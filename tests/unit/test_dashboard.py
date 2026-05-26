@@ -75,9 +75,10 @@ class TestDashboardRoutes:
             mock_config = MagicMock()
             mock_config.workspace = workspace
             mock_get_config.return_value = mock_config
-
-            request = MagicMock()
-            result = await dashboard_index(request)
+            with patch("starlette.templating.Jinja2Templates.TemplateResponse") as mock_tr:
+                mock_tr.return_value = MagicMock()
+                request = MagicMock()
+                result = await dashboard_index(request)
 
         assert result is not None
 
@@ -97,7 +98,9 @@ class TestDashboardRoutes:
                 "reversecore_mcp.core.security.validate_file_path",
                 return_value=workspace / "test.exe",
             ):
-                request = MagicMock()
-                result = await dashboard_analysis(request, "test.exe")
+                with patch("starlette.templating.Jinja2Templates.TemplateResponse") as mock_tr:
+                    mock_tr.return_value = MagicMock()
+                    request = MagicMock()
+                    result = await dashboard_analysis(request, "test.exe")
 
         assert result is not None
