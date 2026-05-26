@@ -273,3 +273,26 @@ class TestCircuitBreakerDecorator:
 
         assert test_func.__name__ == "test_func"
         assert test_func.__doc__ == "Test function docstring."
+
+    def test_sync_decorator(self):
+        """Test circuit_breaker_sync decorator."""
+        from reversecore_mcp.core.resilience import circuit_breaker_sync
+
+        @circuit_breaker_sync("sync_tool")
+        def sync_func():
+            return "success"
+
+        result = sync_func()
+        assert result == "success"
+
+    @pytest.mark.asyncio
+    async def test_async_decorator(self):
+        """Test circuit_breaker_async decorator."""
+        from reversecore_mcp.core.resilience import circuit_breaker_async
+
+        @circuit_breaker_async("async_tool")
+        async def async_func():
+            return "success"
+
+        result = await async_func()
+        assert result == "success"

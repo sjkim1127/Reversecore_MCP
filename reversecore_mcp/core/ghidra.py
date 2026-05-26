@@ -23,6 +23,7 @@ import re
 import shutil
 import tempfile
 import threading
+from collections import OrderedDict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -67,7 +68,7 @@ class GhidraService:
             return
 
         self._jvm_started = False
-        self._projects: dict[str, Any] = {}
+        self._projects: OrderedDict[str, Any] = OrderedDict()
         self._project_lock = threading.RLock()
         self._max_projects: int | None = None  # Lazy-loaded from config
         self._pyghidra = None
@@ -80,6 +81,7 @@ class GhidraService:
         if self._max_projects is None:
             try:
                 from reversecore_mcp.core.config import get_config
+
                 self._max_projects = get_config().ghidra_max_projects
             except Exception:
                 self._max_projects = 3  # Default fallback
