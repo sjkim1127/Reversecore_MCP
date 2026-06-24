@@ -1,5 +1,7 @@
 """Unit tests for copy_to_workspace and list_workspace tools."""
 
+import pytest
+
 from reversecore_mcp.tools import file_operations
 
 
@@ -82,6 +84,7 @@ class TestCopyToWorkspace:
         assert result.error_code == "VALIDATION_ERROR"
         assert "already exists" in result.message
 
+    @pytest.mark.security
     def test_copy_to_workspace_dangerous_destination_name(self, tmp_path, patched_config):
         """Test sanitization of dangerous destination names."""
         source_file = tmp_path / "source" / "test.bin"

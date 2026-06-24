@@ -120,7 +120,7 @@ async def detect_packer(file_path: str):
     try:
         output, _ = await execute_subprocess_async(
             ["diec", str(validated_path)],
-            timeout_seconds=30,
+            timeout=30,
         )
     except Exception as e:
         return failure(error_code="DIE_EXECUTION_ERROR", message=f"DIE execution failed: {e}")
@@ -166,7 +166,7 @@ async def detect_packer_deep(file_path: str):
         # Use deep scan option
         output, _ = await execute_subprocess_async(
             ["diec", "-d", str(validated_path)],
-            timeout_seconds=60,
+            timeout=60,
         )
     except Exception as e:
         return failure(error_code="DIE_DEEP_SCAN_FAILED", message=f"DIE deep scan failed: {e}")

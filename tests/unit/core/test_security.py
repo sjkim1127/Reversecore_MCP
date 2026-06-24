@@ -10,6 +10,7 @@ from reversecore_mcp.core.exceptions import ValidationError
 from reversecore_mcp.core.security import WorkspaceConfig, validate_file_path
 
 
+@pytest.mark.security
 class TestValidateFilePath:
     """Test cases for validate_file_path function."""
 
@@ -95,7 +96,8 @@ class TestValidateFilePath:
 
     def test_reset_workspace_config(self, workspace_dir):
         """Test reset_workspace_config clears cached config."""
-        from reversecore_mcp.core.security import reset_workspace_config, get_workspace_config
+        from reversecore_mcp.core.security import get_workspace_config, reset_workspace_config
+
         config1 = get_workspace_config()
         reset_workspace_config()
         config2 = get_workspace_config()
@@ -106,7 +108,9 @@ class TestValidateFilePath:
         test_file = workspace_dir / "sample.exe"
         test_file.write_text("test")
         # Pass a fake host path - should extract "sample.exe" and find it in workspace
-        result = validate_file_path("/Users/host/Reversecore_MCP/sample.exe", config=workspace_config)
+        result = validate_file_path(
+            "/Users/host/Reversecore_MCP/sample.exe", config=workspace_config
+        )
         assert result.name == "sample.exe"
 
     def test_relative_path_resolves_in_workspace(self, workspace_dir, workspace_config):

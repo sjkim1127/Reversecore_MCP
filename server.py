@@ -457,7 +457,7 @@ def setup_authentication():
     """
     import os
 
-    from fastapi import Depends, HTTPException, Request, status
+    from fastapi import Depends, HTTPException, Request, Response, status
     from fastapi.security import APIKeyHeader
 
     api_key = os.getenv("MCP_API_KEY")
@@ -470,7 +470,9 @@ def setup_authentication():
 
     api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
-    async def verify_api_key(request: Request, key: str = Depends(api_key_header)):
+    async def verify_api_key(
+        request: Request, response: Response, key: str = Depends(api_key_header)
+    ):
         # Allow specific endpoints without authentication
         exempt_exact_paths = {
             "/health",
@@ -479,18 +481,39 @@ def setup_authentication():
             "/metrics",
             "/openapi.json",
         }
-        exempt_prefixes = ("/docs", "/dashboard", "/redoc")
+        exempt_prefixes = ("/docs", "/redoc")
+
+        # Resolve API key from header, query parameter, or browser cookie
+        req_key = (
+            key
+            or request.query_params.get("api_key")
+            or request.query_params.get("key")
+            or request.cookies.get("mcp_api_key")
+        )
 
         if request.url.path in exempt_exact_paths or request.url.path.startswith(exempt_prefixes):
-            return key
+            return req_key
 
-        if key != api_key:
-            logger.warning(f"⚠️ Unauthorized access attempt from {request.client.host}")
+        if req_key != api_key:
+            logger.warning(
+                f"⚠️ Unauthorized access attempt from {request.client.host} to {request.url.path}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Invalid or missing API key",
+                detail="Invalid or missing API key. Use X-API-Key header or api_key query parameter.",
             )
-        return key
+
+        # Set secure HTTP-only cookie if credentials were passed via query parameter
+        if request.query_params.get("api_key") or request.query_params.get("key"):
+            response.set_cookie(
+                key="mcp_api_key",
+                value=api_key,
+                httponly=True,
+                samesite="lax",
+                secure=request.url.scheme == "https",
+            )
+
+        return req_key
 
     return Depends(verify_api_key)
 
@@ -520,6 +543,7 @@ def main():
         from reversecore_mcp.core.metrics import metrics_collector
 
         # Setup authentication (if MCP_API_KEY is set)
+        api_key = os.getenv("MCP_API_KEY")
         auth_dependency = setup_authentication()
 
         # Build a host FastAPI app with docs enabled and mount FastMCP under /mcp
@@ -546,11 +570,20 @@ def main():
         app.add_middleware(SecurityHeadersMiddleware)
         app.mount("/mcp", mcp_app)
 
-        # Add CORS middleware
+        # Add CORS middleware with restricted origins when API Key is set
+        allowed_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
+        if os.getenv("ALLOWED_ORIGINS"):
+            allowed_origins = os.getenv("ALLOWED_ORIGINS").split(",")
+        elif not api_key:
+            allowed_origins = ["*"]
+
+        # Note: if "*" is in allowed_origins, allow_credentials must be False
+        allow_creds = "*" not in allowed_origins
+
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=["*"],
-            allow_credentials=True,
+            allow_origins=allowed_origins,
+            allow_credentials=allow_creds,
             allow_methods=["*"],
             allow_headers=["*"],
         )

@@ -100,11 +100,15 @@ async def run_strings(
         import tempfile
 
         try:
-            # Use system temp directory for output files
+            # Use workspace temp directory for output files for security & auto-cleanup
+            workspace_tmp = get_config().workspace / "tmp"
+            workspace_tmp.mkdir(exist_ok=True)
+
             with tempfile.NamedTemporaryFile(
                 mode="w",
                 suffix="_strings.txt",
                 prefix=f"{validated_path.stem}_",
+                dir=str(workspace_tmp),
                 delete=False,  # Keep file so user can access it
                 encoding="utf-8",
             ) as f:
@@ -223,14 +227,27 @@ async def run_binwalk_extract(
 
     # Create output directory if not specified
     if output_dir is None:
-        # Create temp directory for extraction
-        temp_dir = tempfile.mkdtemp(prefix="binwalk_extract_")
+        # Create temp directory for extraction inside workspace / tmp
+        workspace_tmp = get_config().workspace / "tmp"
+        workspace_tmp.mkdir(exist_ok=True)
+        temp_dir = tempfile.mkdtemp(prefix="binwalk_extract_", dir=str(workspace_tmp))
         extraction_dir = temp_dir
     else:
         # Resolve output directory path (may not exist yet)
         from pathlib import Path
 
-        output_path = Path(output_dir).resolve()
+        from reversecore_mcp.core.exceptions import ValidationError
+
+        output_path = Path(output_dir).expanduser().resolve()
+        # Verify output directory resolves to be within workspace
+        workspace = get_config().workspace.resolve()
+        try:
+            output_path.relative_to(workspace)
+        except ValueError:
+            raise ValidationError(
+                f"Output directory must be inside the workspace: {workspace}",
+                details={"output_dir": output_dir, "workspace": str(workspace)},
+            )
         extraction_dir = str(output_path)
         os.makedirs(extraction_dir, exist_ok=True)
 

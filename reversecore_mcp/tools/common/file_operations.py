@@ -89,6 +89,36 @@ def copy_to_workspace(
             details={"source_path": source_path, "error": str(e)},
         )
 
+    # Security check: Ensure source path is within allowed boundaries
+    import tempfile
+
+    config = get_config()
+    allowed_prefixes = [
+        config.workspace.resolve(),
+        Path("/mnt/user-data/uploads").resolve(),
+        Path(tempfile.gettempdir()).resolve(),
+    ]
+    for read_dir in config.read_only_dirs:
+        allowed_prefixes.append(read_dir.resolve())
+
+    is_allowed = False
+    for prefix in allowed_prefixes:
+        try:
+            source.relative_to(prefix)
+            is_allowed = True
+            break
+        except ValueError:
+            continue
+
+    if not is_allowed:
+        raise ValidationError(
+            f"Source path is outside allowed directories: {source}",
+            details={
+                "source_path": str(source),
+                "allowed_prefixes": [str(p) for p in allowed_prefixes],
+            },
+        )
+
     # Validate source exists and is a file
     if not source.exists():
         raise ValidationError(

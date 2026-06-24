@@ -49,6 +49,19 @@ jobs:
       - name: Run pip-audit (dependency vulnerabilities)
         run: pip-audit
 
+      - name: Create test workspace for security tests
+        run: |
+          mkdir -p tests/fixtures/workspace
+          mkdir -p tests/fixtures/rules
+
+      - name: Run security regression boundary tests
+        env:
+          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
+          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
+          LOG_LEVEL: INFO
+        run: |
+          pytest tests/ -m security -v
+
   unit-and-integration-tests:
     name: Host Unit & Integration Tests
     runs-on: ubuntu-latest

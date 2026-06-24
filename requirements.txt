@@ -91,7 +91,7 @@ pyyaml==6.0.3             # via fastmcp, jsonschema-path
 r2pipe==1.9.8             # via reversecore-mcp
 referencing==0.37.0       # via jsonschema, jsonschema-path, jsonschema-specifications
 requests==2.34.2          # via reversecore-mcp
-reversecore-mcp[analysis,cli,ghidra,http,magic,viz] @ file:///Users/sjkim1127/Reversecore_MCP  # via reversecore-mcp (pyproject.toml)
+.[analysis,cli,ghidra,http,magic,viz]  # via reversecore-mcp (pyproject.toml)
 rich==15.0.0              # via cyclopts, fastmcp, reversecore-mcp, rich-rst, typer
 rich-rst==2.0.1           # via cyclopts
 rpds-py==2026.5.1         # via jsonschema, referencing
