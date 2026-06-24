@@ -97,8 +97,13 @@ async def server_lifespan(server: FastMCP) -> AsyncGenerator[None, None]:
 
     # 5. Discover and activate extension plugins
     from reversecore_mcp.core.extension_registry import get_extension_registry
+    from reversecore_mcp.tools.ghidra.ghidra_sast_extension import GhidraSASTExtension
 
     _ext_registry = get_extension_registry()
+
+    # Register built-in extensions
+    _ext_registry.register_ghidra(GhidraSASTExtension())
+
     _ext_registry.discover_all()
     ext_summary = _ext_registry.list_extensions()
     if ext_summary["r2"] or ext_summary["ghidra"]:

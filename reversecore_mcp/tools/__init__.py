@@ -11,6 +11,7 @@ from reversecore_mcp.tools.analysis import (
     emulation_tools,
     lief_tools,
     signature_tools,
+    source_auditor,
     static_analysis,
 )
 
@@ -42,6 +43,7 @@ __all__ = [
     "signature_tools",
     "lief_tools",
     "emulation_tools",
+    "source_auditor",
     # Common tools
     "file_operations",
     "patch_explainer",
