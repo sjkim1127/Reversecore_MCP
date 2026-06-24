@@ -48,3 +48,6 @@ build/
 
 # Local tools directory (root level only, not reversecore_mcp/tools)
 /Tools/
+
+# Vendor sources (cloned locally for reference, do not commit)
+vendor/
