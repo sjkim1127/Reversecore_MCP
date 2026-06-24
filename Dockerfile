@@ -20,8 +20,9 @@
 # - Binary Parsing: LIEF (PE/ELF/Mach-O)
 # - FastMCP Advanced: Progress, Logging, Image Content, Dynamic Resources, Sampling
 
+ARG BASE_IMAGE=ghcr.io/sjkim1127/reversecore_mcp/base
 ARG BASE_TAG=latest
-FROM ghcr.io/sjkim1127/reversecore-mcp/base:${BASE_TAG}
+FROM ${BASE_IMAGE}:${BASE_TAG}
 
 # ── Application code ─────────────────────────────────────────────────────────
 # Ordered from least-frequently-changed to most-frequently-changed

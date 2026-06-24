@@ -363,6 +363,7 @@ jobs:
       - name: Ensure base image is available
         run: |
           BASE_IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}/base"
+          echo "BASE_IMAGE=${BASE_IMAGE}" >> $GITHUB_ENV
           BASE_TAG="${{ env.BASE_TAG }}"
           echo "🔍 Checking for base image ${BASE_IMAGE}:${BASE_TAG} in registry..."
           if docker pull "${BASE_IMAGE}:${BASE_TAG}" 2>/dev/null; then
@@ -388,6 +389,7 @@ jobs:
         run: |
           echo "🐳 Building app image from base..."
           docker build \
+            --build-arg BASE_IMAGE="${{ env.BASE_IMAGE }}" \
             --build-arg BASE_TAG="${{ env.BASE_TAG }}" \
             -t reversecore-mcp:ci .
           echo "✅ Docker image built: reversecore-mcp:ci"
@@ -729,6 +731,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
+            BASE_IMAGE=${{ env.BASE_IMAGE }}
             BASE_TAG=${{ env.BASE_TAG }}
           tags: |
             ${{ env.IMAGE_NAME }}:latest
