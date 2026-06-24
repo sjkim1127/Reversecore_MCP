@@ -1,6 +1,6 @@
 [project]
 name = "reversecore-mcp"
-version = "1.0.0"
+version = "2.1.0"
 description = "MCP Server for Reverse Engineering with Binary Analysis Tools"
 readme = "README.md"
 requires-python = ">=3.10"
