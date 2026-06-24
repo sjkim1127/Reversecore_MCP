@@ -63,7 +63,7 @@ mcp[cli]==1.28.0          # via fastmcp, reversecore-mcp, reversecore-mcp (pypro
 mdurl==0.1.2              # via markdown-it-py
 more-itertools==11.1.0    # via jaraco-classes, jaraco-functools
 networkx==3.6.1           # via reversecore-mcp
-numpy==2.5.0              # via contourpy, matplotlib
+numpy==2.4.6              # via contourpy, matplotlib
 openapi-pydantic==0.5.1   # via fastmcp
 opentelemetry-api==1.42.1  # via fastmcp
 orjson==3.11.9            # via reversecore-mcp, reversecore-mcp (pyproject.toml)
