@@ -182,6 +182,7 @@ Comprehensive file analysis and metadata extraction:
 - **String Extraction**: Extract ASCII/Unicode strings with configurable limits (`run_strings`)
 - **Firmware Analysis**: Deep scan for embedded files and signatures (`run_binwalk`)
 - **Binary Parsing**: Parse PE/ELF/Mach-O headers and sections with LIEF (`parse_binary_with_lief`)
+- **Source Code Auditing (SAST)**: Run configurable rules on source code or decompiled files (`audit_source_code`). Employs a precise Python AST-based scanner and a regex-based scanner for C/C++ to flag security vulnerabilities without bloating false positives.
 
 ### ⚙️ Disassembly & Decompilation
 
@@ -291,7 +292,7 @@ send_report_email(to="security-team@company.com")
 | Category | Tools |
 |----------|-------|
 | **File Operations** | `list_workspace`, `get_file_info` |
-| **Static Analysis** | `run_file`, `run_strings`, `run_binwalk` |
+| **Static Analysis** | `run_file`, `run_strings`, `run_binwalk`, `audit_source_code` |
 | **Disassembly** | `run_radare2`, `Radare2_disassemble`, `disassemble_with_capstone` |
 | **Decompilation** | `smart_decompile`, `get_pseudo_code` |
 | **Advanced Analysis** | `analyze_xrefs`, `recover_structures`, `emulate_machine_code` |
@@ -412,6 +413,7 @@ docker compose up -d
 | \`REVERSECORE_WORKSPACE\` | \`/app/workspace\` | Analysis workspace path |
 | \`LOG_LEVEL\` | \`INFO\` | Logging level |
 | \`GHIDRA_INSTALL_DIR\` | \`/opt/ghidra\` | Ghidra installation path |
+| \`REVERSECORE_SAST_RULES_PATH\` | \`""\` | Custom YAML path for SAST rules |
 
 ## 🔒 Security
 

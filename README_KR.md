@@ -181,6 +181,7 @@ docker build -t reversecore-mcp:latest .
 - **문자열 추출**: 설정 가능한 제한으로 ASCII/Unicode 문자열 추출 (`run_strings`)
 - **펌웨어 분석**: 임베디드 파일 및 시그니처 심층 스캔 (`run_binwalk`)
 - **바이너리 파싱**: LIEF를 사용한 PE/ELF/Mach-O 헤더 및 섹션 파싱 (`parse_binary_with_lief`)
+- **소스코드 감사 (SAST)**: 소스코드 파일 및 디컴파일 결과물에 대해 설정 가능한 규칙 기반 감사 수행 (`audit_source_code`). 오탐을 줄이기 위해 Python 파일에는 AST 기반 스캐너를 사용하며, C/C++ 파일에는 정밀 정규표현식 스캐너를 적용합니다.
 
 ### ⚙️ 디스어셈블리 및 디컴파일
 
@@ -290,7 +291,7 @@ send_report_email(to="security-team@company.com")
 | 카테고리 | 도구 |
 |----------|------|
 | **파일 작업** | `list_workspace`, `get_file_info` |
-| **정적 분석** | `run_file`, `run_strings`, `run_binwalk` |
+| **정적 분석** | `run_file`, `run_strings`, `run_binwalk`, `audit_source_code` |
 | **디스어셈블리** | `run_radare2`, `Radare2_disassemble`, `disassemble_with_capstone` |
 | **디컴파일** | `smart_decompile`, `get_pseudo_code` |
 | **고급 분석** | `analyze_xrefs`, `recover_structures`, `emulate_machine_code` |
@@ -411,6 +412,7 @@ docker compose up -d
 | `REVERSECORE_WORKSPACE` | `/app/workspace` | 분석 작업 공간 경로 |
 | `LOG_LEVEL` | `INFO` | 로깅 레벨 |
 | `GHIDRA_INSTALL_DIR` | `/opt/ghidra` | Ghidra 설치 경로 |
+| `REVERSECORE_SAST_RULES_PATH` | `""` | SAST 규칙을 정의한 커스텀 YAML 파일 경로 |
 
 ## 🔒 보안
 
