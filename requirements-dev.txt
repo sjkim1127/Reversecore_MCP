@@ -18,4 +18,4 @@ types-requests>=2.31.0
 mkdocs>=1.5.0
 mkdocs-material>=9.5.0
 mkdocstrings[python]>=0.24.0
-mkdocs-git-revision-date-localized-plugin>=1.2.0
+mkdocs-git-revision-date-localized-plugin>=1.5.2
