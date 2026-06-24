@@ -2,14 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, Union
+from typing import Any, Literal, TypedDict
 
 from pydantic import BaseModel
-
-try:
-    from typing import NotRequired, TypedDict
-except ImportError:
-    from typing_extensions import NotRequired, TypedDict
+from typing_extensions import NotRequired
 
 
 # TypedDict definitions for common tool result structures
@@ -109,7 +105,7 @@ class ToolError(BaseModel):
     details: dict[str, Any] | None = None
 
 
-ToolResult = Union[ToolSuccess, ToolError]
+ToolResult = ToolSuccess | ToolError
 
 
 def success(data: str | dict[str, Any], **metadata: Any) -> ToolSuccess:

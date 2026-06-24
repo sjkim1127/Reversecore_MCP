@@ -30,7 +30,7 @@ def _extract_sections(binary: Any) -> list[dict[str, Any]]:
 
 def _extract_symbols(binary: Any, max_imports: int = 100, max_exports: int = 100) -> dict[str, Any]:
     """Extract symbol information (imports/exports) from binary.
-    
+
     Args:
         binary: LIEF binary object
         max_imports: Maximum number of imports to extract (P2 memory protection)
@@ -134,8 +134,8 @@ def _format_lief_output(result: dict[str, Any], format: str) -> str:
 
 
 # P2: Memory protection thresholds for LIEF parsing
-LIEF_WARN_SIZE_MB = 100    # Warn user about memory usage
-LIEF_LIMIT_SIZE_MB = 500   # Limit extraction to prevent OOM
+LIEF_WARN_SIZE_MB = 100  # Warn user about memory usage
+LIEF_LIMIT_SIZE_MB = 500  # Limit extraction to prevent OOM
 
 
 @log_execution(tool_name="parse_binary_with_lief")
@@ -143,7 +143,7 @@ LIEF_LIMIT_SIZE_MB = 500   # Limit extraction to prevent OOM
 @handle_tool_errors
 def parse_binary_with_lief(file_path: str, format: str = "json") -> ToolResult:
     """Parse binary metadata using LIEF and return structured results.
-    
+
     Memory-safe implementation with progressive limits:
     - Under 100MB: Full parsing with all details
     - 100-500MB: Warning + reduced extraction limits
@@ -156,14 +156,14 @@ def parse_binary_with_lief(file_path: str, format: str = "json") -> ToolResult:
     max_file_size = get_config().lief_max_file_size
     file_size = validated_path.stat().st_size
     file_size_mb = file_size / (1024 * 1024)
-    
+
     if file_size > max_file_size:
         return failure(
             "FILE_TOO_LARGE",
             f"File size ({file_size} bytes) exceeds maximum allowed size ({max_file_size} bytes)",
             hint="Set LIEF_MAX_FILE_SIZE environment variable to increase limit",
         )
-    
+
     # CRITICAL: Reject files over limit BEFORE lief.parse() to prevent OOM
     # lief.parse() loads entire binary structure into memory, which can cause
     # Python to consume several GB of RAM for large binaries due to object overhead.
@@ -173,7 +173,7 @@ def parse_binary_with_lief(file_path: str, format: str = "json") -> ToolResult:
             f"File size ({file_size_mb:.0f}MB) exceeds LIEF parsing limit ({LIEF_LIMIT_SIZE_MB}MB)",
             hint="Use radare2 or other lightweight tools for analysis of very large binaries",
         )
-    
+
     # P2: Determine extraction limits based on file size
     extraction_warning = None
     if file_size_mb > LIEF_WARN_SIZE_MB:
@@ -191,22 +191,22 @@ def parse_binary_with_lief(file_path: str, format: str = "json") -> ToolResult:
     # Isolate potentially dangerous LIEF parsing in a separate process
     # This protects the main server from C++ level crashes (segfaults) in the LIEF library
     import concurrent.futures
-    
+
     try:
         # Use ProcessPoolExecutor to run parsing in a separate process
         with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
             # Prepare arguments
             future = executor.submit(
-                _run_lief_in_process, 
-                str(validated_path), 
-                max_imports, 
-                max_exports, 
-                max_sections
+                _run_lief_in_process,
+                str(validated_path),
+                max_imports,
+                max_exports,
+                max_sections,
             )
-            
+
             # Wait for result with timeout
             try:
-                result_data = future.result(timeout=60) # 60s timeout for LIEF
+                result_data = future.result(timeout=60)  # 60s timeout for LIEF
             except concurrent.futures.TimeoutError:
                 # Kill the worker via shutdown (not perfect but best effort)
                 executor.shutdown(wait=False, cancel_futures=True)
@@ -219,7 +219,7 @@ def parse_binary_with_lief(file_path: str, format: str = "json") -> ToolResult:
                 return failure(
                     "CRASH_DETECTED",
                     "LIEF parser crashed (segmentation fault detected). Analysis aborted safely.",
-                    hint="The file may be malformed intentionally to crash analysis tools."
+                    hint="The file may be malformed intentionally to crash analysis tools.",
                 )
             except Exception as e:
                 return failure("LIEF_ERROR", f"LIEF failed to parse binary: {e}")
@@ -238,13 +238,15 @@ def parse_binary_with_lief(file_path: str, format: str = "json") -> ToolResult:
     return success(formatted_text)
 
 
-def _run_lief_in_process(file_path: str, max_imports: int, max_exports: int, max_sections: int | None) -> dict[str, Any]:
+def _run_lief_in_process(
+    file_path: str, max_imports: int, max_exports: int, max_sections: int | None
+) -> dict[str, Any]:
     """
     Worker function to run LIEF parsing in a separate process.
     Must be a standalone function (not closure) to be picklable.
     """
     import lief
-    
+
     try:
         binary = lief.parse(file_path)
     except Exception as exc:
@@ -268,5 +270,5 @@ def _run_lief_in_process(file_path: str, max_imports: int, max_exports: int, max
     # Extract symbols
     symbols = _extract_symbols(binary, max_imports=max_imports, max_exports=max_exports)
     result_data.update(symbols)
-    
+
     return result_data

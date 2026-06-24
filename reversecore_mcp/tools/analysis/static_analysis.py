@@ -75,10 +75,10 @@ async def run_strings(
         max_output_size = MIN_OUTPUT_SIZE
 
     validated_path = validate_file_path(file_path)
-    
+
     # Use -n option to filter short strings at source
     cmd = ["strings", "-n", str(min_length), str(validated_path)]
-    
+
     # Use execute_subprocess_async which now has robust streaming and memory limits
     output, bytes_read = await execute_subprocess_async(
         cmd,
@@ -87,21 +87,18 @@ async def run_strings(
     )
 
     # Truncate output logic enhanced with file saving
-    truncated = False
     output_files = {}
-    
+
     # Calculate statistics
     text_output = output
     lines = text_output.splitlines()
     count = len(lines)
-    
+
     if len(output) > LLM_SAFE_LIMIT:
-        truncated = True
         # Save full output to temp file (NOT source directory)
         # This avoids: read-only mount failures, race conditions, leftover files
         import tempfile
-        strings_filename = f"{validated_path.name}_strings.txt"
-        
+
         try:
             # Use system temp directory for output files
             with tempfile.NamedTemporaryFile(
@@ -113,41 +110,43 @@ async def run_strings(
             ) as f:
                 f.write(text_output)
                 strings_path = f.name
-            
+
             output_files["full_output"] = strings_path
-            
+
             # Create preview
-            preview_limit = min(2000, len(text_output)) # First 2000 chars
-            preview_text = text_output[:preview_limit] + f"\n... (truncated, full content in {strings_path})"
-            
+            preview_limit = min(2000, len(text_output))  # First 2000 chars
+            preview_text = (
+                text_output[:preview_limit] + f"\n... (truncated, full content in {strings_path})"
+            )
+
             return success(
                 preview_text,
                 bytes_read=bytes_read,
                 truncated=True,
                 string_statistics={
                     "count": count,
-                     "preview": lines[:50], # First 50 lines list
+                    "preview": lines[:50],  # First 50 lines list
                     "file_path": strings_path,
-                    "full_size": len(text_output)
-                }
+                    "full_size": len(text_output),
+                },
             )
         except Exception as e:
             # Fallback if file write fails
             truncated_output = output[:LLM_SAFE_LIMIT]
             return success(
-                truncated_output + f"\n[Error saving file: {e}]", 
-                bytes_read=bytes_read, 
-                truncated=True
+                truncated_output + f"\n[Error saving file: {e}]",
+                bytes_read=bytes_read,
+                truncated=True,
             )
 
     return success(
-        output, 
+        output,
         bytes_read=bytes_read,
         string_statistics={
             "count": count,
             "preview": lines[:50],
-            "full_size": len(text_output)
-        }
+            "full_size": len(text_output),
+        },
     )
 
 
@@ -177,7 +176,7 @@ async def run_binwalk(
 @handle_tool_errors
 async def run_binwalk_extract(
     file_path: str,
-    output_dir: str = None,
+    output_dir: str | None = None,
     matryoshka: bool = True,
     depth: int = 8,
     max_output_size: int = 50_000_000,

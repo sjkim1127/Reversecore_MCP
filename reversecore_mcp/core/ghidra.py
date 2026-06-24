@@ -187,7 +187,10 @@ class GhidraService:
                 del self._projects[file_path]
 
     def _resolve_function(
-        self, flat_api: "FlatProgramAPI", address_str: str, create_if_missing: bool = True
+        self,
+        flat_api: "FlatProgramAPI",
+        address_str: str,
+        create_if_missing: bool = True,
     ) -> Optional["Function"]:
         """
         Resolve a function from address string or symbol name.
@@ -524,9 +527,11 @@ class GhidraService:
 
                         result = {
                             "structures": list(structures_found.values()),
-                            "c_definitions": "\n\n".join(c_definitions)
-                            if c_definitions
-                            else "// No structures found",
+                            "c_definitions": (
+                                "\n\n".join(c_definitions)
+                                if c_definitions
+                                else "// No structures found"
+                            ),
                             "count": len(structures_found),
                         }
 
@@ -605,7 +610,10 @@ def decompile_function_with_ghidra(
 
 
 def recover_structures_with_ghidra(
-    file_path: Path, function_address: str, timeout: int = 600, skip_full_analysis: bool = True
+    file_path: Path,
+    function_address: str,
+    timeout: int = 600,
+    skip_full_analysis: bool = True,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """
     Recover structures using Ghidra.

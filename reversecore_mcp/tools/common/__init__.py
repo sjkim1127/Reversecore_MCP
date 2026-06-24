@@ -25,15 +25,15 @@ class CommonToolsPlugin(Plugin):
     def register(self, mcp_server: Any) -> None:
         """Register all common tools."""
         # Import and delegate to specialized plugins
-        from reversecore_mcp.tools.common.memory_tools import MemoryToolsPlugin
-        from reversecore_mcp.tools.common.server_tools import ServerToolsPlugin
         from reversecore_mcp.tools.common.file_operations import (
-            run_file,
             copy_to_workspace,
             list_workspace,
+            run_file,
             scan_workspace,
         )
+        from reversecore_mcp.tools.common.memory_tools import MemoryToolsPlugin
         from reversecore_mcp.tools.common.patch_explainer import explain_patch
+        from reversecore_mcp.tools.common.server_tools import ServerToolsPlugin
 
         # Register memory tools (plugin handles internal registration)
         memory_plugin = MemoryToolsPlugin()

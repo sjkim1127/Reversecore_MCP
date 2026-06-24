@@ -6,7 +6,12 @@ and libraries, making them accessible to AI agents through the MCP protocol.
 """
 
 # Analysis tools
-from reversecore_mcp.tools.analysis import diff_tools, lief_tools, signature_tools, static_analysis
+from reversecore_mcp.tools.analysis import (
+    diff_tools,
+    lief_tools,
+    signature_tools,
+    static_analysis,
+)
 
 # Common tools
 from reversecore_mcp.tools.common import file_operations, patch_explainer
@@ -15,7 +20,11 @@ from reversecore_mcp.tools.common import file_operations, patch_explainer
 from reversecore_mcp.tools.ghidra import decompilation
 
 # Malware tools
-from reversecore_mcp.tools.malware import adaptive_vaccine, dormant_detector, vulnerability_hunter
+from reversecore_mcp.tools.malware import (
+    adaptive_vaccine,
+    dormant_detector,
+    vulnerability_hunter,
+)
 
 # Radare2 tools
 from reversecore_mcp.tools.radare2 import r2_analysis

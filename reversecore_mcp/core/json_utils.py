@@ -40,7 +40,7 @@ try:
         obj: Any,
         indent: int | None = None,
         ensure_ascii: bool = True,
-        default: Any = None,
+        default: Any | None = None,
     ) -> str:
         """
         Serialize object to JSON with orjson (fast path).
@@ -100,7 +100,7 @@ except ImportError:
         obj: Any,
         indent: int | None = None,
         ensure_ascii: bool = True,
-        default: Any = None,
+        default: Any | None = None,
     ) -> str:
         """
         Serialize object to JSON with standard library (fallback).

@@ -27,6 +27,7 @@ import logging
 import tempfile
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -294,7 +295,7 @@ class Config:
             self._settings = settings
         else:
             # Build settings from individual values if provided
-            env_overrides = {}
+            env_overrides: dict[str, Any] = {}
             if workspace is not None:
                 env_overrides["workspace"] = Path(workspace)
             if log_level is not None:

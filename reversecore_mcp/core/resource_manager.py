@@ -6,9 +6,8 @@ to prevent resource exhaustion over time.
 """
 
 import asyncio
-import time
-
 import os
+import time
 from contextlib import suppress
 
 from reversecore_mcp.core import config
@@ -20,13 +19,15 @@ logger = get_logger(__name__)
 class ResourceManager:
     """
     Manages background cleanup tasks.
-    
+
     Responsibilities:
     1. Clean up stale temporary files (disk)
     2. Reap zombie processes (kernel)
     """
 
-    def __init__(self, cleanup_interval: int = 3600, pid_check_interval: int = 60):  # Default: 1h files, 60s PIDs
+    def __init__(
+        self, cleanup_interval: int = 3600, pid_check_interval: int = 60
+    ):  # Default: 1h files, 60s PIDs
         self.cleanup_interval = cleanup_interval
         self.pid_check_interval = pid_check_interval
         self._task: asyncio.Task | None = None

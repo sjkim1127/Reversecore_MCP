@@ -65,10 +65,10 @@ class Radare2ToolsPlugin(Plugin):
         diagnosis = {
             "error": str(error),
             "file_exists": os.path.exists(file_path),
-            "is_file": os.path.isfile(file_path) if os.path.exists(file_path) else False,
-            "permissions": oct(os.stat(file_path).st_mode)[-3:]
-            if os.path.exists(file_path)
-            else "N/A",
+            "is_file": (os.path.isfile(file_path) if os.path.exists(file_path) else False),
+            "permissions": (
+                oct(os.stat(file_path).st_mode)[-3:] if os.path.exists(file_path) else "N/A"
+            ),
             "file_size": os.path.getsize(file_path) if os.path.exists(file_path) else 0,
             "r2_available": shutil.which("radare2") is not None,
             "hints": [],
@@ -180,7 +180,11 @@ class Radare2ToolsPlugin(Plugin):
                 validated_path = validate_file_path(file_path)
                 abs_path = str(validated_path)
             except ValidationError as e:
-                return {"status": "error", "message": str(e), "error_code": "INVALID_PATH"}
+                return {
+                    "status": "error",
+                    "message": str(e),
+                    "error_code": "INVALID_PATH",
+                }
 
             session = await self._get_or_create_session(abs_path)
 
@@ -190,7 +194,7 @@ class Radare2ToolsPlugin(Plugin):
                     "message": "File opened successfully",
                     "file_path": abs_path,
                     "session_id": session.session_id,
-                    "file_size": os.path.getsize(abs_path) if os.path.exists(abs_path) else 0,
+                    "file_size": (os.path.getsize(abs_path) if os.path.exists(abs_path) else 0),
                     "status_code": "OPENED",
                 }
 
@@ -235,7 +239,10 @@ class Radare2ToolsPlugin(Plugin):
                         "session_id": sid,
                     }
 
-                return {"status": "success", "message": "File was not open (no active session)"}
+                return {
+                    "status": "success",
+                    "message": "File was not open (no active session)",
+                }
             except ValidationError as e:
                 return {"status": "error", "message": str(e)}
 
@@ -1005,7 +1012,10 @@ class Radare2ToolsPlugin(Plugin):
 
             cmd_name = decompiler_map[name_lower]
             if cmd_name not in available:
-                return {"status": "error", "message": f"Decompiler {name} is not available"}
+                return {
+                    "status": "error",
+                    "message": f"Decompiler {name} is not available",
+                }
 
             session.cmd(f"e cmd.pdc={cmd_name}")
             return {"status": "success", "message": f"Decompiler set to {name}"}
@@ -1139,7 +1149,10 @@ class Radare2ToolsPlugin(Plugin):
             # Sanitize message (remove dangerous chars but allow more characters for comments)
             safe_message = _sanitize_for_r2_cmd(message)
             if not safe_message:
-                return {"status": "error", "message": "Comment message is empty or invalid"}
+                return {
+                    "status": "error",
+                    "message": "Comment message is empty or invalid",
+                }
 
             session = await self._get_or_create_session(file_path)
             if not session.is_open:

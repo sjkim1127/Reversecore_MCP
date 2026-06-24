@@ -10,12 +10,10 @@ Features:
 - Environment variable support for email configuration
 """
 
-import asyncio
 import hashlib
 import logging
 import os
 import platform
-import aiosmtplib
 import uuid
 from datetime import datetime, timedelta, timezone
 from email import encoders
@@ -25,18 +23,19 @@ from email.mime.text import MIMEText
 from pathlib import Path
 
 import aiofiles
+import aiosmtplib
+
+from reversecore_mcp.tools.report.email import (
+    EmailConfig,
+    load_quick_contacts_from_env,
+)
 
 # Use optimized JSON implementation (3-5x faster than standard json)
 # Import session and email utilities from submodules
 from reversecore_mcp.tools.report.session import (
-    AnalysisSession,
-    TimezonePreset,
-    TIMEZONE_OFFSETS,
     TIMEZONE_ABBRS,
-)
-from reversecore_mcp.tools.report.email import (
-    EmailConfig,
-    load_quick_contacts_from_env,
+    TIMEZONE_OFFSETS,
+    AnalysisSession,
 )
 
 logger = logging.getLogger(__name__)
@@ -266,7 +265,10 @@ class ReportTools:
         }
 
     async def end_session(
-        self, session_id: str | None = None, status: str = "completed", summary: str | None = None
+        self,
+        session_id: str | None = None,
+        status: str = "completed",
+        summary: str | None = None,
     ) -> dict:
         """
         End an analysis session.
@@ -381,7 +383,11 @@ class ReportTools:
         }
 
     async def add_session_mitre(
-        self, technique_id: str, technique_name: str, tactic: str, session_id: str | None = None
+        self,
+        technique_id: str,
+        technique_name: str,
+        tactic: str,
+        session_id: str | None = None,
     ) -> dict:
         """Add MITRE ATT&CK technique to session"""
         sid = session_id or self.current_session_id
@@ -443,9 +449,9 @@ class ReportTools:
                     "status": session.status,
                     "severity": session.severity,
                     "malware_family": session.malware_family,
-                    "started_at": self._format_time(session.started_at)
-                    if session.started_at
-                    else None,
+                    "started_at": (
+                        self._format_time(session.started_at) if session.started_at else None
+                    ),
                     "duration": session.get_duration_str(),
                     "iocs_count": sum(len(v) for v in session.iocs.values()),
                     "is_current": sid == self.current_session_id,
@@ -534,12 +540,12 @@ class ReportTools:
                     "SEVERITY": session.severity.upper(),
                     "SEVERITY_EMOJI": self._get_severity_emoji(session.severity),
                     "MALWARE_FAMILY": session.malware_family or "Unknown",
-                    "ANALYSIS_START": self._format_time(session.started_at)
-                    if session.started_at
-                    else "N/A",
-                    "ANALYSIS_END": self._format_time(session.ended_at)
-                    if session.ended_at
-                    else "In Progress",
+                    "ANALYSIS_START": (
+                        self._format_time(session.started_at) if session.started_at else "N/A"
+                    ),
+                    "ANALYSIS_END": (
+                        self._format_time(session.ended_at) if session.ended_at else "In Progress"
+                    ),
                     "ANALYSIS_DURATION": session.get_duration_str(),
                     "TAGS": ", ".join(session.tags) if session.tags else "None",
                 }
@@ -699,9 +705,11 @@ class ReportTools:
             "use_tls": self.email_config.use_tls,
             "sender_name": self.email_config.sender_name,
             "quick_contacts_count": len(self.quick_contacts),
-            "hint": "Set environment variables or use configure_report_email tool"
-            if not self.email_config.is_configured
-            else None,
+            "hint": (
+                "Set environment variables or use configure_report_email tool"
+                if not self.email_config.is_configured
+                else None
+            ),
         }
 
     async def configure_email(
@@ -842,8 +850,8 @@ class ReportTools:
                 hostname=self.email_config.smtp_server,
                 port=self.email_config.smtp_port,
                 start_tls=self.email_config.use_tls,
-                username=self.email_config.username if self.email_config.username else None,
-                password=self.email_config.password if self.email_config.password else None,
+                username=(self.email_config.username if self.email_config.username else None),
+                password=(self.email_config.password if self.email_config.password else None),
             )
 
             return {

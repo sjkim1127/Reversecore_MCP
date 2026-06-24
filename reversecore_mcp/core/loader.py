@@ -36,7 +36,7 @@ class PluginLoader:
         discovered_plugins = []
 
         # Use walk_packages to recursively iterate over all modules including subdirectories
-        for importer, name, is_pkg in pkgutil.walk_packages(
+        for _importer, name, _is_pkg in pkgutil.walk_packages(
             [package_path], prefix=f"{package_name}."
         ):
             # Skip __init__ modules and __pycache__ directories

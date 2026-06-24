@@ -9,7 +9,6 @@ import os
 import re
 import shutil
 import subprocess  # nosec B404 - required for Ghidra headless/script execution
-import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -21,7 +20,7 @@ if TYPE_CHECKING:
     from ghidra.program.model.listing import Function
 
 logger = get_logger(__name__)
-from reversecore_mcp.core.ghidra_manager import get_ghidra_manager
+from reversecore_mcp.core.ghidra_manager import get_ghidra_manager  # noqa: E402
 
 # OPTIMIZATION: Pre-compile pattern for hex prefix removal (case insensitive)
 _HEX_PREFIX_PATTERN = re.compile(r"^0[xX]")
@@ -126,14 +125,14 @@ def decompile_function_with_ghidra(
         ImportError: If PyGhidra is not available
     """
     try:
-        import pyghidra
-        
+        import pyghidra  # noqa: F401
+
         # Ensure Ghidra environment is set up
         _configure_ghidra_environment()
 
         # Use GhidraManager for efficient project reuse
         manager = get_ghidra_manager()
-        
+
         # Get or create context for this binary
         # This will reuse existing project if available, avoiding re-import
         with manager.context(file_path) as flat_api:
@@ -184,14 +183,10 @@ def decompile_function_with_ghidra(
                     "function_name": function.getName(),
                     "entry_point": str(function.getEntryPoint()),
                     "parameter_count": (
-                        high_function.getFunctionPrototype().getNumParams()
-                        if high_function
-                        else 0
+                        high_function.getFunctionPrototype().getNumParams() if high_function else 0
                     ),
                     "local_symbol_count": (
-                        high_function.getLocalSymbolMap().getNumSymbols()
-                        if high_function
-                        else 0
+                        high_function.getLocalSymbolMap().getNumSymbols() if high_function else 0
                     ),
                     "signature": function.getSignature().getPrototypeString(),
                     "body_size": function.getBody().getNumAddresses(),
@@ -309,13 +304,13 @@ def recover_structures_with_ghidra(
         ImportError: If PyGhidra is not available
     """
     try:
-        import pyghidra
+        import pyghidra  # noqa: F401
 
         _configure_ghidra_environment()
-        
+
         # Use GhidraManager for efficient project reuse
         manager = get_ghidra_manager()
-        
+
         # Get or create context for this binary
         with manager.context(file_path) as flat_api:
             # Import Ghidra classes here
@@ -341,9 +336,7 @@ def recover_structures_with_ghidra(
                 # Decompile the function to get high-level representation
                 logger.info(f"Analyzing structures in function: {function.getName()}")
 
-                results: DecompileResults = decompiler.decompileFunction(
-                    function, timeout, None
-                )
+                results: DecompileResults = decompiler.decompileFunction(function, timeout, None)
 
                 if not results.decompileCompleted():
                     error_msg = results.getErrorMessage()
@@ -433,7 +426,9 @@ def recover_structures_with_ghidra(
                         fields_str = "\n    ".join(field_strs)
                         c_def = f"struct {struct_name} {{\n    {fields_str}\n}};"
                     else:
-                        c_def = f"struct {struct_name} {{ /* size: {struct_data['size']} bytes */ }};"
+                        c_def = (
+                            f"struct {struct_name} {{ /* size: {struct_data['size']} bytes */ }};"
+                        )
 
                     c_definitions.append(c_def)
 
@@ -441,9 +436,7 @@ def recover_structures_with_ghidra(
                 result = {
                     "structures": list(structures_found.values()),
                     "c_definitions": (
-                        "\n\n".join(c_definitions)
-                        if c_definitions
-                        else "// No structures found"
+                        "\n\n".join(c_definitions) if c_definitions else "// No structures found"
                     ),
                     "count": len(structures_found),
                 }
@@ -466,7 +459,7 @@ def recover_structures_with_ghidra(
             finally:
                 # Always dispose of decompiler resources
                 decompiler.dispose()
-                
+
     except ImportError as e:
         raise ImportError("PyGhidra is not installed. Install with: pip install pyghidra") from e
     except subprocess.CalledProcessError as e:

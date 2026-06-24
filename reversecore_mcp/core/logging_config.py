@@ -11,7 +11,6 @@ Environment Variables:
 """
 
 import logging
-import os
 import platform
 import sys
 import time
@@ -60,7 +59,13 @@ class JSONFormatter(logging.Formatter):
         # Add extra fields if present (tool execution context)
         if self.include_extra:
             extra_fields = {}
-            for key in ("tool_name", "file_name", "execution_time_ms", "error_code", "binary_path"):
+            for key in (
+                "tool_name",
+                "file_name",
+                "execution_time_ms",
+                "error_code",
+                "binary_path",
+            ):
                 if hasattr(record, key):
                     extra_fields[key] = getattr(record, key)
 

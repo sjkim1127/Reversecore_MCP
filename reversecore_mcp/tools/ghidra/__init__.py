@@ -2,7 +2,12 @@
 
 # Backward compatibility re-exports for legacy imports
 # These modules have been moved but are re-exported for backward compatibility
-from reversecore_mcp.tools.analysis import diff_tools, lief_tools, signature_tools, static_analysis
+from reversecore_mcp.tools.analysis import (
+    diff_tools,
+    lief_tools,
+    signature_tools,
+    static_analysis,
+)
 from reversecore_mcp.tools.ghidra import decompilation
 from reversecore_mcp.tools.ghidra.ghidra_tools import GhidraToolsPlugin
 from reversecore_mcp.tools.radare2 import r2_analysis

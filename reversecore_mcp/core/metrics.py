@@ -5,7 +5,6 @@ Performance metrics collection for monitoring.
 import inspect
 import threading
 import time
-from collections import defaultdict
 from functools import wraps
 from typing import Any
 
@@ -18,10 +17,10 @@ class MetricsCollector:
 
     Uses threading.Lock to ensure safe concurrent access in multi-threaded
     or async environments (e.g., FastMCP server with multiple tool calls).
-    
+
     Memory protection: Limits entries to MAX_ENTRIES to prevent unbounded growth.
     """
-    
+
     # Maximum number of unique entries per category to prevent memory leaks
     MAX_TOOL_ENTRIES = 500
     MAX_CACHE_ENTRIES = 200
@@ -33,7 +32,7 @@ class MetricsCollector:
         self.tool_metrics: dict[str, dict[str, Any]] = {}
         self.cache_metrics: dict[str, dict[str, int]] = {}
         self.circuit_breaker_states: dict[str, str] = {}
-    
+
     def _get_default_tool_metrics(self) -> dict[str, Any]:
         """Create default metrics dict for a new tool."""
         return {
@@ -44,11 +43,11 @@ class MetricsCollector:
             "max_time": 0.0,
             "min_time": float("inf"),
         }
-    
+
     def _get_default_cache_metrics(self) -> dict[str, int]:
         """Create default metrics dict for a new cache."""
         return {"hits": 0, "misses": 0}
-    
+
     def _evict_oldest(self, d: dict, max_entries: int) -> None:
         """Evict oldest entries if dict exceeds max size (FIFO eviction)."""
         while len(d) > max_entries:
@@ -68,7 +67,7 @@ class MetricsCollector:
             if tool_name not in self.tool_metrics:
                 self._evict_oldest(self.tool_metrics, self.MAX_TOOL_ENTRIES - 1)
                 self.tool_metrics[tool_name] = self._get_default_tool_metrics()
-            
+
             metrics = self.tool_metrics[tool_name]
             metrics["calls"] += 1
 
@@ -100,7 +99,9 @@ class MetricsCollector:
         """Record circuit breaker state change (thread-safe, bounded)."""
         with self._lock:
             if tool_name not in self.circuit_breaker_states:
-                self._evict_oldest(self.circuit_breaker_states, self.MAX_CIRCUIT_BREAKER_ENTRIES - 1)
+                self._evict_oldest(
+                    self.circuit_breaker_states, self.MAX_CIRCUIT_BREAKER_ENTRIES - 1
+                )
             self.circuit_breaker_states[tool_name] = state
 
     def get_metrics(self) -> dict[str, Any]:

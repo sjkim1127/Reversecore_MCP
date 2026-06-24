@@ -4,13 +4,10 @@ Extended binary analysis tools testing.
 Tests for additional analysis tools: Yara, binwalk, readelf, ldd, strace, ltrace, otool, nm, etc.
 """
 
-import subprocess
-import pytest
-from pathlib import Path
 import shutil
-import json
-from typing import List, Dict, Optional
-import tempfile
+import subprocess
+
+import pytest
 
 
 class TestOtoolAnalysis:
@@ -35,18 +32,13 @@ class TestOtoolAnalysis:
             pytest.skip("gcc not available")
 
         result = subprocess.run(
-            ["gcc", "-o", str(binary), str(c_file)],
-            capture_output=True,
-            timeout=10
+            ["gcc", "-o", str(binary), str(c_file)], capture_output=True, timeout=10
         )
         assert result.returncode == 0
 
         # Test otool -h (headers)
         result = subprocess.run(
-            ["otool", "-h", str(binary)],
-            capture_output=True,
-            text=True,
-            timeout=5
+            ["otool", "-h", str(binary)], capture_output=True, text=True, timeout=5
         )
         assert result.returncode == 0
         assert len(result.stdout) > 0
@@ -64,18 +56,13 @@ class TestOtoolAnalysis:
             pytest.skip("gcc not available")
 
         result = subprocess.run(
-            ["gcc", "-o", str(binary), str(c_file)],
-            capture_output=True,
-            timeout=10
+            ["gcc", "-o", str(binary), str(c_file)], capture_output=True, timeout=10
         )
         assert result.returncode == 0
 
         # Test otool -l (load commands)
         result = subprocess.run(
-            ["otool", "-l", str(binary)],
-            capture_output=True,
-            text=True,
-            timeout=5
+            ["otool", "-l", str(binary)], capture_output=True, text=True, timeout=5
         )
         assert result.returncode == 0
         output = result.stdout.lower()
@@ -88,24 +75,19 @@ class TestOtoolAnalysis:
 
         binary = tmp_path / "test"
         c_file = tmp_path / "test.c"
-        c_file.write_text("#include <stdio.h>\nint main() { printf(\"test\"); return 0; }")
+        c_file.write_text('#include <stdio.h>\nint main() { printf("test"); return 0; }')
 
         if not shutil.which("gcc"):
             pytest.skip("gcc not available")
 
         result = subprocess.run(
-            ["gcc", "-o", str(binary), str(c_file)],
-            capture_output=True,
-            timeout=10
+            ["gcc", "-o", str(binary), str(c_file)], capture_output=True, timeout=10
         )
         assert result.returncode == 0
 
         # Test otool -L (libraries)
         result = subprocess.run(
-            ["otool", "-L", str(binary)],
-            capture_output=True,
-            text=True,
-            timeout=5
+            ["otool", "-L", str(binary)], capture_output=True, text=True, timeout=5
         )
         assert result.returncode == 0
         assert "libc" in result.stdout or "libc.dylib" in result.stdout or len(result.stdout) > 0
@@ -136,18 +118,13 @@ int main() {
             pytest.skip("gcc not available")
 
         result = subprocess.run(
-            ["gcc", "-g", "-o", str(binary), str(c_file)],
-            capture_output=True,
-            timeout=10
+            ["gcc", "-g", "-o", str(binary), str(c_file)], capture_output=True, timeout=10
         )
         assert result.returncode == 0
 
         # Test nm -a (all symbols)
         result = subprocess.run(
-            ["nm", "-a", str(binary)],
-            capture_output=True,
-            text=True,
-            timeout=5
+            ["nm", "-a", str(binary)], capture_output=True, text=True, timeout=5
         )
         assert result.returncode == 0
         symbols = result.stdout.lower()
@@ -165,9 +142,7 @@ int main() {
             pytest.skip("gcc not available")
 
         result = subprocess.run(
-            ["gcc", "-o", str(binary), str(c_file)],
-            capture_output=True,
-            timeout=10
+            ["gcc", "-o", str(binary), str(c_file)], capture_output=True, timeout=10
         )
         assert result.returncode == 0
 
@@ -176,10 +151,7 @@ int main() {
 
         if binary_stripped.exists():
             result = subprocess.run(
-                ["nm", str(binary_stripped)],
-                capture_output=True,
-                text=True,
-                timeout=5
+                ["nm", str(binary_stripped)], capture_output=True, text=True, timeout=5
             )
             # nm should handle stripped binary gracefully
             assert result.returncode in (0, 1)
@@ -199,9 +171,7 @@ int main() { return 0; }
             pytest.skip("gcc not available")
 
         result = subprocess.run(
-            ["gcc", "-g", "-o", str(binary), str(c_file)],
-            capture_output=True,
-            timeout=10
+            ["gcc", "-g", "-o", str(binary), str(c_file)], capture_output=True, timeout=10
         )
         assert result.returncode == 0
 
@@ -209,7 +179,7 @@ int main() { return 0; }
             ["nm", "-C", str(binary)],  # -C: demangle names
             capture_output=True,
             text=True,
-            timeout=5
+            timeout=5,
         )
         assert result.returncode == 0
 
@@ -221,7 +191,8 @@ class TestYaraIntegration:
         """Test if Yara can be imported."""
         try:
             import yara
-            assert hasattr(yara, 'compile')
+
+            assert hasattr(yara, "compile")
         except ImportError:
             pytest.skip("Yara not installed: pip install yara-python")
 
@@ -280,15 +251,13 @@ class TestYaraIntegration:
         # Create test binary
         binary = tmp_path / "test"
         c_file = tmp_path / "test.c"
-        c_file.write_text('int main() { printf("test string"); return 0; }')
+        c_file.write_text('#include <stdio.h>\nint main() { printf("test string"); return 0; }')
 
         if not shutil.which("gcc"):
             pytest.skip("gcc not available")
 
         result = subprocess.run(
-            ["gcc", "-o", str(binary), str(c_file)],
-            capture_output=True,
-            timeout=10
+            ["gcc", "-o", str(binary), str(c_file)], capture_output=True, timeout=10
         )
         assert result.returncode == 0
 
@@ -316,7 +285,8 @@ class TestBinwalkAnalysis:
         """Test if binwalk can be imported."""
         try:
             import binwalk
-            assert hasattr(binwalk, 'scan')
+
+            assert hasattr(binwalk, "scan")
         except ImportError:
             pytest.skip("binwalk not installed: pip install binwalk")
 
@@ -329,8 +299,8 @@ class TestBinwalkAnalysis:
 
         # binwalk requires actual firmware files
         # For testing, we just verify the API
-        assert hasattr(binwalk, 'scan')
-        assert hasattr(binwalk, 'Module')
+        assert hasattr(binwalk, "scan")
+        assert hasattr(binwalk, "Module")
 
     def test_binwalk_on_binary(self, tmp_path):
         """Test binwalk on compiled binary."""
@@ -347,9 +317,7 @@ class TestBinwalkAnalysis:
             pytest.skip("gcc not available")
 
         result = subprocess.run(
-            ["gcc", "-o", str(binary), str(c_file)],
-            capture_output=True,
-            timeout=10
+            ["gcc", "-o", str(binary), str(c_file)], capture_output=True, timeout=10
         )
         assert result.returncode == 0
 
@@ -377,24 +345,17 @@ class TestLddDependencyAnalysis:
 
         binary = tmp_path / "test"
         c_file = tmp_path / "test.c"
-        c_file.write_text("#include <stdio.h>\nint main() { printf(\"test\"); return 0; }")
+        c_file.write_text('#include <stdio.h>\nint main() { printf("test"); return 0; }')
 
         if not shutil.which("gcc"):
             pytest.skip("gcc not available")
 
         result = subprocess.run(
-            ["gcc", "-o", str(binary), str(c_file)],
-            capture_output=True,
-            timeout=10
+            ["gcc", "-o", str(binary), str(c_file)], capture_output=True, timeout=10
         )
         assert result.returncode == 0
 
-        result = subprocess.run(
-            ["ldd", str(binary)],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
+        result = subprocess.run(["ldd", str(binary)], capture_output=True, text=True, timeout=5)
 
         if result.returncode == 0:
             # Should list libc
@@ -422,17 +383,12 @@ class TestReadelfAnalysis:
             pytest.skip("gcc not available")
 
         result = subprocess.run(
-            ["gcc", "-o", str(binary), str(c_file)],
-            capture_output=True,
-            timeout=10
+            ["gcc", "-o", str(binary), str(c_file)], capture_output=True, timeout=10
         )
         assert result.returncode == 0
 
         result = subprocess.run(
-            ["readelf", "-h", str(binary)],
-            capture_output=True,
-            text=True,
-            timeout=5
+            ["readelf", "-h", str(binary)], capture_output=True, text=True, timeout=5
         )
 
         if result.returncode == 0:
@@ -451,17 +407,12 @@ class TestReadelfAnalysis:
             pytest.skip("gcc not available")
 
         result = subprocess.run(
-            ["gcc", "-o", str(binary), str(c_file)],
-            capture_output=True,
-            timeout=10
+            ["gcc", "-o", str(binary), str(c_file)], capture_output=True, timeout=10
         )
         assert result.returncode == 0
 
         result = subprocess.run(
-            ["readelf", "-S", str(binary)],
-            capture_output=True,
-            text=True,
-            timeout=5
+            ["readelf", "-S", str(binary)], capture_output=True, text=True, timeout=5
         )
 
         if result.returncode == 0:
@@ -491,17 +442,12 @@ class TestStraceAnalysis:
             pytest.skip("gcc not available")
 
         result = subprocess.run(
-            ["gcc", "-o", str(binary), str(c_file)],
-            capture_output=True,
-            timeout=10
+            ["gcc", "-o", str(binary), str(c_file)], capture_output=True, timeout=10
         )
         assert result.returncode == 0
 
         result = subprocess.run(
-            ["strace", "-e", "trace=exit", str(binary)],
-            capture_output=True,
-            text=True,
-            timeout=10
+            ["strace", "-e", "trace=exit", str(binary)], capture_output=True, text=True, timeout=10
         )
 
         # strace outputs to stderr
@@ -525,23 +471,18 @@ class TestLtraceAnalysis:
 
         binary = tmp_path / "test"
         c_file = tmp_path / "test.c"
-        c_file.write_text("#include <stdio.h>\nint main() { printf(\"test\"); return 0; }")
+        c_file.write_text('#include <stdio.h>\nint main() { printf("test"); return 0; }')
 
         if not shutil.which("gcc"):
             pytest.skip("gcc not available")
 
         result = subprocess.run(
-            ["gcc", "-o", str(binary), str(c_file)],
-            capture_output=True,
-            timeout=10
+            ["gcc", "-o", str(binary), str(c_file)], capture_output=True, timeout=10
         )
         assert result.returncode == 0
 
         result = subprocess.run(
-            ["ltrace", "-e", "printf", str(binary)],
-            capture_output=True,
-            text=True,
-            timeout=10
+            ["ltrace", "-e", "printf", str(binary)], capture_output=True, text=True, timeout=10
         )
 
         # ltrace outputs to stderr
@@ -578,9 +519,7 @@ int main(int argc, char *argv[]) {
             pytest.skip("gcc not available")
 
         result = subprocess.run(
-            ["gcc", "-g", "-o", str(binary), str(c_file)],
-            capture_output=True,
-            timeout=10
+            ["gcc", "-g", "-o", str(binary), str(c_file)], capture_output=True, timeout=10
         )
         assert result.returncode == 0
         return binary
@@ -592,30 +531,21 @@ int main(int argc, char *argv[]) {
         # nm
         if shutil.which("nm"):
             result = subprocess.run(
-                ["nm", "-a", str(test_binary)],
-                capture_output=True,
-                text=True,
-                timeout=5
+                ["nm", "-a", str(test_binary)], capture_output=True, text=True, timeout=5
             )
             results["nm"] = result.returncode == 0
 
         # objdump
         if shutil.which("objdump"):
             result = subprocess.run(
-                ["objdump", "-t", str(test_binary)],
-                capture_output=True,
-                text=True,
-                timeout=5
+                ["objdump", "-t", str(test_binary)], capture_output=True, text=True, timeout=5
             )
             results["objdump"] = result.returncode == 0
 
         # readelf (if available)
         if shutil.which("readelf"):
             result = subprocess.run(
-                ["readelf", "-s", str(test_binary)],
-                capture_output=True,
-                text=True,
-                timeout=5
+                ["readelf", "-s", str(test_binary)], capture_output=True, text=True, timeout=5
             )
             results["readelf"] = result.returncode == 0
 
@@ -629,30 +559,21 @@ int main(int argc, char *argv[]) {
         # file
         if shutil.which("file"):
             result = subprocess.run(
-                ["file", str(test_binary)],
-                capture_output=True,
-                text=True,
-                timeout=5
+                ["file", str(test_binary)], capture_output=True, text=True, timeout=5
             )
             results["file"] = result.returncode == 0
 
         # otool (macOS)
         if shutil.which("otool"):
             result = subprocess.run(
-                ["otool", "-h", str(test_binary)],
-                capture_output=True,
-                text=True,
-                timeout=5
+                ["otool", "-h", str(test_binary)], capture_output=True, text=True, timeout=5
             )
             results["otool"] = result.returncode == 0
 
         # readelf (Linux)
         if shutil.which("readelf"):
             result = subprocess.run(
-                ["readelf", "-h", str(test_binary)],
-                capture_output=True,
-                text=True,
-                timeout=5
+                ["readelf", "-h", str(test_binary)], capture_output=True, text=True, timeout=5
             )
             results["readelf"] = result.returncode == 0
 
@@ -666,19 +587,13 @@ int main(int argc, char *argv[]) {
 
         if shutil.which("file"):
             result = subprocess.run(
-                ["file", "-b", str(test_binary)],
-                capture_output=True,
-                text=True,
-                timeout=5
+                ["file", "-b", str(test_binary)], capture_output=True, text=True, timeout=5
             )
             results["file"] = result.stdout.lower()
 
         if shutil.which("otool"):
             result = subprocess.run(
-                ["otool", "-h", str(test_binary)],
-                capture_output=True,
-                text=True,
-                timeout=5
+                ["otool", "-h", str(test_binary)], capture_output=True, text=True, timeout=5
             )
             results["otool"] = result.stdout.lower()
 

@@ -12,6 +12,7 @@ SECURITY NOTES:
 import html
 import secrets
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
@@ -80,7 +81,7 @@ async def dashboard_index(request: Request):
     workspace = settings.workspace
 
     # Get list of files in workspace
-    files = []
+    files: list[dict[str, Any]] = []
     if workspace.exists():
         for f in workspace.iterdir():
             if f.is_file() and not f.name.startswith("."):
@@ -99,9 +100,9 @@ async def dashboard_index(request: Request):
     files.sort(key=lambda x: x["modified"], reverse=True)
 
     return templates.TemplateResponse(
+        request,
         "index.html",
         {
-            "request": request,
             "files": files,
             "workspace": str(workspace),
             "file_count": len(files),
@@ -122,8 +123,9 @@ async def dashboard_analysis(request: Request, filename: str):
         validated_path = validate_file_path(str(file_path))
     except Exception as e:
         return templates.TemplateResponse(
+            request,
             "error.html",
-            {"request": request, "error": _sanitize_for_display(str(e))},
+            {"error": _sanitize_for_display(str(e))},
         )
 
     # Get basic file info
@@ -164,9 +166,9 @@ async def dashboard_analysis(request: Request, filename: str):
         disasm = f"Error: {_sanitize_for_display(str(e))}"
 
     return templates.TemplateResponse(
+        request,
         "analysis.html",
         {
-            "request": request,
             "file": file_info,
             "functions": functions,
             "disasm": disasm,
@@ -187,8 +189,9 @@ async def dashboard_iocs(request: Request, filename: str):
         validated_path = validate_file_path(str(file_path))
     except Exception as e:
         return templates.TemplateResponse(
+            request,
             "error.html",
-            {"request": request, "error": _sanitize_for_display(str(e))},
+            {"error": _sanitize_for_display(str(e))},
         )
 
     # Extract IOCs
@@ -212,9 +215,9 @@ async def dashboard_iocs(request: Request, filename: str):
         iocs["error"] = _sanitize_for_display(str(e))
 
     return templates.TemplateResponse(
+        request,
         "iocs.html",
         {
-            "request": request,
             "filename": _sanitize_for_display(filename, 255),
             "iocs": iocs,
         },

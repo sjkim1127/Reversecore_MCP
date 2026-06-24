@@ -58,7 +58,7 @@ async def run_file(file_path: str, timeout: int = DEFAULT_TIMEOUT) -> ToolResult
 @handle_tool_errors
 def copy_to_workspace(
     source_path: str,
-    destination_name: str = None,
+    destination_name: str | None = None,
 ) -> ToolResult:
     """
     Copy any accessible file to the workspace directory.
@@ -203,7 +203,7 @@ def list_workspace() -> ToolResult:
 @track_metrics("scan_workspace")
 @handle_tool_errors
 async def scan_workspace(
-    file_patterns: list[str] = None,
+    file_patterns: list[str] | None = None,
     timeout: int = 600,
     ctx=None,
 ) -> ToolResult:

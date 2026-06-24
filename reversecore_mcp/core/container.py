@@ -113,16 +113,22 @@ class ServiceContainer:
             if name in self._singleton_factories:
                 instance = self._singleton_factories[name]()
                 self._singletons[name] = instance
-                
+
                 # If container is already initialized, start the service immediately
-                if self._initialized and hasattr(instance, "start") and asyncio.iscoroutinefunction(instance.start):
+                if (
+                    self._initialized
+                    and hasattr(instance, "start")
+                    and asyncio.iscoroutinefunction(instance.start)
+                ):
                     # We can't await here as get is sync, but we can schedule it
                     # Warning: This creates a potential race condition for immediate use
                     # ideally initialize_async should have caught this.
                     # For safety, we log this event.
-                    logger.warning(f"Service '{name}' instantiated after initialization. Scheduling start.")
+                    logger.warning(
+                        f"Service '{name}' instantiated after initialization. Scheduling start."
+                    )
                     asyncio.create_task(self._safe_start(name, instance))
-                    
+
                 return instance
 
             # Check factories

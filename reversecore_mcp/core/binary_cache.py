@@ -121,7 +121,7 @@ class BinaryMetadataCache:
         self._cache[cache_key][key] = value
         logger.debug(f"Cached {key} for {file_path}")
 
-    def clear(self, file_path: str = None):
+    def clear(self, file_path: str | None = None):
         """Clear cache for a specific file or all files."""
         if file_path:
             key = self._get_cache_key(file_path)

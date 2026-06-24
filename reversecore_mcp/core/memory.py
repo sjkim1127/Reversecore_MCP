@@ -346,13 +346,11 @@ class MemoryStore:
                     (binary_name,),
                 )
             else:
-                cursor = await db.execute(
-                    """
+                cursor = await db.execute("""
                     SELECT * FROM analysis_sessions
                     ORDER BY updated_at DESC
                     LIMIT 1
-                    """
-                )
+                    """)
 
             row = await cursor.fetchone()
             return dict(row) if row else None
@@ -393,7 +391,14 @@ class MemoryStore:
                 (session_id, memory_type, category, content, user_prompt, importance)
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (session_id, memory_type, category, content_str, user_prompt, importance),
+                (
+                    session_id,
+                    memory_type,
+                    category,
+                    content_str,
+                    user_prompt,
+                    importance,
+                ),
             )
             await db.commit()
 

@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class EmailConfig:
     """Email configuration"""
+
     smtp_server: str = ""
     smtp_port: int = 587
     username: str = ""
@@ -45,7 +46,7 @@ class EmailConfig:
     @property
     def is_configured(self) -> bool:
         """Check if email is configured.
-        
+
         Requires smtp_server and username. If username is set, password must also be set
         to avoid SMTPAuthenticationError at runtime.
         """
@@ -58,7 +59,7 @@ class EmailConfig:
 
 def load_quick_contacts_from_env() -> dict[str, dict[str, str]]:
     """Load quick contacts from environment variables
-    
+
     Format: REPORT_QUICK_CONTACTS=name1:email1:role1,name2:email2:role2
     """
     contacts_str = os.getenv("REPORT_QUICK_CONTACTS", "")

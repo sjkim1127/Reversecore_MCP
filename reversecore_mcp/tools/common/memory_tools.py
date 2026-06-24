@@ -8,14 +8,13 @@ enabling multi-session memory persistence and cross-project knowledge transfer.
 from __future__ import annotations
 
 import hashlib
-import time
 from pathlib import Path
 from typing import Any
 
 from fastmcp import FastMCP
 
 from reversecore_mcp.core.logging_config import get_logger
-from reversecore_mcp.core.memory import get_memory_store, initialize_memory_store
+from reversecore_mcp.core.memory import get_memory_store
 from reversecore_mcp.core.plugin import Plugin
 
 logger = get_logger(__name__)
@@ -384,7 +383,7 @@ class MemoryToolsPlugin(Plugin):
             return {
                 "status": "success",
                 "pattern_id": pattern_id,
-                "message": f"Pattern saved for cross-session matching",
+                "message": "Pattern saved for cross-session matching",
             }
 
         @mcp.tool()

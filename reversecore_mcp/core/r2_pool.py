@@ -266,7 +266,7 @@ class R2ConnectionPool:
 
     def _execute_unsafe(self, file_path: str, command: str) -> str:
         """Execute with thread lock for safe asyncio.to_thread usage.
-        
+
         Note: Despite the name 'unsafe', this method now acquires self._lock
         to ensure thread-safety when called from asyncio.to_thread().
         The async lock in execute_async() serializes async callers,

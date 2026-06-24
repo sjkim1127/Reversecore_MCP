@@ -44,7 +44,7 @@ class CircuitBreaker:
         self.failures = 0
         self.last_failure_time = 0.0
         self.next_attempt_time = 0.0
-        
+
         # Thread lock for atomic state transitions
         self._lock = threading.Lock()
 

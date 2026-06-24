@@ -510,7 +510,7 @@ async def _smart_decompile_impl(
 ) -> ToolResult:
     """
     Internal implementation of smart_decompile with caching.
-    
+
     Note: _file_mtime parameter is used for cache invalidation when the file
     is modified (e.g., after patching with adaptive_vaccine).
     """
@@ -604,7 +604,7 @@ async def smart_decompile(
     function_address: str,
     timeout: int = DEFAULT_TIMEOUT,
     use_ghidra: bool = True,
-    ctx: Context = None,
+    ctx: Context | None = None,
 ) -> ToolResult:
     """
     Decompile a function to pseudo C code using Ghidra or radare2.
@@ -657,7 +657,7 @@ async def recover_structures(
     use_ghidra: bool = True,
     fast_mode: bool = True,
     timeout: int = DEFAULT_TIMEOUT * 5,
-    ctx: Context = None,
+    ctx: Context | None = None,
 ) -> ToolResult:
     """
     Recover C++ class structures and data types from binary code.
@@ -761,7 +761,10 @@ async def recover_structures(
 
                 # Pass fast_mode to skip full binary analysis
                 structures, metadata = recover_structures_with_ghidra(
-                    validated_path, function_address, timeout, skip_full_analysis=fast_mode
+                    validated_path,
+                    function_address,
+                    timeout,
+                    skip_full_analysis=fast_mode,
                 )
 
                 mode_note = " (fast mode)" if fast_mode else " (full analysis)"
@@ -913,9 +916,9 @@ async def recover_structures(
             # Sort fields by offset within each structure
             for struct_data in structures.values():
                 struct_data["fields"].sort(
-                    key=lambda f: int(f["offset"], 16)
-                    if f["offset"].startswith("0x")
-                    else int(f["offset"])
+                    key=lambda f: (
+                        int(f["offset"], 16) if f["offset"].startswith("0x") else int(f["offset"])
+                    )
                 )
 
             # 6. Generate C structure definitions
@@ -949,7 +952,9 @@ async def recover_structures(
 
             # Add hint if no structures found
             hint = None
-            if not non_empty_structures:  # OPTIMIZATION: Direct bool check instead of len() comparison
+            if (
+                not non_empty_structures
+            ):  # OPTIMIZATION: Direct bool check instead of len() comparison
                 hint = "No structures found. Try: 1) fast_mode=False for deeper analysis, 2) use_ghidra=True for C++ structures, 3) analyze a function that uses structures (not main/entry0)"
 
             return success(
@@ -969,7 +974,7 @@ async def recover_structures(
                 hint="The function may not exist or may not use structures. Verify the address with 'afl' command.",
             )
 
+
 # Note: DecompilationPlugin has been removed.
 # All tools (emulate_machine_code, get_pseudo_code, smart_decompile, recover_structures)
 # are now registered via GhidraToolsPlugin in ghidra_tools.py for unified management.
-

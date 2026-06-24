@@ -6,10 +6,8 @@ observable evidence from binary analysis, with confidence-based scoring.
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
-from reversecore_mcp.core.evidence import MITREConfidence, MITRETechnique, Evidence
-
+from reversecore_mcp.core.evidence import Evidence, MITREConfidence, MITRETechnique
 
 # Pre-built at module level so generate_mitre_report never recreates this dict
 _CONFIDENCE_SYMBOLS: dict[str, str] = {
@@ -36,19 +34,18 @@ class MappingRule:
     each indicator string lowercased.  This avoids repeated ``.lower()``
     calls inside the ``MITREMapper.map_indicators`` hot loop.
     """
+
     technique_id: str
     technique_name: str
     tactic: str
-    indicators: list[str]           # API names, strings, behaviors to look for
-    min_indicators: int = 1         # Minimum indicators required
+    indicators: list[str]  # API names, strings, behaviors to look for
+    min_indicators: int = 1  # Minimum indicators required
     confidence_boost_per_indicator: float = 0.1
     base_confidence: MITREConfidence = MITREConfidence.MEDIUM
 
     def __post_init__(self) -> None:
         # Cached lowercase versions computed once at construction time.
-        self._indicators_lower: tuple[str, ...] = tuple(
-            ind.lower() for ind in self.indicators
-        )
+        self._indicators_lower: tuple[str, ...] = tuple(ind.lower() for ind in self.indicators)
 
 
 # =============================================================================
@@ -61,8 +58,13 @@ MITRE_MAPPING_RULES: list[MappingRule] = [
         technique_id="T1055",
         technique_name="Process Injection",
         tactic="Defense Evasion",
-        indicators=["VirtualAllocEx", "WriteProcessMemory", "CreateRemoteThread", 
-                   "NtCreateThreadEx", "RtlCreateUserThread"],
+        indicators=[
+            "VirtualAllocEx",
+            "WriteProcessMemory",
+            "CreateRemoteThread",
+            "NtCreateThreadEx",
+            "RtlCreateUserThread",
+        ],
         min_indicators=2,
         base_confidence=MITREConfidence.HIGH,
     ),
@@ -82,13 +84,17 @@ MITRE_MAPPING_RULES: list[MappingRule] = [
         min_indicators=1,
         base_confidence=MITREConfidence.HIGH,
     ),
-    
     # Persistence
     MappingRule(
         technique_id="T1543.003",
         technique_name="Create or Modify System Process: Windows Service",
         tactic="Persistence",
-        indicators=["CreateService", "OpenService", "StartService", "ChangeServiceConfig"],
+        indicators=[
+            "CreateService",
+            "OpenService",
+            "StartService",
+            "ChangeServiceConfig",
+        ],
         min_indicators=2,
         base_confidence=MITREConfidence.HIGH,
     ),
@@ -96,7 +102,12 @@ MITRE_MAPPING_RULES: list[MappingRule] = [
         technique_id="T1547.001",
         technique_name="Boot or Logon Autostart Execution: Registry Run Keys",
         tactic="Persistence",
-        indicators=["\\Run", "\\RunOnce", "CurrentVersion\\Run", "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run"],
+        indicators=[
+            "\\Run",
+            "\\RunOnce",
+            "CurrentVersion\\Run",
+            "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run",
+        ],
         min_indicators=1,
         base_confidence=MITREConfidence.HIGH,
     ),
@@ -108,13 +119,17 @@ MITRE_MAPPING_RULES: list[MappingRule] = [
         min_indicators=1,
         base_confidence=MITREConfidence.HIGH,
     ),
-    
     # Discovery
     MappingRule(
         technique_id="T1082",
         technique_name="System Information Discovery",
         tactic="Discovery",
-        indicators=["GetComputerName", "GetSystemInfo", "GetVersionEx", "GetNativeSystemInfo"],
+        indicators=[
+            "GetComputerName",
+            "GetSystemInfo",
+            "GetVersionEx",
+            "GetNativeSystemInfo",
+        ],
         min_indicators=2,
         base_confidence=MITREConfidence.MEDIUM,
     ),
@@ -122,7 +137,12 @@ MITRE_MAPPING_RULES: list[MappingRule] = [
         technique_id="T1083",
         technique_name="File and Directory Discovery",
         tactic="Discovery",
-        indicators=["FindFirstFile", "FindNextFile", "GetFileAttributes", "PathFileExists"],
+        indicators=[
+            "FindFirstFile",
+            "FindNextFile",
+            "GetFileAttributes",
+            "PathFileExists",
+        ],
         min_indicators=2,
         base_confidence=MITREConfidence.LOW,
     ),
@@ -130,18 +150,31 @@ MITRE_MAPPING_RULES: list[MappingRule] = [
         technique_id="T1057",
         technique_name="Process Discovery",
         tactic="Discovery",
-        indicators=["CreateToolhelp32Snapshot", "Process32First", "Process32Next", "EnumProcesses"],
+        indicators=[
+            "CreateToolhelp32Snapshot",
+            "Process32First",
+            "Process32Next",
+            "EnumProcesses",
+        ],
         min_indicators=2,
         base_confidence=MITREConfidence.MEDIUM,
     ),
-    
     # Impact
     MappingRule(
         technique_id="T1486",
         technique_name="Data Encrypted for Impact",
         tactic="Impact",
-        indicators=["CryptEncrypt", "CryptGenKey", "CryptDeriveKey", "CryptAcquireContext",
-                   ".encrypted", ".locked", "bitcoin", "ransom", "decrypt"],
+        indicators=[
+            "CryptEncrypt",
+            "CryptGenKey",
+            "CryptDeriveKey",
+            "CryptAcquireContext",
+            ".encrypted",
+            ".locked",
+            "bitcoin",
+            "ransom",
+            "decrypt",
+        ],
         min_indicators=3,
         base_confidence=MITREConfidence.HIGH,
     ),
@@ -161,13 +194,17 @@ MITRE_MAPPING_RULES: list[MappingRule] = [
         min_indicators=2,
         base_confidence=MITREConfidence.MEDIUM,
     ),
-    
     # Command and Control
     MappingRule(
         technique_id="T1071.001",
         technique_name="Application Layer Protocol: Web Protocols",
         tactic="Command and Control",
-        indicators=["InternetOpen", "HttpOpenRequest", "InternetConnect", "WinHttpOpen"],
+        indicators=[
+            "InternetOpen",
+            "HttpOpenRequest",
+            "InternetConnect",
+            "WinHttpOpen",
+        ],
         min_indicators=2,
         base_confidence=MITREConfidence.HIGH,
     ),
@@ -179,7 +216,6 @@ MITRE_MAPPING_RULES: list[MappingRule] = [
         min_indicators=2,
         base_confidence=MITREConfidence.MEDIUM,
     ),
-    
     # Execution
     MappingRule(
         technique_id="T1059.001",
@@ -201,17 +237,28 @@ MITRE_MAPPING_RULES: list[MappingRule] = [
         technique_id="T1106",
         technique_name="Native API",
         tactic="Execution",
-        indicators=["NtCreateProcess", "NtAllocateVirtualMemory", "NtProtectVirtualMemory", "LdrLoadDll"],
+        indicators=[
+            "NtCreateProcess",
+            "NtAllocateVirtualMemory",
+            "NtProtectVirtualMemory",
+            "LdrLoadDll",
+        ],
         min_indicators=2,
         base_confidence=MITREConfidence.HIGH,
     ),
-    
     # Lateral Movement
     MappingRule(
         technique_id="T1570",
         technique_name="Lateral Tool Transfer",
         tactic="Lateral Movement",
-        indicators=["\\\\", "ADMIN$", "C$", "IPC$", "NetShareEnum", "WNetAddConnection"],
+        indicators=[
+            "\\\\",
+            "ADMIN$",
+            "C$",
+            "IPC$",
+            "NetShareEnum",
+            "WNetAddConnection",
+        ],
         min_indicators=2,
         base_confidence=MITREConfidence.MEDIUM,
     ),
@@ -223,7 +270,6 @@ MITRE_MAPPING_RULES: list[MappingRule] = [
         min_indicators=2,
         base_confidence=MITREConfidence.MEDIUM,
     ),
-    
     # Collection
     MappingRule(
         technique_id="T1560",
@@ -246,24 +292,24 @@ MITRE_MAPPING_RULES: list[MappingRule] = [
 
 class MITREMapper:
     """MITRE ATT&CK mapping engine with confidence-based scoring."""
-    
-    def __init__(self, rules: list[MappingRule] = None):
+
+    def __init__(self, rules: list[MappingRule] | None = None):
         self.rules = rules or MITRE_MAPPING_RULES
-    
+
     def map_indicators(
         self,
         imports: list[str],
         strings: list[str],
-        behaviors: list[str] = None,
+        behaviors: list[str] | None = None,
     ) -> list[MITRETechnique]:
         """
         Map observed indicators to MITRE ATT&CK techniques.
-        
+
         Args:
             imports: List of imported API functions
             strings: List of strings found in binary
             behaviors: List of observed behaviors (optional)
-        
+
         Returns:
             List of MITRETechnique with confidence levels
         """
@@ -283,19 +329,20 @@ class MITREMapper:
 
             # rule._indicators_lower is pre-computed in __post_init__, so we
             # skip the per-call .lower() overhead entirely.
-            for original_indicator, ind_lower in zip(rule.indicators, rule._indicators_lower):
+            for original_indicator, ind_lower in zip(
+                rule.indicators, rule._indicators_lower, strict=False
+            ):
                 # Short-circuit: any() stops at the first match
                 if any(
-                    ind_lower in observed or observed in ind_lower
-                    for observed in all_indicators
+                    ind_lower in observed or observed in ind_lower for observed in all_indicators
                 ):
                     matched_indicators.append(original_indicator)
-            
+
             # Check if minimum indicators matched
             if len(matched_indicators) >= rule.min_indicators:
                 # Calculate confidence based on matches
                 match_ratio = len(matched_indicators) / len(rule.indicators)
-                
+
                 if match_ratio >= 0.8:
                     confidence = MITREConfidence.CONFIRMED
                 elif match_ratio >= 0.5 or rule.base_confidence == MITREConfidence.HIGH:
@@ -304,7 +351,7 @@ class MITREMapper:
                     confidence = MITREConfidence.MEDIUM
                 else:
                     confidence = MITREConfidence.LOW
-                
+
                 # Build evidence from matched indicators
                 evidence = [
                     Evidence(
@@ -314,7 +361,7 @@ class MITREMapper:
                     )
                     for ind in matched_indicators
                 ]
-                
+
                 technique = MITRETechnique(
                     technique_id=rule.technique_id,
                     technique_name=rule.technique_name,
@@ -323,12 +370,12 @@ class MITREMapper:
                     evidence=evidence,
                 )
                 results.append(technique)
-        
+
         # Sort by confidence (CONFIRMED > HIGH > MEDIUM > LOW)
         results.sort(key=lambda t: _CONFIDENCE_ORDER[t.confidence])
-        
+
         return results
-    
+
     def generate_mitre_report(self, techniques: list[MITRETechnique]) -> str:
         """Generate a markdown MITRE mapping report."""
         lines = [
@@ -339,20 +386,20 @@ class MITREMapper:
             "| Technique ID | Name | Tactic | Confidence | Evidence Count |",
             "|-------------|------|--------|------------|----------------|",
         ]
-        
+
         for t in techniques:
             conf_symbol = _CONFIDENCE_SYMBOLS[t.confidence.value]
-            
+
             lines.append(
                 f"| {t.technique_id} | {t.technique_name} | {t.tactic} | "
                 f"{conf_symbol} {t.confidence.value} | {len(t.evidence)} |"
             )
-        
+
         return "\n".join(lines)
 
 
 # Singleton instance for convenience
-_mapper: Optional[MITREMapper] = None
+_mapper: MITREMapper | None = None
 
 
 def get_mitre_mapper() -> MITREMapper:
@@ -366,16 +413,16 @@ def get_mitre_mapper() -> MITREMapper:
 def map_to_mitre(
     imports: list[str],
     strings: list[str],
-    behaviors: list[str] = None,
+    behaviors: list[str] | None = None,
 ) -> list[MITRETechnique]:
     """
     Quick helper to map indicators to MITRE techniques.
-    
+
     Args:
         imports: List of imported API functions
         strings: List of strings found in binary
         behaviors: List of observed behaviors (optional)
-    
+
     Returns:
         List of MITRETechnique with confidence levels
     """

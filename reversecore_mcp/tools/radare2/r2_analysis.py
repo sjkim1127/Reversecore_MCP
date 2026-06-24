@@ -1,8 +1,6 @@
 """Radare2-based analysis tools for binary analysis, cross-references, and execution tracing."""
 
 import os
-import re
-from typing import Any
 
 from async_lru import alru_cache
 from fastmcp import Context
@@ -13,7 +11,9 @@ from reversecore_mcp.core.command_spec import validate_r2_command
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
-from reversecore_mcp.core.execution import execute_subprocess_async  # For test compatibility
+from reversecore_mcp.core.execution import (
+    execute_subprocess_async,
+)  # For test compatibility
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.r2_helpers import (
     build_r2_cmd as _build_r2_cmd,
@@ -57,7 +57,7 @@ async def run_radare2(
     r2_command: str,
     max_output_size: int = 10_000_000,
     timeout: int = DEFAULT_TIMEOUT,
-    ctx: Context = None,
+    ctx: Context | None = None,
 ) -> ToolResult:
     """Execute vetted radare2 commands for binary triage."""
 
@@ -70,7 +70,19 @@ async def run_radare2(
     analysis_level = "aa"
 
     # Simple information commands don't need analysis
-    simple_commands = ["i", "iI", "iz", "izj", "il", "is", "isj", "ie", "it", "iS", "iSj"]
+    simple_commands = [
+        "i",
+        "iI",
+        "iz",
+        "izj",
+        "il",
+        "is",
+        "isj",
+        "ie",
+        "it",
+        "iS",
+        "iSj",
+    ]
     if validated_command in simple_commands or validated_command.startswith("i "):
         analysis_level = "-n"
 
@@ -171,8 +183,18 @@ _DANGEROUS_SINKS_LOWER = frozenset(s.lower() for s in _DANGEROUS_SINKS)
 # Maps common API names to their variants (Windows A/W suffixes, safety variants, etc.)
 _SYMBOL_ALIASES: dict[str, list[str]] = {
     # Windows Process APIs
-    "createprocess": ["CreateProcessA", "CreateProcessW", "CreateProcessAsUserA", "CreateProcessAsUserW"],
-    "shellexecute": ["ShellExecuteA", "ShellExecuteW", "ShellExecuteExA", "ShellExecuteExW"],
+    "createprocess": [
+        "CreateProcessA",
+        "CreateProcessW",
+        "CreateProcessAsUserA",
+        "CreateProcessAsUserW",
+    ],
+    "shellexecute": [
+        "ShellExecuteA",
+        "ShellExecuteW",
+        "ShellExecuteExA",
+        "ShellExecuteExW",
+    ],
     "winexec": ["WinExec"],
     # Windows File APIs
     "createfile": ["CreateFileA", "CreateFileW", "CreateFile2"],
@@ -182,9 +204,19 @@ _SYMBOL_ALIASES: dict[str, list[str]] = {
     "copyfile": ["CopyFileA", "CopyFileW", "CopyFileExA", "CopyFileExW"],
     # Windows Registry APIs
     "regsetvalue": ["RegSetValueA", "RegSetValueW", "RegSetValueExA", "RegSetValueExW"],
-    "regcreatekey": ["RegCreateKeyA", "RegCreateKeyW", "RegCreateKeyExA", "RegCreateKeyExW"],
+    "regcreatekey": [
+        "RegCreateKeyA",
+        "RegCreateKeyW",
+        "RegCreateKeyExA",
+        "RegCreateKeyExW",
+    ],
     "regopenkey": ["RegOpenKeyA", "RegOpenKeyW", "RegOpenKeyExA", "RegOpenKeyExW"],
-    "regdeletekey": ["RegDeleteKeyA", "RegDeleteKeyW", "RegDeleteKeyExA", "RegDeleteKeyExW"],
+    "regdeletekey": [
+        "RegDeleteKeyA",
+        "RegDeleteKeyW",
+        "RegDeleteKeyExA",
+        "RegDeleteKeyExW",
+    ],
     # Windows Message APIs
     "messagebox": ["MessageBoxA", "MessageBoxW", "MessageBoxExA", "MessageBoxExW"],
     # Windows Service APIs
@@ -198,7 +230,14 @@ _SYMBOL_ALIASES: dict[str, list[str]] = {
     # C Runtime String Functions
     "strcpy": ["strcpy", "strcpy_s", "__strcpy_chk", "wcscpy", "lstrcpyA", "lstrcpyW"],
     "strcat": ["strcat", "strcat_s", "__strcat_chk", "wcscat", "lstrcatA", "lstrcatW"],
-    "sprintf": ["sprintf", "sprintf_s", "swprintf", "wsprintfA", "wsprintfW", "_snprintf"],
+    "sprintf": [
+        "sprintf",
+        "sprintf_s",
+        "swprintf",
+        "wsprintfA",
+        "wsprintfW",
+        "_snprintf",
+    ],
     "printf": ["printf", "wprintf", "_printf_l"],
     "scanf": ["scanf", "scanf_s", "wscanf", "sscanf", "fscanf"],
     # C Runtime Memory Functions
@@ -239,7 +278,7 @@ def _clean_symbol_name(name: str) -> str:
     name_lower = name.lower()
     for prefix in ["sym.imp.", "sym.", "imp.", "fcn.", "sub_", "loc_"]:
         if name_lower.startswith(prefix):
-            clean = clean[len(prefix):]
+            clean = clean[len(prefix) :]
             break
     # Remove leading/trailing underscores
     return clean.strip("_").lower()
@@ -248,82 +287,82 @@ def _clean_symbol_name(name: str) -> str:
 def _fuzzy_match_symbol(target: str, symbol: str) -> tuple[float, str]:
     """
     Calculate fuzzy match score between target and symbol.
-    
+
     Returns:
         Tuple of (score, match_method) where score is 0.0-1.0
     """
     target_clean = _clean_symbol_name(target)
     symbol_clean = _clean_symbol_name(symbol)
-    
+
     if not target_clean or not symbol_clean:
         return (0.0, "none")
-    
+
     # Exact match (after cleaning)
     if target_clean == symbol_clean:
         return (1.0, "exact")
-    
+
     # Check alias database
     if target_clean in _SYMBOL_ALIASES:
         for alias in _SYMBOL_ALIASES[target_clean]:
             if alias.lower() == symbol_clean or symbol_clean.endswith(alias.lower()):
                 return (0.95, "alias")
-    
+
     # Reverse alias check
     if symbol_clean in _ALIAS_REVERSE_LOOKUP:
         base = _ALIAS_REVERSE_LOOKUP[symbol_clean]
         if base == target_clean:
             return (0.95, "alias_reverse")
-    
+
     # Suffix match (e.g., "system" matches "msvcrt.system")
     if symbol_clean.endswith(target_clean):
         return (0.85, "suffix")
-    
+
     # Prefix match
     if symbol_clean.startswith(target_clean):
         return (0.75, "prefix")
-    
+
     # Contains match
     if target_clean in symbol_clean:
         return (0.65, "contains")
-    
+
     # Reverse contains (symbol in target)
     if symbol_clean in target_clean:
         return (0.55, "contains_reverse")
-    
+
     return (0.0, "none")
 
 
 def _find_best_symbol_match(target: str, symbols: list[dict]) -> tuple[dict | None, float, str]:
     """
     Find the best matching symbol from a list.
-    
+
     Args:
         target: Target function name to find
         symbols: List of symbol dicts with 'name' field
-    
+
     Returns:
         Tuple of (best_match_dict, score, match_method)
     """
     best_match = None
     best_score = 0.0
     best_method = "none"
-    
+
     for sym in symbols:
         if not isinstance(sym, dict):
             continue
-        
+
         # Check both 'name' and 'realname' fields
         for name_field in ["name", "realname"]:
             name = sym.get(name_field, "")
             if not name:
                 continue
-            
+
             score, method = _fuzzy_match_symbol(target, name)
             if score > best_score:
                 best_score = score
                 best_match = sym
                 best_method = method
-    
+
     return (best_match, best_score, best_method)
 
 
@@ -394,29 +433,33 @@ async def trace_execution_path(
 
     # Enhanced symbol resolution with fuzzy matching
     match_info = {"score": 0.0, "method": "none", "resolved_name": None}
-    
+
     async def resolve_symbol_address(func_name: str) -> int | None:
         """Enhanced symbol resolution with fuzzy matching and multi-source lookup."""
         nonlocal match_info
-        
+
         # If already an address, return as-is
         if func_name.startswith("0x"):
             try:
-                match_info = {"score": 1.0, "method": "direct_address", "resolved_name": func_name}
+                match_info = {
+                    "score": 1.0,
+                    "method": "direct_address",
+                    "resolved_name": func_name,
+                }
                 return int(func_name, 16)
             except ValueError:
                 return None
-        
+
         # Multi-source lookup: symbols, functions, imports
         cmd = _build_r2_cmd(str(validated_path), ["isj", "aflj", "iij"], "aaa")
         out, _ = await execute_subprocess_async(cmd, timeout=effective_timeout)
-        
+
         lines = [line.strip() for line in out.strip().split("\n") if line.strip()]
         if not lines:
             return None
-        
+
         all_symbols = []
-        
+
         # Parse all sources
         for line in lines:
             try:
@@ -425,13 +468,13 @@ async def trace_execution_path(
                     all_symbols.extend(parsed)
             except (json.JSONDecodeError, TypeError):
                 continue
-        
+
         if not all_symbols:
             return None
-        
+
         # Use fuzzy matching to find best match
         best_match, score, method = _find_best_symbol_match(func_name, all_symbols)
-        
+
         if best_match and score >= 0.5:  # Minimum confidence threshold
             match_info = {
                 "score": score,
@@ -441,7 +484,7 @@ async def trace_execution_path(
             # Get address from match (different fields for symbols vs functions)
             addr = best_match.get("vaddr") or best_match.get("offset") or best_match.get("plt")
             return addr
-        
+
         return None
 
     # Resolve target address
@@ -492,10 +535,12 @@ async def trace_execution_path(
                     -2
                     if any(k in x.get("fcn_name", "").lower() for k in ["main", "entry"])
                     # Priority 2: Dangerous sink APIs
-                    else -1
-                    if is_dangerous_sink(x.get("fcn_name", ""))
-                    # Priority 3: Everything else
-                    else 0
+                    else (
+                        -1
+                        if is_dangerous_sink(x.get("fcn_name", ""))
+                        # Priority 3: Everything else
+                        else 0
+                    )
                 ),
             )
 
@@ -569,8 +614,8 @@ def _radare2_json_to_mermaid(json_str: str) -> str:
         if len(blocks) > MAX_MERMAID_NODES:
             return (
                 f"graph TD;\n"
-                f"    Warning[\"Graph too complex: {len(blocks)} nodes\"]"
-                f"\n    Warning --> Hint[\"Use PNG export or reduce scope\"]"
+                f'    Warning["Graph too complex: {len(blocks)} nodes"]'
+                f'\n    Warning --> Hint["Use PNG export or reduce scope"]'
             )
 
         mermaid_lines = ["graph TD"]
@@ -735,7 +780,6 @@ async def generate_function_graph(
 
         # Convert DOT to PNG using graphviz
         try:
-            import subprocess  # nosec B404 - graphviz dot CLI required
             import tempfile
             from pathlib import Path as PathlibPath
 
@@ -802,7 +846,7 @@ async def analyze_xrefs(
     address: str,
     xref_type: str = "all",
     timeout: int = DEFAULT_TIMEOUT,
-    ctx: Context = None,
+    ctx: Context | None = None,
 ) -> ToolResult:
     """
     Analyze cross-references (xrefs) for a specific address using radare2.
@@ -926,7 +970,9 @@ async def analyze_xrefs(
             # Robust JSON extraction from line
             try:
                 refs = _parse_json_output(line)
-                if isinstance(refs, list) and refs:  # OPTIMIZATION: Direct bool check instead of len() comparison
+                if (
+                    isinstance(refs, list) and refs
+                ):  # OPTIMIZATION: Direct bool check instead of len() comparison
                     # Determine if this is "to" or "from" based on field names
                     first_ref = refs[0]
                     if "from" in first_ref:

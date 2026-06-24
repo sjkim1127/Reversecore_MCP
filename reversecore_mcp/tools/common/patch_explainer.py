@@ -28,8 +28,8 @@ logger = get_logger(__name__)
 async def explain_patch(
     file_path_a: str,
     file_path_b: str,
-    function_name: str = None,
-    ctx: Context = None,
+    function_name: str | None = None,
+    ctx: Context | None = None,
 ) -> ToolResult:
     """
     Analyze differences between two binaries and explain changes in natural language.
@@ -120,7 +120,7 @@ async def explain_patch(
     if not target_functions:
         return success({"summary": "No changed functions identified to analyze."})
 
-    explanations = []
+    explanations: list[dict[str, Any]] = []
 
     for func in target_functions:
         if ctx:
@@ -132,11 +132,11 @@ async def explain_patch(
 
         # Decompile A
         res_a = await decompilation.smart_decompile(str(path_a), str(func))
-        code_a = res_a.data if res_a.status == "success" else ""
+        code_a = res_a.data if res_a.status == "success" and isinstance(res_a.data, str) else ""
 
         # Decompile B
         res_b = await decompilation.smart_decompile(str(path_b), str(func))
-        code_b = res_b.data if res_b.status == "success" else ""
+        code_b = res_b.data if res_b.status == "success" and isinstance(res_b.data, str) else ""
 
         if not code_a or not code_b:
             explanations.append(
@@ -155,7 +155,10 @@ async def explain_patch(
         )
 
     return success(
-        {"summary": f"Analyzed {len(explanations)} function(s).", "explanations": explanations}
+        {
+            "summary": f"Analyzed {len(explanations)} function(s).",
+            "explanations": explanations,
+        }
     )
 
 
@@ -163,7 +166,7 @@ def _generate_explanation(code_a: str, code_b: str) -> dict:
     """
     Heuristically explain changes between two code snippets.
     """
-    explanation = {"summary": "Code structure changed.", "details": []}
+    explanation: dict[str, Any] = {"summary": "Code structure changed.", "details": []}
 
     # Normalize code (remove whitespace changes)
     lines_a = [line.strip() for line in code_a.splitlines() if line.strip()]

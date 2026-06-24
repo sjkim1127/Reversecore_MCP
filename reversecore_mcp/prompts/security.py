@@ -16,13 +16,13 @@ def vulnerability_research_mode(filename: str) -> str:
     [CRITICAL: Evidence-Based Vulnerability Reporting]
     ==========================================
     Vulnerability claims require STRONG evidence. False positives damage credibility.
-    
+
     🔍 [CONFIRMED] - Verified through PoC, fuzzing, or dynamic testing
        Example: "Crash at strcpy with controlled input (PoC attached)"
-    
+
     🔎 [LIKELY] - Strong static evidence (dangerous pattern + reachable sink)
        Example: "User input reaches sprintf without bounds check"
-    
+
     ❓ [POSSIBLE] - Pattern present but exploitability unclear
        Example: "strcpy used but input source not confirmed"
 
@@ -47,7 +47,7 @@ def vulnerability_research_mode(filename: str) -> str:
        | Stack Buffer Overflow | CWE-121 | 🔍 CONFIRMED | PoC crash at 0x401234 |
        | Command Injection | CWE-78 | 🔎 LIKELY | system() called with user input |
        | Integer Overflow | CWE-190 | ❓ POSSIBLE | Unchecked multiplication, needs verification |
-       
+
        - Include code snippets for each finding
        - Recommend PoC (Proof of Concept) strategies
     """

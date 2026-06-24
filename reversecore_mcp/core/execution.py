@@ -14,14 +14,13 @@ import threading
 from collections.abc import Coroutine
 from typing import Any
 
-from reversecore_mcp.core.logging_config import get_logger
-
-logger = get_logger(__name__)
-
 from reversecore_mcp.core.exceptions import (
     ExecutionTimeoutError,
     ToolNotFoundError,
 )
+from reversecore_mcp.core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class _BackgroundLoopRunner:
@@ -95,11 +94,12 @@ async def execute_subprocess_async(
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        
+
         # Track PID for zombie cleanup in case of abnormal termination
         from reversecore_mcp.core.resource_manager import resource_manager
+
         resource_manager.track_pid(process.pid)
-        
+
     except FileNotFoundError:
         # Extract command name from cmd list
         tool_name = cmd[0] if cmd else "unknown"
@@ -182,8 +182,10 @@ async def execute_subprocess_async(
         # Re-raise import errors (e.g. from missing dependencies)
         raise
     except Exception as e:
-        if not isinstance(e, (ToolNotFoundError, ExecutionTimeoutError, subprocess.CalledProcessError)):
-             logger.error(f"Command execution failed: {e}")
+        if not isinstance(
+            e, (ToolNotFoundError, ExecutionTimeoutError, subprocess.CalledProcessError)
+        ):
+            logger.error(f"Command execution failed: {e}")
         raise
 
 

@@ -37,7 +37,7 @@ def report_generation_mode(filename: str) -> str:
 
     # 2. Extract metadata
     parse_binary_with_lief(file_path="{filename}")
-    
+
     # 3. Analyze code
     # ...dormant_detector("{filename}")
     ```
@@ -73,7 +73,7 @@ def report_generation_mode(filename: str) -> str:
     ```
 
     Note categories: general, finding, warning, important, behavior
-    
+
     **Tip: Label each note with evidence level!**
     ```
     add_session_note("[🔍 OBSERVED] Procmon captured registry write to Run key", category="finding")
@@ -97,17 +97,17 @@ def report_generation_mode(filename: str) -> str:
         classification="TLP:AMBER"
     )
     ```
-    
+
     [CRITICAL: Evidence Summary in Report]
     The final report MUST include an evidence summary:
-    
+
     ## Confidence Assessment
     | Evidence Level | Count | Key Findings |
     |----------------|-------|---------------|
     | 🔍 OBSERVED | X | (sandbox, logs, traces) |
     | 🔎 INFERRED | Y | (static analysis) |
     | ❓ POSSIBLE | Z | (needs verification) |
-    
+
     **Overall Confidence**: [✅ CONFIRMED / 🟢 HIGH / 🟡 MEDIUM / 🔴 LOW]
 
     [STEP 8] Optional: Email Report

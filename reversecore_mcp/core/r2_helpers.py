@@ -28,9 +28,9 @@ from reversecore_mcp.core.logging_config import get_logger
 logger = get_logger(__name__)
 
 # File size thresholds for adaptive analysis
-SMALL_FILE_MB = 10      # Files under this use 'aaa' (full analysis)
-MEDIUM_FILE_MB = 50     # Files under this use 'aa' (basic analysis)
-LARGE_FILE_MB = 200     # Files under this use 'aab' (minimal analysis)
+SMALL_FILE_MB = 10  # Files under this use 'aaa' (full analysis)
+MEDIUM_FILE_MB = 50  # Files under this use 'aa' (basic analysis)
+LARGE_FILE_MB = 200  # Files under this use 'aab' (minimal analysis)
 # Files over LARGE_FILE_MB use '-n' (no analysis)
 
 # OPTIMIZATION: Pre-compile patterns for better performance
@@ -114,26 +114,26 @@ def calculate_dynamic_timeout(file_path: str, base_timeout: int = 300) -> int:
 def get_adaptive_analysis_level(file_path: str, requested_level: str = "aaa") -> str:
     """
     Determine optimal analysis level based on file size.
-    
+
     This prevents timeout/OOM issues on large binaries while maintaining
     quality for smaller files.
-    
+
     Args:
         file_path: Path to the binary file
         requested_level: Requested analysis level (may be overridden)
-        
+
     Returns:
         Optimal analysis level for the file size
     """
     # If user explicitly requested no analysis, respect that
     if requested_level == "-n":
         return "-n"
-    
+
     try:
         file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
     except OSError:
         return requested_level  # Can't determine size, use requested
-    
+
     # Adaptive analysis based on file size
     if file_size_mb < SMALL_FILE_MB:
         # Small files: full analysis is fast
@@ -144,7 +144,9 @@ def get_adaptive_analysis_level(file_path: str, requested_level: str = "aaa") ->
         return "aa"
     elif file_size_mb < LARGE_FILE_MB:
         # Large files: minimal analysis
-        logger.debug(f"File {file_size_mb:.1f}MB > {MEDIUM_FILE_MB}MB, using 'aab' (minimal analysis)")
+        logger.debug(
+            f"File {file_size_mb:.1f}MB > {MEDIUM_FILE_MB}MB, using 'aab' (minimal analysis)"
+        )
         return "aab"
     else:
         # Very large files: no analysis to prevent timeout
@@ -168,7 +170,7 @@ def build_r2_cmd(file_path: str, r2_commands: list[str], analysis_level: str = "
         Complete command list for subprocess execution
     """
     base_cmd = ["r2", "-q"]
-    
+
     # Apply adaptive analysis based on file size
     effective_level = get_adaptive_analysis_level(file_path, analysis_level)
 
@@ -192,6 +194,7 @@ def _get_r2_pool():
     if _r2_pool is None:
         try:
             from reversecore_mcp.core.r2_pool import r2_pool
+
             _r2_pool = r2_pool
         except ImportError:
             pass
@@ -232,14 +235,14 @@ async def execute_r2_command(
         Tuple of (output, bytes_read)
     """
     file_path_str = str(file_path)
-    
+
     # NOTE: Previously had is_analyzed() cache that set "-n" flag, but this was buggy.
     # Subprocess is independent from r2_pool sessions - analysis state is NOT shared.
     # Each subprocess must perform its own analysis.
-    
+
     # Apply adaptive analysis based on file size (P1 optimization)
     effective_level = get_adaptive_analysis_level(file_path_str, analysis_level)
-    
+
     effective_timeout = calculate_dynamic_timeout(file_path_str, base_timeout)
     cmd = build_r2_cmd(file_path_str, r2_commands, effective_level)
 

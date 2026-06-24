@@ -72,7 +72,7 @@ def _extract_library_name(function_name: str) -> str:
 async def diff_binaries(
     file_path_a: str,
     file_path_b: str,
-    function_name: str = None,
+    function_name: str | None = None,
     max_output_size: int = 10_000_000,
     timeout: int = DEFAULT_TIMEOUT,
 ) -> ToolResult:
@@ -400,10 +400,10 @@ async def analyze_variant_changes(
 @handle_tool_errors
 async def match_libraries(
     file_path: str,
-    signature_db: str = None,
+    signature_db: str | None = None,
     max_output_size: int = 10_000_000,
     timeout: int = 600,
-    ctx: Context = None,
+    ctx: Context | None = None,
 ) -> ToolResult:
     """
     Match and filter known library functions to focus on user code.
