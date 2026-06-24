@@ -302,8 +302,11 @@ jobs:
   docker-verification:
     name: Docker & E2E Integration Verification
     runs-on: ubuntu-latest
+    needs: [build-base-image]
+    if: always()  # run even when build-base-image is skipped (PRs)
     permissions:
       contents: read
+      packages: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -357,22 +360,36 @@ jobs:
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image
+      - name: Ensure base image is available
         run: |
-          echo "🐳 Building Docker image (pulling base from registry)..."
           BASE_IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}/base"
-          docker buildx build \
-            --load \
+          BASE_TAG="${{ env.BASE_TAG }}"
+          echo "🔍 Checking for base image ${BASE_IMAGE}:${BASE_TAG} in registry..."
+          if docker pull "${BASE_IMAGE}:${BASE_TAG}" 2>/dev/null; then
+            echo "✅ Base image pulled from GHCR registry"
+          else
+            echo "⚠️  Base image not in registry — building locally from Dockerfile.base"
+            echo "(This is expected on PRs and the first push before build-base-image runs)"
+            docker buildx build \
+              --load \
+              --target base \
+              --build-arg YARA_VERSION="${{ env.YARA_VERSION }}" \
+              --build-arg RADARE2_VERSION="${{ env.RADARE2_VERSION }}" \
+              --build-arg GHIDRA_VERSION="${{ env.GHIDRA_VERSION }}" \
+              --build-arg GHIDRA_DATE="${{ env.GHIDRA_DATE }}" \
+              --cache-from "type=gha,scope=base-${BASE_TAG}" \
+              --cache-to "type=gha,scope=base-${BASE_TAG},mode=max" \
+              -t "${BASE_IMAGE}:${BASE_TAG}" \
+              -f Dockerfile.base .
+            echo "✅ Base image built locally and tagged as ${BASE_IMAGE}:${BASE_TAG}"
+          fi
+
+      - name: Build app Docker image
+        run: |
+          echo "🐳 Building app image from base..."
+          docker build \
             --build-arg BASE_TAG="${{ env.BASE_TAG }}" \
-            --cache-from "type=registry,ref=${BASE_IMAGE}:cache-${{ env.BASE_TAG }}" \
-            --cache-from "type=gha,scope=app" \
-            -t reversecore-mcp:ci \
-            . 2>&1 || {
-              echo "⚠️  Registry cache unavailable, falling back to full build..."
-              docker build \
-                --build-arg BASE_TAG="${{ env.BASE_TAG }}" \
-                -t reversecore-mcp:ci .
-            }
+            -t reversecore-mcp:ci .
           echo "✅ Docker image built: reversecore-mcp:ci"
 
       - name: Check Docker image size
