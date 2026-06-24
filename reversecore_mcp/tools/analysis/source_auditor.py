@@ -20,36 +20,13 @@ from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.plugin import Plugin
 from reversecore_mcp.core.result import ToolResult, failure, success
+from reversecore_mcp.core.sast.python_ast_scanner import PythonASTScanner
+from reversecore_mcp.core.sast.regex_scanner import RegexScanner
+from reversecore_mcp.core.sast.rule_manager import rule_manager
 from reversecore_mcp.core.security import validate_file_path
 from reversecore_mcp.core.validators import validate_tool_parameters
 
 logger = get_logger(__name__)
-
-# Basic heuristics for fast static detection before deep AI review
-_DANGEROUS_PATTERNS = {
-    "C/C++ Memory": ["strcpy", "sprintf", "gets", "strcat", "memcpy", "malloc"],
-    "Command Injection": ["system", "popen", "exec", "os.system", "subprocess"],
-    "Format String": ["printf", "fprintf", "syslog"],
-    "Cryptographic": ["MD5", "SHA1", "DES", "RC4", "srand", "rand"],
-}
-
-
-def _fast_static_scan(code: str) -> dict[str, list[str]]:
-    """Perform a fast heuristic scan to highlight areas of interest for the AI."""
-    findings: dict[str, list[str]] = {category: [] for category in _DANGEROUS_PATTERNS}
-
-    for line_idx, line in enumerate(code.split("\n"), start=1):
-        for category, patterns in _DANGEROUS_PATTERNS.items():
-            for pattern in patterns:
-                # Simple exact word boundary match
-                import re
-
-                if re.search(r"\b" + re.escape(pattern) + r"\b", line):
-                    findings[category].append(f"Line {line_idx}: {line.strip()}")
-                    break  # Found one pattern from this category on this line
-
-    # Filter out empty categories
-    return {k: v for k, v in findings.items() if v}
 
 
 @log_execution(tool_name="audit_source_code")
@@ -116,10 +93,34 @@ async def audit_source_code(
         }
         language = lang_map.get(ext, "unknown")
 
-    # 4. Perform fast static scan
-    static_findings = _fast_static_scan(source_code)
+    # 4. Perform AST or Regex scan based on language
+    rules = rule_manager.get_rules_for_language(language)
+    scan_findings = []
 
-    # 5. Prepare output (truncate if too long for context window, but keep findings)
+    if language == "python":
+        # Try AST first, fallback to regex if syntax error
+        scan_findings = PythonASTScanner().scan(source_code, rules)
+        if not scan_findings:
+            scan_findings = RegexScanner().scan(source_code, rules)
+    else:
+        scan_findings = RegexScanner().scan(source_code, rules)
+
+    # 5. Format findings into Category -> list[str] structure for backward compatibility
+    static_findings: dict[str, list[str]] = {}
+    for finding in scan_findings:
+        cat = finding["category"]
+        severity = finding["severity"].upper()
+        rule_id = finding["rule_id"]
+        msg = finding["message"]
+        line = finding["line"]
+        code_str = finding["code"]
+
+        finding_str = f"Line {line}: {code_str} | [🚨 {severity}] {rule_id}: {msg}"
+        if cat not in static_findings:
+            static_findings[cat] = []
+        static_findings[cat].append(finding_str)
+
+    # 6. Prepare output (truncate if too long for context window, but keep findings)
     max_lines = 2000
     lines = source_code.split("\n")
     is_truncated = len(lines) > max_lines

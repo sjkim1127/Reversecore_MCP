@@ -8,19 +8,12 @@ potential vulnerabilities (e.g., buffer overflows, format string bugs).
 
 from __future__ import annotations
 
-import re
-
 from reversecore_mcp.core.extension import GhidraAnalysisContext, GhidraExtensionPoint
 from reversecore_mcp.core.logging_config import get_logger
+from reversecore_mcp.core.sast.regex_scanner import RegexScanner
+from reversecore_mcp.core.sast.rule_manager import rule_manager
 
 logger = get_logger(__name__)
-
-# Basic heuristics for fast static detection on Pseudo-C
-_DANGEROUS_PATTERNS = {
-    "C/C++ Memory": ["strcpy", "sprintf", "gets", "strcat", "memcpy"],
-    "Command Injection": ["system", "popen", "execve", "execl"],
-    "Format String": ["printf", "fprintf", "syslog"],
-}
 
 
 class GhidraSASTExtension(GhidraExtensionPoint):
@@ -38,25 +31,35 @@ class GhidraSASTExtension(GhidraExtensionPoint):
         """
         logger.info(f"Running SAST scan on decompiled code for {ctx.function_address}")
 
-        findings = []
-        lines = decompiled_code.split("\n")
+        # Get C/C++ rules
+        rules = rule_manager.get_rules_for_language("c")
 
-        for i, line in enumerate(lines):
-            for category, patterns in _DANGEROUS_PATTERNS.items():
-                for pattern in patterns:
-                    # Look for function calls: pattern(
-                    if re.search(r"\b" + re.escape(pattern) + r"\s*\(", line):
-                        warning = f"// [🚨 SAST WARNING] {category} risk: '{pattern}' used here"
-                        # Insert comment before the line
-                        findings.append((i, warning))
-                        break
+        # Scan decompiler output (which is C code)
+        scan_findings = RegexScanner().scan(decompiled_code, rules)
+
+        if not scan_findings:
+            return decompiled_code
+
+        # Group warnings by line index (0-based)
+        from collections import defaultdict
+
+        line_to_warnings = defaultdict(list)
+
+        for f in scan_findings:
+            line_idx = f["line"] - 1  # Convert 1-based line number to 0-based index
+            warning = f"// [🚨 SAST WARNING] {f['category']} (Severity: {f['severity'].upper()}): {f['message']}"
+            line_to_warnings[line_idx].append(warning)
 
         # Apply warnings in reverse order to not mess up line indices
-        for i, warning in sorted(findings, reverse=True):
-            lines.insert(i, warning)
+        lines = decompiled_code.split("\n")
+        total_inserted = 0
 
-        if findings:
-            logger.info(f"Injected {len(findings)} SAST warnings into decompiled code.")
-            ctx.metadata["sast_warnings"] = len(findings)
+        for line_idx in sorted(line_to_warnings.keys(), reverse=True):
+            for warning in line_to_warnings[line_idx]:
+                lines.insert(line_idx, warning)
+                total_inserted += 1
+
+        logger.info(f"Injected {total_inserted} SAST warnings into decompiled code.")
+        ctx.metadata["sast_warnings"] = total_inserted
 
         return "\n".join(lines)

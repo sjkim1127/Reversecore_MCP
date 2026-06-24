@@ -212,6 +212,11 @@ class Settings(BaseSettings):
             "GhidraExtensionPoint subclasses."
         ),
     )
+    sast_rules_path: str = Field(
+        default="",
+        alias="REVERSECORE_SAST_RULES_PATH",
+        description="Path to a custom YAML file defining SAST rules",
+    )
     r2_extensions: str = Field(
         default="",
         alias="REVERSECORE_R2_EXTENSIONS",
