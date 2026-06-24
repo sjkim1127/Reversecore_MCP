@@ -24,7 +24,9 @@ from reversecore_mcp.tools.ghidra import decompilation
 from reversecore_mcp.tools.malware import (
     adaptive_vaccine,
     dormant_detector,
+    ioc_tools,
     vulnerability_hunter,
+    yara_tools,
 )
 
 # Radare2 tools
@@ -51,6 +53,8 @@ __all__ = [
     "dormant_detector",
     "adaptive_vaccine",
     "vulnerability_hunter",
+    "ioc_tools",
+    "yara_tools",
     # Report tools
     "report_tools",
     "report_mcp_tools",

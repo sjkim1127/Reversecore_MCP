@@ -139,6 +139,8 @@ RUN apt-get update \
     binwalk \
     # Graphviz for CFG image generation (FastMCP Image support)
     graphviz \
+    # nasm assembler required by assemble_instructions tool
+    nasm \
     # Required for downloading JDK tarball
     curl \
     gnupg \

@@ -112,6 +112,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
+          # Install capa for binary capability detection (run_capa / run_capa_quick tools)
+          pip install flare-capa || echo "⚠️  capa install failed (non-fatal)"
 
       - name: Verify tool installations (host)
         run: |
@@ -120,9 +122,12 @@ jobs:
           yara --version || echo "⚠️  yara not found"
           file --version || echo "⚠️  file not found"
           strings --version || echo "⚠️  strings not found"
+          nasm --version || echo "⚠️  nasm not found"
           binwalk --version || echo "⚠️  binwalk not found"
           objdump --version | head -1 || echo "⚠️  objdump not found"
           java -version 2>&1 | head -1 || echo "⚠️  java not found"
+          capa --version 2>/dev/null || echo "⚠️  capa not found (optional)"
+          diec --version 2>/dev/null || echo "⚠️  diec not found (optional)"
           if [ -n "$GHIDRA_INSTALL_DIR" ]; then
             echo "✅ Ghidra: $GHIDRA_INSTALL_DIR"
             ls "$GHIDRA_INSTALL_DIR/ghidraRun" 2>/dev/null || echo "⚠️  ghidraRun not found"
@@ -138,6 +143,10 @@ jobs:
           mkdir -p tests/fixtures/workspace/binaries
           echo -n "Hello World" > tests/fixtures/workspace/test_binary.bin
           printf '\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00\x01\x00\x00\x00' > tests/fixtures/workspace/sample.elf
+          # Pre-populate YARA rules directory with a minimal rule so YARA-scanning tools
+          # have a valid rule file to work with during CI
+          python3 scripts/generate-ci-yara-rules.py
+          echo "✅ YARA baseline rule created"
 
       - name: Cache test binaries
         uses: actions/cache@v5
@@ -307,6 +316,9 @@ jobs:
           mkdir -p tests/fixtures/workspace/binaries
           echo -n "Hello World" > tests/fixtures/workspace/test_binary.bin
           printf '\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00\x01\x00\x00\x00' > tests/fixtures/workspace/sample.elf
+          # Pre-populate YARA rules directory (mirrors the unit-and-integration-tests job)
+          python3 scripts/generate-ci-yara-rules.py
+          echo "✅ YARA baseline rule created"
 
       - name: Cache test binaries
         uses: actions/cache@v5
@@ -352,10 +364,13 @@ jobs:
           docker run --rm reversecore-mcp:ci sh -c 'yara --version' || echo "⚠️  yara not found in Docker"
           docker run --rm reversecore-mcp:ci sh -c 'file --version' || echo "⚠️  file not found in Docker"
           docker run --rm reversecore-mcp:ci sh -c 'strings --version' || echo "⚠️  strings not found in Docker"
+          docker run --rm reversecore-mcp:ci sh -c 'nasm --version' || echo "⚠️  nasm not found in Docker (optional)"
           docker run --rm reversecore-mcp:ci sh -c 'binwalk --version' || echo "⚠️  binwalk not found in Docker"
           docker run --rm reversecore-mcp:ci sh -c 'objdump --version | head -1' || echo "⚠️  objdump not found in Docker"
           docker run --rm reversecore-mcp:ci sh -c 'java -version 2>&1 | head -1' || echo "⚠️  java not found in Docker"
           docker run --rm reversecore-mcp:ci sh -c 'ls /opt/ghidra/ghidraRun' || echo "⚠️  Ghidra not found in Docker"
+          docker run --rm reversecore-mcp:ci sh -c 'capa --version 2>/dev/null || echo "⚠️  capa not found in Docker (optional)"'
+          docker run --rm reversecore-mcp:ci sh -c 'diec --version 2>/dev/null || echo "⚠️  diec not found in Docker (optional)"'
           echo "=== Docker tool verification complete ==="
 
       - name: Run Ghidra headless analysis test (Docker)
