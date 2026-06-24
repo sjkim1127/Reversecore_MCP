@@ -2,17 +2,17 @@ name: CI/CD Pipeline
 
 on:
   push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  pipeline:
-    name: Consolidated Pipeline
+  lint-and-security:
+    name: Lint & Security Scans
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
-      security-events: write
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -34,6 +34,31 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          pip install bandit[toml] pip-audit
+
+      - name: Run Bandit security scan
+        run: bandit -r reversecore_mcp/ -f txt
+
+      - name: Run pip-audit (dependency vulnerabilities)
+        run: pip-audit
+
+  unit-and-integration-tests:
+    name: Host Unit & Integration Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Install system dependencies
         run: |
@@ -63,18 +88,17 @@ jobs:
             echo "⚠️ Ghidra not found in cache, skipping"
           fi
 
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
-          pip install bandit[toml] pip-audit
-
-      - name: Run Bandit security scan
-        run: bandit -r reversecore_mcp/ -f txt
-
-      - name: Run pip-audit (dependency vulnerabilities)
-        run: pip-audit
 
       - name: Verify tool installations (host)
         run: |
@@ -93,6 +117,197 @@ jobs:
             echo "⚠️  Ghidra not installed"
           fi
           echo "=== Host tool verification complete ==="
+
+      - name: Create test workspace
+        run: |
+          mkdir -p tests/fixtures/workspace
+          mkdir -p tests/fixtures/rules
+          mkdir -p tests/fixtures/workspace/binaries
+          echo -n "Hello World" > tests/fixtures/workspace/test_binary.bin
+          printf '\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00\x01\x00\x00\x00' > tests/fixtures/workspace/sample.elf
+
+      - name: Cache test binaries
+        uses: actions/cache@v5
+        id: binaries-cache
+        with:
+          path: tests/fixtures/workspace/binaries
+          key: test-binaries-${{ runner.os }}-${{ hashFiles('scripts/generate-test-binaries.sh') }}
+          restore-keys: test-binaries-${{ runner.os }}-
+
+      - name: Generate test binaries
+        if: steps.binaries-cache.outputs.cache-hit != 'true'
+        run: |
+          chmod +x scripts/generate-test-binaries.sh
+          scripts/generate-test-binaries.sh || echo "⚠️  Some binaries could not be generated"
+          ls -lh tests/fixtures/workspace/binaries/ 2>/dev/null || echo "Binaries directory not yet populated"
+
+      - name: Run unit tests & collect coverage
+        env:
+          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
+          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
+          LOG_LEVEL: INFO
+        run: |
+          pytest tests/unit/ -v --cov=reversecore_mcp --cov-report=xml --cov-report=term-missing --cov-fail-under=54
+
+      - name: Run tool installation verification tests
+        env:
+          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
+          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
+          LOG_LEVEL: INFO
+        run: |
+          pytest tests/integration/test_tool_installation.py::TestToolInstallation -v --tb=short
+
+      - name: Run real binary analysis tests
+        env:
+          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
+          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
+          LOG_LEVEL: INFO
+        run: |
+          pytest tests/integration/test_real_binary_analysis.py -v --tb=short || echo "⚠️  Some analysis tests failed"
+
+      - name: Run integration tests (tool invocation)
+        env:
+          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
+          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
+          LOG_LEVEL: INFO
+        run: |
+          pytest tests/integration/test_tool_installation.py::TestToolInvocation -v --tb=short || true
+          pytest tests/integration/test_tool_installation.py::TestMCPToolCalls -v --tb=short || true
+
+      - name: Run advanced analysis tool tests
+        env:
+          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
+          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
+          LOG_LEVEL: INFO
+        run: |
+          pytest tests/integration/test_advanced_analysis_tools.py -v --tb=short || echo "⚠️  Some advanced tool tests skipped"
+
+      - name: Generate PE and large binaries
+        run: |
+          python3 scripts/generate-pe-and-large-binaries.py
+
+      - name: Run large binary processing tests
+        env:
+          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
+          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
+          LOG_LEVEL: INFO
+        run: |
+          pytest tests/integration/test_large_binary_processing.py -v --tb=short || true
+
+      - name: Run performance benchmarks
+        run: |
+          python3 scripts/benchmark-analysis-tools.py
+
+      - name: Run extended tool tests
+        env:
+          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
+          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
+          LOG_LEVEL: INFO
+        run: |
+          pytest tests/integration/test_extended_tools.py -v --tb=short || true
+
+      - name: Run extended tool analysis
+        run: |
+          python3 scripts/extended-tool-analysis.py
+
+      - name: Run YARA malware scanner
+        run: |
+          pip install yara-python 2>/dev/null || echo "⚠️  yara-python not available"
+          python3 scripts/yara_malware_scanner.py || echo "⚠️  YARA scanner skipped"
+
+      - name: Run binwalk firmware analyzer
+        run: |
+          pip install binwalk 2>/dev/null || echo "⚠️  binwalk not available"
+          python3 scripts/binwalk_firmware_analyzer.py || echo "⚠️  binwalk analyzer skipped"
+
+      - name: Run parallel analysis benchmark
+        run: |
+          python3 scripts/parallel_analysis_framework.py
+
+      - name: Run comprehensive performance benchmark
+        run: |
+          python3 scripts/comprehensive_benchmark.py
+
+      - name: Upload benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-reports
+          path: artifacts/benchmarks/
+          retention-days: 30
+
+      - name: Upload analysis artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: analysis-reports
+          path: |
+            artifacts/extended_analysis/
+            artifacts/parallel_analysis/
+            artifacts/firmware_analysis/
+          retention-days: 30
+
+      - name: Generate test summary
+        if: always()
+        run: |
+          echo "📊 Test Summary"
+          echo "================="
+          echo "Repository: ${{ github.repository }}"
+          echo "Branch: ${{ github.ref }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Timestamp: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          echo ""
+          echo "✅ Tests completed"
+          ls -lh tests/fixtures/workspace/binaries/ 2>/dev/null || echo "Binaries: none"
+          echo ""
+          echo "📈 Benchmark Reports:"
+          find artifacts/benchmarks -name "*.json" -type f 2>/dev/null | head -5
+          pytest tests/integration/ -v --tb=short -k "not test_mcp_tool_calls" --co -q 2>/dev/null | head -20
+
+  docker-verification:
+    name: Docker & E2E Integration Verification
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Create test workspace
+        run: |
+          mkdir -p tests/fixtures/workspace
+          mkdir -p tests/fixtures/rules
+          mkdir -p tests/fixtures/workspace/binaries
+          echo -n "Hello World" > tests/fixtures/workspace/test_binary.bin
+          printf '\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00\x01\x00\x00\x00' > tests/fixtures/workspace/sample.elf
+
+      - name: Cache test binaries
+        uses: actions/cache@v5
+        id: binaries-cache
+        with:
+          path: tests/fixtures/workspace/binaries
+          key: test-binaries-${{ runner.os }}-${{ hashFiles('scripts/generate-test-binaries.sh') }}
+          restore-keys: test-binaries-${{ runner.os }}-
+
+      - name: Generate test binaries
+        if: steps.binaries-cache.outputs.cache-hit != 'true'
+        run: |
+          chmod +x scripts/generate-test-binaries.sh
+          scripts/generate-test-binaries.sh || echo "⚠️  Some binaries could not be generated"
 
       - name: Build Docker image
         run: |
@@ -160,28 +375,6 @@ jobs:
             '
           echo "✅ Ghidra headless test complete"
 
-      - name: Create test workspace
-        run: |
-          mkdir -p tests/fixtures/workspace
-          mkdir -p tests/fixtures/rules
-          mkdir -p tests/fixtures/workspace/binaries
-          echo -n "Hello World" > tests/fixtures/workspace/test_binary.bin
-          # Create a minimal ELF binary for testing
-          printf '\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00\x01\x00\x00\x00' > tests/fixtures/workspace/sample.elf
-
-      - name: Generate test binaries
-        run: |
-          chmod +x scripts/generate-test-binaries.sh
-          scripts/generate-test-binaries.sh || echo "⚠️  Some binaries could not be generated"
-          ls -lh tests/fixtures/workspace/binaries/ 2>/dev/null || echo "Binaries directory not yet populated"
-
-      - name: Cache test binaries
-        uses: actions/cache@v5
-        with:
-          path: tests/fixtures/workspace/binaries
-          key: test-binaries-${{ runner.os }}-${{ hashFiles('scripts/generate-test-binaries.sh') }}
-          restore-keys: test-binaries-${{ runner.os }}-
-
       - name: Run real tool analysis on test binaries (Docker)
         run: |
           echo "🔬 Running real tool analysis INSIDE Docker container..."
@@ -238,7 +431,7 @@ jobs:
               echo ""
 
               echo "--- yara self-test ---"
-              printf 'rule test_elf {\n    strings:\n        $elf = { 7f 45 4c 46 }\n    condition:\n        $elf at 0\n}\n' > "$BIN_DIR/ci_test.yar"
+              printf '\''rule test_elf {\n    strings:\n        $elf = { 7f 45 4c 46 }\n    condition:\n        $elf at 0\n}\n'\'' > "$BIN_DIR/ci_test.yar"
               yara "$BIN_DIR/ci_test.yar" "$TARGET" 2>/dev/null || echo "⚠️ yara test skipped"
               echo ""
 
@@ -252,203 +445,6 @@ jobs:
             -v ${{ github.workspace }}/tests/fixtures/rules:/app/rules \
             reversecore-mcp:ci \
             python /app/scripts/test-yara-rules.py /app/rules || echo "⚠️  YARA rule validation skipped"
-
-      - name: Run unit tests
-        env:
-          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
-          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
-          LOG_LEVEL: INFO
-        run: |
-          pytest tests/unit/ -v --cov=reversecore_mcp --cov-report=xml --cov-report=term-missing
-
-      - name: Run tool installation verification tests
-        env:
-          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
-          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
-          LOG_LEVEL: INFO
-        run: |
-          pytest tests/integration/test_tool_installation.py::TestToolInstallation -v --tb=short
-
-      - name: Run real binary analysis tests
-        env:
-          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
-          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
-          LOG_LEVEL: INFO
-        run: |
-          echo "🔍 Running real binary analysis tests..."
-          pytest tests/integration/test_real_binary_analysis.py -v --tb=short || echo "⚠️  Some analysis tests failed (may be expected if tools not installed)"
-
-      - name: Run integration tests (tool invocation)
-        env:
-          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
-          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
-          LOG_LEVEL: INFO
-        run: |
-          pytest tests/integration/test_tool_installation.py::TestToolInvocation -v --tb=short || true
-          pytest tests/integration/test_tool_installation.py::TestMCPToolCalls -v --tb=short || true
-
-      - name: Run advanced analysis tool tests
-        env:
-          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
-          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
-          LOG_LEVEL: INFO
-        run: |
-          echo "🔬 Running advanced analysis tool tests..."
-          pytest tests/integration/test_advanced_analysis_tools.py -v --tb=short || echo "⚠️  Some advanced tool tests skipped (tools not installed)"
-
-      - name: Generate PE and large binaries
-        run: |
-          echo "🔨 Generating PE and large binaries..."
-          python3 scripts/generate-pe-and-large-binaries.py
-
-      - name: Run large binary processing tests
-        env:
-          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
-          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
-          LOG_LEVEL: INFO
-        run: |
-          echo "📦 Running large binary processing tests..."
-          pytest tests/integration/test_large_binary_processing.py -v --tb=short || true
-
-      - name: Run performance benchmarks
-        run: |
-          echo "⏱️  Running performance benchmarks..."
-          python3 scripts/benchmark-analysis-tools.py
-
-      - name: Run extended tool tests
-        env:
-          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
-          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
-          LOG_LEVEL: INFO
-        run: |
-          echo "🔧 Running extended tool tests..."
-          pytest tests/integration/test_extended_tools.py -v --tb=short || true
-
-      - name: Run extended tool analysis
-        run: |
-          echo "🔍 Running extended tool analysis..."
-          python3 scripts/extended-tool-analysis.py
-
-      - name: Run YARA malware scanner
-        run: |
-          echo "🦠 Running YARA malware scanner..."
-          pip install yara-python 2>/dev/null || echo "⚠️  yara-python not available"
-          python3 scripts/yara_malware_scanner.py || echo "⚠️  YARA scanner skipped"
-
-      - name: Run binwalk firmware analyzer
-        run: |
-          echo "📦 Running binwalk firmware analyzer..."
-          pip install binwalk 2>/dev/null || echo "⚠️  binwalk not available"
-          python3 scripts/binwalk_firmware_analyzer.py || echo "⚠️  binwalk analyzer skipped"
-
-      - name: Run parallel analysis benchmark
-        run: |
-          echo "⚡ Running parallel analysis benchmark..."
-          python3 scripts/parallel_analysis_framework.py
-
-      - name: Run comprehensive performance benchmark
-        run: |
-          echo "📊 Running comprehensive performance benchmark..."
-          python3 scripts/comprehensive_benchmark.py
-
-      - name: Upload benchmark artifacts
-        env:
-          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
-          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
-          LOG_LEVEL: INFO
-        run: |
-          echo "🔧 Running extended tool tests..."
-          pytest tests/integration/test_extended_tools.py -v --tb=short || true
-
-      - name: Run extended tool analysis
-        run: |
-          echo "🔍 Running extended tool analysis..."
-          python3 scripts/extended-tool-analysis.py
-
-      - name: Upload benchmark artifacts
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: benchmark-reports
-          path: artifacts/benchmarks/
-          retention-days: 30
-
-      - name: Upload analysis artifacts
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: analysis-reports
-          path: |
-            artifacts/extended_analysis/
-            artifacts/parallel_analysis/
-            artifacts/firmware_analysis/
-          retention-days: 30
-
-      - name: Generate test summary
-        if: always()
-        run: |
-          echo "📊 Test Summary"
-          echo "================="
-          echo "Repository: ${{ github.repository }}"
-          echo "Branch: ${{ github.ref }}"
-          echo "Commit: ${{ github.sha }}"
-          echo "Timestamp: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
-          echo ""
-          echo "✅ Tests completed"
-          ls -lh tests/fixtures/workspace/binaries/ 2>/dev/null || echo "Binaries: none"
-          echo ""
-          echo "📈 Benchmark Reports:"
-          find artifacts/benchmarks -name "*.json" -type f 2>/dev/null | head -5
-          pytest tests/integration/ -v --tb=short -k "not test_mcp_tool_calls" --co -q 2>/dev/null | head -20
-
-      - name: Collect coverage report
-        env:
-          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
-          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
-          LOG_LEVEL: INFO
-        run: |
-          pytest tests/unit/ --cov=reversecore_mcp --cov-report=xml --cov-report=term --cov-fail-under=54 -q
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
-        with:
-          languages: python
-          config-file: ./.github/codeql/codeql-config.yml
-
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v4
-
-      - name: Docker Build and Push
-        if: github.ref == 'refs/heads/main'
-        env:
-          REGISTRY: ghcr.io
-        run: |
-          RAW_IMAGE_NAME=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE_NAME=ghcr.io/$RAW_IMAGE_NAME" >> $GITHUB_ENV
-
-          docker buildx create --use
-          docker login -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }} ${{ env.REGISTRY }}
-
-          docker buildx build \
-            --file ./Dockerfile \
-            --platform linux/amd64,linux/arm64 \
-            --push \
-            --tag ghcr.io/$RAW_IMAGE_NAME:latest \
-            --tag ghcr.io/$RAW_IMAGE_NAME:sha-${{ github.sha }} \
-            --cache-from type=gha \
-            --cache-to type=gha,mode=max \
-            .
-
-      - name: Run Trivy vulnerability scanner
-        if: github.ref == 'refs/heads/main'
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
-          format: 'table'
-          exit-code: '0'
-          ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
 
       - name: MCP Server Integration Test (Docker)
         env:
@@ -500,7 +496,6 @@ jobs:
 
           # 4. Container resilience: concurrent requests + restart
           echo "🔄 Testing container resilience..."
-          pip install aiohttp 2>/dev/null || true
           docker cp scripts/test-container-resilience.py mcp-ci-test:/tmp/test-container-resilience.py
           docker exec mcp-ci-test python /tmp/test-container-resilience.py || echo "⚠️  Resilience test skipped"
 
@@ -518,3 +513,73 @@ jobs:
           docker stop mcp-ci-test
           docker rm mcp-ci-test
         timeout-minutes: 5
+
+  codeql-analysis:
+    name: CodeQL Security Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: python
+          config-file: ./.github/codeql/codeql-config.yml
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+
+  deploy:
+    name: Docker Build & Push (CD)
+    runs-on: ubuntu-latest
+    needs: [lint-and-security, unit-and-integration-tests, docker-verification, codeql-analysis]
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REGISTRY: ghcr.io
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:sha-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ghcr.io/${{ github.repository }}:sha-${{ github.sha }}
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
