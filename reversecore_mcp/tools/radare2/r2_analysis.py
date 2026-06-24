@@ -14,6 +14,10 @@ from reversecore_mcp.core.error_handling import handle_tool_errors
 from reversecore_mcp.core.execution import (
     execute_subprocess_async,
 )  # For test compatibility
+
+# Extension hook support (no-op when no extensions are registered)
+from reversecore_mcp.core.extension import R2CommandResult
+from reversecore_mcp.core.extension_registry import get_extension_registry
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.r2_helpers import (
     build_r2_cmd as _build_r2_cmd,
@@ -104,6 +108,12 @@ async def run_radare2(
 
     # Use helper function to execute radare2 command
     try:
+        # ── Extension pre-hooks (may transform file_path / command) ──────────
+        _registry = get_extension_registry()
+        validated_path, validated_command = await _registry.run_r2_pre_hooks(
+            str(validated_path), validated_command
+        )
+
         output, bytes_read = await _execute_r2_command(
             validated_path,
             [validated_command],
@@ -111,7 +121,22 @@ async def run_radare2(
             max_output_size=max_output_size,
             base_timeout=timeout,
         )
-        return success(output, bytes_read=bytes_read, analysis_level=analysis_level)
+
+        # ── Extension post-hooks (may enrich result with metadata) ───────────
+        result_obj = R2CommandResult(
+            file_path=str(validated_path),
+            command=validated_command,
+            raw_output=output,
+        )
+        result_obj = await _registry.run_r2_post_hooks(result_obj)
+
+        # Merge extension metadata into the success response
+        return success(
+            result_obj.parsed if result_obj.parsed is not None else output,
+            bytes_read=bytes_read,
+            analysis_level=analysis_level,
+            **result_obj.metadata,
+        )
     except Exception as e:
         # Log error to client if context is available
         if ctx:

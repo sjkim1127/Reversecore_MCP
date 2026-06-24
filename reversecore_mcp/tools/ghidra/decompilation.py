@@ -12,6 +12,10 @@ from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
 from reversecore_mcp.core.exceptions import ValidationError
+
+# Extension hook support
+from reversecore_mcp.core.extension import GhidraAnalysisContext
+from reversecore_mcp.core.extension_registry import get_extension_registry
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
 
@@ -540,6 +544,15 @@ async def _smart_decompile_impl(
                         validated_path, function_address, timeout
                     )
 
+                    # ── Ghidra decompile extension hooks ────────────────────
+                    _ghidra_ctx = GhidraAnalysisContext(
+                        file_path=str(validated_path),
+                        function_address=function_address,
+                    )
+                    c_code = await get_extension_registry().run_ghidra_decompile_hooks(
+                        _ghidra_ctx, c_code
+                    )
+
                     return success(
                         c_code,
                         function_address=function_address,
@@ -586,6 +599,13 @@ async def _smart_decompile_impl(
     import time
 
     timestamp = time.time()
+
+    # ── Radare2 decompile extension hooks ───────────────────────────────
+    _r2_ctx = GhidraAnalysisContext(
+        file_path=str(validated_path),
+        function_address=function_address,
+    )
+    output = await get_extension_registry().run_ghidra_decompile_hooks(_r2_ctx, output)
 
     # 6. Return result
     return success(

@@ -95,6 +95,23 @@ async def server_lifespan(server: FastMCP) -> AsyncGenerator[None, None]:
     # Note: Async resources are initialized lazily when first accessed
     logger.info("Async resources ready")
 
+    # 5. Discover and activate extension plugins
+    from reversecore_mcp.core.extension_registry import get_extension_registry
+
+    _ext_registry = get_extension_registry()
+    _ext_registry.discover_all()
+    ext_summary = _ext_registry.list_extensions()
+    if ext_summary["r2"] or ext_summary["ghidra"]:
+        logger.info(
+            "✅ Extension plugins active — R2: %s | Ghidra: %s",
+            ext_summary["r2"] or "none",
+            ext_summary["ghidra"] or "none",
+        )
+    else:
+        logger.info(
+            "ℹ️  No extension plugins registered (add via REVERSECORE_PLUGIN_DIRS or entry_points)"
+        )
+
     # Start cleanup task
     cleanup_task = asyncio.create_task(_cleanup_old_files())
 
@@ -383,6 +400,24 @@ for plugin in plugins:
         logger.info(f"Registered plugin: {plugin.name}")
     except Exception as e:
         logger.error(f"Failed to register plugin {plugin.name}: {e}")
+
+# Register extension plugin tools (dynamically contributed by R2/Ghidra extensions)
+# Note: discover_all() runs at server startup (lifespan), but we pre-call here
+# so tools are available before the first request.
+try:
+    from reversecore_mcp.core.extension_registry import get_extension_registry as _get_ext_reg
+
+    _ext_reg = _get_ext_reg()
+    _ext_reg.discover_all()  # idempotent — safe to call before lifespan too
+    for _ext_tool in _ext_reg.get_all_extension_tools():
+        try:
+            mcp.tool()(_ext_tool)
+            logger.info(f"Registered extension tool: {_ext_tool.__name__}")
+        except Exception as _tool_err:
+            logger.error(f"Failed to register extension tool {_ext_tool}: {_tool_err}")
+except Exception as _ext_err:
+    logger.warning(f"⚠️ Extension tool registration skipped: {_ext_err}")
+
 
 # Register prompts
 from reversecore_mcp import prompts  # noqa: E402

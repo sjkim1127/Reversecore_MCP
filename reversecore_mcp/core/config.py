@@ -202,6 +202,33 @@ class Settings(BaseSettings):
         description="Path to AI memory SQLite database",
     )
 
+    # Extension plugin configuration
+    plugin_dirs: str = Field(
+        default="",
+        alias="REVERSECORE_PLUGIN_DIRS",
+        description=(
+            "Comma-separated list of directories to scan for local extension plugins. "
+            "Each .py file in the directory is scanned for R2ExtensionPoint / "
+            "GhidraExtensionPoint subclasses."
+        ),
+    )
+    r2_extensions: str = Field(
+        default="",
+        alias="REVERSECORE_R2_EXTENSIONS",
+        description=(
+            "Comma-separated list of R2 extension classes in 'module:ClassName' format. "
+            "Example: mypkg.ext:MyR2Extension"
+        ),
+    )
+    ghidra_extensions: str = Field(
+        default="",
+        alias="REVERSECORE_GHIDRA_EXTENSIONS",
+        description=(
+            "Comma-separated list of Ghidra extension classes in 'module:ClassName' format. "
+            "Example: mypkg.ghidra_ext:MyGhidraExtension"
+        ),
+    )
+
     @field_validator("log_level")
     @classmethod
     def validate_log_level(cls, v: str) -> str:
