@@ -38,7 +38,7 @@ email-validator==2.3.0    # via pydantic
 exceptiongroup==1.3.1     # via fastmcp
 fakeredis[lua]==2.34.1    # via fastmcp
 fastapi==0.138.0          # via reversecore-mcp (pyproject.toml)
-fastmcp==2.14.7           # via reversecore-mcp (pyproject.toml)
+fastmcp==3.2.0           # via reversecore-mcp (pyproject.toml)
 ghp-import==2.1.0         # via mkdocs
 gitdb==4.0.12             # via gitpython
 gitpython==3.1.50         # via mkdocs-git-revision-date-localized-plugin
