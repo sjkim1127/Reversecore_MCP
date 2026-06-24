@@ -87,13 +87,9 @@ class MockKsInstance:
 
     def asm(self, code, addr=0):
         if "invalid" in code:
-            # Import KsError locally, or raise Exception if not available
-            try:
-                from keystone import KsError
+            from reversecore_mcp.tools.common.assembler import KsError
 
-                raise KsError("Keystone compile error")
-            except Exception:
-                raise Exception("Keystone compile error")
+            raise KsError("Keystone compile error")
 
         # Return mock encoding
         if "push" in code:
