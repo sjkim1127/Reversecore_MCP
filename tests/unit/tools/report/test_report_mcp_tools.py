@@ -9,15 +9,15 @@ from reversecore_mcp.tools.report.report_mcp_tools import (
     add_ioc,
     add_mitre_technique,
     create_analysis_report,
-    end_analysis_session,
-    get_session_status,
+    end_report_session,
+    get_report_session_status,
     get_system_time,
     get_timezone_info,
-    list_analysis_sessions,
+    list_report_sessions,
     register_report_tools,
     set_severity,
     set_timezone,
-    start_analysis_session,
+    start_report_session,
 )
 
 
@@ -61,23 +61,23 @@ class TestReportMcpTools:
         assert "UTC" in result
 
     @pytest.mark.asyncio
-    async def test_start_analysis_session(self):
-        result = await start_analysis_session(sample_path="/app/test.bin", analyst="Alice")
+    async def test_start_report_session(self):
+        result = await start_report_session(sample_path="/app/test.bin", analyst="Alice")
         assert "s1" in result
 
     @pytest.mark.asyncio
-    async def test_end_analysis_session(self):
-        result = await end_analysis_session(session_id="s1", status="completed")
+    async def test_end_report_session(self):
+        result = await end_report_session(session_id="s1", status="completed")
         assert "success" in result
 
     @pytest.mark.asyncio
-    async def test_get_session_status(self):
-        result = await get_session_status(session_id="s1")
+    async def test_get_report_session_status(self):
+        result = await get_report_session_status(session_id="s1")
         assert "success" in result
 
     @pytest.mark.asyncio
-    async def test_list_analysis_sessions(self):
-        result = await list_analysis_sessions()
+    async def test_list_report_sessions(self):
+        result = await list_report_sessions()
         assert "total" in result
 
     @pytest.mark.asyncio
@@ -113,5 +113,5 @@ class TestRegisterReportTools:
 
     def test_register(self):
         mcp = MagicMock()
-        result = register_report_tools(mcp)
+        register_report_tools(mcp)
         assert mcp.tool.call_count == 12

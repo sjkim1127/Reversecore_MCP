@@ -96,7 +96,7 @@ async def get_timezone_info() -> str:
     return json.dumps(result, indent=2, ensure_ascii=False)
 
 
-async def start_analysis_session(
+async def start_report_session(
     sample_path: str = "",
     analyst: str = "Security Researcher",
     severity: str = "medium",
@@ -130,7 +130,7 @@ async def start_analysis_session(
     return json.dumps(result, indent=2, ensure_ascii=False)
 
 
-async def end_analysis_session(
+async def end_report_session(
     session_id: str = "", status: str = "completed", summary: str = ""
 ) -> str:
     """
@@ -153,7 +153,7 @@ async def end_analysis_session(
     return json.dumps(result, indent=2, ensure_ascii=False)
 
 
-async def get_session_status(session_id: str = "") -> str:
+async def get_report_session_status(session_id: str = "") -> str:
     """
     Get current session information and collected data.
 
@@ -168,7 +168,7 @@ async def get_session_status(session_id: str = "") -> str:
     return json.dumps(result, indent=2, ensure_ascii=False)
 
 
-async def list_analysis_sessions() -> str:
+async def list_report_sessions() -> str:
     """
     List all analysis sessions with their status and duration.
 
@@ -318,10 +318,10 @@ class ReportToolsPlugin(Plugin):
         mcp_server.tool(get_system_time)
         mcp_server.tool(set_timezone)
         mcp_server.tool(get_timezone_info)
-        mcp_server.tool(start_analysis_session)
-        mcp_server.tool(end_analysis_session)
-        mcp_server.tool(get_session_status)
-        mcp_server.tool(list_analysis_sessions)
+        mcp_server.tool(start_report_session)
+        mcp_server.tool(end_report_session)
+        mcp_server.tool(get_report_session_status)
+        mcp_server.tool(list_report_sessions)
         mcp_server.tool(add_ioc)
         mcp_server.tool(add_analysis_note)
         mcp_server.tool(add_mitre_technique)

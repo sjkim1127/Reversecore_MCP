@@ -697,6 +697,9 @@ async def Ghidra_get_bytes(
     """
     Get bytes at the specified address as a hex string.
 
+    .. deprecated:: 1.0.0
+       Use :func:`Ghidra_read_memory` instead, which provides detailed formatted output.
+
     Args:
         file_path: Path to the binary file
         address: Starting address (e.g., "0x1400010a0")

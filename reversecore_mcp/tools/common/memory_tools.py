@@ -30,13 +30,13 @@ class MemoryToolsPlugin(Plugin):
         """Register all memory tools with the MCP server."""
 
         @mcp.tool()
-        async def create_analysis_session(
+        async def create_memory_session(
             name: str,
             binary_name: str | None = None,
             binary_path: str | None = None,
         ) -> dict[str, Any]:
             """
-            Create a new analysis session to store memories.
+            Create a new memory session to store memories.
 
             Use this when starting a new reverse engineering analysis.
             The session name should be descriptive and follow a template format
@@ -81,7 +81,7 @@ class MemoryToolsPlugin(Plugin):
             }
 
         @mcp.tool()
-        async def save_analysis_memory(
+        async def save_memory_item(
             session_id: str,
             memory_type: str,
             content: str,
@@ -100,7 +100,7 @@ class MemoryToolsPlugin(Plugin):
             - Interesting strings or structures
 
             Args:
-                session_id: Session ID from create_analysis_session
+                session_id: Session ID from create_memory_session
                 memory_type: Type of memory:
                     - 'finding': Analysis discoveries
                     - 'pattern': Code/behavior patterns
@@ -138,7 +138,7 @@ class MemoryToolsPlugin(Plugin):
             }
 
         @mcp.tool()
-        async def recall_analysis_memory(
+        async def recall_memory_item(
             query: str,
             session_id: str | None = None,
             memory_type: str | None = None,
@@ -177,7 +177,7 @@ class MemoryToolsPlugin(Plugin):
             }
 
         @mcp.tool()
-        async def list_analysis_sessions(
+        async def list_memory_sessions(
             status: str | None = None,
             limit: int = 20,
         ) -> dict[str, Any]:
@@ -214,7 +214,7 @@ class MemoryToolsPlugin(Plugin):
             }
 
         @mcp.tool()
-        async def get_session_detail(
+        async def get_memory_session_detail(
             session_id: str,
         ) -> dict[str, Any]:
             """
@@ -253,7 +253,7 @@ class MemoryToolsPlugin(Plugin):
             }
 
         @mcp.tool()
-        async def resume_session(
+        async def resume_memory_session(
             session_id: str | None = None,
             binary_name: str | None = None,
         ) -> dict[str, Any]:
@@ -285,7 +285,7 @@ class MemoryToolsPlugin(Plugin):
             if not session:
                 return {
                     "status": "error",
-                    "message": "No session found to resume. Start a new session with create_analysis_session.",
+                    "message": "No session found to resume. Start a new session with create_memory_session.",
                 }
 
             # Update session status
@@ -306,7 +306,7 @@ class MemoryToolsPlugin(Plugin):
             }
 
         @mcp.tool()
-        async def complete_session(
+        async def complete_memory_session(
             session_id: str,
             summary: str,
         ) -> dict[str, Any]:
@@ -472,7 +472,7 @@ class MemoryToolsPlugin(Plugin):
             }
 
         @mcp.tool()
-        async def update_analysis_time(
+        async def update_memory_session_time(
             session_id: str,
             duration_seconds: float,
         ) -> dict[str, Any]:

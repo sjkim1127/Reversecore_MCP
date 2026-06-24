@@ -53,19 +53,19 @@ class TestMemoryToolsPlugin:
         return mcp
 
     @pytest.mark.asyncio
-    async def test_create_analysis_session(self, plugin, mock_mcp, mock_store):
-        """Test create_analysis_session tool."""
+    async def test_create_memory_session(self, plugin, mock_mcp, mock_store):
+        """Test create_memory_session tool."""
         plugin.register(mock_mcp)
-        create_session = mock_mcp.tools["create_analysis_session"]
+        create_session = mock_mcp.tools["create_memory_session"]
         result = await create_session(name="test_session")
         assert result["status"] == "success"
         assert result["session_id"] == "session_123"
 
     @pytest.mark.asyncio
-    async def test_save_analysis_memory(self, plugin, mock_mcp, mock_store):
-        """Test save_analysis_memory tool."""
+    async def test_save_memory_item(self, plugin, mock_mcp, mock_store):
+        """Test save_memory_item tool."""
         plugin.register(mock_mcp)
-        save_memory = mock_mcp.tools["save_analysis_memory"]
+        save_memory = mock_mcp.tools["save_memory_item"]
         result = await save_memory(
             session_id="session_123",
             memory_type="insight",
@@ -74,20 +74,20 @@ class TestMemoryToolsPlugin:
         assert result["status"] == "success"
 
     @pytest.mark.asyncio
-    async def test_recall_analysis_memory(self, plugin, mock_mcp, mock_store):
-        """Test recall_analysis_memory tool."""
+    async def test_recall_memory_item(self, plugin, mock_mcp, mock_store):
+        """Test recall_memory_item tool."""
         plugin.register(mock_mcp)
-        recall = mock_mcp.tools["recall_analysis_memory"]
+        recall = mock_mcp.tools["recall_memory_item"]
         result = await recall(query="test")
         assert result["status"] == "success"
 
     @pytest.mark.asyncio
-    async def test_create_analysis_session_with_binary(self, plugin, mock_mcp, tmp_path):
+    async def test_create_memory_session_with_binary(self, plugin, mock_mcp, tmp_path):
         """Test session creation with binary path."""
         binary = tmp_path / "test.exe"
         binary.write_bytes(b"MZ")
         plugin.register(mock_mcp)
-        create_session = mock_mcp.tools["create_analysis_session"]
+        create_session = mock_mcp.tools["create_memory_session"]
         result = await create_session(
             name="test",
             binary_path=str(binary),
