@@ -1,15 +1,423 @@
 # Reversecore MCP Tools Documentation
 
+> **AI Agent Quick Start**: Read [Tag Legend](#tag-legend), then [Analysis Recipes](#analysis-recipes), then [Phase Guide](#phase-based-tool-guide) — skip the full reference until you need a specific tool's arguments.
+
 Comprehensive reference for all 96 tools available in the Reversecore MCP server for reverse engineering and malware analysis.
 
 ## Table of Contents
 
-1. [Analysis Tools](#analysis-tools) (11 tools) - Binary diffing, signature generation, static analysis
-2. [Common Tools](#common-tools) (17 tools) - Memory management, file operations, server monitoring
-3. [Ghidra Tools](#ghidra-tools) (17 tools) - Structure recovery, decompilation, patching
-4. [Malware Tools](#malware-tools) (5 tools) - Threat detection, IOC extraction, YARA scanning
-5. [Radare2 Tools](#radare2-tools) (34 tools) - Comprehensive binary analysis suite
-6. [Report Tools](#report-tools) (12 tools) - Professional malware analysis reporting
+1. [Tag Legend](#tag-legend) — Tool capability tags explained
+2. [Quick-Reference Table](#quick-reference-table) — All 96 tools at a glance
+3. [Analysis Recipes](#analysis-recipes) — Task-based tool combinations
+4. [Phase-Based Tool Guide](#phase-based-tool-guide) — What to run first, what to run next
+5. [Analysis Tools](#analysis-tools) (11 tools) - Binary diffing, signature generation, static analysis
+6. [Common Tools](#common-tools) (17 tools) - Memory management, file operations, server monitoring
+7. [Ghidra Tools](#ghidra-tools) (17 tools) - Structure recovery, decompilation, patching
+8. [Malware Tools](#malware-tools) (5 tools) - Threat detection, IOC extraction, YARA scanning
+9. [Radare2 Tools](#radare2-tools) (34 tools) - Comprehensive binary analysis suite
+10. [Report Tools](#report-tools) (12 tools) - Professional malware analysis reporting
+
+---
+
+## Tag Legend
+
+Every tool in this document is annotated with one or more tags that help AI agents quickly understand when and how to use them.
+
+| Tag | Meaning |
+|-----|---------|
+| `[FIRST]` | **Run this first.** Essential for every analysis — do not skip. |
+| `[QUICK]` | Fast result (< 5 seconds). Ideal for initial triage. |
+| `[SLOW]` | Execution time > 30 seconds. Run only when needed. |
+| `[STATIC]` | Works on the file without execution — always safe. |
+| `[DYNAMIC]` | Emulates or traces execution. Sandboxed, but slower. |
+| `[GHIDRA]` | Requires Ghidra to be installed (`GHIDRA_INSTALL_DIR`). |
+| `[SESSION]` | Requires an active Radare2 session (`Radare2_open_file` first). |
+| `[AI_MEMORY]` | Manages AI long-term memory across sessions. |
+| `[REPORT]` | Produces analyst-facing output (session, IOC, MITRE). |
+| `[PE_ONLY]` | Most reliable on PE (Windows .exe/.dll) files. |
+| `[ELF_OK]` | Works well on ELF (Linux) binaries. |
+| `[FIRMWARE]` | Specialized for firmware / IoT images. |
+| `[C++]` | Designed for C++ binaries (RTTI, vtables, classes). |
+| `[COMPARISON]` | Requires two files (before/after, original/variant). |
+
+---
+
+## Quick-Reference Table
+
+All 96 tools sorted by category. The "Needs" column shows what must be done before calling this tool.
+
+### Analysis Tools
+
+| Tool | Tags | One-line Description | Needs |
+|------|------|----------------------|-------|
+| `diff_binaries` | `[STATIC]` `[COMPARISON]` | Compare two binaries, get similarity score + diff list | Two files |
+| `analyze_variant_changes` | `[STATIC]` `[COMPARISON]` `[SLOW]` | Structural diff + CFG for top-changed functions | Two files |
+| `match_libraries` | `[STATIC]` `[SLOW]` | Filter out known library functions; focus on user code | — |
+| `parse_binary_with_lief` | `[STATIC]` `[QUICK]` `[FIRST]` | PE/ELF/Mach-O metadata: headers, sections, imports | — |
+| `generate_signature` | `[STATIC]` | YARA signature from opcode bytes at an address | — |
+| `generate_yara_rule` | `[STATIC]` | Full YARA rule from function bytes | — |
+| `generate_enhanced_yara_rule` | `[STATIC]` | YARA rule with entropy + byte patterns combined | — |
+| `run_strings` | `[STATIC]` `[QUICK]` `[FIRST]` | Extract printable strings (≥ min_length chars) | — |
+| `run_binwalk` | `[STATIC]` `[QUICK]` `[FIRMWARE]` | Detect embedded content signatures (no extraction) | — |
+| `run_binwalk_extract` | `[STATIC]` `[SLOW]` `[FIRMWARE]` | Extract embedded files/file systems from binary | — |
+| `scan_for_versions` | `[STATIC]` `[QUICK]` | Find library version strings (OpenSSL, GCC, etc.) | — |
+| `extract_rtti_info` | `[STATIC]` `[QUICK]` `[C++]` | Extract C++ class names and inheritance from RTTI | — |
+
+### Common Tools
+
+| Tool | Tags | One-line Description | Needs |
+|------|------|----------------------|-------|
+| `create_memory_session` | `[AI_MEMORY]` `[QUICK]` | Start a new AI memory session for this analysis | — |
+| `save_memory_item` | `[AI_MEMORY]` `[QUICK]` | Store a finding, address, or insight in memory | Active session |
+| `recall_memory_item` | `[AI_MEMORY]` `[QUICK]` | Full-text + semantic search over stored memories | — |
+| `list_memory_sessions` | `[AI_MEMORY]` `[QUICK]` | List all memory sessions (optionally filter by status) | — |
+| `get_memory_session_detail` | `[AI_MEMORY]` `[QUICK]` | Full details + all memories for one session | Session ID |
+| `resume_memory_session` | `[AI_MEMORY]` `[QUICK]` | Resume a previous session and load its context | Session ID |
+| `complete_memory_session` | `[AI_MEMORY]` `[QUICK]` | Close session with a summary | Session ID |
+| `save_pattern` | `[AI_MEMORY]` `[QUICK]` | Save a reusable pattern for cross-session recognition | Active session |
+| `find_similar_patterns` | `[AI_MEMORY]` `[QUICK]` | Find previously saved patterns matching a signature | — |
+| `get_relevant_context` | `[AI_MEMORY]` `[QUICK]` | Auto-retrieve relevant memories for current task | — |
+| `update_analysis_time` | `[AI_MEMORY]` `[QUICK]` | Log elapsed analysis time into session | Session ID |
+| `get_server_health` | `[QUICK]` | Server uptime, memory usage, error rate | — |
+| `get_tool_metrics` | `[QUICK]` | Per-tool call count, avg time, error rate | — |
+| `run_file` | `[STATIC]` `[QUICK]` `[FIRST]` | File type, architecture, magic identification | — |
+| `copy_to_workspace` | `[QUICK]` | Copy any file into workspace so tools can access it | — |
+| `list_workspace` | `[QUICK]` | List all files in workspace | — |
+| `scan_workspace` | `[STATIC]` `[SLOW]` | Batch run file/LIEF/YARA on all workspace files | — |
+| `explain_patch` | `[STATIC]` `[COMPARISON]` | Natural-language explanation of binary diff | Two files |
+
+### Ghidra Tools
+
+| Tool | Tags | One-line Description | Needs |
+|------|------|----------------------|-------|
+| `Ghidra_list_structures` | `[GHIDRA]` `[SLOW]` `[C++]` | List all defined structs in the binary | — |
+| `Ghidra_get_structure` | `[GHIDRA]` `[SLOW]` `[C++]` | Get fields, offsets, size for a named struct | — |
+| `Ghidra_create_structure` | `[GHIDRA]` `[SLOW]` `[C++]` | Define a new C struct in Ghidra's type database | — |
+| `Ghidra_list_enums` | `[GHIDRA]` `[SLOW]` | List all enum definitions | — |
+| `Ghidra_list_data_types` | `[GHIDRA]` `[SLOW]` | List all data types (struct, typedef, pointer...) | — |
+| `Ghidra_list_bookmarks` | `[GHIDRA]` `[SLOW]` | List Ghidra bookmarks (Notes, Warnings, Errors) | — |
+| `Ghidra_add_bookmark` | `[GHIDRA]` `[SLOW]` | Add a bookmark at a specific address | — |
+| `Ghidra_read_memory` | `[GHIDRA]` `[SLOW]` | Read raw bytes at an address | — |
+| `Ghidra_get_bytes` ⚠️ | `[GHIDRA]` `[SLOW]` | Get bytes as hex string (prefer `Ghidra_read_memory`) | — |
+| `Ghidra_simulate_patch` | `[GHIDRA]` `[SLOW]` | Simulate patching (in cache only, file unchanged) | — |
+| `Ghidra_analyze_function` | `[GHIDRA]` `[SLOW]` | Force re-analysis of a function with all analyzers | — |
+| `Ghidra_get_call_graph` | `[GHIDRA]` `[SLOW]` | Callers + callees call graph for a function | — |
+| `emulate_machine_code` | `[DYNAMIC]` `[SLOW]` | ESIL-based sandboxed emulation (de-obfuscation) | — |
+| `get_pseudo_code` | `[STATIC]` `[SLOW]` | r2 `pdc` decompilation to C-like pseudocode | — |
+| `smart_decompile` | `[GHIDRA]` `[SLOW]` | Ghidra decompilation (falls back to r2) | — |
+| `recover_structures` | `[GHIDRA]` `[SLOW]` `[C++]` | Recover C++ classes from vtable/RTTI patterns | — |
+
+### Malware Tools
+
+| Tool | Tags | One-line Description | Needs |
+|------|------|----------------------|-------|
+| `dormant_detector` | `[STATIC]` `[SLOW]` | Find time bombs, logic bombs, orphan functions | — |
+| `adaptive_vaccine` | `[STATIC]` `[SLOW]` | Generate neutralization patch for malware behavior | — |
+| `vulnerability_hunter` | `[STATIC]` `[SLOW]` | Auto-detect buffer overflows, format strings, UAF | — |
+| `extract_iocs` | `[STATIC]` `[QUICK]` | Regex-extract IPs, URLs, hashes, CVEs from text/file | — |
+| `run_yara` | `[STATIC]` `[QUICK]` | Scan file against a YARA rules file | YARA rules file |
+| `run_capa` | `[STATIC]` `[SLOW]` | Detect capabilities (encrypt, persist, lateral move) | capa installed |
+| `run_capa_quick` | `[STATIC]` `[SLOW]` | Quick capability scan (fewer rules, faster) | capa installed |
+| `detect_packer` | `[STATIC]` `[QUICK]` `[FIRST]` | Detect packer/compiler/protector (DIE-based) | — |
+| `detect_packer_deep` | `[STATIC]` `[SLOW]` | Deep packer detection with entropy analysis | — |
+
+### Radare2 Tools
+
+| Tool | Tags | One-line Description | Needs |
+|------|------|----------------------|-------|
+| `Radare2_open_file` | `[QUICK]` | Open binary in r2, get session ID | — |
+| `Radare2_close_file` | `[QUICK]` | Close r2 session | Session ID |
+| `Radare2_analyze` | `[SLOW]` `[SESSION]` | Run r2 analysis (basic/standard/advanced) | Session ID |
+| `Radare2_run_command` | `[SESSION]` | Execute arbitrary r2 command | Session ID |
+| `Radare2_calculate` | `[QUICK]` `[SESSION]` | Calculate hex/address expressions | Session ID |
+| `Radare2_list_functions` | `[QUICK]` `[SESSION]` | List all functions (paginated) | Session ID + Analyze |
+| `Radare2_list_functions_tree` | `[QUICK]` `[SESSION]` | Call-hierarchy tree view | Session ID + Analyze |
+| `Radare2_show_function_details` | `[QUICK]` `[SESSION]` | Size, blocks, complexity, locals for one function | Session ID |
+| `Radare2_get_current_address` | `[QUICK]` `[SESSION]` | Current seek address | Session ID |
+| `Radare2_get_function_prototype` | `[QUICK]` `[SESSION]` | Return type + parameters signature | Session ID |
+| `Radare2_set_function_prototype` | `[SESSION]` | Set function signature for better decompilation | Session ID |
+| `Radare2_show_headers` | `[QUICK]` `[SESSION]` | Binary format, arch, entry point | Session ID |
+| `Radare2_list_sections` | `[QUICK]` `[SESSION]` | All sections with address, size, permissions | Session ID |
+| `Radare2_list_imports` | `[QUICK]` `[SESSION]` | Imported functions + library names | Session ID |
+| `Radare2_list_symbols` | `[QUICK]` `[SESSION]` | All symbols (address, type, name) | Session ID |
+| `Radare2_list_entrypoints` | `[QUICK]` `[SESSION]` | Entry point addresses | Session ID |
+| `Radare2_list_libraries` | `[QUICK]` `[SESSION]` | Linked library dependencies | Session ID |
+| `Radare2_list_strings` | `[QUICK]` `[SESSION]` | Strings with optional regex filter | Session ID |
+| `Radare2_list_all_strings` | `[SLOW]` `[SESSION]` | All strings without any filter | Session ID |
+| `Radare2_list_classes` | `[QUICK]` `[SESSION]` `[C++]` | C++/ObjC classes with vtables | Session ID + Analyze |
+| `Radare2_list_methods` | `[QUICK]` `[SESSION]` `[C++]` | Methods for a specific class | Session ID |
+| `Radare2_disassemble` | `[QUICK]` `[SESSION]` | N instructions at an address | Session ID |
+| `Radare2_disassemble_function` | `[SESSION]` | Full function disassembly | Session ID |
+| `Radare2_decompile_function` | `[SESSION]` `[SLOW]` | r2 pseudo-C decompilation | Session ID |
+| `Radare2_list_decompilers` | `[QUICK]` `[SESSION]` | Available decompilers (pdc, pdg, r2ghidra) | Session ID |
+| `Radare2_use_decompiler` | `[SESSION]` | Switch active decompiler | Session ID |
+| `Radare2_xrefs_to` | `[QUICK]` `[SESSION]` | Who calls this address | Session ID |
+| `Radare2_rename_function` | `[SESSION]` | Rename a function | Session ID |
+| `Radare2_rename_flag` | `[SESSION]` | Rename a label/flag | Session ID |
+| `Radare2_set_comment` | `[SESSION]` | Annotate an address with a comment | Session ID |
+| `run_radare2` | `[STATIC]` `[QUICK]` | Execute r2 commands without a session | — |
+| `trace_execution_path` | `[STATIC]` `[SLOW]` | Backtrace: who calls a dangerous function (system, strcpy) | — |
+| `generate_function_graph` | `[STATIC]` `[SLOW]` | CFG as Mermaid/JSON/DOT/PNG | — |
+| `analyze_xrefs` | `[STATIC]` `[QUICK]` | Cross-references to/from an address | — |
+
+### Report Tools
+
+| Tool | Tags | One-line Description | Needs |
+|------|------|----------------------|-------|
+| `get_system_time` | `[QUICK]` `[REPORT]` | Current timestamp with timezone | — |
+| `set_timezone` | `[QUICK]` `[REPORT]` | Set timezone for report timestamps | — |
+| `get_timezone_info` | `[QUICK]` `[REPORT]` | Current timezone config | — |
+| `start_report_session` | `[QUICK]` `[REPORT]` | Start a malware analysis report session | — |
+| `end_report_session` | `[QUICK]` `[REPORT]` | End session with final status + summary | Session ID |
+| `get_report_session_status` | `[QUICK]` `[REPORT]` | Current session stats (IOCs, notes, duration) | Session ID |
+| `list_report_sessions` | `[QUICK]` `[REPORT]` | List all report sessions | — |
+| `add_ioc` | `[QUICK]` `[REPORT]` | Add IOC (IP, hash, domain, mutex...) to session | Session ID |
+| `add_analysis_note` | `[QUICK]` `[REPORT]` | Add timestamped observation/finding to session | Session ID |
+| `add_mitre_technique` | `[QUICK]` `[REPORT]` | Map a MITRE ATT&CK technique to session | Session ID |
+| `set_severity` | `[QUICK]` `[REPORT]` | Update threat severity (low/medium/high/critical) | Session ID |
+| `create_analysis_report` | `[SLOW]` `[REPORT]` | Generate full professional report (MD/HTML/PDF) | Session ID |
+
+---
+
+## Analysis Recipes
+
+These recipes show the exact tool sequence for common reverse engineering tasks.
+Use them as your starting point — adapt as needed based on findings.
+
+---
+
+### 🔴 Recipe 1: Malware Initial Triage (Unknown Sample)
+
+**Goal**: Understand what a suspicious binary is in under 5 minutes.
+
+```
+STEP 1 — Identify file type and architecture
+  run_file("{file}")                        # [FIRST][QUICK] What kind of file is it?
+  detect_packer("{file}")                   # [FIRST][QUICK] Is it packed? If YES → unpack first
+
+STEP 2 — Extract observable artifacts
+  run_strings("{file}", min_length=8)       # Readable strings (URLs, keys, commands)
+  parse_binary_with_lief("{file}")          # PE/ELF structure, imports, exports, entropy
+  extract_iocs("{file}")                    # IPs, URLs, hashes, emails, CVEs
+
+STEP 3 — Capability detection (if not packed)
+  run_capa_quick("{file}")                  # What can it DO? (encrypt, persist, C2...)
+  run_yara("{file}", "{rules_path}")        # Known malware family match?
+
+STEP 4 — Deep static analysis
+  dormant_detector("{file}")               # Time bombs, logic bombs, orphan functions
+```
+
+❌ **NOT**: Do NOT run `smart_decompile` or `Ghidra_*` before checking packer status — packed binaries produce meaningless decompilation.
+
+---
+
+### 🟠 Recipe 2: Ransomware Analysis
+
+**Goal**: Identify encryption algorithm, key derivation, and file extension targeting.
+
+```
+STEP 1 — Triage (same as Recipe 1, STEP 1-2)
+  run_file → detect_packer → run_strings → parse_binary_with_lief
+
+STEP 2 — Find crypto patterns
+  run_capa("{file}", "detailed")           # Look for "encrypt data using AES", "derive key"
+  run_yara("{file}", "{crypto_rules}")     # Crypto detection YARA rules
+
+STEP 3 — Locate encryption function
+  r2_sid = Radare2_open_file("{file}")
+  Radare2_analyze(r2_sid, "standard")
+  Radare2_list_imports(r2_sid)            # CryptEncrypt, BCryptEncrypt, EVP_EncryptInit?
+  Radare2_list_strings(r2_sid, filter="crypt|aes|ransom|encrypt")
+
+STEP 4 — Decompile key functions
+  smart_decompile("{file}", "{crypto_func_addr}")
+  emulate_machine_code("{file}", "{decrypt_stub_addr}", steps=200)  # De-obfuscate key
+
+STEP 5 — Collect IOCs and report
+  add_ioc("mutex", "{mutex_name}")
+  add_mitre_technique("T1486", "Data Encrypted for Impact", "Impact")
+  create_analysis_report(template_type="technical")
+```
+
+---
+
+### 🟡 Recipe 3: Patch Diffing (1-day Exploit Research)
+
+**Goal**: Find what security bug was fixed between two binary versions.
+
+```
+STEP 1 — Quick diff overview
+  diff_binaries("{before_patch}", "{after_patch}")    # Similarity score + changed areas
+
+STEP 2 — Structural change analysis
+  analyze_variant_changes("{before}", "{after}", top_n=5)   # Top 5 most-changed functions + CFG
+
+STEP 3 — Natural-language explanation
+  explain_patch("{before}", "{after}")                # Human-readable "what changed and why"
+
+STEP 4 — Deep dive on changed functions
+  r2_sid = Radare2_open_file("{after_patch}")
+  Radare2_analyze(r2_sid)
+  smart_decompile("{after_patch}", "{changed_func}")
+  smart_decompile("{before_patch}", "{changed_func}")  # Compare manually
+
+STEP 5 — Vulnerability confirmation
+  trace_execution_path("{after_patch}", "{dangerous_func}")  # Is it still reachable?
+  vulnerability_hunter("{before_patch}")                     # Was the bug here?
+```
+
+---
+
+### 🟢 Recipe 4: C++ Game Client / Application Reverse Engineering
+
+**Goal**: Understand class hierarchy, game objects, and key logic.
+
+```
+STEP 1 — Triage
+  run_file → parse_binary_with_lief → detect_packer
+
+STEP 2 — C++ structure discovery
+  extract_rtti_info("{file}")              # Class names, vtable layout, inheritance
+  r2_sid = Radare2_open_file("{file}")
+  Radare2_analyze(r2_sid, "advanced")     # Full analysis for C++ (slower but necessary)
+  Radare2_list_classes(r2_sid)            # All C++ classes detected by r2
+
+STEP 3 — Recover struct definitions
+  recover_structures("{file}", "{player_class_addr}")  # Convert `this+0x4` → `Player.health`
+
+STEP 4 — Explore key functions
+  Radare2_list_functions(r2_sid)
+  Radare2_show_function_details(r2_sid, "{target_func}")
+  Radare2_decompile_function(r2_sid, "{target_func}")
+  Ghidra_get_call_graph("{file}", "{target_func}")    # Full call tree
+
+STEP 5 — Find variant changes (game update)
+  diff_binaries("{old_exe}", "{new_exe}")
+  analyze_variant_changes("{old_exe}", "{new_exe}", top_n=3)
+```
+
+---
+
+### 🔵 Recipe 5: Firmware / IoT Analysis
+
+**Goal**: Extract file system, identify components, find vulnerabilities.
+
+```
+STEP 1 — Identify firmware format
+  run_file("{firmware}")
+  run_binwalk("{firmware}")               # What's embedded? (squashfs, gzip, bootloader?)
+
+STEP 2 — Extract embedded content
+  run_binwalk_extract("{firmware}")       # Extract file system and binaries
+
+STEP 3 — Analyze extracted binaries
+  scan_workspace()                        # Batch scan all extracted files
+  scan_for_versions("{firmware}")         # OpenSSL version? Busybox? Kernel?
+  run_yara("{firmware}", "{iot_rules}")   # Known IoT malware families?
+
+STEP 4 — Vulnerability hunting
+  vulnerability_hunter("{target_binary}")  # Buffer overflows, format strings
+  trace_execution_path("{target}", "system")  # Does user input reach system()?
+```
+
+---
+
+### 🟣 Recipe 6: APT / Advanced Threat Hunting
+
+**Goal**: Identify nation-state malware, C2 infrastructure, and attribution.
+
+```
+STEP 1 — Full triage
+  run_file → detect_packer_deep → run_strings → parse_binary_with_lief
+
+STEP 2 — Capability + IOC extraction
+  run_capa("{file}", "detailed")          # Full capability matrix
+  extract_iocs("{file}")                  # C2 IPs, domains, mutex, paths
+
+STEP 3 — Code similarity / lineage
+  match_libraries("{file}")               # Filter library code → focus on custom code
+  generate_yara_rule("{file}", "{unique_func_addr}")  # Hunt for variants
+
+STEP 4 — Behavioral analysis
+  dormant_detector("{file}")             # Sleeping implants, time triggers
+  emulate_machine_code("{file}", "{decode_stub}")   # De-obfuscate C2 string
+
+STEP 5 — Attribution and reporting
+  add_mitre_technique("T1027", "Obfuscated Files or Information", "Defense Evasion")
+  add_mitre_technique("T1071", "Application Layer Protocol", "Command and Control")
+  create_analysis_report(template_type="full", classification="TLP:AMBER")
+```
+
+---
+
+## Phase-Based Tool Guide
+
+Use this guide to know **what to run in each phase** of analysis.
+
+### Phase 1 — Initial Triage `[ALWAYS RUN FIRST]`
+
+Run these on **every binary**, no matter what. They are fast and inform all subsequent decisions.
+
+| Priority | Tool | Why |
+|----------|------|-----|
+| 🔴 Must | `run_file` | File format, arch, 64/32-bit |
+| 🔴 Must | `detect_packer` | If packed → all static analysis is unreliable |
+| 🔴 Must | `run_strings` | Reveals intent: URLs, registry keys, commands |
+| 🔴 Must | `parse_binary_with_lief` | Imports, sections, entropy |
+| 🟡 Often | `extract_iocs` | C2 indicators from strings output |
+| 🟡 Often | `scan_for_versions` | Vulnerable library versions |
+
+> ⚠️ **If `detect_packer` shows the file is packed**: Stop static analysis. Use `emulate_machine_code` or manual unpacking before proceeding to Phase 2.
+
+---
+
+### Phase 2 — Structural Analysis `[CONDITIONAL — run after Phase 1 confirms not packed]`
+
+These tools provide deeper structural understanding. Choose based on your goal.
+
+| Goal | Tool |
+|------|------|
+| Capability overview | `run_capa` or `run_capa_quick` |
+| Family identification | `run_yara` |
+| Import/export deep dive | `Radare2_open_file` → `Radare2_analyze` → `Radare2_list_imports` |
+| C++ class layout | `extract_rtti_info` → `Radare2_list_classes` |
+| Function list | `Radare2_list_functions` |
+| Embedded content | `run_binwalk` → `run_binwalk_extract` |
+| Dormant behaviors | `dormant_detector` |
+
+---
+
+### Phase 3 — Deep Analysis `[OPTIONAL — targeted, based on Phase 2 findings]`
+
+These are slow and expensive. Only use when you have a specific target address or question.
+
+| Question | Tool |
+|----------|------|
+| "What does this function do?" | `smart_decompile` (Ghidra) or `Radare2_decompile_function` |
+| "What calls this function?" | `Radare2_xrefs_to` or `analyze_xrefs` |
+| "What does this function call?" | `Ghidra_get_call_graph` |
+| "Does user input reach system()?" | `trace_execution_path` |
+| "What are the register values after this code?" | `emulate_machine_code` |
+| "What C++ class is this?" | `recover_structures` |
+| "Are there vulnerabilities?" | `vulnerability_hunter` |
+| "What changed vs old version?" | `diff_binaries` → `analyze_variant_changes` |
+
+---
+
+### Phase 4 — Reporting `[ALWAYS RUN AT END]`
+
+Capture your analysis in a session and generate a report.
+
+```
+start_report_session("{sample_path}", "{analyst_name}")  # Start at beginning of analysis
+# ... analysis work ...
+add_ioc(...)            # Throughout analysis, add IOCs as you find them
+add_analysis_note(...)  # Document key observations
+add_mitre_technique(...) # Map behaviors to ATT&CK
+set_severity(...)       # Update as threat level becomes clear
+create_analysis_report(template_type="full")  # Generate report at the end
+```
 
 ---
 
@@ -19,7 +427,7 @@ Comprehensive reference for all 96 tools available in the Reversecore MCP server
 
 ### Binary Diffing Tools
 
-#### `diff_binaries`
+#### `diff_binaries` `[STATIC]` `[COMPARISON]`
 
 Compare two binary files to identify code changes and modifications.
 
@@ -42,9 +450,16 @@ Structured JSON containing:
 - `function_specific`: Boolean indicating if function-level diff was performed
 - `total_changes`: Number of changes detected
 
+❌ **NOT USE WHEN:**
+- You only have one binary (need two files for comparison)
+- Both files are packed — unpack them first or the diff will be meaningless
+- You want a natural-language explanation → use `explain_patch` instead
+
+🔗 **SEE ALSO:** `analyze_variant_changes` (richer structural diff), `explain_patch` (human-readable diff), `match_libraries` (filter library noise before diffing)
+
 ---
 
-#### `analyze_variant_changes`
+#### `analyze_variant_changes` `[STATIC]` `[COMPARISON]` `[SLOW]`
 
 Analyze structural changes between two binary variants (Lineage Mapper).
 
@@ -64,9 +479,15 @@ Combines binary diffing with control flow analysis to understand *how* a binary 
 **Returns:**
 ToolResult with diff summary and CFG data for top changed functions.
 
+❌ **NOT USE WHEN:**
+- You want a fast overview of similarity — use `diff_binaries` first (quicker)
+- You need a natural-language patch explanation — use `explain_patch` instead
+
+🔗 **SEE ALSO:** `diff_binaries` (quick similarity score), `generate_function_graph` (CFG for any single function), `smart_decompile` (decompile the changed functions found here)
+
 ---
 
-#### `match_libraries`
+#### `match_libraries` `[STATIC]` `[SLOW]`
 
 Match and filter known library functions to focus on user code.
 
@@ -91,11 +512,17 @@ Structured JSON containing:
 - `user_function_list`: List of user function addresses/names for further analysis
 - `noise_reduction_percentage`: Percentage of functions filtered out
 
+❌ **NOT USE WHEN:**
+- The binary is heavily packed or obfuscated (signatures won't match obfuscated code)
+- The binary is a tiny script/shellcode (overhead not worth it for < 50 functions)
+
+🔗 **SEE ALSO:** `Radare2_list_functions` (full function list before filtering), `diff_binaries` (compare user-code only after filtering)
+
 ---
 
 ### Binary Parsing Tools
 
-#### `parse_binary_with_lief`
+#### `parse_binary_with_lief` `[STATIC]` `[QUICK]` `[FIRST]`
 
 Parse binary metadata using LIEF (Library to Instrument Executable Formats).
 
@@ -113,6 +540,12 @@ Structured binary metadata including:
 - Sections with attributes
 - Imported/exported symbols
 - Library dependencies
+
+❌ **NOT USE WHEN:**
+- The binary is not a standard PE/ELF/Mach-O (e.g., raw shellcode, firmware blob) → use `run_file` + `run_binwalk` instead
+- You need live import analysis at runtime → use `Radare2_list_imports` after a session
+
+🔗 **SEE ALSO:** `run_file` (quick format check), `Radare2_list_imports` (session-based import listing), `Radare2_list_sections` (session-based section listing), `detect_packer` (check if imports are fake due to packing)
 
 ---
 
@@ -155,7 +588,7 @@ ToolResult with complete YARA rule string.
 
 ### Static Analysis Tools
 
-#### `run_strings`
+#### `run_strings` `[STATIC]` `[QUICK]` `[FIRST]`
 
 Extract printable strings using the `strings` CLI utility.
 
@@ -167,6 +600,13 @@ Extract printable strings using the `strings` CLI utility.
 
 **Returns:**
 List of extracted strings with statistics (total count, unique count).
+
+❌ **NOT USE WHEN:**
+- The binary is packed or encrypted (strings will be garbled noise) — check `detect_packer` first
+- You need strings with their addresses (virtual offset) → use `Radare2_list_strings` in a session
+- Output is too large → reduce with `min_length=10` or `max_output_size`
+
+🔗 **SEE ALSO:** `detect_packer` (run before this), `extract_iocs` (parse strings output for IPs/URLs), `Radare2_list_strings` (strings with addresses)
 
 ---
 
@@ -220,7 +660,7 @@ Extraction summary including:
 
 ---
 
-#### `scan_for_versions`
+#### `scan_for_versions` `[STATIC]` `[QUICK]`
 
 Extract library version strings and CVE clues from a binary.
 
@@ -238,9 +678,15 @@ Acts as a "Version Detective", scanning the binary for strings that look like ve
 **Returns:**
 List of detected libraries and versions with confidence scores.
 
+❌ **NOT USE WHEN:**
+- The binary strips all version strings (custom/proprietary builds) — results may be empty
+- The binary is packed — version strings will be invisible
+
+🔗 **SEE ALSO:** `run_strings` (raw strings for manual inspection), `parse_binary_with_lief` (dependency list), `run_binwalk` (firmware version from image metadata)
+
 ---
 
-#### `extract_rtti_info`
+#### `extract_rtti_info` `[STATIC]` `[QUICK]` `[C++]`
 
 Extract RTTI (Run-Time Type Information) from C++ binaries.
 
@@ -252,6 +698,12 @@ RTTI provides class names and inheritance hierarchies in C++ binaries, invaluabl
 
 **Returns:**
 List of extracted class names, type information, and inheritance hierarchies.
+
+❌ **NOT USE WHEN:**
+- The binary is compiled in C (no RTTI exists) — check `extract_rtti_info` returns empty, move on
+- The binary uses stripped RTTI (some hardened builds) — use `Radare2_list_classes` as fallback
+
+🔗 **SEE ALSO:** `Radare2_list_classes` (r2-based class listing), `recover_structures` (convert class offsets to named fields), `Ghidra_list_structures` (Ghidra type recovery)
 
 ---
 
@@ -472,7 +924,7 @@ Detailed metrics including:
 
 ### File Operation Tools
 
-#### `run_file`
+#### `run_file` `[STATIC]` `[QUICK]` `[FIRST]`
 
 Identify file metadata using the `file` CLI utility.
 
@@ -482,6 +934,11 @@ Identify file metadata using the `file` CLI utility.
 
 **Returns:**
 File type information including format, architecture, and file magic details.
+
+❌ **NOT USE WHEN:**
+- The file has a spoofed header (malware may misreport its type) — always combine with `parse_binary_with_lief` for full verification
+
+🔗 **SEE ALSO:** `parse_binary_with_lief` (detailed structure), `detect_packer` (is it protected?), `copy_to_workspace` (run before this if file is not in workspace)
 
 ---
 
@@ -542,7 +999,7 @@ Aggregated scan results for all files.
 
 ### Patch Analysis Tools
 
-#### `explain_patch`
+#### `explain_patch` `[STATIC]` `[COMPARISON]`
 
 Analyze differences between binaries and explain in natural language.
 
@@ -559,6 +1016,12 @@ Natural language explanation of patch changes including:
 - Security implications
 - Functionality changes
 - Risk assessment
+
+❌ **NOT USE WHEN:**
+- You need precise byte-level diff data — use `diff_binaries` instead
+- The binaries are packed — unpack first
+
+🔗 **SEE ALSO:** `diff_binaries` (raw diff), `analyze_variant_changes` (structural diff + CFG)
 
 ---
 
@@ -761,7 +1224,7 @@ Call graph data in structured format.
 
 ### Decompilation Tools
 
-#### `emulate_machine_code`
+#### `emulate_machine_code` `[DYNAMIC]` `[SLOW]`
 
 Emulate machine code execution using radare2 ESIL (Evaluable Strings Intermediate Language).
 
@@ -786,6 +1249,13 @@ Provides safe, sandboxed emulation of binary code without actual execution. Perf
 **Returns:**
 Register states and emulation summary.
 
+❌ **NOT USE WHEN:**
+- You want to trace multi-function execution across API calls (ESIL doesn't emulate OS APIs)
+- The code depends on real system state (file handles, network, etc.) — emulation will diverge
+- You want high-level understanding — use `smart_decompile` instead
+
+🔗 **SEE ALSO:** `smart_decompile` (higher-level view), `trace_execution_path` (call chain tracing), `get_pseudo_code` (quick decompile without Ghidra)
+
 ---
 
 #### `get_pseudo_code`
@@ -804,7 +1274,7 @@ Pseudo C code string.
 
 ---
 
-#### `smart_decompile`
+#### `smart_decompile` `[GHIDRA]` `[SLOW]`
 
 Decompile a function to pseudo C code using Ghidra or radare2.
 
@@ -821,9 +1291,16 @@ Decompile a function to pseudo C code using Ghidra or radare2.
 **Returns:**
 Decompiled pseudo C code.
 
+❌ **NOT USE WHEN:**
+- The binary is packed — decompilation of packed code is noise
+- The function is a known library function (e.g., `malloc`) — skip it
+- You want assembly-level view — use `Radare2_disassemble_function` instead
+
+🔗 **SEE ALSO:** `get_pseudo_code` (faster r2-only option), `Radare2_decompile_function` (session-based), `emulate_machine_code` (trace register values)
+
 ---
 
-#### `recover_structures`
+#### `recover_structures` `[GHIDRA]` `[SLOW]` `[C++]`
 
 Recover C++ class structures and data types from binary code.
 
@@ -850,13 +1327,20 @@ THE game-changer for C++ reverse engineering. Transforms cryptic "this + 0x4" me
 **Returns:**
 Recovered structures in C format with field names, types, and offsets.
 
+❌ **NOT USE WHEN:**
+- The binary is C (not C++) — no vtables or RTTI to recover from
+- You just need class names — use `extract_rtti_info` first (faster)
+- Ghidra is not installed — use `Radare2_list_classes` as fallback
+
+🔗 **SEE ALSO:** `extract_rtti_info` (faster class discovery), `Radare2_list_classes` (r2 fallback), `Ghidra_create_structure` (manually define recovered struct)
+
 ---
 
 ## Malware Tools
 
 **Plugin:** `MalwareToolsPlugin` - Specialized tools for malware analysis and threat detection.
 
-### `dormant_detector`
+### `dormant_detector` `[STATIC]` `[SLOW]`
 
 Detect dormant/time-triggered malware behaviors.
 
@@ -871,6 +1355,12 @@ List of potential dormant behaviors with:
 - Trigger conditions (time checks, environment variables, etc.)
 - Activation mechanisms
 - Risk assessment
+
+❌ **NOT USE WHEN:**
+- The binary is packed — analysis is meaningless until unpacked
+- You need fast triage — this is a Phase 2/3 tool
+
+🔗 **SEE ALSO:** `vulnerability_hunter` (generic vulnerability scan), `run_capa` (capability-level detection), `emulate_machine_code` (verify dormant logic by emulation)
 
 ---
 
@@ -893,7 +1383,7 @@ Vaccine code including:
 
 ---
 
-### `vulnerability_hunter`
+### `vulnerability_hunter` `[STATIC]` `[SLOW]`
 
 Hunt for vulnerabilities in binary code.
 
@@ -916,9 +1406,15 @@ List of potential vulnerabilities with:
 - Exploitation difficulty
 - Suggested mitigations
 
+❌ **NOT USE WHEN:**
+- The binary is packed — false positives will dominate
+- You need formal verification — this provides heuristic findings, not proofs
+
+🔗 **SEE ALSO:** `trace_execution_path` (verify reachability of a vulnerable function), `smart_decompile` (inspect vulnerable code), `adaptive_vaccine` (generate a fix after finding a vuln)
+
 ---
 
-### `extract_iocs`
+### `extract_iocs` `[STATIC]` `[QUICK]`
 
 Extract Indicators of Compromise (IOCs) from text or binary using regex.
 
@@ -947,6 +1443,12 @@ Structured JSON with categorized IOCs:
 - `mac_addresses`: List of MAC addresses
 - `total_count`: Total IOCs found
 
+❌ **NOT USE WHEN:**
+- Passing raw binary bytes (pass the file_path instead, or run `run_strings` first)
+- The binary is packed — IOCs will not be visible
+
+🔗 **SEE ALSO:** `run_strings` (get strings first then pass output here), `add_ioc` (save found IOCs to report session)
+
 ---
 
 ### `run_yara`
@@ -973,7 +1475,7 @@ List of YARA rule matches with:
 
 ### File Management Tools
 
-#### `Radare2_open_file`
+#### `Radare2_open_file` `[QUICK]`
 
 Open a binary file with radare2.
 
@@ -984,6 +1486,13 @@ Initializes a radare2 session for analysis.
 
 **Returns:**
 Session ID for subsequent operations.
+
+> ⚠️ **IMPORTANT**: Save the returned session ID — all Radare2_* tools require it. Always call `Radare2_analyze` after opening before using analysis-dependent tools like `Radare2_list_functions`.
+
+❌ **NOT USE WHEN:**
+- You want quick one-off commands without a session — use `run_radare2` instead
+
+🔗 **SEE ALSO:** `Radare2_analyze` (run immediately after), `Radare2_close_file` (clean up when done)
 
 ---
 
@@ -999,7 +1508,7 @@ Confirmation of session closure.
 
 ---
 
-#### `Radare2_analyze`
+#### `Radare2_analyze` `[SLOW]` `[SESSION]`
 
 Analyze the binary with radare2's analysis engine.
 
@@ -1009,6 +1518,13 @@ Analyze the binary with radare2's analysis engine.
 
 **Returns:**
 Analysis summary including functions found, strings extracted, and imports identified.
+
+> ⚠️ **IMPORTANT**: Run this before `Radare2_list_functions`, `Radare2_list_classes`, etc. Analysis populates the function and symbol databases that other tools query.
+
+❌ **NOT USE WHEN:**
+- You only need to read bytes/headers (no analysis needed for `Radare2_show_headers` or `Radare2_list_sections`)
+
+🔗 **SEE ALSO:** `Radare2_list_functions` (use after this), `match_libraries` (filter library functions post-analysis)
 
 ---
 
@@ -1415,7 +1931,7 @@ Command output.
 
 ---
 
-#### `trace_execution_path`
+#### `trace_execution_path` `[STATIC]` `[SLOW]`
 
 Trace function calls backwards from a target function (Sink) to find potential execution paths.
 
@@ -1436,9 +1952,15 @@ Helps identify "Exploit Paths" by finding which functions call a dangerous targe
 **Returns:**
 List of execution paths (call chains) from entry points to target.
 
+❌ **NOT USE WHEN:**
+- You want forward analysis (what does this function call?) — use `analyze_xrefs` with direction='from'
+- The binary is packed or stripped (symbols not available)
+
+🔗 **SEE ALSO:** `analyze_xrefs` (bidirectional xref), `vulnerability_hunter` (find the dangerous sink first), `smart_decompile` (inspect functions in the path)
+
 ---
 
-#### `generate_function_graph`
+#### `generate_function_graph` `[STATIC]` `[SLOW]`
 
 Generate a Control Flow Graph (CFG) for a specific function.
 
@@ -1453,9 +1975,15 @@ Uses radare2 to analyze function structure and returns a visualization code (Mer
 **Returns:**
 CFG visualization, JSON data, or PNG image.
 
+❌ **NOT USE WHEN:**
+- The function is very large (> 500 basic blocks) — graph will be unreadable
+- You just need the call graph (who calls whom) — use `Ghidra_get_call_graph` instead
+
+🔗 **SEE ALSO:** `analyze_variant_changes` (compares CFGs between versions), `Ghidra_get_call_graph` (call relationships), `trace_execution_path` (path tracing)
+
 ---
 
-#### `analyze_xrefs`
+#### `analyze_xrefs` `[STATIC]` `[QUICK]`
 
 Analyze cross-references (xrefs) for a specific address using radare2.
 
@@ -1479,6 +2007,12 @@ Structured JSON with xrefs data:
 - `xrefs_from`: List of references FROM this address (callees)
 - `summary`: Human-readable summary
 - `total_refs_to`, `total_refs_from`: Count statistics
+
+❌ **NOT USE WHEN:**
+- You need a full backward call chain (multiple hops) — use `trace_execution_path` (recursive)
+- You need a call graph visualization — use `generate_function_graph`
+
+🔗 **SEE ALSO:** `Radare2_xrefs_to` (session-based, faster for known addresses), `trace_execution_path` (recursive path tracing), `Ghidra_get_call_graph` (Ghidra-powered)
 
 ---
 
@@ -1675,9 +2209,16 @@ Generated report content or file path.
 - **Analysis Tools**: 11 tools
 - **Common Tools**: 17 tools (Memory: 11, Server: 2, File: 4, Patch: 1)
 - **Ghidra Tools**: 17 tools
-- **Malware Tools**: 5 tools
+- **Malware Tools**: 9 tools (including detect_packer, run_capa, run_yara, extract_iocs)
 - **Radare2 Tools**: 34 tools
 - **Report Tools**: 12 tools
+
+**AI Agent Guidance** (added in this revision):
+- 14-tag classification system for quick filtering
+- 6 scenario-based analysis recipes (malware, ransomware, patch, C++, firmware, APT)
+- 4-phase tool ordering guide (Triage → Structural → Deep → Report)
+- NOT USE WHEN warnings on 20+ critical tools
+- SEE ALSO cross-references on 20+ critical tools
 
 ---
 
@@ -1690,10 +2231,10 @@ Generated report content or file path.
 - Emulation: `emulate_machine_code`
 
 ### Malware Analysis
-- Detection: `dormant_detector`, `vulnerability_hunter`, `run_yara`
+- Detection: `dormant_detector`, `vulnerability_hunter`, `run_yara`, `run_capa`, `detect_packer`
 - IOC Extraction: `extract_iocs`, `add_ioc`
 - Defense Generation: `adaptive_vaccine`, `generate_yara_rule`, `generate_signature`
-- Reporting: `create_analysis_report`, `start_analysis_session`
+- Reporting: `create_analysis_report`, `start_report_session`
 
 ### Binary Comparison
 - Diffing: `diff_binaries`, `analyze_variant_changes`
@@ -1707,6 +2248,24 @@ Generated report content or file path.
 - Embedded Content: `run_binwalk`, `run_binwalk_extract`
 - Version Detection: `scan_for_versions`
 - RTTI: `extract_rtti_info`
+
+### Control Flow Analysis
+- Call Graphs: `Ghidra_get_call_graph`, `Radare2_list_functions_tree`
+- CFG Generation: `generate_function_graph`
+- Xref Analysis: `analyze_xrefs`, `Radare2_xrefs_to`
+- Path Tracing: `trace_execution_path`
+
+### Project Management
+- Memory Sessions: `create_memory_session`, `resume_memory_session`
+- Memory Store: `save_memory_item`, `recall_memory_item`
+- Patterns: `save_pattern`, `find_similar_patterns`
+- Monitoring: `get_server_health`, `get_tool_metrics`
+
+---
+
+**Last Updated**: 2025-06-24 (AI Agent guidance — tags, recipes, NOT USE WHEN, SEE ALSO added)
+**Reversecore MCP Version**: 1.0.0
+
 
 ### Control Flow Analysis
 - Call Graphs: `Ghidra_get_call_graph`, `Radare2_list_functions_tree`
