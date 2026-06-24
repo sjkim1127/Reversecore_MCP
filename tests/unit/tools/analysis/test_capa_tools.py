@@ -1,9 +1,10 @@
 """Unit tests for capa_tools module."""
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
-from reversecore_mcp.core.result import ToolSuccess, ToolError, success, failure
+import pytest
+
+from reversecore_mcp.core.result import ToolError, ToolSuccess, failure, success
 
 
 class TestCapaAvailability:

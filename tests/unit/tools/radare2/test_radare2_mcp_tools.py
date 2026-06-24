@@ -1,6 +1,5 @@
 """Unit tests for Radare2 MCP tools module (security-hardened)."""
 
-import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -226,7 +225,10 @@ class TestDiagnoseError:
         plugin = Radare2ToolsPlugin()
         with patch("os.path.exists", return_value=True):
             with patch("os.path.isfile", return_value=False):
-                with patch("os.stat", return_value=type("Stat", (), {"st_mode": 0o40755, "st_size": 4096})()):
+                with patch(
+                    "os.stat",
+                    return_value=type("Stat", (), {"st_mode": 0o40755, "st_size": 4096})(),
+                ):
                     result = plugin._diagnose_error("/fake/dir", Exception("failed"))
         assert result["is_file"] is False
         assert "directory" in result["hints"][0].lower()
@@ -237,7 +239,10 @@ class TestDiagnoseError:
         with patch("os.path.exists", return_value=True):
             with patch("os.path.isfile", return_value=True):
                 with patch("os.path.getsize", return_value=0):
-                    with patch("os.stat", return_value=type("Stat", (), {"st_mode": 0o100644, "st_size": 0})()):
+                    with patch(
+                        "os.stat",
+                        return_value=type("Stat", (), {"st_mode": 0o100644, "st_size": 0})(),
+                    ):
                         result = plugin._diagnose_error("/fake/file", Exception("failed"))
         assert result["file_size"] == 0
         assert "empty" in result["hints"][0].lower()
@@ -262,12 +267,17 @@ class TestGetOrCreateSession:
             self.session_id = "test-id-123"
             self.last_error = None
 
-        with patch("reversecore_mcp.tools.radare2.radare2_mcp_tools.validate_file_path", return_value="/app/test.bin"):
+        with patch(
+            "reversecore_mcp.tools.radare2.radare2_mcp_tools.validate_file_path",
+            return_value="/app/test.bin",
+        ):
             with patch("os.path.exists", return_value=True):
                 with patch.object(R2Session, "__init__", side_effect=mock_init, autospec=True):
                     with patch.object(R2Session, "open", return_value=True):
                         with patch.object(R2Session, "cmd", return_value=""):
-                            with patch("asyncio.to_thread", side_effect=lambda f, *a, **k: f(*a, **k)):
+                            with patch(
+                                "asyncio.to_thread", side_effect=lambda f, *a, **k: f(*a, **k)
+                            ):
                                 result = await plugin._get_or_create_session("/app/test.bin")
 
         assert result is not None
@@ -281,7 +291,10 @@ class TestGetOrCreateSession:
         plugin._sessions["sid-1"] = mock_session
         plugin._file_to_session["/app/test.bin"] = "sid-1"
 
-        with patch("reversecore_mcp.tools.radare2.radare2_mcp_tools.validate_file_path", return_value="/app/test.bin"):
+        with patch(
+            "reversecore_mcp.tools.radare2.radare2_mcp_tools.validate_file_path",
+            return_value="/app/test.bin",
+        ):
             result = await plugin._get_or_create_session("/app/test.bin")
         assert result == mock_session
 
@@ -298,7 +311,10 @@ class TestGetOrCreateSession:
             self.session_id = "test-id-456"
             self.last_error = None
 
-        with patch("reversecore_mcp.tools.radare2.radare2_mcp_tools.validate_file_path", return_value="/app/test.bin"):
+        with patch(
+            "reversecore_mcp.tools.radare2.radare2_mcp_tools.validate_file_path",
+            return_value="/app/test.bin",
+        ):
             with patch("os.path.exists", return_value=True):
                 with patch.object(R2Session, "__init__", side_effect=mock_init, autospec=True):
                     with patch.object(R2Session, "open", return_value=True):
@@ -310,7 +326,10 @@ class TestGetOrCreateSession:
     async def test_validation_error_returns_dummy_session(self):
         """Should return dummy session on validation error."""
         plugin = Radare2ToolsPlugin()
-        with patch("reversecore_mcp.tools.radare2.radare2_mcp_tools.validate_file_path", side_effect=ValidationError("invalid")):
+        with patch(
+            "reversecore_mcp.tools.radare2.radare2_mcp_tools.validate_file_path",
+            side_effect=ValidationError("invalid"),
+        ):
             result = await plugin._get_or_create_session("../../../etc/passwd")
         assert isinstance(result, R2Session)
 
@@ -334,10 +353,12 @@ class TestMcpToolsMocked:
                 func = args[0]
                 mcp.tools[func.__name__] = func
                 return func
+
             # Decorator factory mode: return a wrapper that captures
             def decorator(func):
                 mcp.tools[func.__name__] = func
                 return func
+
             return decorator
 
         mcp.tool = capture_tool
@@ -366,7 +387,10 @@ class TestMcpToolsMocked:
         plugin._sessions["mock-sid"] = mock_session
         plugin._file_to_session["/app/test.bin"] = "mock-sid"
 
-        with patch("reversecore_mcp.tools.radare2.radare2_mcp_tools.validate_file_path", return_value="/app/test.bin"):
+        with patch(
+            "reversecore_mcp.tools.radare2.radare2_mcp_tools.validate_file_path",
+            return_value="/app/test.bin",
+        ):
             with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
                 tool = plugin._tools["Radare2_open_file"]
                 result = await tool("/app/test.bin")
@@ -383,7 +407,10 @@ class TestMcpToolsMocked:
         failed_session.is_open = False
         failed_session.last_error = "cannot open file"
 
-        with patch("reversecore_mcp.tools.radare2.radare2_mcp_tools.validate_file_path", return_value="/app/bad.bin"):
+        with patch(
+            "reversecore_mcp.tools.radare2.radare2_mcp_tools.validate_file_path",
+            return_value="/app/bad.bin",
+        ):
             with patch.object(plugin, "_get_or_create_session", return_value=failed_session):
                 with patch.object(plugin, "_diagnose_error", return_value={"hints": []}):
                     tool = plugin._tools["Radare2_open_file"]
@@ -397,7 +424,10 @@ class TestMcpToolsMocked:
         """Radare2_open_file should reject invalid paths."""
         plugin = registered_plugin
         tool = plugin._tools["Radare2_open_file"]
-        with patch("reversecore_mcp.tools.radare2.radare2_mcp_tools.validate_file_path", side_effect=ValidationError("invalid path")):
+        with patch(
+            "reversecore_mcp.tools.radare2.radare2_mcp_tools.validate_file_path",
+            side_effect=ValidationError("invalid path"),
+        ):
             result = await tool("../../../etc/passwd")
         assert result["status"] == "error"
         assert result["error_code"] == "INVALID_PATH"
@@ -410,7 +440,10 @@ class TestMcpToolsMocked:
         plugin._sessions["sid-1"] = mock_session
         plugin._file_to_session["/app/test.bin"] = "sid-1"
 
-        with patch("reversecore_mcp.tools.radare2.radare2_mcp_tools.validate_file_path", return_value="/app/test.bin"):
+        with patch(
+            "reversecore_mcp.tools.radare2.radare2_mcp_tools.validate_file_path",
+            return_value="/app/test.bin",
+        ):
             tool = plugin._tools["Radare2_close_file"]
             result = await tool("/app/test.bin")
 
@@ -422,7 +455,10 @@ class TestMcpToolsMocked:
     async def test_Radare2_close_file_not_open(self, registered_plugin):
         """Radare2_close_file should handle file that was not open."""
         plugin = registered_plugin
-        with patch("reversecore_mcp.tools.radare2.radare2_mcp_tools.validate_file_path", return_value="/app/test.bin"):
+        with patch(
+            "reversecore_mcp.tools.radare2.radare2_mcp_tools.validate_file_path",
+            return_value="/app/test.bin",
+        ):
             tool = plugin._tools["Radare2_close_file"]
             result = await tool("/app/test.bin")
         assert result["status"] == "success"
@@ -532,6 +568,56 @@ class TestMcpToolsMocked:
         assert result["status"] == "success"
 
     @pytest.mark.asyncio
+    async def test_Radare2_list_functions_tree_success(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.cmd.return_value = "main -> helper"
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_list_functions_tree"]
+            result = await tool("/app/test.bin")
+        assert result["status"] == "success"
+
+    @pytest.mark.asyncio
+    async def test_Radare2_disassemble_invalid_address(self, registered_plugin):
+        plugin = registered_plugin
+        with patch.object(plugin, "_get_or_create_session", return_value=MagicMock()):
+            tool = plugin._tools["Radare2_disassemble"]
+            result = await tool("/app/test.bin", address="; rm -rf /")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_Radare2_disassemble_large_num(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.cmd.return_value = "mov eax, 1"
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_disassemble"]
+            result = await tool("/app/test.bin", address="0x401000", num_instructions=5000)
+        assert result["status"] == "success"
+
+    @pytest.mark.asyncio
+    async def test_Radare2_decompile_function_invalid_address(self, registered_plugin):
+        plugin = registered_plugin
+        with patch.object(plugin, "_get_or_create_session", return_value=MagicMock()):
+            tool = plugin._tools["Radare2_decompile_function"]
+            result = await tool("/app/test.bin", address="; rm -rf /")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_Radare2_xrefs_to_invalid_address(self, registered_plugin):
+        plugin = registered_plugin
+        with patch.object(plugin, "_get_or_create_session", return_value=MagicMock()):
+            tool = plugin._tools["Radare2_xrefs_to"]
+            result = await tool("/app/test.bin", address="; rm -rf /")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_Radare2_rename_function_invalid_address(self, registered_plugin):
+        plugin = registered_plugin
+        with patch.object(plugin, "_get_or_create_session", return_value=MagicMock()):
+            tool = plugin._tools["Radare2_rename_function"]
+            result = await tool("/app/test.bin", address="; rm -rf /", name="new_name")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
     async def test_Radare2_show_headers_success(self, registered_plugin, mock_session):
         """Radare2_show_headers should return binary info and headers."""
         plugin = registered_plugin
@@ -587,7 +673,9 @@ class TestMcpToolsMocked:
         assert result["function"] == "sym.main"
 
     @pytest.mark.asyncio
-    async def test_Radare2_show_function_details_with_address(self, registered_plugin, mock_session):
+    async def test_Radare2_show_function_details_with_address(
+        self, registered_plugin, mock_session
+    ):
         """Radare2_show_function_details should use provided address."""
         plugin = registered_plugin
         mock_session.cmd.return_value = "function details"
@@ -638,4 +726,433 @@ class TestMcpToolsMocked:
         plugin = registered_plugin
         tool = plugin._tools["Radare2_set_function_prototype"]
         result = await tool("/app/test.bin", address="0x401000", prototype="``")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_Radare2_list_symbols_success(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.cmd.return_value = "sym.main\nsym.printf"
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_list_symbols"]
+            result = await tool("/app/test.bin")
+        assert result["status"] == "success"
+
+    @pytest.mark.asyncio
+    async def test_Radare2_list_entrypoints_success(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.cmd.return_value = "0x401000"
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_list_entrypoints"]
+            result = await tool("/app/test.bin")
+        assert result["status"] == "success"
+
+    @pytest.mark.asyncio
+    async def test_Radare2_list_libraries_success(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.cmd.return_value = "libc.so.6\nkernel32.dll"
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_list_libraries"]
+            result = await tool("/app/test.bin")
+        assert result["status"] == "success"
+
+    @pytest.mark.asyncio
+    async def test_Radare2_list_strings_success(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.cmd.return_value = "hello\nworld"
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_list_strings"]
+            result = await tool("/app/test.bin")
+        assert result["status"] == "success"
+
+    @pytest.mark.asyncio
+    async def test_Radare2_list_classes_success(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.cmd.return_value = "Class1\nClass2"
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_list_classes"]
+            result = await tool("/app/test.bin")
+        assert result["status"] == "success"
+
+    @pytest.mark.asyncio
+    async def test_Radare2_disassemble_success(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.cmd.return_value = "mov eax, 1\nret"
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_disassemble"]
+            result = await tool("/app/test.bin", address="0x401000")
+        assert result["status"] == "success"
+
+    @pytest.mark.asyncio
+    async def test_Radare2_xrefs_to_success(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.cmd.return_value = "xref from 0x401020"
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_xrefs_to"]
+            result = await tool("/app/test.bin", address="0x401000")
+        assert result["status"] == "success"
+
+    @pytest.mark.asyncio
+    async def test_Radare2_rename_function_success(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.cmd.return_value = ""
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_rename_function"]
+            result = await tool("/app/test.bin", address="0x401000", name="new_name")
+        assert result["status"] == "success"
+
+    @pytest.mark.asyncio
+    async def test_Radare2_set_comment_success(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.cmd.return_value = ""
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_set_comment"]
+            result = await tool("/app/test.bin", address="0x401000", message="test comment")
+        assert result["status"] == "success"
+
+    @pytest.mark.asyncio
+    async def test_Radare2_set_comment_invalid_address(self, registered_plugin):
+        plugin = registered_plugin
+        with patch.object(plugin, "_get_or_create_session", return_value=MagicMock()):
+            tool = plugin._tools["Radare2_set_comment"]
+            result = await tool("/app/test.bin", address="; rm -rf /", message="test")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_Radare2_disassemble_function_success(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.cmd.return_value = "mov eax, 1\nret"
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_disassemble_function"]
+            result = await tool("/app/test.bin", address="0x401000")
+        assert result["status"] == "success"
+
+    @pytest.mark.asyncio
+    async def test_Radare2_disassemble_function_invalid_address(self, registered_plugin):
+        plugin = registered_plugin
+        with patch.object(plugin, "_get_or_create_session", return_value=MagicMock()):
+            tool = plugin._tools["Radare2_disassemble_function"]
+            result = await tool("/app/test.bin", address="; rm -rf /")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_Radare2_decompile_function_success(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.cmd.return_value = "int main() { return 0; }"
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_decompile_function"]
+            result = await tool("/app/test.bin", address="0x401000")
+        assert result["status"] == "success"
+
+    @pytest.mark.asyncio
+    async def test_Radare2_list_all_strings_success(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.cmd.return_value = "hello\nworld"
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_list_all_strings"]
+            result = await tool("/app/test.bin")
+        assert result["status"] == "success"
+
+    @pytest.mark.asyncio
+    async def test_Radare2_list_methods_success(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.cmd.return_value = "method1\nmethod2"
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_list_methods"]
+            result = await tool("/app/test.bin", classname="MainClass")
+        assert result["status"] == "success"
+
+    @pytest.mark.asyncio
+    async def test_Radare2_list_decompilers_success(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.cmd.return_value = "r2dec\nghidra"
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_list_decompilers"]
+            result = await tool("/app/test.bin")
+        assert result["status"] == "success"
+
+    @pytest.mark.asyncio
+    async def test_Radare2_use_decompiler_success(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+
+        def side_effect(cmd):
+            if cmd == "e cmd.pdc=?":
+                return "pdd pdc pdg"
+            return ""
+
+        mock_session.cmd.side_effect = side_effect
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_use_decompiler"]
+            result = await tool("/app/test.bin", name="r2dec")
+        assert result["status"] == "success"
+
+    @pytest.mark.asyncio
+    async def test_Radare2_use_decompiler_not_available(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.cmd.return_value = "pdc"
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_use_decompiler"]
+            result = await tool("/app/test.bin", name="r2dec")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_Radare2_rename_flag_success(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.cmd.return_value = ""
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_rename_flag"]
+            result = await tool(
+                "/app/test.bin", address="0x401000", name="old_flag", new_name="new_flag"
+            )
+        assert result["status"] == "success"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_analyze(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_analyze"]
+            result = await tool("/app/test.bin")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_run_command(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_run_command"]
+            result = await tool("/app/test.bin", command="pdf")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_calculate(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_calculate"]
+            result = await tool("/app/test.bin", expression="1+1")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_list_functions(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_list_functions"]
+            result = await tool("/app/test.bin")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_list_functions_tree(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_list_functions_tree"]
+            result = await tool("/app/test.bin")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_show_function_details(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_show_function_details"]
+            result = await tool("/app/test.bin", address="0x401000")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_get_current_address(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_get_current_address"]
+            result = await tool("/app/test.bin")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_get_function_prototype(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_get_function_prototype"]
+            result = await tool("/app/test.bin", address="0x401000")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_set_function_prototype(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_set_function_prototype"]
+            result = await tool("/app/test.bin", address="0x401000", prototype="void main()")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_show_headers(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_show_headers"]
+            result = await tool("/app/test.bin")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_list_sections(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_list_sections"]
+            result = await tool("/app/test.bin")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_list_imports(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_list_imports"]
+            result = await tool("/app/test.bin")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_list_symbols(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_list_symbols"]
+            result = await tool("/app/test.bin")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_list_entrypoints(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_list_entrypoints"]
+            result = await tool("/app/test.bin")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_list_libraries(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_list_libraries"]
+            result = await tool("/app/test.bin")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_list_strings(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_list_strings"]
+            result = await tool("/app/test.bin")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_list_all_strings(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_list_all_strings"]
+            result = await tool("/app/test.bin")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_list_classes(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_list_classes"]
+            result = await tool("/app/test.bin")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_list_methods(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_list_methods"]
+            result = await tool("/app/test.bin", classname="Main")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_disassemble(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_disassemble"]
+            result = await tool("/app/test.bin", address="0x401000")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_disassemble_function(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_disassemble_function"]
+            result = await tool("/app/test.bin", address="0x401000")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_decompile_function(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_decompile_function"]
+            result = await tool("/app/test.bin", address="0x401000")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_list_decompilers(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_list_decompilers"]
+            result = await tool("/app/test.bin")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_use_decompiler(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_use_decompiler"]
+            result = await tool("/app/test.bin", name="r2dec")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_xrefs_to(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_xrefs_to"]
+            result = await tool("/app/test.bin", address="0x401000")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_rename_function(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_rename_function"]
+            result = await tool("/app/test.bin", address="0x401000", name="new_name")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_rename_flag(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_rename_flag"]
+            result = await tool("/app/test.bin", address="0x401000", name="old", new_name="new")
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_session_not_open_set_comment(self, registered_plugin, mock_session):
+        plugin = registered_plugin
+        mock_session.is_open = False
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_set_comment"]
+            result = await tool("/app/test.bin", address="0x401000", message="test")
         assert result["status"] == "error"

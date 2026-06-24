@@ -27,10 +27,10 @@ from reversecore_mcp.core import security  # noqa: E402
 from reversecore_mcp.core.config import Config  # noqa: E402
 from reversecore_mcp.core.security import WorkspaceConfig  # noqa: E402
 
-
 # =============================================================================
 # System tool availability checks for conditional test skipping
 # =============================================================================
+
 
 def _has_command(cmd: str) -> bool:
     """Check if a command is available in PATH."""
@@ -126,11 +126,12 @@ def patched_config(config, monkeypatch):
     # Individual tool modules import it directly from core.config
     return config
 
+
 @pytest.fixture
 def config_isolation():
     """
     Fixture to isolate configuration state between tests.
-    
+
     1. Saves original environment variables.
     2. Resets Config singleton.
     3. Yields control.
@@ -138,16 +139,15 @@ def config_isolation():
     """
     original_env = os.environ.copy()
     from reversecore_mcp.core import config as config_module
-    
+
     # Reset before test
     # This ensures a fresh Config is created if read
     original_config = config_module._CONFIG
     config_module._CONFIG = None
-    
+
     yield
-    
+
     # Restore after test
     os.environ.clear()
     os.environ.update(original_env)
     config_module._CONFIG = original_config
-

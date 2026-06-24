@@ -1,7 +1,7 @@
 """Unit tests for ReportTools module."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -27,9 +27,7 @@ class TestReportToolsInit:
 
     def test_init_custom_timezone(self, tmp_path):
         """Should accept custom timezone."""
-        rt = ReportTools(
-            template_dir=tmp_path, output_dir=tmp_path, default_timezone="Asia/Seoul"
-        )
+        rt = ReportTools(template_dir=tmp_path, output_dir=tmp_path, default_timezone="Asia/Seoul")
         assert rt.default_timezone == "Asia/Seoul"
         assert rt.timezone_offset == TIMEZONE_OFFSETS["Asia/Seoul"]
 
@@ -113,6 +111,14 @@ class TestSessionManagement:
         assert result["session_id"] in rt.sessions
 
     @pytest.mark.asyncio
+    async def test_start_session_with_tags_and_sample(self, rt, tmp_path):
+        sample = tmp_path / "test.exe"
+        sample.write_bytes(b"MZ" + b"\x00" * 100)
+        result = await rt.start_session(sample_path=str(sample), tags=["trojan", "backdoor"])
+        assert result["success"] is True
+        assert "trojan" in rt.sessions[result["session_id"]].tags
+
+    @pytest.mark.asyncio
     async def test_end_session(self, rt):
         """Should end active session."""
         await rt.start_session()
@@ -138,6 +144,15 @@ class TestSessionManagement:
         assert result["success"] is True
         assert "session" in result
         assert result["session"]["analyst"] == "Charlie"
+
+    @pytest.mark.asyncio
+    async def test_get_session_info_after_end(self, rt):
+        result = await rt.start_session()
+        sid = result["session_id"]
+        await rt.end_session(status="completed")
+        result = await rt.get_session_info(session_id=sid)
+        assert result["success"] is True
+        assert "ended_at_formatted" in result["session"]
 
     @pytest.mark.asyncio
     async def test_add_session_ioc(self, rt):
@@ -190,6 +205,43 @@ class TestSessionManagement:
         assert "Invalid severity" in result["error"]
 
     @pytest.mark.asyncio
+    async def test_add_session_tag_no_session(self, rt):
+        result = await rt.add_session_tag("trojan")
+        assert result["success"] is False
+        assert "No active session" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_set_session_severity_no_session(self, rt):
+        result = await rt.set_session_severity("high")
+        assert result["success"] is False
+        assert "No active session" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_add_session_ioc_no_session(self, rt):
+        result = await rt.add_session_ioc("ips", "1.1.1.1")
+        assert result["success"] is False
+        assert "No active session" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_add_session_ioc_invalid_type(self, rt):
+        await rt.start_session()
+        result = await rt.add_session_ioc("invalid_type", "value")
+        assert result["success"] is False
+        assert "Invalid IOC type" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_add_session_note_no_session(self, rt):
+        result = await rt.add_session_note("note")
+        assert result["success"] is False
+        assert "No active session" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_add_session_mitre_no_session(self, rt):
+        result = await rt.add_session_mitre("T1055", "Process Injection", "Defense Evasion")
+        assert result["success"] is False
+        assert "No active session" in result["error"]
+
+    @pytest.mark.asyncio
     async def test_list_sessions(self, rt):
         """Should list all sessions."""
         await rt.start_session(sample_path="/app/a.bin")
@@ -226,6 +278,17 @@ class TestReportGeneration:
         assert "report_id" in result
         assert "path" in result
         assert Path(result["path"]).exists()
+
+    @pytest.mark.asyncio
+    async def test_create_report_with_custom_fields(self, rt):
+        template = rt.template_dir / "full_analysis.md"
+        template.write_text("# {{{CUSTOM_KEY}}}\n")
+        await rt.start_session()
+        result = await rt.create_report(
+            template_type="full_analysis", custom_fields={"custom_key": "custom_value"}
+        )
+        assert result["success"] is True
+        assert "custom_value" in result["report_content"]
 
     @pytest.mark.asyncio
     async def test_list_templates(self, rt):
@@ -365,11 +428,157 @@ class TestHelperMethods:
         result = rt._format_iocs_markdown({})
         assert "No IOCs" in result
 
-    def test_format_mitre_table_empty(self):
-        """Should handle empty MITRE techniques."""
+    def test_identify_file_type_pdf(self):
+        assert "PDF" in ReportTools._identify_file_type(b"%PDF-1.4")
+
+    def test_identify_file_type_zip(self):
+        assert "ZIP" in ReportTools._identify_file_type(b"PK\x03\x04")
+
+    def test_identify_file_type_text(self):
+        assert "Text" in ReportTools._identify_file_type(b"hello world text")
+
+    def test_identify_file_type_unknown(self):
+        assert "Unknown Binary" == ReportTools._identify_file_type(b"\xff\xfe\x00\x01")
+
+    def test_human_readable_size_tb(self):
+        assert "TB" in ReportTools._human_readable_size(1024 * 1024 * 1024 * 1024)
+
+    def test_get_local_time(self, tmp_path):
+        rt = ReportTools(template_dir=tmp_path, output_dir=tmp_path, default_timezone="Asia/Seoul")
+        result = rt._get_local_time()
+        assert result is not None
+
+    def test_format_time_no_tz(self, tmp_path):
+        from datetime import datetime, timezone
+
+        rt = ReportTools(template_dir=tmp_path, output_dir=tmp_path)
+        dt = datetime.now(timezone.utc)
+        result = rt._format_time(dt, include_tz=False)
+        assert "(" not in result
+
+    def test_format_mitre_table_with_data(self):
         rt = ReportTools.__new__(ReportTools)
-        result = rt._format_mitre_table([])
-        assert "-" in result
+        techniques = [
+            {"id": "T1055", "name": "Process Injection", "tactic": "Defense Evasion"},
+        ]
+        result = rt._format_mitre_table(techniques)
+        assert "T1055" in result
+        assert "Process Injection" in result
+
+    def test_format_notes_empty(self):
+        rt = ReportTools.__new__(ReportTools)
+        result = rt._format_notes([])
+        assert "No notes" in result
+
+    def test_format_notes_with_data(self):
+        rt = ReportTools.__new__(ReportTools)
+        notes = [
+            {
+                "timestamp": "2024-01-01T12:00:00Z",
+                "note": "suspicious import",
+                "category": "finding",
+            },
+        ]
+        result = rt._format_notes(notes)
+        assert "suspicious import" in result
+
+    @pytest.mark.asyncio
+    async def test_send_report_email_not_configured(self, tmp_path):
+        rt = ReportTools(template_dir=tmp_path, output_dir=tmp_path)
+        report = tmp_path / "r1.md"
+        report.write_text("# Report")
+        result = await rt.send_report("r1", ["a@example.com"])
+        assert result["success"] is False
+        assert "Email not configured" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_send_report_success(self, tmp_path):
+        rt = ReportTools(template_dir=tmp_path, output_dir=tmp_path)
+        rt.email_config.smtp_server = "smtp.example.com"
+        rt.email_config.username = "user"
+        rt.email_config.password = "pass"
+        report = tmp_path / "r1.md"
+        report.write_text("# Report")
+        mock_file = AsyncMock()
+        mock_file.read = AsyncMock(return_value="# Report")
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_file)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        with patch(
+            "reversecore_mcp.tools.report.report_tools.aiosmtplib.send", new_callable=AsyncMock
+        ):
+            with patch(
+                "reversecore_mcp.tools.report.report_tools.aiofiles.open", return_value=mock_ctx
+            ):
+                result = await rt.send_report("r1", ["a@example.com"])
+        assert result["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_send_report_with_quick_contact(self, tmp_path):
+        rt = ReportTools(template_dir=tmp_path, output_dir=tmp_path)
+        rt.email_config.smtp_server = "smtp.example.com"
+        rt.email_config.username = "user"
+        rt.email_config.password = "pass"
+        rt.quick_contacts["Alice"] = {"email": "alice@test.com", "role": "Analyst"}
+        report = tmp_path / "r1.md"
+        report.write_text("# Report")
+        mock_file = AsyncMock()
+        mock_file.read = AsyncMock(return_value="# Report")
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_file)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        with patch(
+            "reversecore_mcp.tools.report.report_tools.aiosmtplib.send", new_callable=AsyncMock
+        ):
+            with patch(
+                "reversecore_mcp.tools.report.report_tools.aiofiles.open", return_value=mock_ctx
+            ):
+                result = await rt.send_report("r1", ["Alice"])
+        assert result["success"] is True
+        assert "alice@test.com" in result["recipients"]
+
+    @pytest.mark.asyncio
+    async def test_send_report_exception(self, tmp_path):
+        rt = ReportTools(template_dir=tmp_path, output_dir=tmp_path)
+        rt.email_config.smtp_server = "smtp.example.com"
+        rt.email_config.username = "user"
+        rt.email_config.password = "pass"
+        report = tmp_path / "r1.md"
+        report.write_text("# Report")
+        mock_file = AsyncMock()
+        mock_file.read = AsyncMock(return_value="# Report")
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_file)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        with patch(
+            "reversecore_mcp.tools.report.report_tools.aiosmtplib.send",
+            side_effect=Exception("SMTP error"),
+        ):
+            with patch(
+                "reversecore_mcp.tools.report.report_tools.aiofiles.open", return_value=mock_ctx
+            ):
+                result = await rt.send_report("r1", ["a@example.com"])
+        assert result["success"] is False
+        assert "SMTP error" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_create_report_with_sample_path(self, tmp_path):
+        rt = ReportTools(template_dir=tmp_path, output_dir=tmp_path)
+        template = rt.template_dir / "full_analysis.md"
+        template.write_text("# {{{SAMPLE_NAME}}}\n")
+        sample = tmp_path / "sample.bin"
+        sample.write_bytes(b"\x7fELF")
+        result = await rt.create_report(template_type="full_analysis", sample_path=str(sample))
+        assert result["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_list_templates_with_desc(self, tmp_path):
+        rt = ReportTools(template_dir=tmp_path, output_dir=tmp_path)
+        template = rt.template_dir / "test.md"
+        template.write_text("<!-- test template -->\n# Test")
+        result = await rt.list_templates()
+        assert result["total"] == 1
+        assert result["templates"][0]["description"] == "test template"
 
     @pytest.mark.asyncio
     async def test_extract_sample_info(self, tmp_path):
@@ -383,3 +592,15 @@ class TestHelperMethods:
         assert "ELF" in result["file_type"]
         assert "md5" in result
         assert "sha256" in result
+
+
+class TestGetReportTools:
+    """Tests for get_report_tools singleton."""
+
+    def test_singleton(self, tmp_path):
+        from reversecore_mcp.tools.report.report_tools import get_report_tools, reset_report_tools
+
+        reset_report_tools()
+        rt1 = get_report_tools(template_dir=tmp_path, output_dir=tmp_path)
+        rt2 = get_report_tools(template_dir=tmp_path, output_dir=tmp_path)
+        assert rt1 is rt2

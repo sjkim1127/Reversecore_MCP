@@ -4,11 +4,11 @@ from unittest.mock import patch
 
 import pytest
 
-from reversecore_mcp.core.result import ToolError
 from reversecore_mcp.core.metrics import (
     MetricsCollector,
     _determine_success,
 )
+from reversecore_mcp.core.result import ToolError
 
 
 class TestMetricsCollector:
@@ -54,11 +54,13 @@ class TestDetermineSuccess:
     def test_object_with_status_success(self):
         class R:
             status = "success"
+
         assert _determine_success(R()) is True
 
     def test_object_with_status_error(self):
         class R:
             status = "error"
+
         assert _determine_success(R()) is False
 
     def test_dict_status_success(self):
@@ -72,3 +74,75 @@ class TestDetermineSuccess:
         assert _determine_success(None) is True
         assert _determine_success(object()) is True
         assert _determine_success({"other": 1}) is True
+
+
+class TestTrackMetrics:
+    """Tests for track_metrics decorator."""
+
+    def test_sync_success(self):
+        from reversecore_mcp.core.metrics import track_metrics
+
+        @track_metrics("test_tool")
+        def my_tool():
+            return {"status": "success"}
+
+        result = my_tool()
+        assert result["status"] == "success"
+
+    def test_sync_error(self):
+        from reversecore_mcp.core.metrics import track_metrics
+
+        @track_metrics("test_tool")
+        def my_tool():
+            return {"status": "error"}
+
+        result = my_tool()
+        assert result["status"] == "error"
+
+    def test_exception(self):
+        from reversecore_mcp.core.metrics import track_metrics
+
+        @track_metrics("test_tool")
+        def my_tool():
+            raise ValueError("fail")
+
+        with pytest.raises(ValueError):
+            my_tool()
+
+    @pytest.mark.asyncio
+    async def test_async_success(self):
+        from reversecore_mcp.core.metrics import track_metrics
+
+        @track_metrics("test_tool")
+        async def my_tool():
+            return {"status": "success"}
+
+        result = await my_tool()
+        assert result["status"] == "success"
+
+    def test_sync_records_metrics(self):
+        from reversecore_mcp.core.metrics import metrics_collector, track_metrics
+
+        with patch.object(metrics_collector, "record_tool_execution") as mock_record:
+
+            @track_metrics("test_tool")
+            def my_tool():
+                return {"status": "success"}
+
+            result = my_tool()
+            assert result["status"] == "success"
+            mock_record.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_async_records_metrics(self):
+        from reversecore_mcp.core.metrics import metrics_collector, track_metrics
+
+        with patch.object(metrics_collector, "record_tool_execution") as mock_record:
+
+            @track_metrics("test_tool")
+            async def my_tool():
+                return {"status": "success"}
+
+            result = await my_tool()
+            assert result["status"] == "success"
+            mock_record.assert_called_once()

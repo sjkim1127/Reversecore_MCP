@@ -47,6 +47,11 @@ class TestValidateIdentifier:
         with pytest.raises(Exception):
             _validate_identifier("$HOME", "address")
 
+    def test_empty_identifier(self):
+        """Should reject empty identifier."""
+        with pytest.raises(Exception):
+            _validate_identifier("", "name")
+
 
 class TestValidateExpression:
     """Tests for _validate_expression."""
@@ -68,6 +73,16 @@ class TestValidateExpression:
         """Should reject backticks."""
         with pytest.raises(Exception):
             _validate_expression("`echo bad`")
+
+    def test_empty_expression(self):
+        """Should reject empty expression."""
+        with pytest.raises(Exception):
+            _validate_expression("")
+
+    def test_shell_escape(self):
+        """Should reject shell escape characters."""
+        with pytest.raises(Exception):
+            _validate_expression("1 + `whoami`")
 
 
 class TestValidateR2Command:
@@ -95,6 +110,16 @@ class TestValidateR2Command:
         """Should reject pipe."""
         with pytest.raises(Exception):
             _validate_r2_command("px | cat /etc/passwd")
+
+    def test_empty_command(self):
+        """Should reject empty command."""
+        with pytest.raises(Exception):
+            _validate_r2_command("")
+
+    def test_blocked_command(self):
+        """Should reject blocked commands."""
+        with pytest.raises(Exception):
+            _validate_r2_command("!ls")
 
 
 class TestSanitizeForR2Cmd:
@@ -351,6 +376,12 @@ class TestFilterLinesByRegex:
         text = "line1\nline2"
         assert "Invalid regex pattern" in _filter_lines_by_regex(text, "[bad")
 
+    def test_pattern_too_long(self):
+        """Should reject overly long regex patterns."""
+        text = "line1\nline2"
+        result = _filter_lines_by_regex(text, "a" * 501)
+        assert "too long" in result
+
 
 class TestFilterNamedFunctions:
     """Tests for filtering numeric-suffixed functions."""
@@ -404,4 +435,11 @@ class TestPaginateText:
         text = "line1\nline2\nline3"
         page, has_more, cursor = _paginate_text(text, "999", 20)
         assert page == ""
+        assert has_more is False
+
+    def test_negative_cursor(self):
+        """Should handle negative cursor."""
+        text = "line1\nline2\nline3"
+        page, has_more, cursor = _paginate_text(text, "-5", 20)
+        assert "line1" in page
         assert has_more is False
