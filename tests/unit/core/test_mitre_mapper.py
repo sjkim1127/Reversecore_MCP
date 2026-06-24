@@ -1,14 +1,12 @@
 """Unit tests for mitre_mapper module."""
 
-import pytest
-
+from reversecore_mcp.core.evidence import MITREConfidence
 from reversecore_mcp.core.mitre_mapper import (
     MappingRule,
     MITREMapper,
     get_mitre_mapper,
     map_to_mitre,
 )
-from reversecore_mcp.core.evidence import MITREConfidence
 
 
 class TestMappingRule:
@@ -149,6 +147,36 @@ class TestMITREMapper:
         assert "T1486" in report
         assert "PowerShell" in report
 
+    def test_map_indicators_medium_and_low_confidence(self):
+        """Test match ratios mapping to MEDIUM and LOW confidence levels."""
+        custom_rules = [
+            MappingRule(
+                technique_id="T9999",
+                technique_name="Test Rule",
+                tactic="Test Tactic",
+                indicators=[f"ind_{i}" for i in range(10)],
+                min_indicators=1,
+                base_confidence=MITREConfidence.LOW,
+            )
+        ]
+        mapper = MITREMapper(rules=custom_rules)
+
+        # 3 matches = 30% match ratio -> MEDIUM confidence (>= 0.3)
+        techs_medium = mapper.map_indicators(
+            imports=["ind_0", "ind_1", "ind_2"],
+            strings=[],
+        )
+        assert len(techs_medium) == 1
+        assert techs_medium[0].confidence == MITREConfidence.MEDIUM
+
+        # 1 match = 10% match ratio -> LOW confidence (< 0.3)
+        techs_low = mapper.map_indicators(
+            imports=["ind_0"],
+            strings=[],
+        )
+        assert len(techs_low) == 1
+        assert techs_low[0].confidence == MITREConfidence.LOW
+
 
 class TestHelperFunctions:
     """Tests for module-level helper functions."""
@@ -189,6 +217,7 @@ class TestDefaultMappingRules:
         )
         # Check for execution techniques
         tactics = [t.tactic.lower() for t in techniques]
+        assert isinstance(tactics, list)
         # May or may not have execution depending on exact rules
         assert isinstance(techniques, list)
 

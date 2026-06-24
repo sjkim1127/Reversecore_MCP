@@ -181,7 +181,10 @@ class TestResourceManager:
         """_reap_zombies handles ChildProcessError and removes PID from tracked."""
         manager = ResourceManager()
         manager._tracked_pids.add(99999)
-        with patch("reversecore_mcp.core.resource_manager.os.waitpid", side_effect=ChildProcessError):
+        with patch(
+            "reversecore_mcp.core.resource_manager.os.waitpid",
+            side_effect=ChildProcessError,
+        ):
             manager._reap_zombies()
         assert 99999 not in manager._tracked_pids
 
@@ -190,7 +193,10 @@ class TestResourceManager:
         """_reap_zombies handles generic Exception for a PID and does not crash."""
         manager = ResourceManager()
         manager._tracked_pids.add(88888)
-        with patch("reversecore_mcp.core.resource_manager.os.waitpid", side_effect=PermissionError("denied")):
+        with patch(
+            "reversecore_mcp.core.resource_manager.os.waitpid",
+            side_effect=PermissionError("denied"),
+        ):
             manager._reap_zombies()
         assert manager._tracked_pids <= {88888}
 
@@ -261,16 +267,81 @@ class TestResourceManager:
         monkeypatch.setattr(config, "get_config", lambda: mock_config)
 
         # Create manager with short interval
-        manager = ResourceManager(cleanup_interval=0.5)
+        manager = ResourceManager(cleanup_interval=0.1)
 
-        # Start manager
-        await manager.start()
+        # Start manager with mocked cleanup that raises an exception to cover lines 72-73
+        with patch.object(manager, "cleanup", side_effect=Exception("cleanup fail")):
+            await manager.start()
+            await asyncio.sleep(0.3)
+            assert manager._running is True
+            await manager.stop()
 
-        # Let it run for a bit
-        await asyncio.sleep(0.7)
+    @pytest.mark.skipif(sys.platform == "win32", reason="waitpid behavior differs on Windows")
+    def test_reap_zombies_successful_reap(self):
+        """Test _reap_zombies successfully reaps a tracked zombie PID."""
+        manager = ResourceManager()
+        # Track a dummy PID using the track_pid method to cover line 40
+        manager.track_pid(12345)
+        assert 12345 in manager._tracked_pids
 
-        # Should still be running despite any errors
-        assert manager._running is True
+        # Mock waitpid to return the PID (as if it was a zombie and successfully reaped)
+        with patch("reversecore_mcp.core.resource_manager.os.waitpid", return_value=(12345, 0)):
+            manager._reap_zombies()
 
-        # Cleanup
-        await manager.stop()
+        # The PID should have been removed from tracked
+        assert 12345 not in manager._tracked_pids
+
+    def test_reap_zombies_empty_tracked(self):
+        """Test _reap_zombies returns early when tracked_pids is empty."""
+        manager = ResourceManager()
+        with patch("reversecore_mcp.core.resource_manager.os.waitpid") as mock_waitpid:
+            manager._reap_zombies()
+            mock_waitpid.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_pid_check_loop_handles_exception(self):
+        """Test that _pid_check_loop handles exceptions and continues running."""
+        manager = ResourceManager(pid_check_interval=0.1)
+
+        # Mock _reap_zombies to raise an Exception
+        with patch.object(manager, "_reap_zombies", side_effect=Exception("reap failure")):
+            await manager.start()
+            await asyncio.sleep(0.2)
+            assert manager._running is True
+            await manager.stop()
+
+    @pytest.mark.asyncio
+    async def test_cleanup_handles_unlink_exception(self, tmp_path, monkeypatch):
+        """Test that cleanup logs a warning if a temp file deletion throws an exception."""
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+
+        old_tmp = workspace / "failed_delete.tmp"
+        old_tmp.write_text("old")
+
+        # Set mtime to 25 hours ago
+        old_time = time.time() - (25 * 3600)
+        old_tmp.touch()
+        os.utime(old_tmp, (old_time, old_time))
+
+        mock_config = _create_mock_config(workspace)
+        monkeypatch.setattr(config, "get_config", lambda: mock_config)
+
+        # Mock Path.unlink to raise OSError
+        with patch("pathlib.Path.unlink", side_effect=OSError("Permission denied")):
+            manager = ResourceManager()
+            # Should not raise exception
+            await manager.cleanup()
+            assert old_tmp.exists()
+
+    @pytest.mark.asyncio
+    async def test_cleanup_handles_general_exception(self, monkeypatch):
+        """Test that cleanup handles general exceptions (e.g. config error) and completes."""
+
+        def mock_get_config_fail():
+            raise Exception("Config load failure")
+
+        monkeypatch.setattr(config, "get_config", mock_get_config_fail)
+        manager = ResourceManager()
+        # Should not raise exception
+        await manager.cleanup()

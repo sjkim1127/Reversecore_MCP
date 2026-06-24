@@ -206,9 +206,9 @@ class TestCircuitBreakerDecorator:
 
         @circuit_breaker("test_tool", failure_threshold=3)
         async def test_func():
-            raise Exception("test error")
+            raise RuntimeError("test error")
 
-        with pytest.raises(Exception, match="test error"):
+        with pytest.raises(RuntimeError, match="test error"):
             await test_func()
 
         breaker = get_circuit_breaker("test_tool")
@@ -220,12 +220,12 @@ class TestCircuitBreakerDecorator:
 
         @circuit_breaker("test_tool", failure_threshold=2, recovery_timeout=60)
         async def test_func():
-            raise Exception("test error")
+            raise RuntimeError("test error")
 
         # Trigger failures to open circuit
-        with pytest.raises(Exception):
+        with pytest.raises(RuntimeError):
             await test_func()
-        with pytest.raises(Exception):
+        with pytest.raises(RuntimeError):
             await test_func()
 
         # Next request should be blocked
@@ -242,13 +242,13 @@ class TestCircuitBreakerDecorator:
         async def test_func():
             call_count[0] += 1
             if call_count[0] <= 2:
-                raise Exception("fail")
+                raise RuntimeError("fail")
             return "success"
 
         # Fail twice to open circuit
-        with pytest.raises(Exception):
+        with pytest.raises(RuntimeError):
             await test_func()
-        with pytest.raises(Exception):
+        with pytest.raises(RuntimeError):
             await test_func()
 
         breaker = get_circuit_breaker("test_tool")
@@ -296,3 +296,96 @@ class TestCircuitBreakerDecorator:
 
         result = await async_func()
         assert result == "success"
+
+    def test_sync_decorator_failure_and_blocked(self):
+        """Test circuit_breaker_sync decorator failure and open behavior."""
+        from reversecore_mcp.core.resilience import circuit_breaker_sync
+
+        failures_count = 0
+
+        @circuit_breaker_sync("sync_tool_fail", failure_threshold=2, recovery_timeout=60)
+        def sync_func():
+            nonlocal failures_count
+            failures_count += 1
+            raise RuntimeError("sync fail")
+
+        # Trigger failure 1
+        with pytest.raises(RuntimeError, match="sync fail"):
+            sync_func()
+
+        # Trigger failure 2 -> opens circuit
+        with pytest.raises(RuntimeError, match="sync fail"):
+            sync_func()
+
+        breaker = get_circuit_breaker("sync_tool_fail")
+        assert breaker.state == CircuitState.OPEN
+
+        # Next request should be blocked
+        with pytest.raises(ToolExecutionError, match="temporarily unavailable"):
+            sync_func()
+
+    @pytest.mark.asyncio
+    async def test_async_decorator_failure_and_blocked(self):
+        """Test circuit_breaker_async decorator failure and open behavior."""
+        from reversecore_mcp.core.resilience import circuit_breaker_async
+
+        failures_count = 0
+
+        @circuit_breaker_async("async_tool_fail", failure_threshold=2, recovery_timeout=60)
+        async def async_func():
+            nonlocal failures_count
+            failures_count += 1
+            raise RuntimeError("async fail")
+
+        # Trigger failure 1
+        with pytest.raises(RuntimeError, match="async fail"):
+            await async_func()
+
+        # Trigger failure 2 -> opens circuit
+        with pytest.raises(RuntimeError, match="async fail"):
+            await async_func()
+
+        breaker = get_circuit_breaker("async_tool_fail")
+        assert breaker.state == CircuitState.OPEN
+
+        # Next request should be blocked
+        with pytest.raises(ToolExecutionError, match="temporarily unavailable"):
+            await async_func()
+
+    def test_general_decorator_with_sync_function(self):
+        """Test general circuit_breaker decorator with a sync function (success, failure, and open)."""
+        from reversecore_mcp.core.resilience import circuit_breaker
+
+        failures_count = 0
+
+        @circuit_breaker("general_sync_tool", failure_threshold=2, recovery_timeout=60)
+        def sync_func(should_fail=False):
+            nonlocal failures_count
+            if should_fail:
+                failures_count += 1
+                raise RuntimeError("general sync fail")
+            return "success"
+
+        # Test success
+        assert sync_func() == "success"
+
+        # Test failure 1
+        with pytest.raises(RuntimeError, match="general sync fail"):
+            sync_func(should_fail=True)
+
+        # Test failure 2 -> opens circuit
+        with pytest.raises(RuntimeError, match="general sync fail"):
+            sync_func(should_fail=True)
+
+        breaker = get_circuit_breaker("general_sync_tool")
+        assert breaker.state == CircuitState.OPEN
+
+        # Test blocked
+        with pytest.raises(ToolExecutionError, match="temporarily unavailable"):
+            sync_func()
+
+    def test_allow_request_invalid_state_fallback(self):
+        """Test allow_request fallback for an invalid state."""
+        breaker = CircuitBreaker("invalid_state_tool")
+        breaker.state = "INVALID_STATE"  # Mock invalid state
+        assert breaker.allow_request() is True

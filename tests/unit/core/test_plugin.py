@@ -51,3 +51,29 @@ class TestPlugin:
         p = ConcretePlugin()
         mock_server = type("MCP", (), {"tool": lambda self, fn, name=None: None})()
         p.register(mock_server)  # no raise
+
+    def test_default_plugin_description(self):
+        class ConcretePlugin2(Plugin):
+            @property
+            def name(self) -> str:
+                return "c2"
+
+            def register(self, mcp_server) -> None:
+                pass
+
+        p = ConcretePlugin2()
+        assert p.description == ""
+
+    def test_abstract_base_methods(self):
+        class ConcretePlugin3(Plugin):
+            @property
+            def name(self) -> str:
+                return super().name
+
+            def register(self, mcp_server) -> None:
+                super().register(mcp_server)
+
+        p = ConcretePlugin3()
+        # Call abstract methods directly or via super to get line coverage of the abstract class' pass statements
+        assert p.name is None or p.name == "" or p.name is NotImplemented
+        p.register(None)

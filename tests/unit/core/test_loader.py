@@ -1,6 +1,6 @@
 """Unit tests for PluginLoader."""
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from reversecore_mcp.core.loader import PluginLoader
 from reversecore_mcp.core.plugin import Plugin
@@ -54,3 +54,61 @@ class TestPluginLoader:
         assert loader.get_plugin("stub").name == "stub"
         assert loader.get_all_plugins() == [p]
         assert loader.get_plugin("nonexistent") is None
+
+    def test_discover_plugins_instantiation_failure(self):
+        """Plugin class instantiation throws exception, loader continues."""
+        loader = PluginLoader()
+
+        class BadPlugin(Plugin):
+            @property
+            def name(self) -> str:
+                return "bad"
+
+            def register(self, mcp_server) -> None:
+                pass
+
+            def __init__(self):
+                raise ValueError("Oops, failed to initialize")
+
+        with patch("reversecore_mcp.core.loader.pkgutil.walk_packages") as walk:
+            walk.return_value = [(None, "reversecore_mcp.tools.faulty", False)]
+
+            class DummyModule:
+                pass
+
+            dummy_module = DummyModule()
+            dummy_module.BadPlugin = BadPlugin
+
+            with patch("importlib.import_module", return_value=dummy_module):
+                result = loader.discover_plugins("/fake/path")
+
+        assert result == []
+        assert loader.get_plugin("bad") is None
+
+    def test_discover_plugins_success(self):
+        """Plugin class instantiation succeeds, loader registers it."""
+        loader = PluginLoader()
+
+        class GoodPlugin(Plugin):
+            @property
+            def name(self) -> str:
+                return "good"
+
+            def register(self, mcp_server) -> None:
+                pass
+
+        with patch("reversecore_mcp.core.loader.pkgutil.walk_packages") as walk:
+            walk.return_value = [(None, "reversecore_mcp.tools.good_module", False)]
+
+            class DummyModule:
+                pass
+
+            dummy_module = DummyModule()
+            dummy_module.GoodPlugin = GoodPlugin
+
+            with patch("importlib.import_module", return_value=dummy_module):
+                result = loader.discover_plugins("/fake/path")
+
+        assert len(result) == 1
+        assert result[0].name == "good"
+        assert loader.get_plugin("good") is result[0]

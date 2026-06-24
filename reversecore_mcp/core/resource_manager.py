@@ -121,10 +121,10 @@ class ResourceManager:
         # binary_cache.clear() # Too aggressive?
 
         # 2. Clean up temporary files
-        cfg = config.get_config()
-        workspace = cfg.workspace
-
         try:
+            cfg = config.get_config()
+            workspace = cfg.workspace
+
             # Clean .tmp files older than 24 hours
             now = time.time()
             max_age = 24 * 3600

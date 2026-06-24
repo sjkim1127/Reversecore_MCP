@@ -202,3 +202,43 @@ class TestJSONUtils:
         parsed = json_utils.loads(result)
         assert parsed["tag"] == "custom"
         assert set(parsed["data"]) == {1, 2, 3}
+
+    def test_fallback_when_orjson_unavailable(self, monkeypatch):
+        """Test fallback implementation when orjson is not installed."""
+        import sys
+        from importlib import reload
+
+        # Block orjson
+        monkeypatch.setitem(sys.modules, "orjson", None)
+
+        # Reload json_utils to trigger the ImportError block
+        from reversecore_mcp.core import json_utils as ju
+
+        reload(ju)
+
+        try:
+            assert not ju.is_orjson_available()
+
+            # Test basic functions in fallback mode
+            obj = {"key": "value", "list": [1, 2, 3]}
+            serialized = ju.dumps(obj)
+            assert isinstance(serialized, str)
+            assert ju.loads(serialized) == obj
+
+            # Test loads with bytes in fallback mode
+            assert ju.loads(serialized.encode("utf-8")) == obj
+
+            # Test dumps with indent in fallback mode
+            indented = ju.dumps(obj, indent=2)
+            assert "\n" in indented
+
+            # Test dumps with default callback in fallback mode
+            custom_obj = {1, 2}
+            serialized_custom = ju.dumps(custom_obj, default=list)
+            assert ju.loads(serialized_custom) == [1, 2]
+        finally:
+            # Restore orjson and reload back to normal
+            monkeypatch.undo()
+            if "orjson" in sys.modules and sys.modules["orjson"] is None:
+                del sys.modules["orjson"]
+            reload(ju)

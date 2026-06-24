@@ -46,6 +46,15 @@ def test_rules():
             category="Deserialization",
             message="yaml.load call",
         ),
+        SASTRule(
+            id="C-001",
+            language="c",
+            severity="critical",
+            pattern="strcpy",
+            match_type="regex",
+            category="Memory Safety",
+            message="strcpy call",
+        ),
     ]
 
 
@@ -111,3 +120,42 @@ def broken_syntax(
 
     # AST parsing fails, returns empty findings, letting fallback regex scanner handle it
     assert findings == []
+
+
+def test_python_ast_unresolved_name(test_rules):
+    """Test when call target name is not resolvable (e.g. lambda or immediate call)."""
+    code = "(lambda: eval)('test')"
+    scanner = PythonASTScanner()
+    findings = scanner.scan(code, test_rules)
+    assert findings == []
+
+
+def test_python_ast_nested_attribute_calls(test_rules):
+    """Test attribute calls that are not Name or Attribute (nested calls/indexing)."""
+    code = "obj[index].call()"
+    scanner = PythonASTScanner()
+    findings = scanner.scan(code, test_rules)
+    assert findings == []
+
+
+def test_python_ast_name_constant_fallback(test_rules):
+    """Test Python AST NameConstant branch (pre-3.8 format fallback)."""
+    import ast
+
+    from reversecore_mcp.core.sast.python_ast_scanner import SASTASTVisitor
+
+    # We manually build an AST call node for subprocess.Popen(shell=True) using NameConstant
+    call_node = ast.Call(
+        func=ast.Attribute(
+            value=ast.Name(id="subprocess", ctx=ast.Load()), attr="Popen", ctx=ast.Load()
+        ),
+        args=[],
+        keywords=[ast.keyword(arg="shell", value=ast.NameConstant(value=True))],
+    )
+    call_node.lineno = 1
+
+    visitor = SASTASTVisitor(test_rules, ["subprocess.Popen(shell=True)"])
+    visitor.visit(call_node)
+
+    assert len(visitor.findings) == 1
+    assert visitor.findings[0]["rule_id"] == "PY-003"

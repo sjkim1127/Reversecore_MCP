@@ -63,9 +63,10 @@ class SASTASTVisitor(ast.NodeVisitor):
                     for kw in node.keywords:
                         if kw.arg == "shell":
                             # In modern python, ast.Constant handles True/False/None/strings/numbers
-                            if isinstance(kw.value, ast.Constant) and kw.value.value is True:
-                                has_shell_true = True
-                            elif isinstance(kw.value, ast.NameConstant) and kw.value.value is True:
+                            if (
+                                isinstance(kw.value, (ast.Constant, ast.NameConstant))
+                                and kw.value.value is True
+                            ):
                                 has_shell_true = True
                     if has_shell_true:
                         matched = True
