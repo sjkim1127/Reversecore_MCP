@@ -25,6 +25,7 @@ class CommonToolsPlugin(Plugin):
     def register(self, mcp_server: Any) -> None:
         """Register all common tools."""
         # Import and delegate to specialized plugins
+        from reversecore_mcp.tools.common.assembler import assemble_instructions
         from reversecore_mcp.tools.common.file_operations import (
             copy_to_workspace,
             list_workspace,
@@ -51,6 +52,9 @@ class CommonToolsPlugin(Plugin):
 
         # Patch explainer
         mcp_server.tool(explain_patch)
+
+        # Assembler tool
+        mcp_server.tool(assemble_instructions)
 
         logger.info(f"Registered {self.name} plugin with common utilities (unified)")
 

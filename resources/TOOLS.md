@@ -85,6 +85,7 @@ All 96 tools sorted by category. The "Needs" column shows what must be done befo
 | `list_workspace` | `[QUICK]` | List all files in workspace | — |
 | `scan_workspace` | `[STATIC]` `[SLOW]` | Batch run file/LIEF/YARA on all workspace files | — |
 | `explain_patch` | `[STATIC]` `[COMPARISON]` | Natural-language explanation of binary diff | Two files |
+| `assemble_instructions` | `[STATIC]` `[QUICK]` | Assemble instructions (x86/ARM/etc.) into raw hex bytes | — |
 
 ### Ghidra Tools
 
@@ -1022,6 +1023,30 @@ Natural language explanation of patch changes including:
 - The binaries are packed — unpack first
 
 🔗 **SEE ALSO:** `diff_binaries` (raw diff), `analyze_variant_changes` (structural diff + CFG)
+
+---
+
+#### `assemble_instructions` `[STATIC]` `[QUICK]`
+
+Assemble assembly instruction strings into raw machine byte values using Keystone.
+
+**Arguments:**
+- `assembly_code` (str) - The assembly instruction(s) to compile (separated by newlines or semicolons)
+- `arch` (str) - Target architecture (default: "x86", supported: "x86", "arm", "arm64", "mips", "sparc", "ppc", "systemz")
+- `mode` (str) - Target mode/width (default: "64", supported: "16"/"32"/"64" for x86, "arm"/"thumb"/"v8" for arm)
+- `base_address` (str) - Base address of instructions for resolving relative offsets (default: "0x0")
+
+**Returns:**
+Structured JSON object containing:
+- `hex`: Compiled hexadecimal byte string (e.g., `"9090"`)
+- `bytes`: List of compiled integer byte values (e.g., `[144, 144]`)
+- `instruction_count`: Number of compiled statements
+- `verification`: Re-disassembled output verifying instruction bytes using Capstone (if available)
+
+❌ **NOT USE WHEN:**
+- You need to perform deep file-based analysis or when you want to disassemble existing binaries. For disassembling files, prefer Radare2 or Ghidra tools.
+
+🔗 **SEE ALSO:** `Ghidra_simulate_patch` (apply simulated patches), `Radare2_write_bytes` (write raw bytes directly to binary)
 
 ---
 
