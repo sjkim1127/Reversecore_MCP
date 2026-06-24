@@ -319,8 +319,13 @@ async def assemble_instructions(
         encoding, count = ks.asm(cleaned_code, addr=base_addr_val)
         if encoding is None:
             raise ToolExecutionError("Keystone compilation returned empty encoding.")
+    except ToolExecutionError:
+        raise
     except KsError as e:
         raise ToolExecutionError(f"Keystone assembly compilation failed: {e}")
+    except Exception as e:
+        # Catch any other exception from ks.asm() (e.g. keystone version-specific errors)
+        raise ToolExecutionError(f"Assembly compilation failed: {type(e).__name__}: {e}")
 
     # Format bytes
     hex_str = "".join(f"{b:02x}" for b in encoding)
