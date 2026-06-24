@@ -20,7 +20,7 @@ aiofiles>=24.0.0
 pydantic>=2.0
 pydantic-settings>=2.0.0
 loguru>=0.7.0
-orjson>=3.9.15
+orjson>=3.11.9
 
 # Templating for web dashboard
 jinja2>=3.1.0
