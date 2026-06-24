@@ -1,0 +1,172 @@
+# Reversecore_MCP — Base Image
+#
+# Contains all slow-to-build, rarely-changing dependencies:
+#   - YARA (compiled from source to match yara-python binding)
+#   - radare2 (compiled from source for Debian bookworm compatibility)
+#   - Eclipse Temurin JDK 21 (for Ghidra headless analysis)
+#   - Ghidra (downloaded zip)
+#   - Python venv with all pinned requirements
+#
+# This image is rebuilt ONLY when tool versions change (ARG values below).
+# The main Dockerfile simply does `FROM ghcr.io/.../base:TAG` and copies
+# application code — cutting cold-build time from ~12min to ~60s.
+#
+# Rebuild trigger: bump any of the ARG version values and push to main.
+# The `build-base-image` GitHub Actions job detects changes to this file.
+
+# ============================================================================
+# Stage 1: Compile stage (contains build toolchain)
+# ============================================================================
+FROM python:3.14-slim-bookworm AS compiler
+ARG TARGETARCH
+ARG YARA_VERSION=4.3.1
+ARG RADARE2_VERSION=6.0.4
+ARG GHIDRA_VERSION=12.1
+ARG GHIDRA_DATE=20260513
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+WORKDIR /app
+
+# hadolint ignore=DL3008
+# Build toolchain — NOT copied to final base image
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    make \
+    cmake \
+    automake \
+    autoconf \
+    libtool \
+    pkg-config \
+    flex \
+    bison \
+    libssl-dev \
+    libffi-dev \
+    git \
+    patch \
+    xz-utils \
+    curl \
+    ca-certificates \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── YARA ─────────────────────────────────────────────────────────────────────
+# Build from source so the native library exactly matches the yara-python wheel
+RUN curl -sSL "https://github.com/VirusTotal/yara/archive/refs/tags/v${YARA_VERSION}.tar.gz" \
+        -o /tmp/yara.tar.gz \
+    && tar -xzf /tmp/yara.tar.gz -C /tmp
+WORKDIR /tmp/yara-${YARA_VERSION}
+RUN ./bootstrap.sh \
+    && ./configure --disable-cuckoo --disable-magic --disable-dotnet \
+    && make -j"$(nproc)" \
+    && make install \
+    && ldconfig
+WORKDIR /app
+RUN rm -rf /tmp/yara*
+
+# ── radare2 ──────────────────────────────────────────────────────────────────
+# Build from source (not in Debian bookworm main repo)
+RUN git clone --depth 1 --branch ${RADARE2_VERSION} \
+        https://github.com/radareorg/radare2.git /tmp/radare2
+WORKDIR /tmp/radare2
+RUN ./configure --prefix=/opt/radare2 \
+    && make -j"$(nproc)" \
+    && make install
+WORKDIR /app
+RUN rm -rf /tmp/radare2
+
+# ── Ghidra ───────────────────────────────────────────────────────────────────
+RUN curl -sSL "https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_${GHIDRA_VERSION}_build/ghidra_${GHIDRA_VERSION}_PUBLIC_${GHIDRA_DATE}.zip" \
+        -o /tmp/ghidra.zip \
+    && unzip -q /tmp/ghidra.zip -d /opt \
+    && mv /opt/ghidra_${GHIDRA_VERSION}_PUBLIC /opt/ghidra \
+    && rm /tmp/ghidra.zip \
+    && rm -rf /opt/ghidra/docs \
+    && rm -rf /opt/ghidra/Extensions/Eclipse \
+    && rm -rf /opt/ghidra/Extensions/sample
+
+# ── Python venv + dependencies ───────────────────────────────────────────────
+COPY requirements.txt .
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+# Use pip cache mount for faster rebuilds when requirements.txt changes
+# hadolint ignore=DL3042
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements.txt
+
+# ============================================================================
+# Stage 2: Final base image (no build toolchain, runtime-only)
+# ============================================================================
+FROM python:3.14-slim-bookworm AS base
+ARG TARGETARCH
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+WORKDIR /app
+
+# Create workspace and rules directories
+RUN mkdir -p /app/workspace /app/rules
+
+# hadolint ignore=DL3008
+# Runtime system packages only (no compiler, no build tools)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+    # coreutils "file" command required by run_file tool
+    file \
+    # Binutils (strings, objdump, nm, etc.)
+    binutils \
+    # Firmware analysis and file carving
+    binwalk \
+    # CFG image generation (FastMCP Image support)
+    graphviz \
+    # Assembler required by assemble_instructions tool
+    nasm \
+    # For downloading JDK tarball at image build time
+    curl \
+    gnupg \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Eclipse Temurin JDK 21 ───────────────────────────────────────────────────
+# Installed here (base image) so app builds never need to download it
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+        TEMURIN_URL="https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.6%2B7/OpenJDK21U-jdk_aarch64_linux_hotspot_21.0.6_7.tar.gz"; \
+    else \
+        TEMURIN_URL="https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.6%2B7/OpenJDK21U-jdk_x64_linux_hotspot_21.0.6_7.tar.gz"; \
+    fi \
+    && curl -sSL "$TEMURIN_URL" -o /tmp/temurin.tar.gz \
+    && mkdir -p /usr/lib/jvm/temurin-21 \
+    && tar -xzf /tmp/temurin.tar.gz -C /usr/lib/jvm/temurin-21 --strip-components=1 \
+    && rm /tmp/temurin.tar.gz
+
+# ── Copy compiled artifacts from compiler stage ───────────────────────────────
+RUN mkdir -p /usr/local/include /usr/local/lib/pkgconfig
+COPY --from=compiler /usr/local/bin/yara     /usr/local/bin/yara
+COPY --from=compiler /usr/local/bin/yarac    /usr/local/bin/yarac
+COPY --from=compiler /usr/local/lib/libyara* /usr/local/lib/
+COPY --from=compiler /usr/local/include/yara /usr/local/include/yara
+COPY --from=compiler /usr/local/lib/pkgconfig/yara.pc /usr/local/lib/pkgconfig/yara.pc
+COPY --from=compiler /opt/radare2            /opt/radare2
+COPY --from=compiler /opt/ghidra             /opt/ghidra
+COPY --from=compiler /opt/venv               /opt/venv
+
+# Ensure radare2 shared libs are discovered by the dynamic linker
+RUN echo "/opt/radare2/lib" > /etc/ld.so.conf.d/radare2.conf && ldconfig
+
+# ── Environment ──────────────────────────────────────────────────────────────
+ENV JAVA_HOME="/usr/lib/jvm/temurin-21" \
+    PATH="/opt/radare2/bin:/opt/venv/bin:/usr/lib/jvm/temurin-21/bin:$PATH" \
+    PYTHONPATH=/app \
+    REVERSECORE_WORKSPACE=/app/workspace \
+    GHIDRA_INSTALL_DIR=/opt/ghidra \
+    MCP_TRANSPORT=http \
+    LOG_LEVEL=INFO \
+    LOG_FILE=/var/log/reversecore/app.log \
+    MEMORY_DB_PATH=/app/workspace/.memory.db \
+    RATE_LIMIT=60
+
+# Create log directory and non-root user
+RUN mkdir -p /var/log/reversecore \
+    && useradd -m -u 1000 appuser \
+    && chown -R appuser:appuser /app /var/log/reversecore
+
+# Note: No CMD / ENTRYPOINT here.
+# App image inherits from this base and adds application code.

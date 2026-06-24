@@ -7,6 +7,19 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+# ── Computed globals ──────────────────────────────────────────────────────────
+env:
+  REGISTRY: ghcr.io
+  # Tool versions — bump these to trigger a base image rebuild
+  YARA_VERSION: "4.3.1"
+  RADARE2_VERSION: "6.0.4"
+  GHIDRA_VERSION: "12.1"
+  GHIDRA_DATE: "20260513"
+  TEMURIN_VERSION: "21.0.6_7"
+  # Base image tag is derived from the tool versions so cache busts automatically
+  # when any tool version changes.
+  BASE_TAG: "yara4.3.1-r2-6.0.4-ghidra12.1-jdk21"
+
 jobs:
   lint-and-security:
     name: Lint & Security Scans
@@ -334,10 +347,32 @@ jobs:
           chmod +x scripts/generate-test-binaries.sh
           scripts/generate-test-binaries.sh || echo "⚠️  Some binaries could not be generated"
 
+      - name: Log in to GHCR (for base image pull)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build Docker image
         run: |
-          echo "🐳 Building Docker image..."
-          docker build -t reversecore-mcp:ci .
+          echo "🐳 Building Docker image (pulling base from registry)..."
+          BASE_IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}/base"
+          docker buildx build \
+            --load \
+            --build-arg BASE_TAG="${{ env.BASE_TAG }}" \
+            --cache-from "type=registry,ref=${BASE_IMAGE}:cache-${{ env.BASE_TAG }}" \
+            --cache-from "type=gha,scope=app" \
+            -t reversecore-mcp:ci \
+            . 2>&1 || {
+              echo "⚠️  Registry cache unavailable, falling back to full build..."
+              docker build \
+                --build-arg BASE_TAG="${{ env.BASE_TAG }}" \
+                -t reversecore-mcp:ci .
+            }
           echo "✅ Docker image built: reversecore-mcp:ci"
 
       - name: Check Docker image size
@@ -563,25 +598,29 @@ jobs:
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
 
-  deploy:
-    name: Docker Build & Push (CD)
+  # ──────────────────────────────────────────────────────────────────────────
+  # Build base image (slow compilation stage — only when Dockerfile.base
+  # or tool versions change)
+  # ──────────────────────────────────────────────────────────────────────────
+  build-base-image:
+    name: Build & Push Base Image
     runs-on: ubuntu-latest
-    needs: [lint-and-security, unit-and-integration-tests, docker-verification, codeql-analysis]
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: [lint-and-security]
+    if: |
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     permissions:
       contents: read
       packages: write
-    env:
-      REGISTRY: ghcr.io
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - name: Downcase repository name for Docker image
+      - name: Downcase repository name
         run: |
-          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> ${GITHUB_ENV}
+          echo "BASE_IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/base" >> ${GITHUB_ENV}
 
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -593,18 +632,93 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and Push Docker image
+      - name: Check if base image already exists
+        id: base-exists
+        run: |
+          if docker manifest inspect ${{ env.BASE_IMAGE }}:${{ env.BASE_TAG }} > /dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Base image ${{ env.BASE_TAG }} already exists — skipping rebuild"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "🔨 Base image ${{ env.BASE_TAG }} not found — will build"
+          fi
+
+      - name: Build and Push base image
+        if: steps.base-exists.outputs.exists == 'false'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.base
+          platforms: linux/amd64,linux/arm64
+          push: true
+          target: base
+          build-args: |
+            YARA_VERSION=${{ env.YARA_VERSION }}
+            RADARE2_VERSION=${{ env.RADARE2_VERSION }}
+            GHIDRA_VERSION=${{ env.GHIDRA_VERSION }}
+            GHIDRA_DATE=${{ env.GHIDRA_DATE }}
+          tags: |
+            ${{ env.BASE_IMAGE }}:${{ env.BASE_TAG }}
+            ${{ env.BASE_IMAGE }}:latest
+          # Persistent cache keyed by tool versions — survives across runs
+          cache-from: |
+            type=registry,ref=${{ env.BASE_IMAGE }}:cache-${{ env.BASE_TAG }}
+            type=gha,scope=base-${{ env.BASE_TAG }}
+          cache-to: |
+            type=registry,ref=${{ env.BASE_IMAGE }}:cache-${{ env.BASE_TAG }},mode=max
+            type=gha,scope=base-${{ env.BASE_TAG }},mode=max
+
+      - name: Re-tag base image as latest (if already existed)
+        if: steps.base-exists.outputs.exists == 'true'
+        run: echo "ℹ️ Base image already up to date — no push needed"
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Deploy: Build lightweight app image on top of pre-built base
+  # ──────────────────────────────────────────────────────────────────────────
+  deploy:
+    name: Docker Build & Push (CD)
+    runs-on: ubuntu-latest
+    needs: [lint-and-security, unit-and-integration-tests, docker-verification, codeql-analysis, build-base-image]
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Downcase repository name for Docker image
+        run: |
+          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> ${GITHUB_ENV}
+          echo "BASE_IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/base" >> ${GITHUB_ENV}
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push app image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
+          build-args: |
+            BASE_TAG=${{ env.BASE_TAG }}
           tags: |
             ${{ env.IMAGE_NAME }}:latest
             ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # GHA cache for app layer (code only) — hits almost every run
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,scope=app,mode=max
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master

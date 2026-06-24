@@ -1,55 +1,81 @@
 # Reversecore_MCP Docker build context exclusions
-# Reduces build context size and improves build speed/caching
+# Reduces build context size and improves build speed/caching.
+# Keep this list aggressive — the app image only needs:
+#   reversecore_mcp/, server.py, resources/, templates/
 
-# Version control
-.git
-.github
+# ── Version control ──────────────────────────────────────────────────────────
+.git/
 .gitignore
+.github/
 
-# Python cache and compiled files
-__pycache__
+# ── Python cache and compiled files ─────────────────────────────────────────
+__pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 .Python
 *.so
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
 
-# Testing
-tests/
-.pytest_cache
-.coverage
-htmlcov/
-.tox
-.nox
-
-# Type checking
-.mypy_cache/
-.dmypy.json
-
-# Virtual environments
-.venv
+# ── Virtual environments ─────────────────────────────────────────────────────
+.venv/
 venv/
 ENV/
 
-# IDE
+# ── Testing ──────────────────────────────────────────────────────────────────
+tests/
+.pytest_cache/
+.coverage
+.coveragerc
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+
+# ── Type checking / linting ──────────────────────────────────────────────────
+.mypy_cache/
+.dmypy.json
+.ruff_cache/
+
+# ── IDE / OS ─────────────────────────────────────────────────────────────────
 .idea/
 .vscode/
 *.swp
 *.swo
+.DS_Store
+Thumbs.db
 
-# Build artifacts
-*.egg-info/
-dist/
-build/
-*.egg
-
-# Documentation (keep README for reference)
+# ── Docs and markdown ────────────────────────────────────────────────────────
 docs/
 *.md
 !README.md
 
-# Misc
+# ── CI tooling and scripts ───────────────────────────────────────────────────
+scripts/
+Makefile
+
+# ── Misc project files not needed at runtime ─────────────────────────────────
 *.log
 *.tmp
-.DS_Store
-Thumbs.db
+artifacts/
+reports/
+htmlcov/
+vendor/
+Tools/
+pyproject.toml
+requirements-dev.txt
+pytest.ini
+mkdocs.yml
+.env
+.env.example
+.trivyignore
+.pre-commit-config.yaml
+docker-compose.yml
+icon.png
+AGENTS.md
+SECURITY.md
+TOOL_TESTING_SUMMARY.md

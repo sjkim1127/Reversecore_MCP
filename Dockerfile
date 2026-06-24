@@ -1,222 +1,46 @@
-# Reversecore_MCP Dockerfile with Multi-stage Build
+# Reversecore_MCP — Application Image
 #
-# This Dockerfile uses a multi-stage build to reduce final image size and improve security.
-# Build stage includes compilation tools, while runtime stage only contains necessary dependencies.
+# Inherits all pre-built tooling (YARA, radare2, Ghidra, JDK, Python venv)
+# from the base image. This stage ONLY adds application source code.
 #
-# Framework: FastMCP v2.13.1+ (Latest MCP server framework)
+# Cold build time (code-only change): ~30–60 seconds
+# Base image rebuild (tool version change): ~12 minutes (rare, done separately)
 #
-# Note: radare2 is not available in Debian Bookworm main repo, so we skip version pinning for it
-# or install it from testing/backports if needed.
+# Base image is built by the `build-base-image` GitHub Actions job and stored
+# at ghcr.io/sjkim1127/reversecore-mcp/base:<VERSION_TAG>
 #
 # Supported Features:
 # - Basic Analysis: file, strings, binwalk
 # - Disassembly & Analysis: radare2 (pdf, afl, ii, iz, etc.)
-# - CFG Visualization: radare2 agfj (graph JSON) + graphviz (PNG generation)
-# - ESIL Emulation: radare2 aei/aeim/aes (virtual CPU)
+# - CFG Visualization: radare2 agfj + graphviz
+# - ESIL Emulation: radare2 aei/aeim/aes
 # - Smart Decompile: Ghidra DecompInterface (primary), radare2 pdc (fallback)
-# - YARA Rule Generation: radare2 p8 (opcode extraction)
-# - Symbolic Execution: angr (path constraint solving)
-# - Pattern Matching: YARA scanning
+# - YARA Rule Generation & Pattern Matching
 # - Multi-arch Disassembly: Capstone
 # - Binary Parsing: LIEF (PE/ELF/Mach-O)
-# - FastMCP Advanced: Progress Reporting, Client Logging, Image Content, Dynamic Resources, AI Sampling
+# - FastMCP Advanced: Progress, Logging, Image Content, Dynamic Resources, Sampling
 
-# ============================================================================
-# Build Stage: Install dependencies that require compilation
-# ============================================================================
-FROM python:3.14-slim-bookworm AS builder
-ARG TARGETARCH
-ARG YARA_VERSION=4.3.1
-ARG RADARE2_VERSION=6.0.4
-ARG GHIDRA_VERSION=12.1
-ARG GHIDRA_DATE=20260513
+ARG BASE_TAG=latest
+FROM ghcr.io/sjkim1127/reversecore-mcp/base:${BASE_TAG}
 
-# Enable pipefail for safer RUN commands with pipes
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+# ── Application code ─────────────────────────────────────────────────────────
+# Ordered from least-frequently-changed to most-frequently-changed
+# so Docker layer cache is invalidated as rarely as possible.
 
-# Set working directory
-WORKDIR /app
+# Static resources (AI knowledge base, report templates)
+COPY resources/  /app/resources/
+COPY templates/  /app/templates/
 
-# hadolint ignore=DL3008
-# Install build dependencies for Python packages that may need compilation
-# These will NOT be included in the final image
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    g++ \
-    make \
-    cmake \
-    automake \
-    autoconf \
-    libtool \
-    pkg-config \
-    flex \
-    bison \
-    libssl-dev \
-    libffi-dev \
-    git \
-    patch \
-    xz-utils \
-    curl \
-    ca-certificates \
-    unzip \
-    && rm -rf /var/lib/apt/lists/*
+# Application source (invalidates on every code change)
+COPY server.py           ./
+COPY reversecore_mcp/    ./reversecore_mcp/
 
-# Build and install native YARA matching the pinned Python binding (4.3.1)
-RUN curl -sSL "https://github.com/VirusTotal/yara/archive/refs/tags/v${YARA_VERSION}.tar.gz" -o /tmp/yara.tar.gz \
-    && tar -xzf /tmp/yara.tar.gz -C /tmp
-WORKDIR /tmp/yara-${YARA_VERSION}
-RUN ./bootstrap.sh \
-    && ./configure --disable-cuckoo --disable-magic --disable-dotnet \
-    && make -j"$(nproc)" \
-    && make install \
-    && ldconfig
-WORKDIR /app
-RUN rm -rf /tmp/yara*
-
-# Build radare2 from source to ensure availability on Debian bookworm
-# Radare2 provides comprehensive reverse engineering capabilities:
-# - Standard disassembly (pdf, pd)
-# - Control Flow Graph generation (agfj)
-# - ESIL emulation engine (aei, aeim, aes, ar)
-# - Pseudo-C decompilation (pdc)
-# - Binary analysis (aaa, afl, afi)
-# - String and import extraction (iz, ii)
-# - Hex dump and byte printing (px, p8)
-RUN git clone --depth 1 --branch ${RADARE2_VERSION} https://github.com/radareorg/radare2.git /tmp/radare2
-WORKDIR /tmp/radare2
-RUN ./configure --prefix=/opt/radare2 \
-    && make -j"$(nproc)" \
-    && make install
-WORKDIR /app
-RUN rm -rf /tmp/radare2
-
-# Download and install Ghidra for enhanced decompilation
-# Ghidra provides industry-standard decompilation with better type recovery
-RUN curl -sSL "https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_${GHIDRA_VERSION}_build/ghidra_${GHIDRA_VERSION}_PUBLIC_${GHIDRA_DATE}.zip" -o /tmp/ghidra.zip \
-    && unzip -q /tmp/ghidra.zip -d /opt \
-    && mv /opt/ghidra_${GHIDRA_VERSION}_PUBLIC /opt/ghidra \
-    && rm /tmp/ghidra.zip \
-    && rm -rf /opt/ghidra/docs \
-    && rm -rf /opt/ghidra/Extensions/Eclipse \
-    && rm -rf /opt/ghidra/Extensions/sample
-
-# Copy requirements file
-COPY requirements.txt .
-
-# Install Python dependencies into a virtual environment
-# Using a venv makes it easy to copy only the installed packages to the runtime stage
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-# Conditional install for ARM64 (skip incompatible packages like angr if needed)
-# For now we install standard requirements as angr support improves
-RUN pip install --no-cache-dir -r requirements.txt
-
-# ============================================================================
-# Runtime Stage: Create minimal production image
-# ============================================================================
-FROM python:3.14-slim-bookworm
-
-# Set working directory
-WORKDIR /app
-
-# Create workspace and rules directories
-RUN mkdir -p /app/workspace /app/rules
-
-# hadolint ignore=DL3008
-# Install only runtime dependencies (no build tools)
-# Versions are pinned to ensure consistent behavior across builds
-# To check available versions: apt-cache madison <package-name>
-#
-# Note: radare2 is built in the builder stage to guarantee availability on bookworm.
-# Note: OpenJDK 21 is installed from Adoptium (Eclipse Temurin) for Ghidra 11.4+ compatibility
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-    # coreutils "file" command required by run_file tool
-    file \
-    # Binutils for strings command
-    binutils \
-    # Binwalk for firmware analysis and file carving
-    binwalk \
-    # Graphviz for CFG image generation (FastMCP Image support)
-    graphviz \
-    # nasm assembler required by assemble_instructions tool
-    nasm \
-    # Required for downloading JDK tarball
-    curl \
-    gnupg \
-    && rm -rf /var/lib/apt/lists/*
-
-# Note: Detect It Easy (diec) is optional and not in apt.
-# Install manually from: https://github.com/horsicq/DIE-engine/releases
-# Or use: detect_packer tool will gracefully fail if not installed.
-
-# Download and install Eclipse Temurin JDK 21 directly from Adoptium GitHub releases
-# Avoids apt repo issues on Debian Bookworm (which only provides openjdk-17 natively)
-# and works reliably across amd64 and arm64 architectures.
-ARG TARGETARCH
-RUN if [ "$TARGETARCH" = "arm64" ]; then \
-        TEMURIN_URL="https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.6%2B7/OpenJDK21U-jdk_aarch64_linux_hotspot_21.0.6_7.tar.gz"; \
-    else \
-        TEMURIN_URL="https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.6%2B7/OpenJDK21U-jdk_x64_linux_hotspot_21.0.6_7.tar.gz"; \
-    fi \
-    && curl -sSL "$TEMURIN_URL" -o /tmp/temurin.tar.gz \
-    && mkdir -p /usr/lib/jvm/temurin-21 \
-    && tar -xzf /tmp/temurin.tar.gz -C /usr/lib/jvm/temurin-21 --strip-components=1 \
-    && rm /tmp/temurin.tar.gz
-
-# Set JAVA_HOME environment variable (required for PyGhidra to find Java 21 JDK)
-ENV JAVA_HOME="/usr/lib/jvm/temurin-21"
-# Note: Debian adoptium package usually links to -hotspot suffix regardless of arch,
-# or we can rely on standard java in path.
-# Updating PATH guarantees java works.
-
-# Copy native tooling built in the builder stage so CLI tools match Python bindings
-RUN mkdir -p /usr/local/include /usr/local/lib/pkgconfig
-COPY --from=builder /usr/local/bin/yara /usr/local/bin/yara
-COPY --from=builder /usr/local/bin/yarac /usr/local/bin/yarac
-COPY --from=builder /usr/local/lib/libyara* /usr/local/lib/
-COPY --from=builder /usr/local/include/yara /usr/local/include/yara
-COPY --from=builder /usr/local/lib/pkgconfig/yara.pc /usr/local/lib/pkgconfig/yara.pc
-COPY --from=builder /opt/radare2 /opt/radare2
-COPY --from=builder /opt/ghidra /opt/ghidra
-RUN echo "/opt/radare2/lib" > /etc/ld.so.conf.d/radare2.conf && ldconfig
-
-# Copy Python virtual environment from builder stage
-COPY --from=builder /opt/venv /opt/venv
-
-# Copy application code
-COPY reversecore_mcp/ ./reversecore_mcp/
-COPY server.py ./
-
-# Copy resources (AI knowledge base)
-COPY resources/ /app/resources/
-
-# Copy templates (Report templates)
-COPY templates/ /app/templates/
-
-
-# Set Python path to use the venv and configure application
-ENV PATH="/opt/radare2/bin:/opt/venv/bin:$PATH" \
-    PYTHONPATH=/app \
-    REVERSECORE_WORKSPACE=/app/workspace \
-    GHIDRA_INSTALL_DIR=/opt/ghidra \
-    MCP_TRANSPORT=http \
-    LOG_LEVEL=INFO \
-    LOG_FILE=/var/log/reversecore/app.log \
-    MEMORY_DB_PATH=/app/workspace/.memory.db \
-    RATE_LIMIT=60
-
-# Create log directory and non-root user
-RUN mkdir -p /var/log/reversecore && \
-    useradd -m -u 1000 appuser && \
-    chown -R appuser:appuser /app /var/log/reversecore
+# Switch to non-root user (already created in base image)
 USER appuser
 
-# Expose port for HTTP transport
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import socket; s=socket.socket(); s.connect(('localhost', 8000)); s.close()" || exit 1
 
-# Run the MCP server
 CMD ["python", "server.py"]
