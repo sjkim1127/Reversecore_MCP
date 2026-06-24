@@ -8,6 +8,7 @@ and libraries, making them accessible to AI agents through the MCP protocol.
 # Analysis tools
 from reversecore_mcp.tools.analysis import (
     diff_tools,
+    emulation_tools,
     lief_tools,
     signature_tools,
     static_analysis,
@@ -38,6 +39,7 @@ __all__ = [
     "diff_tools",
     "signature_tools",
     "lief_tools",
+    "emulation_tools",
     # Common tools
     "file_operations",
     "patch_explainer",

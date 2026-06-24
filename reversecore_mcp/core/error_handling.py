@@ -7,6 +7,7 @@ from functools import wraps
 from typing import TypeVar
 
 from reversecore_mcp.core.exceptions import (
+    EmulationError,
     ExecutionTimeoutError,
     OutputLimitExceededError,
     ToolNotFoundError,
@@ -61,6 +62,13 @@ def _handle_exception(exc: Exception, tool_name: str) -> ToolResult:
             str(exc),
             hint="Ensure the file is in the workspace directory",
             details=exc.details,
+        )
+
+    if isinstance(exc, EmulationError):
+        return failure(
+            "EMULATION_ERROR",
+            str(exc),
+            hint="Ensure Qiling is installed and the target binary is supported.",
         )
 
     # Generic exception handler

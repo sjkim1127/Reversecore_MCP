@@ -38,6 +38,7 @@ class AnalysisToolsPlugin(Plugin):
             diff_binaries,
             match_libraries,
         )
+        from reversecore_mcp.tools.analysis.emulation_tools import emulate_binary
         from reversecore_mcp.tools.analysis.lief_tools import parse_binary_with_lief
         from reversecore_mcp.tools.analysis.signature_tools import (
             generate_signature,
@@ -67,8 +68,9 @@ class AnalysisToolsPlugin(Plugin):
         mcp_server.tool(detect_packer_deep)
         mcp_server.tool(run_capa)
         mcp_server.tool(run_capa_quick)
+        mcp_server.tool(emulate_binary)
 
-        logger.info(f"Registered {self.name} plugin with 15 analysis tools (unified)")
+        logger.info(f"Registered {self.name} plugin with 16 analysis tools (unified)")
 
 
 __all__ = ["AnalysisToolsPlugin"]
