@@ -526,13 +526,13 @@ def main():
         # Apply authentication to all endpoints if enabled
         dependencies = [auth_dependency] if auth_dependency else []
 
-        mcp_app = mcp.http_app()
+        mcp_app = mcp.http_app(transport="sse")
 
         # Fix: Wrap initialization in FastAPI lifespan
         @asynccontextmanager
         async def app_lifespan(app: FastAPI):
-            # Run server startup logic
-            async with server_lifespan(mcp):
+            # Run server startup logic via FastMCP context manager
+            async with mcp._lifespan_manager():
                 yield
 
         app = FastAPI(

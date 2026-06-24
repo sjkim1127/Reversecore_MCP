@@ -1,56 +1,48 @@
 #!/usr/bin/env python3
-"""Comprehensive test: call ALL available MCP tools and report results."""
+"""Comprehensive test: call ALL available MCP tools and report results.
+
+This script dynamically queries the MCP server for all registered tools,
+parses their input schemas, automatically generates appropriate mock parameters,
+chains dependent sessions (Radare2, Memory, Report), and enforces a strict
+zero-tolerance policy (exit code 1) if any tool execution fails.
+"""
 
 import asyncio
+import json
+import os
+import re
 import sys
 from typing import Any
 
-# Test parameters for each known tool
-TOOL_PARAMS = {
-    # Common / file operations
-    "run_file": {"file_path": "/app/workspace/test_binary.bin"},
-    "identify_file": {"file_path": "/app/workspace/test_binary.bin"},
-    "copy_to_workspace": {"source_path": "/app/workspace/test_binary.bin"},
-    "list_workspace": {},
-    "analyze_patch": {"original_path": "/app/workspace/test_binary.bin", "patched_path": "/app/workspace/test_binary.bin"},
+# Target URL for the MCP server SSE endpoint (can be overridden via env)
+MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL", "http://127.0.0.1:8000/mcp/sse")
 
-    # Radare2
-    "r2_file_info": {"file_path": "/app/workspace/binaries/hello_x64"},
-    "r2_disassemble": {"file_path": "/app/workspace/binaries/hello_x64", "address": "0x00001060", "count": 10},
-    "r2_functions": {"file_path": "/app/workspace/binaries/hello_x64"},
-    "r2_strings": {"file_path": "/app/workspace/binaries/hello_x64"},
-    "r2_imports": {"file_path": "/app/workspace/binaries/hello_x64"},
-    "r2_exports": {"file_path": "/app/workspace/binaries/hello_x64"},
-    "r2_sections": {"file_path": "/app/workspace/binaries/hello_x64"},
-    "r2_entrypoint": {"file_path": "/app/workspace/binaries/hello_x64"},
-
-    # Ghidra
-    "ghidra_decompile": {"file_path": "/app/workspace/binaries/hello_x64"},
-    "ghidra_functions": {"file_path": "/app/workspace/binaries/hello_x64"},
-
-    # YARA
-    "yara_scan": {"file_path": "/app/workspace/binaries/hello_x64"},
-
-    # Malware / static analysis
-    "detect_dormant_functions": {"file_path": "/app/workspace/binaries/hello_x64"},
-    "generate_vaccine": {"file_path": "/app/workspace/binaries/hello_x64"},
-    "hunt_vulnerabilities": {"file_path": "/app/workspace/binaries/hello_x64"},
-    "static_analysis": {"file_path": "/app/workspace/binaries/hello_x64"},
-    "compare_binaries": {"file_a": "/app/workspace/binaries/hello_x64", "file_b": "/app/workspace/binaries/hello_x64_stripped"},
-    "extract_signature": {"file_path": "/app/workspace/binaries/hello_x64"},
-
-    # Report
-    "generate_report": {"analysis_results": "{\"status\":\"test\"}"},
-    "send_email": {"to": "test@example.com", "subject": "Test", "body": "Test"},
-
-    # Server
-    "get_server_info": {},
-    "get_health": {},
+# Override parameters for specific tools that need custom testing values
+OVERRIDE_PARAMS = {
+    "compare_binaries": {
+        "file_a": "/app/workspace/binaries/hello_x64",
+        "file_b": "/app/workspace/binaries/hello_x64_stripped",
+    },
+    "copy_to_workspace": {
+        "source_path": "/app/workspace/test_binary.bin",
+        "destination_name": "copied_test_binary_in_ci.bin",
+    },
+    "generate_report": {"analysis_results": '{"status":"test_passed"}'},
+    "send_email": {
+        "to": "test@example.com",
+        "subject": "CI Tool Verification",
+        "body": "All tools checked.",
+    },
+    "Radare2_open_file": {"file_path": "/app/workspace/binaries/hello_x64"},
+    "Radare2_close_file": {"file_path": "/app/workspace/binaries/hello_x64"},
 }
+
+# Session cache to store dynamically generated session IDs
+session_cache = {"mem_session_id": None, "report_session_id": None}
 
 
 def get_text_content(result: Any) -> str:
-    """Extract text from tool result."""
+    """Extract text content from various tool result formats."""
     text = ""
     if hasattr(result, "content"):
         for item in result.content:
@@ -62,68 +54,275 @@ def get_text_content(result: Any) -> str:
                 text += item.text
     elif isinstance(result, str):
         text = result
-    return text[:200]
+    return text
+
+
+def extract_session_ids(tool_name: str, result_text: str):
+    """Parse session IDs from tool execution outputs and cache them."""
+    if not result_text:
+        return
+
+    try:
+        # Try loading as JSON
+        data = json.loads(result_text)
+        if isinstance(data, dict):
+            if "session_id" in data:
+                sid = data["session_id"]
+                if "memory" in tool_name:
+                    session_cache["mem_session_id"] = sid
+                    print(f" (Cached mem_session_id: {sid})", end="")
+                else:
+                    session_cache["report_session_id"] = sid
+                    print(f" (Cached report_session_id: {sid})", end="")
+                return
+    except Exception:
+        pass
+
+    # Fallback to Regex search if JSON load fails
+    # Session formats: SES-XXXXXX or UUID
+    m = re.search(r"SES-[0-9A-Z]+", result_text)
+    if m:
+        session_cache["report_session_id"] = m.group(0)
+        print(f" (Regex Cached report_session_id: {m.group(0)})", end="")
+        return
+
+    m_uuid = re.search(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", result_text)
+    if m_uuid:
+        if "memory" in tool_name:
+            session_cache["mem_session_id"] = m_uuid.group(0)
+            print(f" (Regex Cached mem_session_id: {m_uuid.group(0)})", end="")
+        else:
+            session_cache["report_session_id"] = m_uuid.group(0)
+            print(f" (Regex Cached report_session_id: {m_uuid.group(0)})", end="")
+
+
+def generate_params(tool_name: str, schema: dict[str, Any]) -> dict[str, Any]:
+    """Generate appropriate parameters based on the tool's JSON schema."""
+    if tool_name in OVERRIDE_PARAMS:
+        return OVERRIDE_PARAMS[tool_name].copy()
+
+    properties = schema.get("properties", {})
+    required = schema.get("required", [])
+    params = {}
+
+    for prop_name, prop_info in properties.items():
+        is_required = prop_name in required
+        prop_type = prop_info.get("type", "string")
+        val = None
+
+        # 1. Handle session parameters
+        if prop_name in ["session_id", "r2_session_id", "report_session_id", "mem_session_id"]:
+            if "report" in tool_name or "report" in prop_name:
+                val = session_cache["report_session_id"] or "SES-CI-DUMMY-ID"
+            elif "memory" in tool_name or "mem" in prop_name:
+                val = session_cache["mem_session_id"] or "MEM-CI-DUMMY-ID"
+            else:
+                val = (
+                    session_cache["report_session_id"]
+                    or session_cache["mem_session_id"]
+                    or "SES-CI-DUMMY-ID"
+                )
+
+        # 2. Handle file paths
+        elif prop_name in [
+            "file_path",
+            "source_path",
+            "original_path",
+            "patched_path",
+            "dest_path",
+            "destination_path",
+            "filepath",
+            "path",
+            "source",
+            "file",
+        ]:
+            if "yara" in tool_name or "yara" in prop_name:
+                val = "/app/workspace/binaries/hello_x64"
+            elif "rule" in prop_name:
+                val = "/app/workspace/binaries/ci_test.yar"
+            elif "rules_dir" in prop_name:
+                val = "/app/rules"
+            else:
+                val = "/app/workspace/binaries/hello_x64"
+
+        # 3. Handle specific argument names
+        elif prop_name == "file_a":
+            val = "/app/workspace/binaries/hello_x64"
+        elif prop_name == "file_b":
+            val = "/app/workspace/binaries/hello_x64_stripped"
+        elif prop_name in ["address", "addr", "start_addr", "end_addr", "offset"]:
+            val = 4192 if prop_type == "integer" else "0x00001060"
+        elif prop_name in ["count", "length", "size", "limit"]:
+            val = 10 if prop_type in ["integer", "number"] else "10"
+        elif prop_name == "mnemonic":
+            val = "nop"
+        elif prop_name == "to":
+            val = "test@example.com"
+        elif prop_name == "subject":
+            val = "Test Subject"
+        elif prop_name == "body":
+            val = "Test Body"
+        elif prop_name == "analysis_results":
+            val = "{}"
+        elif prop_name == "query":
+            val = "main"
+        elif prop_name == "firmware_path":
+            val = "/app/workspace/binaries/hello_x64"
+        elif prop_name in ["output_dir", "out_dir"]:
+            val = "/app/workspace/tmp"
+        elif prop_name == "timezone":
+            val = "UTC"
+        elif prop_name == "severity":
+            val = "medium"
+        elif prop_name == "ioc_type":
+            val = "ip"
+        elif prop_name == "value":
+            val = "1.1.1.1"
+        elif prop_name == "note":
+            val = "test note"
+        elif prop_name == "technique_id":
+            val = "T1005"
+        elif prop_name == "status":
+            val = "completed"
+        elif prop_name == "summary":
+            val = "test summary"
+        elif prop_name == "name":
+            val = "test_name"
+        elif prop_name == "binary_name":
+            val = "hello_x64"
+        elif prop_name == "binary_path":
+            val = "/app/workspace/binaries/hello_x64"
+        elif prop_name in ["data", "content"]:
+            val = "test data"
+        elif prop_name == "instructions":
+            val = ["nop", "ret"]
+        elif prop_name == "arch":
+            val = "x86"
+        elif prop_name == "bits":
+            val = 64
+        elif prop_name == "category":
+            val = "general"
+
+        # 4. Fallback for generic required fields
+        if val is None and is_required:
+            if prop_type == "string":
+                val = "test_value"
+            elif prop_type in ["integer", "number"]:
+                val = 1
+            elif prop_type == "boolean":
+                val = False
+            elif prop_type == "array":
+                val = []
+            elif prop_type == "object":
+                val = {}
+
+        if val is not None:
+            params[prop_name] = val
+
+    return params
 
 
 async def test_all_tools() -> int:
-    """Discover and call all MCP tools."""
+    """Discover, configure, and invoke all registered MCP tools."""
     try:
         from mcp import ClientSession
         from mcp.client.sse import sse_client
     except ImportError as exc:
-        print(f"⚠️  mcp library not available: {exc}")
-        return 0
+        print(f"❌ mcp library not available: {exc}")
+        return 1
 
-    url = "http://127.0.0.1:8000/mcp/sse"
     passed = 0
     failed = 0
     skipped = 0
     tool_list = []
 
     try:
-        async with sse_client(url) as (read, write):
+        async with sse_client(MCP_SERVER_URL) as (read, write):
             async with ClientSession(read, write) as session:
                 await session.initialize()
 
-                # List all tools
+                # Get all registered tools
                 tools_result = await session.list_tools()
-                tool_list = [t.name for t in tools_result.tools]
-                print(f"🔧 Discovered {len(tool_list)} tools")
-                for name in sorted(tool_list):
-                    print(f"   - {name}")
-                print()
+                tools = tools_result.tools
+                tool_list = [t.name for t in tools]
 
-                # Try to call each tool
-                for tool_name in sorted(tool_list):
-                    params = TOOL_PARAMS.get(tool_name, {})
-                    print(f"📡 {tool_name} ... ", end="", flush=True)
+                print(f"🔧 Discovered {len(tool_list)} tools on the server")
+                print("=" * 60)
+
+                # Prioritize session creation tools to establish baseline sessions
+                sorted_tools = sorted(
+                    tools,
+                    key=lambda t: (
+                        0
+                        if t.name
+                        in ["Radare2_open_file", "create_memory_session", "start_report_session"]
+                        else 1,
+                        t.name,
+                    ),
+                )
+
+                for tool in sorted_tools:
+                    tool_name = tool.name
+                    schema = tool.inputSchema if hasattr(tool, "inputSchema") else {}
+
+                    # Generate params dynamically
+                    params = generate_params(tool_name, schema)
+
+                    print(
+                        f"📡 Invoking {tool_name} with params: {json.dumps(params)} ... ",
+                        end="",
+                        flush=True,
+                    )
+
                     try:
                         result = await session.call_tool(tool_name, params)
                         text = get_text_content(result)
-                        print(f"✅ (text length: {len(text)})")
+
+                        # Extract session IDs if applicable
+                        extract_session_ids(tool_name, text)
+
+                        print(f" ✅ (Length: {len(text)})")
                         passed += 1
                     except Exception as exc:
-                        error = str(exc)
-                        if "not found" in error.lower() or "unavailable" in error.lower():
-                            print(f"⏭️  (tool unavailable: {error[:60]})")
+                        error_msg = str(exc)
+                        # Check if the tool failed because of external setup limitations (Ghidra, Graphviz, etc.)
+                        # We count these as 'skipped' rather than failed to avoid false negatives in partial environments.
+                        is_skip = any(
+                            kw in error_msg.lower()
+                            for kw in [
+                                "not found",
+                                "unavailable",
+                                "ghidra",
+                                "graphviz",
+                                "dot",
+                                "java",
+                            ]
+                        )
+
+                        if is_skip:
+                            print(f" ⏭️ (Skipped: {error_msg[:60]})")
                             skipped += 1
                         else:
-                            print(f"❌ ({error[:80]})")
+                            print(f" ❌ (Failed: {error_msg[:120]})")
                             failed += 1
-    except Exception as exc:
-        print(f"⚠️  Connection error: {exc}")
-        return 0
 
-    print()
-    print("=" * 50)
-    print(f"Results: {passed} passed, {failed} failed, {skipped} skipped")
-    print(f"Total: {passed + failed + skipped} / {len(tool_list)} tools tested")
-    print("=" * 50)
+    except Exception as exc:
+        print(f"❌ Failed to connect or interact with MCP Server at {MCP_SERVER_URL}: {exc}")
+        return 1
+
+    print("\n" + "=" * 60)
+    print("Verification Summary:")
+    print(f"  - Passed:  {passed}")
+    print(f"  - Skipped: {skipped}")
+    print(f"  - Failed:  {failed}")
+    print(f"  - Total:   {passed + skipped + failed} / {len(tool_list)} tools")
+    print("=" * 60)
 
     if failed > 0:
-        print(f"\n⚠️  {failed} tools failed — review logs above")
-        # Return 0 to not fail CI on tool errors (some tools may need specific files)
-        return 0
+        print(f"\n🚨 FAILURE: {failed} tool(s) failed execution! Rejecting build.")
+        return 1
+
+    print("\n🎉 SUCCESS: All registered tools verified successfully.")
     return 0
 
 

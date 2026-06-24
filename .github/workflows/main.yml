@@ -492,7 +492,7 @@ jobs:
           # 3. Call ALL MCP tools comprehensively
           echo "📋 Calling ALL MCP tools comprehensively..."
           docker cp scripts/test-all-mcp-tools.py mcp-ci-test:/tmp/test-all-mcp-tools.py
-          docker exec mcp-ci-test python /tmp/test-all-mcp-tools.py || echo "⚠️  All-tools test skipped"
+          docker exec mcp-ci-test python /tmp/test-all-mcp-tools.py
 
           # 4. Container resilience: concurrent requests + restart
           echo "🔄 Testing container resilience..."
