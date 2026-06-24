@@ -89,7 +89,10 @@ class MockKsInstance:
         if "invalid" in code:
             from reversecore_mcp.tools.common.assembler import KsError
 
-            raise KsError("Keystone compile error")
+            if KsError is Exception:
+                raise KsError("Keystone compile error")
+            else:
+                raise KsError(1)
 
         # Return mock encoding
         if "push" in code:
