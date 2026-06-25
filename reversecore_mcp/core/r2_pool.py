@@ -19,7 +19,7 @@ import time
 from collections import OrderedDict
 from collections.abc import AsyncGenerator, Generator
 from contextlib import asynccontextmanager, contextmanager
-from typing import Any
+from typing import Any, cast
 
 try:
     import r2pipe
@@ -246,7 +246,7 @@ class R2ConnectionPool:
         with self._lock:
             try:
                 r2 = self.get_connection(file_path)
-                return r2.cmd(command)
+                return cast(str, r2.cmd(command))
             except Exception as e:
                 logger.warning(f"r2 command failed, retrying connection: {e}")
                 self._remove_connection_unsafe(file_path)
@@ -254,7 +254,7 @@ class R2ConnectionPool:
 
                 try:
                     r2 = self.get_connection(file_path)
-                    return r2.cmd(command)
+                    return cast(str, r2.cmd(command))
                 except Exception as retry_error:
                     logger.error(f"Retry failed: {retry_error}")
                     raise
@@ -275,7 +275,7 @@ class R2ConnectionPool:
         with self._lock:  # Thread lock for safe pool access
             try:
                 r2 = self._get_connection_unsafe(file_path)
-                return r2.cmd(command)
+                return cast(str, r2.cmd(command))
             except Exception as e:
                 logger.warning(f"r2 command failed, retrying connection: {e}")
                 self._remove_connection_unsafe(file_path)
@@ -283,7 +283,7 @@ class R2ConnectionPool:
 
                 try:
                     r2 = self._get_connection_unsafe(file_path)
-                    return r2.cmd(command)
+                    return cast(str, r2.cmd(command))
                 except Exception as retry_error:
                     logger.error(f"Retry failed: {retry_error}")
                     raise

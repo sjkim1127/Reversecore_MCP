@@ -141,9 +141,9 @@ def _determine_success(result: Any) -> bool:
     if isinstance(result, ToolError):
         return False
     if hasattr(result, "status"):
-        return result.status == "success"
+        return bool(result.status == "success")
     if isinstance(result, dict) and "status" in result:
-        return result["status"] == "success"
+        return bool(result["status"] == "success")
     return True
 
 

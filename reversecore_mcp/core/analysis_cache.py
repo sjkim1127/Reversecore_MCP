@@ -77,7 +77,7 @@ def _read_from_sqlite(
             (file_hash, function_address, decompiler),
         )
         row = cursor.fetchone()
-        if row:
+        if row and isinstance(row[0], str):
             return row[0]
     except Exception as e:
         logger.error(f"SQLite read error for {function_address} in {file_hash}: {e}")

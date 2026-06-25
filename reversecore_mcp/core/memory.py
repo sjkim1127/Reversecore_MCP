@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -207,7 +207,7 @@ class MemoryStore:
         """
         async with self._ensure_connection() as db:
             session_id = str(uuid.uuid4())
-            now = datetime.utcnow().isoformat()
+            now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
             await db.execute(
                 """
@@ -302,7 +302,7 @@ class MemoryStore:
         """
         async with self._ensure_connection() as db:
             updates = ["updated_at = ?"]
-            params: list[Any] = [datetime.utcnow().isoformat()]
+            params: list[Any] = [datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")]
 
             if status:
                 updates.append("status = ?")
@@ -322,7 +322,7 @@ class MemoryStore:
             )
             await db.commit()
 
-            return cursor.rowcount > 0
+            return bool(cursor.rowcount > 0)
 
     async def find_latest_session(self, binary_name: str | None = None) -> dict | None:
         """
@@ -407,7 +407,7 @@ class MemoryStore:
 
             memory_id = cursor.lastrowid
             logger.debug(f"Saved memory {memory_id} to session {session_id[:8]}...")
-            return memory_id
+            return int(memory_id or 0)
 
     async def recall_memories(
         self,
@@ -578,7 +578,7 @@ class MemoryStore:
                 (session_id, pattern_type, pattern_signature, description),
             )
             await db.commit()
-            return cursor.lastrowid
+            return int(cursor.lastrowid or 0)
 
     async def find_similar_patterns(
         self,

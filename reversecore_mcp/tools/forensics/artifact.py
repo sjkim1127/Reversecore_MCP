@@ -50,7 +50,9 @@ def _normalize_artifact(artifact_type: str, data: dict[str, Any]) -> dict[str, A
         "value": data.get("value") or data.get("name") or str(data),
         "source": data.get("source", "unknown"),
         "metadata": {k: v for k, v in data.items() if k not in ("value", "name", "source")},
-        "collected_at": datetime.datetime.utcnow().isoformat() + "Z",
+        "collected_at": datetime.datetime.now(datetime.timezone.utc)
+        .isoformat()
+        .replace("+00:00", "Z"),
     }
 
 
@@ -287,7 +289,7 @@ async def artifact_generate_yara(
         )
 
     # Build YARA rule
-    ts = datetime.datetime.utcnow().strftime("%Y-%m-%d")
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
     lines = [
         f"rule {rule_name} {{",
         "    meta:",
@@ -485,7 +487,7 @@ async def artifact_report(
     if not artifacts:
         return failure("EMPTY_INPUT", "No artifacts to generate report from")
 
-    ts = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     # Count by type
     type_counts: dict[str, int] = {}

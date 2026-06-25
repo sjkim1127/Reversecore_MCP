@@ -260,7 +260,11 @@ class ExtensionRegistry:
                 logger.warning("Cannot parse extension spec '%s'", dotted)
                 return None
             module = importlib.import_module(module_path)
-            return getattr(module, cls_name)
+            cls = getattr(module, cls_name)
+            if isinstance(cls, type):
+                return cls
+            logger.warning("Object '%s' is not a class type", cls_name)
+            return None
         except Exception as exc:
             logger.error("Failed to load class '%s': %s", dotted, exc)
             return None
@@ -440,7 +444,7 @@ class ExtensionRegistry:
         try:
             from reversecore_mcp.core import command_spec
 
-            existing = getattr(command_spec, "ALLOWED_R2_COMMANDS", set())
+            existing: set[str] = getattr(command_spec, "ALLOWED_R2_COMMANDS", set())
             new_cmds = set(commands) - existing
             if new_cmds:
                 command_spec.ALLOWED_R2_COMMANDS = existing | new_cmds  # type: ignore[attr-defined]

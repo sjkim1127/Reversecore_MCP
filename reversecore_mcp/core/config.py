@@ -440,6 +440,10 @@ class Config:
     def redis_url(self) -> str:
         return self._settings.redis_url
 
+    @property
+    def sast_rules_path(self) -> str:
+        return self._settings.sast_rules_path
+
     @classmethod
     def from_env(cls) -> Config:
         """Build a Config instance from environment variables."""

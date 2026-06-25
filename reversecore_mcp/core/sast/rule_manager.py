@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.logging_config import get_logger

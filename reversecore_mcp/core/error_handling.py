@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from functools import wraps
-from typing import TypeVar
+from typing import Any, TypeVar, cast, overload
 
 from reversecore_mcp.core.exceptions import (
     EmulationError,
@@ -18,7 +18,7 @@ from reversecore_mcp.core.result import ToolResult, failure
 
 logger = get_logger(__name__)
 
-F = TypeVar("F", bound=Callable[..., ToolResult])
+F = TypeVar("F", bound=Callable[..., Any])
 
 
 def _handle_exception(exc: Exception, tool_name: str) -> ToolResult:
@@ -80,7 +80,17 @@ def _handle_exception(exc: Exception, tool_name: str) -> ToolResult:
     )
 
 
-def handle_tool_errors(func=None, *, max_retries: int = 0, backoff: float = 0.5) -> F:
+@overload
+def handle_tool_errors(
+    func: None = None, *, max_retries: int = 0, backoff: float = 0.5
+) -> Callable[[F], F]: ...
+
+
+@overload
+def handle_tool_errors(func: F, *, max_retries: int = 0, backoff: float = 0.5) -> F: ...
+
+
+def handle_tool_errors(func: F | None = None, *, max_retries: int = 0, backoff: float = 0.5) -> Any:
     """
     Wrap a tool function to handle errors and optionally retry on failure.
 
@@ -103,11 +113,11 @@ def handle_tool_errors(func=None, *, max_retries: int = 0, backoff: float = 0.5)
         if is_async:
 
             @wraps(f)
-            async def async_wrapper(*args, **kwargs) -> ToolResult:
+            async def async_wrapper(*args: Any, **kwargs: Any) -> ToolResult:
                 last_exception = None
                 for attempt in range(max_retries + 1):
                     try:
-                        return await f(*args, **kwargs)
+                        return cast(ToolResult, await f(*args, **kwargs))
                     except Exception as exc:
                         last_exception = exc
                         if attempt < max_retries:
@@ -126,18 +136,20 @@ def handle_tool_errors(func=None, *, max_retries: int = 0, backoff: float = 0.5)
                             )
                             return _handle_exception(exc, tool_name)
                 # Should not reach here
+                if last_exception is None:
+                    last_exception = Exception("Unknown tool execution failure")
                 return _handle_exception(last_exception, tool_name)
 
-            return async_wrapper  # type: ignore
+            return cast(F, async_wrapper)
 
         else:
 
             @wraps(f)
-            def sync_wrapper(*args, **kwargs) -> ToolResult:
+            def sync_wrapper(*args: Any, **kwargs: Any) -> ToolResult:
                 last_exception = None
                 for attempt in range(max_retries + 1):
                     try:
-                        return f(*args, **kwargs)
+                        return cast(ToolResult, f(*args, **kwargs))
                     except Exception as exc:
                         last_exception = exc
                         if attempt < max_retries:
@@ -149,9 +161,11 @@ def handle_tool_errors(func=None, *, max_retries: int = 0, backoff: float = 0.5)
                             time.sleep(wait_time)
                         else:
                             return _handle_exception(exc, tool_name)
+                if last_exception is None:
+                    last_exception = Exception("Unknown tool execution failure")
                 return _handle_exception(last_exception, tool_name)
 
-            return sync_wrapper  # type: ignore
+            return cast(F, sync_wrapper)
 
     if func is None:
         return decorator

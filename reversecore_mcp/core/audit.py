@@ -7,7 +7,7 @@ Logs are written to a separate file (audit.json) to distinguish from operational
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -86,7 +86,7 @@ class AuditLogger:
             details: Additional context
         """
         event = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "action": str(action),
             "resource": resource,
             "status": status,

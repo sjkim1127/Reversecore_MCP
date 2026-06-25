@@ -92,10 +92,11 @@ class JSONFormatter(logging.Formatter):
 class ContextAdapter(logging.LoggerAdapter):
     """Logger adapter that adds contextual information to log records."""
 
-    def process(self, msg: str, kwargs: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    def process(self, msg: Any, kwargs: Any) -> tuple[Any, Any]:
         """Add extra context to log message."""
         extra = kwargs.get("extra", {})
-        extra.update(self.extra)
+        if self.extra:
+            extra.update(self.extra)
         kwargs["extra"] = extra
         return msg, kwargs
 

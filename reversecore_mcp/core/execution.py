@@ -105,6 +105,9 @@ async def execute_subprocess_async(
         tool_name = cmd[0] if cmd else "unknown"
         raise ToolNotFoundError(tool_name)
 
+    if process.stdout is None or process.stderr is None:
+        raise RuntimeError("Process stdout or stderr stream is not available")
+
     # Read output in chunks
     output_chunks = []
     stderr_chunks = []
@@ -117,6 +120,8 @@ async def execute_subprocess_async(
             nonlocal bytes_read
             chunk_size = 8192  # 8KB chunks
 
+            # Assert stdout is not None for mypy
+            assert process.stdout is not None
             while True:
                 chunk = await process.stdout.read(chunk_size)
                 if not chunk:
@@ -131,7 +136,6 @@ async def execute_subprocess_async(
                 if bytes_read <= max_output_size:
                     output_chunks.append(decoded_chunk)
 
-        # Wait for process to complete with timeout
         # Wait for process to complete with timeout
         try:
             await asyncio.wait_for(read_stream(), timeout=timeout)
@@ -154,6 +158,7 @@ async def execute_subprocess_async(
                     logger.error(f"Failed to kill process {process.pid}: {e}")
 
         # Read any remaining stderr
+        assert process.stderr is not None
         stderr_data = await process.stderr.read()
         if stderr_data:
             stderr_chunks.append(stderr_data.decode(encoding, errors=errors))
@@ -170,10 +175,13 @@ async def execute_subprocess_async(
             output_text += truncation_warning
 
         # If process failed, raise CalledProcessError with stderr
-        if process.returncode != 0:
+        returncode = process.returncode
+        if returncode is None:
+            returncode = -1
+        if returncode != 0:
             stderr_text = "".join(stderr_chunks)
             raise subprocess.CalledProcessError(
-                process.returncode, cmd, output=output_text, stderr=stderr_text
+                returncode, cmd, output=output_text, stderr=stderr_text
             )
 
         return output_text, bytes_read

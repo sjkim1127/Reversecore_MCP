@@ -9,7 +9,7 @@ import functools
 import os
 import time
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.result import ToolResult
@@ -66,7 +66,7 @@ def log_execution(tool_name: str | None = None) -> Callable[[F], F]:
                         file_name = os.path.basename(first_arg)
 
                 # Log start
-                log_extra = {"tool_name": actual_tool_name}
+                log_extra: dict[str, Any] = {"tool_name": actual_tool_name}
                 if file_name:
                     log_extra["file_name"] = file_name
                 logger.info(f"Starting {actual_tool_name}", extra=log_extra)
@@ -83,7 +83,7 @@ def log_execution(tool_name: str | None = None) -> Callable[[F], F]:
 
                     log_extra["execution_time_ms"] = execution_time
                     logger.info(f"{actual_tool_name} completed successfully", extra=log_extra)
-                    return result
+                    return cast(ToolResult, result)
                 except Exception:
                     execution_time = int((time.time() - start_time) * 1000)
                     log_extra["execution_time_ms"] = execution_time
@@ -118,7 +118,7 @@ def log_execution(tool_name: str | None = None) -> Callable[[F], F]:
                     file_name = os.path.basename(first_arg)
 
             # Log start
-            log_extra = {"tool_name": actual_tool_name}
+            log_extra: dict[str, Any] = {"tool_name": actual_tool_name}
             if file_name:
                 log_extra["file_name"] = file_name
             logger.info(f"Starting {actual_tool_name}", extra=log_extra)
@@ -135,7 +135,7 @@ def log_execution(tool_name: str | None = None) -> Callable[[F], F]:
 
                 log_extra["execution_time_ms"] = execution_time
                 logger.info(f"{actual_tool_name} completed successfully", extra=log_extra)
-                return result
+                return cast(ToolResult, result)
             except Exception:
                 execution_time = int((time.time() - start_time) * 1000)
                 log_extra["execution_time_ms"] = execution_time

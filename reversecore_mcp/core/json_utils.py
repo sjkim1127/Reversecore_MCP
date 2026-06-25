@@ -13,14 +13,13 @@ Performance comparison:
 """
 
 import json as _stdlib_json
-from typing import Any
+from json import JSONDecodeError as JSONDecodeError
+from typing import Any, cast
 
 try:
     import orjson
 
     _ORJSON_AVAILABLE = True
-    # Expose stdlib JSONDecodeError for consistent error handling
-    JSONDecodeError = _stdlib_json.JSONDecodeError
 
     def loads(s: str | bytes) -> Any:
         """
@@ -69,7 +68,7 @@ try:
             else:
                 result = orjson.dumps(obj)
             # orjson returns bytes, convert to str for compatibility
-            return result.decode("utf-8")
+            return cast(str, result.decode("utf-8"))
         except TypeError:
             # orjson can't serialize some types, fall back to stdlib with default
             return _stdlib_json.dumps(
@@ -79,8 +78,6 @@ try:
 except ImportError:
     # Fallback to standard library json
     _ORJSON_AVAILABLE = False
-    # Use stdlib JSONDecodeError for compatibility
-    JSONDecodeError = _stdlib_json.JSONDecodeError
 
     def loads(s: str | bytes) -> Any:
         """

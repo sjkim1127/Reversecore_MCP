@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable, Coroutine
-from typing import Any
+from typing import Any, cast
 
 from arq import create_pool
 from arq.connections import RedisSettings
@@ -124,7 +124,7 @@ async def run_task_or_fallback(
         effective_timeout = timeout_seconds or get_config().default_tool_timeout or 300.0
         try:
             result = await job.result(timeout=effective_timeout)
-            return result
+            return cast(ToolResult, result)
         except asyncio.TimeoutError:
             logger.error(f"Job {job.job_id} ({task_name}) timed out after {effective_timeout}s.")
             return failure(
@@ -137,7 +137,7 @@ async def run_task_or_fallback(
         logger.warning(
             f"Queue submission failed for '{task_name}': {e}. Falling back to direct execution."
         )
-        return await fallback_func(*args, **get_fallback_kwargs(bypass=True))
+        return cast(ToolResult, await fallback_func(*args, **get_fallback_kwargs(bypass=True)))
 
 
 # =============================================================================
@@ -152,10 +152,13 @@ async def task_smart_decompile(
     logger.info(f"Worker executing task_smart_decompile for {function_address} in {file_path}")
     from reversecore_mcp.tools.radare2.r2ghidra_tools import r2_decompile
 
-    return await r2_decompile(
-        file_path=file_path,
-        function_address=function_address,
-        timeout=timeout,
+    return cast(
+        ToolResult,
+        await r2_decompile(
+            file_path=file_path,
+            function_address=function_address,
+            timeout=timeout,
+        ),
     )
 
 
@@ -165,11 +168,14 @@ async def task_run_yara(ctx: Any, file_path: str, rule_file: str, timeout: int) 
     from reversecore_mcp.tools.malware.yara_tools import run_yara
 
     # We call run_yara with _bypass_queue=True to execute the actual logic in the worker
-    return await run_yara(
-        file_path=file_path,
-        rule_file=rule_file,
-        timeout=timeout,
-        _bypass_queue=True,
+    return cast(
+        ToolResult,
+        await run_yara(
+            file_path=file_path,
+            rule_file=rule_file,
+            timeout=timeout,
+            _bypass_queue=True,
+        ),
     )
 
 
@@ -180,12 +186,15 @@ async def task_run_strings(
     logger.info(f"Worker executing task_run_strings for {file_path}")
     from reversecore_mcp.tools.analysis.static_analysis import run_strings
 
-    return await run_strings(
-        file_path=file_path,
-        min_length=min_length,
-        max_output_size=max_output_size,
-        timeout=timeout,
-        _bypass_queue=True,
+    return cast(
+        ToolResult,
+        await run_strings(
+            file_path=file_path,
+            min_length=min_length,
+            max_output_size=max_output_size,
+            timeout=timeout,
+            _bypass_queue=True,
+        ),
     )
 
 
@@ -201,13 +210,16 @@ async def task_vulnerability_hunter(
     logger.info(f"Worker executing task_vulnerability_hunter for {file_path}")
     from reversecore_mcp.tools.malware.vulnerability_hunter import vulnerability_hunter
 
-    return await vulnerability_hunter(
-        file_path=file_path,
-        max_depth=max_depth,
-        severity_filter=severity_filter,
-        generate_yara=generate_yara,
-        timeout=timeout,
-        _bypass_queue=True,
+    return cast(
+        ToolResult,
+        await vulnerability_hunter(
+            file_path=file_path,
+            max_depth=max_depth,
+            severity_filter=severity_filter,
+            generate_yara=generate_yara,
+            timeout=timeout,
+            _bypass_queue=True,
+        ),
     )
 
 
@@ -267,10 +279,25 @@ async def get_job_result(job_id: str) -> ToolResult:
         if status == JobStatus.complete:
             # Job is complete; retrieve result
             result = await job.result()
-            # If the result is a dict (or parsed ToolSuccess/ToolError dict), return success
-            if isinstance(result, (dict, list)):
-                return success(result)
-            return result
+            from reversecore_mcp.core.result import ToolError, ToolSuccess
+
+            if isinstance(result, (ToolSuccess, ToolError)):
+                return result
+            if isinstance(result, dict) and "status" in result:
+                if result["status"] == "success" and "data" in result:
+                    return success(result["data"], **result.get("metadata") or {})
+                elif result["status"] == "error" and "error_code" in result and "message" in result:
+                    return failure(
+                        result["error_code"],
+                        result["message"],
+                        hint=result.get("hint"),
+                        **result.get("details") or {},
+                    )
+            if isinstance(result, dict):
+                return success(cast(dict[str, Any], result))
+            if isinstance(result, list):
+                return success({"results": result})
+            return cast(ToolResult, result)
 
         # Job is still queued/in-progress/deferred
         return success(
