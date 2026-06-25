@@ -32,6 +32,10 @@ FROM ${BASE_IMAGE}:${BASE_TAG}
 COPY resources/  /app/resources/
 COPY templates/  /app/templates/
 
+# Install python dependencies that might have updated in requirements.txt
+COPY requirements.txt    ./
+RUN pip install --no-cache-dir -r requirements.txt
+
 # Application source (invalidates on every code change)
 COPY server.py           ./
 COPY reversecore_mcp/    ./reversecore_mcp/
