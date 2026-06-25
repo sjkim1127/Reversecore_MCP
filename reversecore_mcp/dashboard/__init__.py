@@ -14,8 +14,8 @@ import secrets
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Form, Request
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -222,3 +222,275 @@ async def dashboard_iocs(request: Request, filename: str):
             "iocs": iocs,
         },
     )
+
+
+# =============================================================================
+# Report Management Routes
+# =============================================================================
+
+
+@router.get("/reports", response_class=HTMLResponse)
+async def dashboard_reports(request: Request):
+    """List all generated reports and available workspace files for creation."""
+    from reversecore_mcp.core.config import get_config
+    from reversecore_mcp.tools.report.report_mcp_tools import get_report_tools
+
+    settings = get_config()
+    report_tools = get_report_tools()
+
+    # 1. Get reports list
+    reports_res = report_tools.list_reports()
+    reports = reports_res.get("reports", [])
+
+    # 2. Get workspace files list for the creation dropdown
+    workspace_files = []
+    if settings.workspace.exists():
+        for f in settings.workspace.iterdir():
+            # Exclude directories, hidden files, and temp files
+            if f.is_file() and not f.name.startswith(".") and not f.suffix == ".tmp":
+                workspace_files.append(f.name)
+
+    # Use a secure CSRF token for delete/create actions
+    session_id = request.cookies.get("session_id", "default_session")
+    csrf_token = _generate_csrf_token(session_id)
+
+    # Format the reports list with human-readable values
+    formatted_reports = []
+    for r in reports:
+        formatted_reports.append(
+            {
+                "id": r["report_id"],
+                "path": r["path"],
+                "size_kb": round(r["size"] / 1024, 2),
+                "created": r["created"].replace("T", " ")[:19],
+            }
+        )
+
+    # Prepare response, set session cookie if not exists
+    response = templates.TemplateResponse(
+        request,
+        "reports.html",
+        {
+            "reports": formatted_reports,
+            "workspace_files": workspace_files,
+            "csrf_token": csrf_token,
+        },
+    )
+    if "session_id" not in request.cookies:
+        response.set_cookie("session_id", session_id, httponly=True)
+    return response
+
+
+@router.get("/reports/{report_id}", response_class=HTMLResponse)
+async def dashboard_report_view(request: Request, report_id: str):
+    """View styled HTML report in the browser."""
+    from reversecore_mcp.tools.report.converter import markdown_to_html
+    from reversecore_mcp.tools.report.report_mcp_tools import get_report_tools
+
+    report_tools = get_report_tools()
+    report_res = report_tools.get_report(report_id)
+
+    if not report_res.get("success"):
+        return templates.TemplateResponse(
+            request,
+            "error.html",
+            {"error": f"Report not found: {report_id}"},
+        )
+
+    md_content = report_res["content"]
+    # Convert markdown to html body (styled in the template)
+    html_content = markdown_to_html(md_content, title=f"Report {report_id}")
+
+    return templates.TemplateResponse(
+        request,
+        "report_view.html",
+        {
+            "report_id": report_id,
+            "html_content": html_content,
+        },
+    )
+
+
+@router.get("/reports/{report_id}/download")
+async def dashboard_report_download(report_id: str, format: str = "pdf"):
+    """Download a report in pdf, html, json, or markdown formats."""
+    from reversecore_mcp.tools.report.converter import convert_report
+    from reversecore_mcp.tools.report.report_mcp_tools import get_report_tools
+
+    report_tools = get_report_tools()
+    report_path = report_tools.output_dir / f"{report_id}.md"
+
+    if not report_path.exists():
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=404, detail=f"Report {report_id} not found")
+
+    try:
+        converted_path = convert_report(report_path, format)
+    except Exception as e:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=500, detail=f"Failed to convert report: {str(e)}")
+
+    # Map format to content type and file extension
+    fmt = format.lower()
+    media_types = {
+        "pdf": "application/pdf",
+        "html": "text/html",
+        "json": "application/json",
+        "markdown": "text/markdown",
+        "md": "text/markdown",
+    }
+    media_type = media_types.get(fmt, "application/octet-stream")
+    ext = "md" if fmt == "markdown" else fmt
+
+    return FileResponse(
+        path=converted_path,
+        media_type=media_type,
+        filename=f"{report_id}.{ext}",
+    )
+
+
+@router.post("/reports/create")
+async def dashboard_report_create(
+    request: Request,
+    filename: str = Form(...),
+    analyst: str = Form("Security Researcher"),
+    severity: str = Form("medium"),
+    malware_family: str = Form(""),
+    tags: str = Form(""),
+    csrf_token: str = Form(...),
+):
+    """Create a new report based on an existing file inside the workspace."""
+    session_id = request.cookies.get("session_id", "default_session")
+    if not _verify_csrf_token(session_id, csrf_token):
+        return templates.TemplateResponse(
+            request,
+            "error.html",
+            {"error": "CSRF validation failed. Action rejected."},
+        )
+
+    from reversecore_mcp.core.config import get_config
+    from reversecore_mcp.core.security import validate_file_path
+    from reversecore_mcp.tools.malware.ioc_tools import extract_iocs
+    from reversecore_mcp.tools.report.report_mcp_tools import get_report_tools
+
+    settings = get_config()
+    report_tools = get_report_tools()
+    file_path = settings.workspace / filename
+
+    try:
+        validated_path = validate_file_path(str(file_path))
+    except Exception as e:
+        return templates.TemplateResponse(
+            request,
+            "error.html",
+            {"error": f"Invalid file path: {str(e)}"},
+        )
+
+    try:
+        # Start a structured report session
+        session_res = await report_tools.start_session(
+            sample_path=str(validated_path),
+            analyst=analyst,
+            severity=severity,
+            malware_family=malware_family or None,
+            tags=[t.strip() for t in tags.split(",") if t.strip()] if tags else None,
+        )
+
+        current_sid = session_res["session_id"]
+
+        # Enhance report by extracting IOCs from binary
+        try:
+            ioc_result = await extract_iocs(str(validated_path))
+            if ioc_result.status == "success" and isinstance(ioc_result.data, dict):
+                raw_iocs = ioc_result.data
+
+                # Add extracted hashes to session IOCs
+                for h_type in ["md5", "sha1", "sha256"]:
+                    if h_type in raw_iocs.get("hashes", {}):
+                        await report_tools.add_session_ioc(
+                            "hashes", f"{h_type.upper()}: {raw_iocs['hashes'][h_type]}", current_sid
+                        )
+
+                # Add network IOCs
+                for ip in raw_iocs.get("ips", [])[:5]:
+                    await report_tools.add_session_ioc("ips", ip, current_sid)
+                for domain in raw_iocs.get("domains", [])[:5]:
+                    await report_tools.add_session_ioc("domains", domain, current_sid)
+                for url in raw_iocs.get("urls", [])[:5]:
+                    await report_tools.add_session_ioc("urls", url, current_sid)
+
+        except Exception as ioc_err:
+            try:
+                logger.warning(f"Failed to auto-extract IOCs for new report: {ioc_err}")
+            except NameError:
+                print(f"Failed to auto-extract IOCs for new report: {ioc_err}")
+
+        # Add a note about auto-extraction
+        await report_tools.add_session_note(
+            "Auto-extracted static indicators of compromise and hashes.", "general", current_sid
+        )
+
+        # Generate report and write markdown file
+        await report_tools.create_report(
+            template_type="full_analysis",
+            session_id=current_sid,
+            analyst=analyst,
+            classification="TLP:AMBER",
+        )
+
+        # Close session
+        await report_tools.end_session(
+            session_id=current_sid,
+            status="completed",
+            summary="Automated static analysis report generated.",
+        )
+
+    except Exception as e:
+        return templates.TemplateResponse(
+            request,
+            "error.html",
+            {"error": f"Failed to generate report: {str(e)}"},
+        )
+
+    return RedirectResponse(url="/dashboard/reports", status_code=303)
+
+
+@router.post("/reports/{report_id}/delete")
+async def dashboard_report_delete(
+    request: Request,
+    report_id: str,
+    csrf_token: str = Form(...),
+):
+    """Delete a generated report."""
+    session_id = request.cookies.get("session_id", "default_session")
+    if not _verify_csrf_token(session_id, csrf_token):
+        return templates.TemplateResponse(
+            request,
+            "error.html",
+            {"error": "CSRF validation failed. Action rejected."},
+        )
+
+    from reversecore_mcp.tools.report.report_mcp_tools import get_report_tools
+
+    report_tools = get_report_tools()
+    report_path = report_tools.output_dir / f"{report_id}.md"
+
+    if report_path.exists():
+        try:
+            report_path.unlink()
+        except Exception as e:
+            return templates.TemplateResponse(
+                request,
+                "error.html",
+                {"error": f"Failed to delete report: {str(e)}"},
+            )
+    else:
+        return templates.TemplateResponse(
+            request,
+            "error.html",
+            {"error": f"Report {report_id} does not exist."},
+        )
+
+    return RedirectResponse(url="/dashboard/reports", status_code=303)

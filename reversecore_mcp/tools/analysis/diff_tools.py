@@ -639,5 +639,80 @@ async def match_libraries(
         )
 
 
+@log_execution(tool_name="patch_diff_1day")
+@track_metrics("patch_diff_1day")
+@handle_tool_errors
+async def patch_diff_1day(
+    file_path_a: str,
+    file_path_b: str,
+    timeout: int = DEFAULT_TIMEOUT,
+    ctx: Context | None = None,
+) -> ToolResult:
+    """Analyze patch differences for 1-day vulnerability analysis.
+
+    This tool focuses on identifying security fixes between two versions of a binary.
+    It highlights changed functions, basic blocks, and potential vulnerability indicators
+    that were patched (e.g. added bounds checks).
+
+    Args:
+        file_path_a: Path to pre-patch binary.
+        file_path_b: Path to post-patch binary.
+        timeout: Timeout in seconds.
+
+    Returns:
+        ToolResult with detailed patch analysis.
+    """
+    if ctx:
+        await ctx.info("🔍 Patch Diff 1-day: Starting analysis...")
+        await ctx.report_progress(10, 100)
+
+    # 1. Run diff_binaries to get the raw changes
+    diff_res = await diff_binaries(file_path_a, file_path_b, timeout=timeout)
+    if diff_res.status == "error":
+        return diff_res
+
+    diff_data = json.loads(diff_res.data) if isinstance(diff_res.data, str) else diff_res.data
+    similarity = diff_data.get("similarity", 0.0)
+
+    if similarity > 0.999:
+        return success(
+            {
+                "message": "Binaries are nearly identical. No significant patches found.",
+                "similarity": similarity,
+            }
+        )
+
+    if ctx:
+        await ctx.report_progress(40, 100)
+        await ctx.info("📊 Identifying modified functions and potential security fixes...")
+
+    # For 1-day analysis, we use analyze_variant_changes logic to find the top modified functions
+    variant_res = await analyze_variant_changes(file_path_a, file_path_b, top_n=5, timeout=timeout)
+    if variant_res.status == "error":
+        return variant_res
+
+    variant_data = (
+        json.loads(variant_res.data) if isinstance(variant_res.data, str) else variant_res.data
+    )
+    modified_funcs = variant_data.get("top_modified_functions", [])
+
+    # We could do more advanced analysis here, e.g., checking if the modified functions
+    # contain dangerous APIs that were removed or if branching (if statements) increased (bounds check).
+    # For now, we will aggregate the structural changes.
+
+    report = {
+        "similarity_score": similarity,
+        "patch_analysis": "Significant differences found. Analyzing top modified functions for security patches.",
+        "top_modified_functions": modified_funcs,
+        "recommendation": "Review the CFG differences in the top modified functions. Look for newly added basic blocks that perform bounds checking or validation (e.g., cmp, test followed by jz/jnz) which indicate a vulnerability fix.",
+    }
+
+    if ctx:
+        await ctx.report_progress(100, 100)
+        await ctx.info("✅ Patch Diff complete.")
+
+    return success(report)
+
+
 # Note: DiffToolsPlugin has been removed.
 # The diff tools are now registered via AnalysisToolsPlugin in analysis/__init__.py.

@@ -28,6 +28,92 @@ def _extract_sections(binary: Any) -> list[dict[str, Any]]:
     ]
 
 
+def _extract_mitigations(binary: Any) -> dict[str, Any]:
+    """Extract exploit mitigations from binary."""
+    mitigations: dict[str, Any] = {
+        "nx": False,
+        "pie": False,
+        "canary": False,
+        "relro": "None",
+        "cfg": False,
+        "safeseh": False,
+        "dynamic_base": False,
+    }
+
+    try:
+        import lief
+
+        if isinstance(binary, lief.ELF.Binary):
+            mitigations["nx"] = binary.has_nx
+            mitigations["pie"] = binary.is_pie
+
+            # Check for canary (__stack_chk_fail)
+            if hasattr(binary, "imported_symbols"):
+                for sym in binary.imported_symbols:
+                    if sym.name == "__stack_chk_fail":
+                        mitigations["canary"] = True
+                        break
+
+            # Check for RELRO
+            has_bind_now = False
+            has_relro = False
+            if hasattr(binary, "segments"):
+                for segment in binary.segments:
+                    if segment.type == lief.ELF.SEGMENT_TYPES.GNU_RELRO:
+                        has_relro = True
+
+            try:
+                if binary.has(lief.ELF.DYNAMIC_TAGS.FLAGS):
+                    flags = binary.get(lief.ELF.DYNAMIC_TAGS.FLAGS)
+                    if isinstance(flags, lief.ELF.DynamicEntryFlags):
+                        if lief.ELF.DYNAMIC_FLAGS.BIND_NOW in flags.flags:
+                            has_bind_now = True
+                    elif type(flags).__name__ == "DynamicEntryFlags":
+                        if lief.ELF.DYNAMIC_FLAGS.BIND_NOW in flags:
+                            has_bind_now = True
+                    elif isinstance(flags, list):  # Some LIEF versions return list
+                        if lief.ELF.DYNAMIC_FLAGS.BIND_NOW in flags:
+                            has_bind_now = True
+            except Exception:
+                pass
+
+            if has_relro and has_bind_now:
+                mitigations["relro"] = "Full"
+            elif has_relro:
+                mitigations["relro"] = "Partial"
+
+        elif isinstance(binary, lief.PE.Binary):
+            if binary.has_opt_header:
+                dll_chars = binary.optional_header.dll_characteristics_lists
+                mitigations["nx"] = lief.PE.DLL_CHARACTERISTICS.NX_COMPAT in dll_chars
+                mitigations["dynamic_base"] = lief.PE.DLL_CHARACTERISTICS.DYNAMIC_BASE in dll_chars
+                mitigations["cfg"] = lief.PE.DLL_CHARACTERISTICS.GUARD_CF in dll_chars
+                mitigations["pie"] = mitigations["dynamic_base"]  # ASLR essentially
+
+            # Check for SafeSEH
+            try:
+                if binary.has_load_config:
+                    load_config = binary.load_configuration
+                    if isinstance(load_config, lief.PE.LoadConfigurationV1):  # Has SafeSEH
+                        if load_config.se_handler_table != 0 and load_config.se_handler_count > 0:
+                            mitigations["safeseh"] = True
+            except Exception:
+                pass
+
+            # Check for stack cookie (__security_cookie)
+            try:
+                if binary.has_load_config:
+                    load_config = binary.load_configuration
+                    if hasattr(load_config, "security_cookie") and load_config.security_cookie != 0:
+                        mitigations["canary"] = True
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    return mitigations
+
+
 def _extract_symbols(binary: Any, max_imports: int = 100, max_exports: int = 100) -> dict[str, Any]:
     """Extract symbol information (imports/exports) from binary.
 
@@ -99,6 +185,12 @@ def _format_lief_output(result: dict[str, Any], format: str) -> str:
     lines = [f"Format: {result.get('format', 'Unknown')}"]
     if result.get("entry_point"):
         lines.append(f"Entry Point: {result['entry_point']}")
+
+    mitigations = result.get("mitigations")
+    if mitigations:
+        lines.append("\nExploit Mitigations:")
+        for k, v in mitigations.items():
+            lines.append(f"  - {k.upper()}: {v}")
 
     sections = result.get("sections")
     if sections:
@@ -266,6 +358,9 @@ def _run_lief_in_process(
         if max_sections is not None:
             sections = sections[:max_sections]
         result_data["sections"] = sections
+
+    # Extract mitigations
+    result_data["mitigations"] = _extract_mitigations(binary)
 
     # Extract symbols
     symbols = _extract_symbols(binary, max_imports=max_imports, max_exports=max_exports)

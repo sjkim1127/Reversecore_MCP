@@ -37,8 +37,10 @@ class AnalysisToolsPlugin(Plugin):
             analyze_variant_changes,
             diff_binaries,
             match_libraries,
+            patch_diff_1day,
         )
         from reversecore_mcp.tools.analysis.emulation_tools import emulate_binary
+        from reversecore_mcp.tools.analysis.fuzz_tools import generate_fuzzing_harness
         from reversecore_mcp.tools.analysis.lief_tools import parse_binary_with_lief
         from reversecore_mcp.tools.analysis.signature_tools import (
             generate_signature,
@@ -56,6 +58,7 @@ class AnalysisToolsPlugin(Plugin):
         mcp_server.tool(diff_binaries)
         mcp_server.tool(analyze_variant_changes)
         mcp_server.tool(match_libraries)
+        mcp_server.tool(patch_diff_1day)
         mcp_server.tool(parse_binary_with_lief)
         mcp_server.tool(generate_signature)
         mcp_server.tool(generate_yara_rule)
@@ -69,8 +72,9 @@ class AnalysisToolsPlugin(Plugin):
         mcp_server.tool(run_capa)
         mcp_server.tool(run_capa_quick)
         mcp_server.tool(emulate_binary)
+        mcp_server.tool(generate_fuzzing_harness)
 
-        logger.info(f"Registered {self.name} plugin with 16 analysis tools (unified)")
+        logger.info(f"Registered {self.name} plugin with 18 analysis tools (unified)")
 
 
 __all__ = ["AnalysisToolsPlugin"]

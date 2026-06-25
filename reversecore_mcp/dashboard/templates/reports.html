@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block title %}Reports - Reversecore MCP{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+    <div>
+        <h2>📝 Analysis Reports</h2>
+        <p class="subtitle">Generate, view, and download malware analysis reports in various formats</p>
+    </div>
+    <div>
+        <button class="btn btn-primary" onclick="toggleModal(true)">+ Generate New Report</button>
+    </div>
+</div>
+
+<!-- Modal for Report Creation -->
+<div id="reportModal" class="modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center;">
+    <div class="modal-content" style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; width: 500px; padding: 2rem; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
+            <h3 style="margin: 0; color: var(--accent);">Create Analysis Report</h3>
+            <button onclick="toggleModal(false)" style="background: none; border: none; color: var(--text-secondary); font-size: 1.25rem; cursor: pointer;">&times;</button>
+        </div>
+        <form action="/dashboard/reports/create" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: var(--text-secondary);">Select Target Binary *</label>
+                <select name="filename" required style="width: 100%; padding: 0.5rem; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 4px; color: var(--text-primary);">
+                    {% if workspace_files %}
+                        {% for f in workspace_files %}
+                            <option value="{{ f }}">{{ f }}</option>
+                        {% endfor %}
+                    {% else %}
+                        <option value="" disabled>No files available in workspace</option>
+                    {% endif %}
+                </select>
+            </div>
+
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: var(--text-secondary);">Analyst Name</label>
+                <input type="text" name="analyst" value="Security Researcher" style="width: 100%; padding: 0.5rem; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 4px; color: var(--text-primary);">
+            </div>
+
+            <div style="margin-bottom: 1rem; display: flex; gap: 1rem;">
+                <div style="flex: 1;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: var(--text-secondary);">Severity</label>
+                    <select name="severity" style="width: 100%; padding: 0.5rem; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 4px; color: var(--text-primary);">
+                        <option value="low">Low</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="high">High</option>
+                        <option value="critical">Critical</option>
+                    </select>
+                </div>
+                <div style="flex: 1;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: var(--text-secondary);">Malware Family</label>
+                    <input type="text" name="malware_family" placeholder="e.g. CobaltStrike" style="width: 100%; padding: 0.5rem; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 4px; color: var(--text-primary);">
+                </div>
+            </div>
+
+            <div style="margin-bottom: 1.5rem;">
+                <label style="display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: var(--text-secondary);">Tags (comma-separated)</label>
+                <input type="text" name="tags" placeholder="APT, keylogger, trojan" style="width: 100%; padding: 0.5rem; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 4px; color: var(--text-primary);">
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+                <button type="button" class="btn btn-secondary" onclick="toggleModal(false)">Cancel</button>
+                <button type="submit" class="btn btn-primary" {% if not workspace_files %}disabled{% endif %}>Generate Report</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="section">
+    <h3>Generated Reports History</h3>
+    {% if reports %}
+        <table class="file-table">
+            <thead>
+                <tr>
+                    <th>Report ID</th>
+                    <th>Created Time</th>
+                    <th>Size (KB)</th>
+                    <th style="width: 320px; text-align: center;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in reports %}
+                    <tr>
+                        <td class="filename" style="color: var(--accent); font-weight: 500;">{{ r.id }}</td>
+                        <td>{{ r.created }}</td>
+                        <td class="filesize">{{ r.size_kb }} KB</td>
+                        <td>
+                            <div style="display: flex; gap: 0.5rem; justify-content: center; align-items: center;">
+                                <a href="/dashboard/reports/{{ r.id }}" class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; display: flex; align-items: center; gap: 4px;">
+                                    👁️ View
+                                </a>
+
+                                <div class="dropdown" style="position: relative; display: inline-block;">
+                                    <button class="btn btn-secondary dropdown-btn" onclick="toggleDropdown('{{ r.id }}')" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+                                        📥 Download ▼
+                                    </button>
+                                    <div id="drop-{{ r.id }}" class="dropdown-content" style="display: none; position: absolute; background-color: var(--bg-tertiary); min-width: 120px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.4); z-index: 1; border: 1px solid var(--border); border-radius: 4px; right: 0;">
+                                        <a href="/dashboard/reports/{{ r.id }}/download?format=markdown" style="color: var(--text-primary); padding: 8px 12px; text-decoration: none; display: block; font-size: 0.75rem;">Markdown</a>
+                                        <a href="/dashboard/reports/{{ r.id }}/download?format=html" style="color: var(--text-primary); padding: 8px 12px; text-decoration: none; display: block; font-size: 0.75rem;">HTML</a>
+                                        <a href="/dashboard/reports/{{ r.id }}/download?format=pdf" style="color: var(--text-primary); padding: 8px 12px; text-decoration: none; display: block; font-size: 0.75rem;">PDF</a>
+                                        <a href="/dashboard/reports/{{ r.id }}/download?format=json" style="color: var(--text-primary); padding: 8px 12px; text-decoration: none; display: block; font-size: 0.75rem;">JSON</a>
+                                    </div>
+                                </div>
+
+                                <form action="/dashboard/reports/{{ r.id }}/delete" method="POST" onsubmit="return confirm('Are you sure you want to delete this report?');" style="margin: 0;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <button type="submit" class="btn btn-secondary" style="color: var(--error); border-color: rgba(248,81,73,0.2); padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+                                        🗑️ Delete
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="empty-state">
+            <p>No reports generated yet.</p>
+            <p style="font-size: 0.875rem; margin-top: 0.5rem;">Select a binary and click <strong>Generate New Report</strong> above to begin.</p>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+function toggleModal(show) {
+    const modal = document.getElementById('reportModal');
+    modal.style.display = show ? 'flex' : 'none';
+}
+
+function toggleDropdown(reportId) {
+    const activeDrop = document.getElementById('drop-' + reportId);
+
+    // Close other dropdowns
+    document.querySelectorAll('.dropdown-content').forEach(drop => {
+        if (drop.id !== 'drop-' + reportId) {
+            drop.style.display = 'none';
+        }
+    });
+
+    if (activeDrop.style.display === 'block') {
+        activeDrop.style.display = 'none';
+    } else {
+        activeDrop.style.display = 'block';
+    }
+}
+
+// Close dropdowns if user clicks outside
+window.onclick = function(event) {
+    if (!event.target.matches('.dropdown-btn')) {
+        document.querySelectorAll('.dropdown-content').forEach(drop => {
+            drop.style.display = 'none';
+        });
+    }
+}
+</script>
+{% endblock %}

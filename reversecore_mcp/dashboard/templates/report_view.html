@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}View Report - Reversecore MCP{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem;">
+    <div>
+        <a href="/dashboard/reports" class="btn btn-secondary" style="margin-bottom: 1rem; padding: 0.35rem 0.75rem; font-size: 0.8125rem;">
+            ← Back to Reports
+        </a>
+        <h2>Report Detail</h2>
+        <p class="subtitle" style="font-family: monospace; color: var(--accent);">Report ID: {{ report_id }}</p>
+    </div>
+
+    <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <span style="font-size: 0.875rem; color: var(--text-secondary); margin-right: 0.5rem;">Download Format:</span>
+        <a href="/dashboard/reports/{{ report_id }}/download?format=markdown" class="btn btn-secondary" style="font-size: 0.8125rem; padding: 0.4rem 0.8rem;">Markdown</a>
+        <a href="/dashboard/reports/{{ report_id }}/download?format=html" class="btn btn-secondary" style="font-size: 0.8125rem; padding: 0.4rem 0.8rem;">HTML</a>
+        <a href="/dashboard/reports/{{ report_id }}/download?format=pdf" class="btn btn-primary" style="font-size: 0.8125rem; padding: 0.4rem 0.8rem; display: flex; align-items: center; gap: 4px;">
+            📄 PDF
+        </a>
+        <a href="/dashboard/reports/{{ report_id }}/download?format=json" class="btn btn-secondary" style="font-size: 0.8125rem; padding: 0.4rem 0.8rem;">JSON</a>
+    </div>
+</div>
+
+<div class="section">
+    <!-- Styled Report Frame -->
+    <div class="report-frame" style="background-color: white; color: #1e293b; border-radius: 8px; border: 1px solid var(--border); padding: 2.5rem; max-width: 900px; margin: 0 auto; box-shadow: 0 4px 12px rgba(0,0,0,0.3); overflow-y: auto;">
+        <!-- Injecting raw converted HTML directly. CSS is scoped inside converter.py. -->
+        {{ html_content | safe }}
+    </div>
+</div>
+{% endblock %}
