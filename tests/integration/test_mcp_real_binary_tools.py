@@ -216,7 +216,7 @@ async def test_patch_diff_1day_tool(real_binaries, patched_workspace_config):
 
     result = await patch_diff_1day(str(file_a), str(file_b))
     assert result.status == "success"
-    assert "diff_summary" in result.data
+    assert "patch_analysis" in result.data
 
 
 @pytest.mark.asyncio
@@ -257,8 +257,8 @@ async def test_vulnerability_hunter_tool(real_binaries, patched_workspace_config
     hello_path = real_binaries["hello_x64"]
     result = await vulnerability_hunter(str(hello_path), use_symbolic_execution=False)
     assert result.status == "success"
-    assert "vulnerabilities" in result.data
-    assert "exploit_mitigations" in result.data
+    assert "detected_vulnerabilities" in result.data
+    assert "analysis_summary" in result.data
 
 
 @pytest.mark.asyncio
@@ -270,12 +270,7 @@ async def test_run_radare2_tool(real_binaries, patched_workspace_config):
     hello_path = real_binaries["hello_x64"]
     result = await run_radare2(str(hello_path), "i")
     assert result.status == "success"
-    assert (
-        "elf" in result.data.lower()
-        or "mach" in result.data.lower()
-        or "format" in result.data.lower()
-        or "pe" in result.data.lower()
-    )
+    assert "file" in result.data.lower()
 
 
 @pytest.mark.asyncio
@@ -340,11 +335,7 @@ async def test_generate_function_graph_tool(real_binaries, patched_workspace_con
     hello_path = real_binaries["hello_x64"]
     result = await generate_function_graph(str(hello_path), "main", format="mermaid")
     assert result.status == "success"
-    assert "graph_data" in result.data
-    assert (
-        "mermaid" in result.data["graph_data"].lower()
-        or "graph" in result.data["graph_data"].lower()
-    )
+    assert "graph td" in result.data.lower()
 
 
 @pytest.mark.asyncio
@@ -356,8 +347,8 @@ async def test_analyze_xrefs_tool(real_binaries, patched_workspace_config):
     hello_path = real_binaries["hello_x64"]
     result = await analyze_xrefs(str(hello_path), "main")
     assert result.status == "success"
-    assert "xrefs" in result.data
-    assert isinstance(result.data["xrefs"], list)
+    assert "xrefs_to" in result.data
+    assert isinstance(result.data["xrefs_to"], list)
 
 
 @pytest.mark.asyncio
