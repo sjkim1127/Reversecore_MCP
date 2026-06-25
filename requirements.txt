@@ -45,7 +45,6 @@ gevent==26.5.0            # via qiling
 graphviz==0.21            # via reversecore-mcp
 greenlet==3.5.2           # via gevent
 h11==0.16.0               # via httpcore, uvicorn
-hiredis==3.0.0            # via redis
 httpcore==1.0.9           # via httpx
 httpx==0.28.1             # via fastmcp, mcp
 httpx-sse==0.4.3          # via mcp
@@ -110,10 +109,9 @@ pyyaml==6.0.3             # via fastmcp, jsonschema-path, python-fx, qiling, yam
 qiling==1.4.6             # via reversecore-mcp
 questionary==2.1.1        # via qiling
 r2pipe==1.9.8             # via reversecore-mcp
-redis[hiredis]==5.0.1     # via arq, reversecore-mcp, reversecore-mcp (pyproject.toml)
+redis==5.0.1              # via arq, reversecore-mcp, reversecore-mcp (pyproject.toml)
 referencing==0.37.0       # via jsonschema, jsonschema-path, jsonschema-specifications
 requests==2.34.2          # via reversecore-mcp
--e .[analysis,cli,emulation,forensics,ghidra,http,magic,viz]
 rich==15.0.0              # via cyclopts, fastmcp, reversecore-mcp, rich-rst, typer
 rich-rst==2.0.1           # via cyclopts
 rpds-py==2026.5.1         # via jsonschema, referencing
