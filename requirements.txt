@@ -111,4 +111,3 @@ wrapt==2.2.2              # via deprecated
 yara-python==4.5.4        # via reversecore-mcp
 arq==0.26.1
 redis==5.0.1
-hiredis==3.0.0

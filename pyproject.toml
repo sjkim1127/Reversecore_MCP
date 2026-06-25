@@ -25,7 +25,7 @@ dependencies = [
     "aiosmtplib>=5.1.0",
     "python-dotenv>=1.2.2",
     "arq>=0.25.0",
-    "redis[hiredis]>=5.0.0",
+    "redis>=5.0.0",
 ]
 
 [project.optional-dependencies]
