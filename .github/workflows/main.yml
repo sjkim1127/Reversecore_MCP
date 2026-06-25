@@ -89,7 +89,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y radare2 yara libyara-dev binutils binwalk build-essential nasm
+          sudo apt-get install -y radare2 yara libyara-dev binutils binwalk build-essential nasm sleuthkit
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -102,8 +102,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
-          # Install capa for binary capability detection (run_capa / run_capa_quick tools)
-          pip install flare-capa || echo "⚠️  capa install failed (non-fatal)"
+          # Install optional dependencies for testing advanced tools (capa, qiling, angr)
+          pip install angr qiling flare-capa || echo "⚠️  optional tool installs failed (non-fatal)"
 
       - name: Verify tool installations (host)
         run: |
@@ -511,6 +511,7 @@ jobs:
 
           # 3. Call ALL MCP tools comprehensively
           echo "📋 Calling ALL MCP tools comprehensively..."
+          docker exec mcp-ci-test /opt/venv/bin/pip install angr qiling flare-capa || echo "⚠️  Optional python tools install failed"
           docker cp scripts/test-all-mcp-tools.py mcp-ci-test:/tmp/test-all-mcp-tools.py
           docker exec mcp-ci-test python /tmp/test-all-mcp-tools.py
 

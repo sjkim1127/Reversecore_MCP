@@ -18,7 +18,7 @@ from typing import Any
 MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL", "http://127.0.0.1:8000/mcp/sse")
 
 # Workspace binaries directory (used for test binary lookup / fallback creation)
-BIN_DIR = "/app/workspace/binaries"
+BIN_DIR = os.path.join(os.environ.get("REVERSECORE_WORKSPACE", "/app/workspace"), "binaries")
 DEFAULT_BIN = os.path.join(BIN_DIR, "hello_x64")
 FALLBACK_BIN = os.path.join(BIN_DIR, "fallback.elf")
 
