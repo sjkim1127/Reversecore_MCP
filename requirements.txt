@@ -26,7 +26,8 @@ certifi==2026.6.17        # via httpcore, httpx, requests
 cffi==2.0.0               # via cryptography
 charset-normalizer==3.4.7  # via reportlab, requests
 click==8.4.2              # via arq, uvicorn
-contourpy==1.3.3          # via matplotlib
+contourpy==1.3.3; python_version >= "3.11"          # via matplotlib
+contourpy==1.3.2; python_version < "3.11"           # via matplotlib
 cryptography==49.0.0      # via authlib, joserfc, pyhanko, pyhanko-certvalidator, pyjwt
 cssselect2==0.9.0         # via svglib
 cycler==0.12.1            # via matplotlib
@@ -65,12 +66,14 @@ lxml==6.1.1               # via pyhanko, svglib
 markdown==3.10.2          # via reversecore-mcp, reversecore-mcp (pyproject.toml)
 markdown-it-py==4.2.0     # via rich
 markupsafe==3.0.3         # via jinja2
-matplotlib==3.11.0        # via reversecore-mcp
+matplotlib==3.11.0; python_version >= "3.11"        # via reversecore-mcp
+matplotlib==3.10.0; python_version < "3.11"         # via reversecore-mcp
 mcp[cli]==1.28.0          # via fastmcp, reversecore-mcp, reversecore-mcp (pyproject.toml)
 mdurl==0.1.2              # via markdown-it-py
 more-itertools==11.1.0    # via jaraco-classes, jaraco-functools
 networkx==3.6.1           # via reversecore-mcp
-numpy==2.4.6              # via contourpy, matplotlib
+numpy==2.4.6; python_version >= "3.11"              # via contourpy, matplotlib
+numpy==2.2.3; python_version < "3.11"               # via contourpy, matplotlib
 openapi-pydantic==0.5.1   # via fastmcp
 opentelemetry-api==1.42.1  # via fastmcp
 orjson==3.11.9            # via reversecore-mcp, reversecore-mcp (pyproject.toml)
@@ -106,7 +109,8 @@ reportlab==4.5.1          # via svglib, xhtml2pdf
 requests==2.34.2          # via pyhanko, pyhanko-certvalidator, reversecore-mcp
 rich==15.0.0              # via cyclopts, fastmcp, reversecore-mcp, rich-rst, typer
 rich-rst==2.0.1           # via cyclopts
-rpds-py==2026.5.1         # via jsonschema, referencing
+rpds-py==2026.5.1; python_version >= "3.11"         # via jsonschema, referencing
+rpds-py==0.30.0; python_version < "3.11"           # via jsonschema, referencing
 scapy==2.7.0              # via reversecore-mcp
 shellingham==1.5.4        # via typer
 six==1.17.0               # via html5lib, python-dateutil
