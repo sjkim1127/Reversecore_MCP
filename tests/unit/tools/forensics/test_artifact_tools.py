@@ -465,3 +465,112 @@ async def test_artifact_report_severity_levels():
         assert result.data["summary"]["severity"] == expected_severity, (
             f"Wrong severity for count={count}"
         )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_artifact_correlate_ioc_error(normalized_artifacts):
+    """Edge case: extract_iocs returns an error status."""
+    from reversecore_mcp.core.result import failure
+
+    mock_error_result = failure("TEST_ERR", "Simulated extract_iocs failure")
+    with patch(
+        "reversecore_mcp.tools.forensics.artifact.extract_iocs",
+        return_value=mock_error_result,
+    ):
+        result = await artifact_correlate_ioc(normalized_artifacts)
+
+    assert result.status == "error"
+    assert result.error_code == "IOC_EXTRACTION_FAILED"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_artifact_correlate_domain_and_hash():
+    """Happy path: check domain and hash flags are correctly evaluated."""
+    artifacts = [
+        {
+            "type": "dns_query",
+            "value": "malicious.domain",
+            "source": "test",
+            "metadata": {},
+            "collected_at": "2024-01-01T00:00:00Z",
+        },
+        {
+            "type": "hash",
+            "value": "d41d8cd98f00b204e9800998ecf8427e",
+            "source": "test",
+            "metadata": {},
+            "collected_at": "2024-01-01T00:00:00Z",
+        },
+    ]
+
+    mock_ioc_result = MagicMock()
+    mock_ioc_result.status = "success"
+    mock_ioc_result.data = {
+        "ips": [],
+        "urls": ["http://malicious.domain/evil"],
+        "md5_hashes": ["d41d8cd98f00b204e9800998ecf8427e"],
+        "sha1_hashes": [],
+        "sha256_hashes": [],
+    }
+
+    with patch(
+        "reversecore_mcp.tools.forensics.artifact.extract_iocs",
+        return_value=mock_ioc_result,
+    ):
+        result = await artifact_correlate_ioc(
+            artifacts,
+            check_domains=True,
+            check_hashes=True,
+        )
+
+    assert result.status == "success"
+    enriched = result.data["enriched_artifacts"]
+    assert len(enriched) == 2
+    assert "URL_IOC" in enriched[0]["ioc_tags"]
+    assert "HASH_IOC" in enriched[1]["ioc_tags"]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_artifact_generate_yara_uncovered_paths():
+    """Happy path: generate YARA rules with short values, process values, and network indicators."""
+    artifacts = [
+        {"type": "string", "value": "abc"},  # too short (< 4), should be skipped
+        {"type": "string", "value": "valid_string_here"},
+        {"type": "dns_query", "value": "evil.c2.com"},
+        {"type": "process", "value": "malware.exe"},
+        {"type": "process", "value": "non_executable_name"},  # no .exe/.dll, skipped
+    ]
+
+    result = await artifact_generate_yara(artifacts, rule_name="test_uncovered")
+    assert result.status == "success"
+    rule = result.data["yara_rule"]
+    assert "valid_string_here" in rule
+    assert "evil.c2.com" in rule
+    assert "malware.exe" in rule
+    assert "non_executable_name" not in rule
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_artifact_report_include_yara_uncovered(normalized_artifacts):
+    """Happy path: report generated with include_yara=True."""
+    # Ensure there are enough string/network artifacts for YARA rule generation
+    yara_artifacts = normalized_artifacts + [
+        {
+            "type": "string",
+            "value": "suspicious_string_pattern_123",
+            "source": "test",
+            "metadata": {},
+            "collected_at": "2024-01-01T00:00:00Z",
+        }
+    ]
+    result = await artifact_report(
+        artifacts=yara_artifacts,
+        case_name="yara_report_case",
+        include_yara=True,
+    )
+    assert result.status == "success"
+    assert "## Auto-Generated YARA Rule" in result.data["report_markdown"]

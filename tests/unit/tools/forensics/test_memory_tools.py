@@ -334,3 +334,233 @@ async def test_memory_dump_module_success(tmp_dump, vol_pslist_json, workspace_d
 
     assert result.status == "success"
     assert "modules" in result.data
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_memory_vol3_errors(tmp_dump):
+    """Test _run_vol3 internal error handling paths."""
+    from reversecore_mcp.tools.forensics.memory import _run_vol3
+
+    # Non-zero exit code with stdout (partial output warning)
+    mock_res = MagicMock()
+    mock_res.returncode = 1
+    mock_res.stdout = "[]"
+    mock_res.stderr = "symbol pack warning"
+    with patch("subprocess.run", return_value=mock_res):
+        res = _run_vol3(tmp_dump, "pslist")
+        assert res == {"rows": [], "plugin": "pslist"}
+
+    # Non-zero exit code without stdout (RuntimeError)
+    mock_res = MagicMock()
+    mock_res.returncode = 2
+    mock_res.stdout = ""
+    mock_res.stderr = "critical crash"
+    with patch("subprocess.run", return_value=mock_res):
+        with pytest.raises(RuntimeError) as exc:
+            _run_vol3(tmp_dump, "pslist")
+        assert "Volatility3 error" in str(exc.value)
+
+    # Empty stdout
+    mock_res = MagicMock()
+    mock_res.returncode = 0
+    mock_res.stdout = "   "
+    mock_res.stderr = ""
+    with patch("subprocess.run", return_value=mock_res):
+        res = _run_vol3(tmp_dump, "pslist")
+        assert res == {"rows": [], "plugin": "pslist"}
+
+    # JSONDecodeError (fallback to raw output)
+    mock_res = MagicMock()
+    mock_res.returncode = 0
+    mock_res.stdout = "Raw non-JSON output here"
+    mock_res.stderr = ""
+    with patch("subprocess.run", return_value=mock_res):
+        res = _run_vol3(tmp_dump, "pslist")
+        assert res == {"raw_output": "Raw non-JSON output here", "plugin": "pslist"}
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_memory_analyze_task_queue_fallback(tmp_dump):
+    """Happy path: memory_analyze runs directly when task queue fails/is bypassed."""
+    mock_result = MagicMock()
+    mock_result.stdout = "[]"
+    mock_result.stderr = ""
+    mock_result.returncode = 0
+
+    with patch(
+        "reversecore_mcp.core.task_queue.run_task_or_fallback",
+        side_effect=Exception("Queue unavailable"),
+    ):
+        with patch("subprocess.run", return_value=mock_result):
+            # Do not pass _bypass_queue, triggers queue try block which fails and falls back
+            result = await memory_analyze(tmp_dump, plugin="pslist")
+    assert result.status == "success"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_memory_analyze_args_and_runtime_error(
+    tmp_dump, workspace_dir, patched_workspace_config
+):
+    """Happy path/Edge case: symbol_path, extra_args, and RuntimeError."""
+    mock_result = MagicMock()
+    mock_result.stdout = "[]"
+    mock_result.stderr = ""
+    mock_result.returncode = 0
+
+    sym = workspace_dir / "symbols" / "pack.txt"
+    sym.parent.mkdir(parents=True, exist_ok=True)
+    sym.write_text("some symbol data")
+
+    # Success path with symbol_path & extra_args
+    with patch("subprocess.run", return_value=mock_result) as mock_sub:
+        result = await memory_analyze(
+            tmp_dump,
+            plugin="pslist",
+            symbol_path=str(sym),
+            extra_args="--pid 123",
+            _bypass_queue=True,
+        )
+        assert result.status == "success"
+        called_args = mock_sub.call_args[0][0]
+        assert "--symbol-dirs" in called_args
+        assert "--pid" in called_args
+        assert "123" in called_args
+
+    # Volatility error path (RuntimeError)
+    with patch(
+        "reversecore_mcp.tools.forensics.memory._run_vol3_async",
+        side_effect=RuntimeError("vol crash"),
+    ):
+        result = await memory_analyze(
+            tmp_dump,
+            plugin="pslist",
+            _bypass_queue=True,
+        )
+    assert result.status == "error"
+    assert result.error_code == "VOLATILITY_ERROR"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_memory_list_processes_errors(tmp_dump):
+    """Edge cases: list processes Volatility runtime error and psscan sub-step failure."""
+    # Volatility error
+    with patch(
+        "reversecore_mcp.tools.forensics.memory._run_vol3_async",
+        side_effect=RuntimeError("vol crash"),
+    ):
+        result = await memory_list_processes(tmp_dump)
+    assert result.status == "error"
+    assert result.error_code == "VOLATILITY_ERROR"
+
+    # psscan fails but pslist succeeds
+    def mock_run_vol(dump_path, plugin, extra_args=None):
+        if plugin == "pslist":
+            return {"rows": [{"PID": 4, "ImageFileName": "System"}]}
+        raise RuntimeError("psscan failed")
+
+    with patch("reversecore_mcp.tools.forensics.memory._run_vol3_async", side_effect=mock_run_vol):
+        result = await memory_list_processes(tmp_dump, include_hidden=True)
+    assert result.status == "success"
+    assert result.data["psscan_error"] == "psscan failed"
+    assert result.data["hidden_processes"] == []
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_memory_detect_injections_task_queue_fallback_and_dependency_missing(tmp_dump):
+    """Happy path/Edge case: detect injections task queue and FileNotFoundError."""
+    # Task queue fallback path
+    mock_result = MagicMock()
+    mock_result.stdout = "[]"
+    mock_result.stderr = ""
+    mock_result.returncode = 0
+
+    with patch(
+        "reversecore_mcp.core.task_queue.run_task_or_fallback",
+        side_effect=Exception("Queue unavailable"),
+    ):
+        with patch("subprocess.run", return_value=mock_result):
+            # Triggers queue check because _bypass_queue is not passed
+            result = await memory_detect_injections(tmp_dump)
+    assert result.status == "success"
+
+    # FileNotFoundError (dependency missing)
+    with patch(
+        "reversecore_mcp.tools.forensics.memory._run_vol3_async", side_effect=FileNotFoundError()
+    ):
+        result = await memory_detect_injections(tmp_dump, _bypass_queue=True)
+    assert result.status == "error"
+    assert result.error_code == "DEPENDENCY_MISSING"
+
+    # RuntimeError
+    with patch(
+        "reversecore_mcp.tools.forensics.memory._run_vol3_async", side_effect=RuntimeError("error")
+    ):
+        result = await memory_detect_injections(tmp_dump, _bypass_queue=True)
+    assert result.status == "error"
+    assert result.error_code == "VOLATILITY_ERROR"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_memory_extract_strings_no_binary(tmp_dump):
+    """Edge case: strings binary missing triggers pure-Python extraction fallback."""
+    with patch("subprocess.run", side_effect=FileNotFoundError()):
+        result = await memory_extract_strings(tmp_dump)
+
+    assert result.status == "success"
+    # Fallback should still find some strings (our fake dump has zeros, but we can verify it ran)
+    assert "string_count" in result.data
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_memory_dump_module_module_name_and_exceptions(
+    tmp_dump, vol_pslist_json, workspace_dir
+):
+    """Happy path/Edge cases: dump module with module filter and error conditions."""
+    dlllist_json = '[{"BaseDllName": "malware.exe", "DllBase": "0x400000"}]'
+
+    # Filtered module dump
+    call_count = 0
+
+    def mock_run_filter(*args, **kwargs):
+        nonlocal call_count
+        mock = MagicMock()
+        mock.returncode = 0
+        mock.stdout = vol_pslist_json if call_count == 0 else dlllist_json
+        call_count += 1
+        return mock
+
+    output_dir = str(workspace_dir / "dumps_filter")
+    with patch("subprocess.run", side_effect=mock_run_filter) as mock_sub:
+        result = await memory_dump_module(
+            tmp_dump,
+            process_name="malware.exe",
+            module_name="injected.dll",
+            output_dir=output_dir,
+        )
+        assert result.status == "success"
+        # Verify module filter argument
+        called_args = mock_sub.call_args[0][0]
+        assert "--module=injected.dll" in called_args
+
+    # Volatility dependency missing (FileNotFoundError)
+    with patch(
+        "reversecore_mcp.tools.forensics.memory._run_vol3_async", side_effect=FileNotFoundError()
+    ):
+        result = await memory_dump_module(tmp_dump, process_name="malware.exe")
+    assert result.status == "error"
+    assert result.error_code == "DEPENDENCY_MISSING"
+
+    # Volatility runtime error (RuntimeError)
+    with patch(
+        "reversecore_mcp.tools.forensics.memory._run_vol3_async", side_effect=RuntimeError("error")
+    ):
+        result = await memory_dump_module(tmp_dump, process_name="malware.exe")
+    assert result.status == "error"
+    assert result.error_code == "VOLATILITY_ERROR"

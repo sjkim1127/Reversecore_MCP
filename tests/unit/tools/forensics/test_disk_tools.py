@@ -338,3 +338,103 @@ async def test_disk_hash_verify_md5(workspace_dir, patched_workspace_config):
     result = await disk_hash_verify(str(img), expected_hash=expected, algorithm="md5")
     assert result.status == "success"
     assert result.data["verified"] is True
+
+
+@pytest.mark.unit
+def test_disk_check_tsk_available_real():
+    """Test _check_tsk_available returns True on success and False on FileNotFoundError."""
+    from reversecore_mcp.tools.forensics.disk import _check_tsk_available
+
+    mock_res = MagicMock()
+    with patch("subprocess.run", return_value=mock_res):
+        assert _check_tsk_available() is True
+
+    with patch("subprocess.run", side_effect=FileNotFoundError()):
+        assert _check_tsk_available() is False
+
+
+@pytest.mark.unit
+def test_disk_run_tsk_real():
+    """Test _run_tsk directly runs subprocess and returns output."""
+    from reversecore_mcp.tools.forensics.disk import _run_tsk
+
+    mock_res = MagicMock()
+    mock_res.stdout = "out"
+    mock_res.stderr = "err"
+    mock_res.returncode = 0
+    with patch("subprocess.run", return_value=mock_res):
+        stdout, stderr, rc = _run_tsk(["fls"])
+        assert stdout == "out"
+        assert stderr == "err"
+        assert rc == 0
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_disk_list_files_options(tmp_image, mock_tsk_available):
+    """Happy path: disk_list_files with offset, recursive, and custom directory."""
+    with patch(
+        "reversecore_mcp.tools.forensics.disk._run_tsk",
+        return_value=("d/d 42:\tsubdir", "", 0),
+    ) as mock_run:
+        result = await disk_list_files(tmp_image, offset=2048, recursive=True, directory="/subdir")
+        # Verify custom args are passed to cmd
+        called_args = mock_run.call_args[0][0]
+        assert "-o" in called_args
+        assert "2048" in called_args
+        assert "-r" in called_args
+        assert "/subdir" in called_args
+
+    assert result.status == "success"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_disk_recover_deleted_offset(tmp_image, mock_tsk_available, workspace_dir):
+    """Happy path: disk_recover_deleted with offset parameter."""
+    mock_result = MagicMock()
+    mock_result.stdout = b"recovered content"
+    mock_result.stderr = b""
+    mock_result.returncode = 0
+
+    output = str(workspace_dir / "recovered_offset.bin")
+    with patch("subprocess.run", return_value=mock_result) as mock_sub:
+        result = await disk_recover_deleted(tmp_image, "123", output, offset=2048)
+        called_args = mock_sub.call_args[0][0]
+        assert "-o" in called_args
+        assert "2048" in called_args
+
+    assert result.status == "success"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_disk_analyze_mft_offset(tmp_image, mock_tsk_available):
+    """Happy path: disk_analyze_mft with offset parameter."""
+    with patch(
+        "reversecore_mcp.tools.forensics.disk._run_tsk",
+        return_value=("", "", 0),
+    ) as mock_run:
+        await disk_analyze_mft(tmp_image, offset=2048)
+        called_args = mock_run.call_args[0][0]
+        assert "-o" in called_args
+        assert "2048" in called_args
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_disk_extract_file_success(tmp_image, mock_tsk_available, workspace_dir):
+    """Happy path: disk_extract_file calls disk_recover_deleted internally."""
+    from reversecore_mcp.tools.forensics.disk import disk_extract_file
+
+    mock_result = MagicMock()
+    mock_result.stdout = b"live file data"
+    mock_result.stderr = b""
+    mock_result.returncode = 0
+
+    output = str(workspace_dir / "extracted.bin")
+    with patch("subprocess.run", return_value=mock_result):
+        result = await disk_extract_file(tmp_image, "500", output)
+
+    assert result.status == "success"
+    assert result.data["recovered_bytes"] == len(b"live file data")
