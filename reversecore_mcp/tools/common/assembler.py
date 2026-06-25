@@ -46,11 +46,9 @@ except ImportError:
 try:
     from capstone import (
         CS_ARCH_ARM,
-        CS_ARCH_ARM64,
         CS_ARCH_MIPS,
         CS_ARCH_PPC,
         CS_ARCH_SPARC,
-        CS_ARCH_SYSZ,
         CS_ARCH_X86,
         CS_MODE_16,
         CS_MODE_32,
@@ -64,6 +62,18 @@ try:
         Cs,
         CsError,
     )
+
+    # CS_ARCH_ARM64 was renamed to CS_ARCH_AARCH64 in Capstone 6
+    try:
+        from capstone import CS_ARCH_ARM64
+    except ImportError:
+        from capstone import CS_ARCH_AARCH64 as CS_ARCH_ARM64
+
+    # CS_ARCH_SYSZ was renamed to CS_ARCH_SYSTEMZ in Capstone 6
+    try:
+        from capstone import CS_ARCH_SYSZ
+    except ImportError:
+        from capstone import CS_ARCH_SYSTEMZ as CS_ARCH_SYSZ
 except ImportError:
     Cs = None
     CsError = Exception
