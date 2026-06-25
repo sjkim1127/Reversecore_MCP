@@ -11,6 +11,7 @@ aiosqlite==0.22.1         # via reversecore-mcp (pyproject.toml)
 annotated-doc==0.0.4      # via fastapi, typer
 annotated-types==0.7.0    # via pydantic
 anyio==4.14.0             # via httpx, mcp, py-key-value-aio, sse-starlette, starlette, watchfiles
+arq==0.28.0               # via reversecore-mcp (pyproject.toml)
 ast-serialize==0.5.0      # via mypy
 async-lru==2.3.0          # via reversecore-mcp (pyproject.toml)
 attrs==26.1.0             # via cyclopts, jsonschema, jsonschema-path, referencing
@@ -25,7 +26,7 @@ caio==0.9.25              # via aiofile
 certifi==2026.6.17        # via httpcore, httpx, requests
 cffi==2.0.0               # via cryptography
 charset-normalizer==3.4.7  # via requests
-click==8.4.1              # via black, mkdocs, pip-tools, uvicorn
+click==8.4.1              # via arq, black, mkdocs, pip-tools, uvicorn
 colorama==0.4.6           # via mkdocs-material
 coverage[toml]==7.14.3    # via pytest-cov
 cryptography==49.0.0      # via authlib, joserfc, pyjwt
@@ -41,6 +42,7 @@ gitdb==4.0.12             # via gitpython
 gitpython==3.1.50         # via mkdocs-git-revision-date-localized-plugin
 griffelib==2.1.0          # via mkdocstrings-python
 h11==0.16.0               # via httpcore, uvicorn
+hiredis==3.4.0            # via redis
 httpcore==1.0.9           # via httpx
 httpx==0.28.1             # via fastmcp, mcp
 httpx-sse==0.4.3          # via mcp
@@ -91,7 +93,7 @@ pydantic[email]==2.13.4   # via fastapi, fastmcp, mcp, openapi-pydantic, pydanti
 pydantic-core==2.46.4     # via pydantic
 pydantic-settings==2.14.2  # via mcp, reversecore-mcp (pyproject.toml)
 pygments==2.20.0          # via mkdocs-material, pytest, rich, rich-rst
-pyjwt[crypto]==2.13.0     # via mcp
+pyjwt[crypto]==2.13.0     # via mcp, redis
 pymdown-extensions==11.0  # via mkdocs-material, mkdocstrings
 pyperclip==1.11.0         # via fastmcp
 pyproject-hooks==1.2.0    # via build, pip-tools
@@ -104,6 +106,7 @@ python-multipart==0.0.32  # via mcp, reversecore-mcp (pyproject.toml)
 pytokens==0.4.1           # via black
 pyyaml==6.0.3             # via fastmcp, jsonschema-path, mkdocs, mkdocs-get-deps, pymdown-extensions, pyyaml-env-tag
 pyyaml-env-tag==1.1       # via mkdocs
+redis[hiredis]==5.3.1     # via arq, reversecore-mcp (pyproject.toml)
 referencing==0.37.0       # via jsonschema, jsonschema-path, jsonschema-specifications
 requests==2.34.2          # via mkdocs-material
 rich==15.0.0              # via cyclopts, fastmcp, rich-rst, typer

@@ -19,6 +19,16 @@ fi
 echo "Compiling requirements.txt (including full features)..."
 pip-compile --annotation-style=line --extra=full -o requirements.txt pyproject.toml
 
+# Post-process requirements.txt to replace the local absolute file path with relative editable path,
+# and downgrade pillow to 10.4.0 to resolve the python-fx/qiling dependency conflict.
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' 's|reversecore-mcp.* @ file:///.*|-e .[analysis,cli,emulation,forensics,ghidra,http,magic,viz]|g' requirements.txt
+    sed -i '' 's|pillow==12.2.0|pillow==10.4.0|g' requirements.txt
+else
+    sed -i 's|reversecore-mcp.* @ file:///.*|-e .[analysis,cli,emulation,forensics,ghidra,http,magic,viz]|g' requirements.txt
+    sed -i 's|pillow==12.2.0|pillow==10.4.0|g' requirements.txt
+fi
+
 echo "Compiling requirements-dev.txt (including dev features)..."
 pip-compile --annotation-style=line --extra=dev -o requirements-dev.txt pyproject.toml
 

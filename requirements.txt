@@ -83,7 +83,7 @@ overrides==7.7.0          # via python-fx
 packaging==26.2           # via fastmcp, jpype1, limits, matplotlib, pyghidra
 pathable==0.6.0           # via jsonschema-path
 pefile==2024.8.26         # via qiling, reversecore-mcp, volatility3
-pillow==12.2.0            # via asciimatics, matplotlib, python-fx
+pillow==10.4.0            # via asciimatics, matplotlib, python-fx
 platformdirs==4.10.0      # via fastmcp
 ply==3.11                 # via jsonpath-ng, python-fx
 prompt-toolkit==3.0.52    # via questionary
@@ -113,7 +113,7 @@ r2pipe==1.9.8             # via reversecore-mcp
 redis[hiredis]==5.0.1     # via arq, reversecore-mcp, reversecore-mcp (pyproject.toml)
 referencing==0.37.0       # via jsonschema, jsonschema-path, jsonschema-specifications
 requests==2.34.2          # via reversecore-mcp
-reversecore-mcp[analysis,cli,emulation,forensics,ghidra,http,magic,viz] @ file:///Users/sjkim1127/Reversecore_MCP  # via reversecore-mcp (pyproject.toml)
+-e .[analysis,cli,emulation,forensics,ghidra,http,magic,viz]
 rich==15.0.0              # via cyclopts, fastmcp, reversecore-mcp, rich-rst, typer
 rich-rst==2.0.1           # via cyclopts
 rpds-py==2026.5.1         # via jsonschema, referencing
