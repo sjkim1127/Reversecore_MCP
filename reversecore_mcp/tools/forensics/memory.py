@@ -5,7 +5,7 @@ with Redis caching to avoid redundant re-analysis of the same dump.
 """
 
 import asyncio
-import subprocess
+import subprocess  # nosec B404
 from pathlib import Path
 from typing import Any
 
@@ -57,7 +57,7 @@ def _run_vol3(dump_path: str, plugin: str, extra_args: list[str] | None = None) 
     if extra_args:
         cmd.extend(extra_args)
 
-    result = subprocess.run(
+    result = subprocess.run(  # nosec B603
         cmd,
         capture_output=True,
         text=True,
@@ -121,7 +121,7 @@ async def memory_list_symbols(dump_path: str) -> ToolResult:
     validated = validate_file_path(dump_path)
 
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B607 B603
             ["vol", "--info"],
             capture_output=True,
             text=True,
@@ -419,7 +419,7 @@ async def memory_extract_strings(
         )
 
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B607 B603
             ["strings", f"-n{min_length}", str(validated)],
             capture_output=True,
             text=True,

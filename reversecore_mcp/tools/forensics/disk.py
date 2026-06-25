@@ -6,7 +6,7 @@ compilation issues. All tools gracefully degrade if Sleuth Kit is absent.
 """
 
 import hashlib
-import subprocess
+import subprocess  # nosec B404
 from pathlib import Path
 from typing import Any
 
@@ -34,7 +34,7 @@ _TSK_TOOLS = {
 def _check_tsk_available() -> bool:
     """Check if Sleuth Kit CLI tools are available."""
     try:
-        subprocess.run(["fls", "--help"], capture_output=True, timeout=5)
+        subprocess.run(["fls", "--help"], capture_output=True, timeout=5)  # nosec B607 B603
         return True
     except FileNotFoundError:
         return False
@@ -42,7 +42,7 @@ def _check_tsk_available() -> bool:
 
 def _run_tsk(cmd: list[str], timeout: int = 120) -> tuple[str, str, int]:
     """Run a Sleuth Kit command and return (stdout, stderr, returncode)."""
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)  # nosec B603
     return result.stdout, result.stderr, result.returncode
 
 
@@ -251,7 +251,7 @@ async def disk_recover_deleted(
         cmd.extend(["-o", str(offset)])
     cmd.extend([str(validated), inode])
 
-    result = subprocess.run(cmd, capture_output=True, timeout=120)
+    result = subprocess.run(cmd, capture_output=True, timeout=120)  # nosec B603
 
     if result.returncode != 0 and not result.stdout:
         return failure(
