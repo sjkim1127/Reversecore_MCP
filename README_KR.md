@@ -17,50 +17,22 @@ AI 에이전트가 자연어 명령을 통해 포괄적인 바이너리 분석�
 
 ## 📋 사전 요구사항
 
-### Ghidra (디컴파일에 필요)
+### Radare2 및 r2ghidra (디컴파일 및 분석에 필수)
 
-Ghidra는 고급 디컴파일 기능에 필요합니다. 설치 스크립트는 자동으로 `<프로젝트>/Tools` 디렉토리에 설치합니다.
+디컴파일 및 분석 기능은 Radare2와 `r2ghidra` 플러그인을 사용하여 작동합니다.
 
-**옵션 1: 자동 설치 (권장)**
+**자동 설치**
 
-```powershell
-# Windows (PowerShell)
-.\scripts\install-ghidra.ps1
+제공되는 설정 스크립트나 Docker를 사용하는 것이 가장 간편하며, 이 경우 모든 의존성이 미리 구성되어 제공됩니다.
 
-# 버전/경로 지정 (선택)
-.\scripts\install-ghidra.ps1 -Version "11.4.3" -InstallDir "C:\CustomPath"
-```
-
-```bash
-# Linux/macOS
-chmod +x ./scripts/install-ghidra.sh
-./scripts/install-ghidra.sh
-
-# 버전/경로 지정 (선택)
-./scripts/install-ghidra.sh -v 11.4.3 -d /custom/path
-```
-
-**스크립트가 수행하는 작업:**
-- GitHub에서 Ghidra 11.4.3 다운로드 (~400MB)
-- `<프로젝트>/Tools/ghidra_11.4.3_PUBLIC_YYYYMMDD`에 압축 해제
-- `GHIDRA_INSTALL_DIR` 환경 변수 설정
-- 프로젝트 `.env` 파일 업데이트
-
-**옵션 2: 수동 설치**
-
-1. **다운로드**: [Ghidra 11.4.3](https://github.com/NationalSecurityAgency/ghidra/releases/tag/Ghidra_11.4.3_build)
-2. `<프로젝트>/Tools/` 또는 원하는 디렉토리에 **압축 해제**
-3. **환경 변수 설정**:
+로컬 환경에 직접 설치하는 방법:
+1. OS 패키지 관리자나 [radare.org](https://radare.org/)에서 **Radare2**를 설치합니다.
+2. `r2pm`을 사용하여 **r2ghidra**를 설치합니다.
    ```bash
-   # Linux/macOS (~/.bashrc 또는 ~/.zshrc)
-   export GHIDRA_INSTALL_DIR=/path/to/ghidra_11.4.3_PUBLIC_YYYYMMDD
-
-   # Windows (PowerShell - 영구 설정)
-   [Environment]::SetEnvironmentVariable("GHIDRA_INSTALL_DIR", "C:\path\to\ghidra", "User")
+   r2pm -i r2ghidra
    ```
-   또는 `.env` 파일에 추가 (`.env.example` 참조)
 
-> ⚠️ **참고**: Ghidra는 JDK 17+ 이상이 필요합니다. [Adoptium](https://adoptium.net/)에서 다운로드하세요.
+별도의 JDK나 JVM 설치는 필요하지 않습니다.
 
 ## 🚀 빠른 시작
 
@@ -188,16 +160,15 @@ docker build -t reversecore-mcp:latest .
 지능형 도구를 사용한 멀티 아키텍처 바이너리 분석:
 
 - **Radare2 통합**: 연결 풀링을 사용한 전체 r2 명령 접근 (`run_radare2`, `Radare2_disassemble`)
-- **Ghidra 디컴파일**: 16GB JVM 힙을 사용한 엔터프라이즈급 디컴파일 (`smart_decompile`, `get_pseudo_code`)
+- **r2ghidra 디컴파일**: Radare2용 Ghidra 디컴파일러 플러그인을 사용한 네이티브 디컴파일 (`r2_decompile`, `r2_recover_structures`, `r2_analyze_function`)
 - **멀티 아키텍처 지원**: Capstone을 통한 x86, x86-64, ARM, ARM64, MIPS, PowerPC 지원 (`disassemble_with_capstone`)
-- **스마트 폴백**: 최상의 결과를 위한 Ghidra 우선, r2 폴백 전략
 
 ### 🧬 고급 분석
 
 심층 코드 분석 및 동작 이해:
 
 - **크로스 레퍼런스 분석**: 함수 호출, 데이터 참조, 제어 흐름 추적 (`analyze_xrefs`)
-- **구조 복구**: 포인터 연산 및 메모리 접근 패턴에서 데이터 구조 추론 (`recover_structures`)
+- **구조 복구**: C 구조체를 자동 복구하고 SQLite DB에 저장 (`r2_create_structure`, `r2_list_structures`)
 - **에뮬레이션**: 동적 동작 분석을 위한 ESIL 기반 코드 에뮬레이션 (`emulate_machine_code`)
 - **바이너리 비교**: 바이너리 비교 및 라이브러리 함수 매칭 (`diff_binaries`, `match_libraries`)
 
@@ -278,7 +249,7 @@ send_report_email(to="security-team@company.com")
   - **크래시 격리(Crash Isolation)**: LIEF 파서를 별도 프로세스로 격리하여 C++ 레벨 세그폴트로부터 서버 보호
 - **최적화**:
   - **동적 타임아웃**: 파일 크기에 따라 자동 조절 (base + 2s/MB, 최대 +600s)
-  - **Ghidra JVM**: 현대 시스템(24-32GB RAM)을 위한 16GB 힙
+  - **경량 아키텍처**: JVM을 제거하고 네이티브 `r2ghidra`를 사용함으로써, 시작 지연시간을 낮추고 메모리 사용량을 획기적으로 줄였습니다.
   - **싱크 인식 가지치기**: 39개의 위험한 싱크 API로 지능적 경로 우선순위화
   - **트레이스 깊이 최적화**: 더 빠른 실행 경로 분석을 위해 3에서 2로 축소
 - **인프라**:
@@ -292,9 +263,9 @@ send_report_email(to="security-team@company.com")
 |----------|------|
 | **파일 작업** | `list_workspace`, `get_file_info` |
 | **정적 분석** | `run_file`, `run_strings`, `run_binwalk`, `audit_source_code` |
-| **디스어셈블리** | `run_radare2`, `Radare2_disassemble`, `disassemble_with_capstone` |
-| **디컴파일** | `smart_decompile`, `get_pseudo_code` |
-| **고급 분석** | `analyze_xrefs`, `recover_structures`, `emulate_machine_code` |
+| **디스어셈블리 및 DB** | `run_radare2`, `Radare2_disassemble`, `disassemble_with_capstone`, `r2_list_structures`, `r2_create_structure`, `r2_add_bookmark`, `r2_list_bookmarks`, `r2_list_types`, `r2_read_memory` |
+| **디컴파일** | `r2_decompile`, `r2_recover_structures`, `r2_analyze_function`, `r2_get_call_graph`, `r2_simulate_patch` |
+| **고급 분석** | `analyze_xrefs`, `emulate_machine_code` |
 | **바이너리 파싱** | `parse_binary_with_lief` |
 | **바이너리 비교** | `diff_binaries`, `match_libraries` |
 | **악성코드 분석** | `dormant_detector`, `extract_iocs`, `run_yara`, `adaptive_vaccine`, `vulnerability_hunter` |
@@ -323,7 +294,6 @@ send_report_email(to="security-team@company.com")
 reversecore_mcp/
 ├── core/                           # 인프라 및 서비스
 │   ├── config.py                   # 설정 관리
-│   ├── ghidra.py, ghidra_manager.py, ghidra_helper.py  # Ghidra 통합 (16GB JVM)
 │   ├── r2_helpers.py, r2_pool.py   # Radare2 연결 풀링
 │   ├── security.py                 # 경로 검증 및 입력 위생화
 │   ├── result.py                   # ToolSuccess/ToolError 응답 모델
@@ -345,14 +315,12 @@ reversecore_mcp/
 │   │   ├── diff_tools.py           # 바이너리 비교
 │   │   └── signature_tools.py      # YARA 스캔
 │   │
-│   ├── radare2/                    # Radare2 통합
+│   ├── radare2/                    # Radare2 & r2ghidra 통합
 │   │   ├── r2_analysis.py          # 핵심 r2 분석
+│   │   ├── r2ghidra_tools.py       # r2ghidra 디컴파일 및 분석
+│   │   ├── r2_db.py                # SQLite 어노테이션 데이터베이스
 │   │   ├── radare2_mcp_tools.py    # 고급 r2 도구 (CFG, ESIL)
 │   │   └── r2_session.py           # 세션 관리
-│   │
-│   ├── ghidra/                     # Ghidra 디컴파일
-│   │   ├── decompilation.py        # smart_decompile, pseudo-code
-│   │   └── ghidra_tools.py         # 구조체/열거형 관리
 │   │
 │   ├── malware/                    # 악성코드 분석 및 방어
 │   │   ├── dormant_detector.py     # 숨겨진 위협 탐지
@@ -411,7 +379,6 @@ docker compose up -d
 | `MCP_TRANSPORT` | `http` | 전송 모드 (`stdio` 또는 `http`) |
 | `REVERSECORE_WORKSPACE` | `/app/workspace` | 분석 작업 공간 경로 |
 | `LOG_LEVEL` | `INFO` | 로깅 레벨 |
-| `GHIDRA_INSTALL_DIR` | `/opt/ghidra` | Ghidra 설치 경로 |
 | `REVERSECORE_SAST_RULES_PATH` | `""` | SAST 규칙을 정의한 커스텀 YAML 파일 경로 |
 
 ## 🔒 보안

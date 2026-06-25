@@ -18,50 +18,23 @@ An enterprise-grade MCP (Model Context Protocol) server for AI-powered reverse e
 
 ## 📋 Prerequisites
 
-### Ghidra (Required for Decompilation)
+### Radare2 & r2ghidra (Required for Decompilation & Analysis)
 
-Ghidra is required for advanced decompilation features. The installation scripts automatically install Ghidra to `<project>/Tools` directory.
+Analysis and decompilation features are powered by Radare2 and the `r2ghidra` plugin.
 
-**Option 1: Automatic Installation (Recommended)**
+**Automatic Installation**
 
-```powershell
-# Windows (PowerShell)
-.\scripts\install-ghidra.ps1
+The easiest way is to use the provided setup scripts or run inside Docker, which has all dependencies preconfigured.
 
-# With custom version/path (optional)
-.\scripts\install-ghidra.ps1 -Version "12.1" -InstallDir "C:\CustomPath"
-```
-
-```bash
-# Linux/macOS
-chmod +x ./scripts/install-ghidra.sh
-./scripts/install-ghidra.sh
-
-# With custom version/path (optional)
-./scripts/install-ghidra.sh -v 12.1 -d /custom/path
-```
-
-**What the scripts do:**
-- Downloads Ghidra 12.1 from GitHub (~400MB)
-- Extracts to `<project>/Tools/ghidra_12.1_PUBLIC_YYYYMMDD`
-- Sets `GHIDRA_INSTALL_DIR` environment variable
-- Updates project `.env` file
-
-**Option 2: Manual Installation**
-
-1. **Download**: [Ghidra 12.1](https://github.com/NationalSecurityAgency/ghidra/releases/tag/Ghidra_12.1_build)
-2. **Extract** to `<project>/Tools/` or any directory
-3. **Set environment variable**:
+For local installation:
+1. Install **Radare2** via your system package manager or from [radare.org](https://radare.org/).
+2. Install **r2ghidra** using `r2pm`:
    ```bash
-   # Linux/macOS (~/.bashrc or ~/.zshrc)
-   export GHIDRA_INSTALL_DIR=/path/to/ghidra_12.1_PUBLIC_YYYYMMDD
-
-   # Windows (PowerShell - permanent)
-   [Environment]::SetEnvironmentVariable("GHIDRA_INSTALL_DIR", "C:\path\to\ghidra", "User")
+   r2pm -i r2ghidra
    ```
-   Or add to `.env` file (copy from `.env.example`)
 
-> ⚠️ **Note**: JDK 21+ is required for Ghidra 12.1. Install via your OS package manager (e.g., `apt install openjdk-21-jdk`) or [Adoptium](https://adoptium.net/).
+No external JDK or JVM is required.
+
 
 ## 🚀 Quick Start
 
@@ -189,16 +162,15 @@ Comprehensive file analysis and metadata extraction:
 Multi-architecture binary analysis with intelligent tooling:
 
 - **Radare2 Integration**: Full r2 command access with connection pooling (`run_radare2`, `Radare2_disassemble`)
-- **Ghidra Decompilation**: Enterprise-grade decompilation with 16GB JVM heap (`smart_decompile`, `get_pseudo_code`)
+- **r2ghidra Decompilation**: Native decompilation using the Ghidra decompiler plugin for Radare2 (`r2_decompile`, `r2_recover_structures`, `r2_analyze_function`)
 - **Multi-Architecture Support**: x86, x86-64, ARM, ARM64, MIPS, PowerPC via Capstone (`disassemble_with_capstone`)
-- **Smart Fallback**: Automatic Ghidra-first, r2-fallback strategy for best results
 
 ### 🧬 Advanced Analysis
 
 Deep code analysis and behavior understanding:
 
 - **Cross-Reference Analysis**: Track function calls, data references, and control flow (`analyze_xrefs`)
-- **Structure Recovery**: Infer data structures from pointer arithmetic and memory access patterns (`recover_structures`)
+- **Structure Recovery**: Auto-recover C structures and persist annotations using SQLite DB (`r2_create_structure`, `r2_list_structures`)
 - **Emulation**: ESIL-based code emulation for dynamic behavior analysis (`emulate_machine_code`)
 - **Binary Comparison**: Diff binaries and match library functions (`diff_binaries`, `match_libraries`)
 
@@ -279,7 +251,7 @@ send_report_email(to="security-team@company.com")
   - **Crash Isolation**: LIEF parser runs in isolated process to handle segfaults safely
 - **Optimizations**:
   - **Dynamic Timeout**: Auto-scales with file size (base + 2s/MB, max +600s)
-  - **Ghidra JVM**: 16GB heap for modern systems (24-32GB RAM)
+  - **Lightweight Architecture**: Native `r2ghidra` integration eliminates JVM startup latency and OOM issues, reducing the RAM/CPU footprint.
   - **Sink-Aware Pruning**: 39 dangerous sink APIs for intelligent path prioritization
   - **Trace Depth Optimization**: Reduced from 3 to 2 for faster execution path analysis
 - **Infrastructure**:
@@ -293,9 +265,9 @@ send_report_email(to="security-team@company.com")
 |----------|-------|
 | **File Operations** | `list_workspace`, `get_file_info` |
 | **Static Analysis** | `run_file`, `run_strings`, `run_binwalk`, `audit_source_code` |
-| **Disassembly** | `run_radare2`, `Radare2_disassemble`, `disassemble_with_capstone` |
-| **Decompilation** | `smart_decompile`, `get_pseudo_code` |
-| **Advanced Analysis** | `analyze_xrefs`, `recover_structures`, `emulate_machine_code` |
+| **Disassembly & DB** | `run_radare2`, `Radare2_disassemble`, `disassemble_with_capstone`, `r2_list_structures`, `r2_create_structure`, `r2_add_bookmark`, `r2_list_bookmarks`, `r2_list_types`, `r2_read_memory` |
+| **Decompilation** | `r2_decompile`, `r2_recover_structures`, `r2_analyze_function`, `r2_get_call_graph`, `r2_simulate_patch` |
+| **Advanced Analysis** | `analyze_xrefs`, `emulate_machine_code` |
 | **Binary Parsing** | `parse_binary_with_lief` |
 | **Binary Comparison** | `diff_binaries`, `match_libraries` |
 | **Malware Analysis** | `dormant_detector`, `extract_iocs`, `run_yara`, `adaptive_vaccine`, `vulnerability_hunter` |
@@ -324,7 +296,6 @@ send_report_email(to="security-team@company.com")
 reversecore_mcp/
 ├── core/                           # Infrastructure & Services
 │   ├── config.py                   # Configuration management
-│   ├── ghidra.py, ghidra_manager.py, ghidra_helper.py  # Ghidra integration (16GB JVM)
 │   ├── r2_helpers.py, r2_pool.py   # Radare2 connection pooling
 │   ├── security.py                 # Path validation & input sanitization
 │   ├── result.py                   # ToolSuccess/ToolError response models
@@ -346,14 +317,12 @@ reversecore_mcp/
 │   │   ├── diff_tools.py           # Binary comparison
 │   │   └── signature_tools.py      # YARA scanning
 │   │
-│   ├── radare2/                    # Radare2 integration
+│   ├── radare2/                    # Radare2 & r2ghidra integration
 │   │   ├── r2_analysis.py          # Core r2 analysis
+│   │   ├── r2ghidra_tools.py       # r2ghidra decompilation & analysis
+│   │   ├── r2_db.py                # SQLite annotation database
 │   │   ├── radare2_mcp_tools.py    # Advanced r2 tools (CFG, ESIL)
 │   │   └── r2_session.py           # Session management
-│   │
-│   ├── ghidra/                     # Ghidra decompilation
-│   │   ├── decompilation.py        # smart_decompile, pseudo-code
-│   │   └── ghidra_tools.py         # Structure/Enum management
 │   │
 │   ├── malware/                    # Malware analysis & defense
 │   │   ├── dormant_detector.py     # Hidden threat detection
@@ -412,7 +381,6 @@ docker compose up -d
 | \`MCP_TRANSPORT\` | \`http\` | Transport mode (\`stdio\` or \`http\`) |
 | \`REVERSECORE_WORKSPACE\` | \`/app/workspace\` | Analysis workspace path |
 | \`LOG_LEVEL\` | \`INFO\` | Logging level |
-| \`GHIDRA_INSTALL_DIR\` | \`/opt/ghidra\` | Ghidra installation path |
 | \`REVERSECORE_SAST_RULES_PATH\` | \`""\` | Custom YAML path for SAST rules |
 
 ## 🔒 Security
