@@ -32,7 +32,10 @@ from reversecore_mcp.core.plugin import Plugin
 from reversecore_mcp.core.r2_helpers import execute_r2_command as _execute_r2_command
 from reversecore_mcp.core.result import ToolResult, failure, success
 from reversecore_mcp.core.security import validate_file_path
-from reversecore_mcp.core.validators import validate_address_format, validate_tool_parameters
+from reversecore_mcp.core.validators import (
+    validate_address_format,
+    validate_tool_parameters,
+)
 
 # Import session management and utilities from r2_session module
 from reversecore_mcp.tools.radare2.r2_session import (

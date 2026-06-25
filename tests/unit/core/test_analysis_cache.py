@@ -99,3 +99,40 @@ async def test_cache_operations_success(tmp_path):
         assert res_hit.status == "success"
         assert res_hit.data == "decompiled output"
         assert res_hit.metadata["cache_hit"] is True
+
+
+@pytest.mark.asyncio
+async def test_cache_operations_sqlite_success(patched_config):
+    # Reuse the workspace configured by patched_config
+    workspace_dir = patched_config.workspace
+
+    test_file = workspace_dir / "target.bin"
+    test_file.write_bytes(b"target binary contents")
+
+    # Patch get_redis_client to return None so it falls back to SQLite
+    with patch("reversecore_mcp.core.analysis_cache.get_redis_client", return_value=None):
+        # 1. Check cache miss
+        res = await get_cached_decompile(test_file, "main", use_ghidra=True)
+        assert res is None
+
+        # 2. Store in cache
+        suc = success("decompiled output from sqlite", func="main")
+        await set_cached_decompile(test_file, "main", suc, use_ghidra=True)
+
+        # Verify SQLite cache database file exists
+        db_path = workspace_dir / ".reversecore_cache.db"
+        assert db_path.exists()
+
+        # 3. Check cache hit
+        res_hit = await get_cached_decompile(test_file, "main", use_ghidra=True)
+        assert res_hit is not None
+        assert res_hit.status == "success"
+        assert res_hit.data == "decompiled output from sqlite"
+        assert res_hit.metadata["cache_hit"] is True
+
+        # 4. Invalidation check: query cache with a different file hash
+        other_file = workspace_dir / "other.bin"
+        other_file.write_bytes(b"different contents")
+
+        res_miss = await get_cached_decompile(other_file, "main", use_ghidra=True)
+        assert res_miss is None

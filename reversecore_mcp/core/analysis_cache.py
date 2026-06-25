@@ -6,7 +6,9 @@ avoiding repetitive decompilation of unmodified binaries.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
+import sqlite3
 from pathlib import Path
 
 import redis.asyncio as aioredis
@@ -17,6 +19,98 @@ from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.result import ToolError, ToolResult, ToolSuccess
 
 logger = get_logger(__name__)
+
+# Singleton/global state for SQLite initialization
+_sqlite_db_path: Path | None = None
+_sqlite_initialized: bool = False
+
+
+def _init_sqlite_db() -> Path:
+    """Initialize the SQLite database and create the table if it does not exist."""
+    global _sqlite_db_path, _sqlite_initialized
+    config = get_config()
+    current_db_path = config.workspace / ".reversecore_cache.db"
+
+    # If the workspace path changed (e.g., in a test environment), reset initialization
+    if _sqlite_db_path != current_db_path:
+        _sqlite_db_path = current_db_path
+        _sqlite_initialized = False
+
+    # Ensure parent directory exists
+    _sqlite_db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if not _sqlite_initialized:
+        conn = sqlite3.connect(_sqlite_db_path)
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS decompilation_cache (
+                    file_hash TEXT,
+                    function_address TEXT,
+                    decompiler TEXT,
+                    status TEXT,
+                    data TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (file_hash, function_address, decompiler)
+                )
+            """)
+            conn.commit()
+            _sqlite_initialized = True
+            logger.info(f"SQLite caching database initialized at {_sqlite_db_path}")
+        except Exception as e:
+            logger.error(f"Failed to initialize SQLite cache database: {e}")
+        finally:
+            conn.close()
+
+    return _sqlite_db_path
+
+
+def _read_from_sqlite(
+    db_path: Path, file_hash: str, function_address: str, decompiler: str
+) -> str | None:
+    """Read serialized data from SQLite database."""
+    conn = sqlite3.connect(db_path)
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT data FROM decompilation_cache WHERE file_hash = ? AND function_address = ? AND decompiler = ?",
+            (file_hash, function_address, decompiler),
+        )
+        row = cursor.fetchone()
+        if row:
+            return row[0]
+    except Exception as e:
+        logger.error(f"SQLite read error for {function_address} in {file_hash}: {e}")
+    finally:
+        conn.close()
+    return None
+
+
+def _write_to_sqlite(
+    db_path: Path,
+    file_hash: str,
+    function_address: str,
+    decompiler: str,
+    status: str,
+    data: str,
+) -> None:
+    """Write serialized data to SQLite database."""
+    conn = sqlite3.connect(db_path)
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT OR REPLACE INTO decompilation_cache (file_hash, function_address, decompiler, status, data, created_at)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """,
+            (file_hash, function_address, decompiler, status, data),
+        )
+        conn.commit()
+    except Exception as e:
+        logger.error(f"SQLite write error for {function_address} in {file_hash}: {e}")
+    finally:
+        conn.close()
+
 
 # Singleton Redis connection pool / client
 _redis_client: aioredis.Redis | None = None
@@ -125,7 +219,7 @@ async def get_cached_decompile(
     function_address: str,
     use_ghidra: bool = True,
 ) -> ToolResult | None:
-    """Retrieve cached decompilation result from Redis.
+    """Retrieve cached decompilation result from Redis or SQLite.
 
     Args:
         file_path: Path to the binary file.
@@ -135,25 +229,42 @@ async def get_cached_decompile(
     Returns:
         ToolResult if found in cache, otherwise None.
     """
-    client = get_redis_client()
-    if client is None:
-        return None
-
     # Calculate file SHA256 to invalidate cache if binary gets modified
     file_hash = calculate_file_sha256(file_path)
     if not file_hash:
         return None
 
-    # Construct the unique cache key
     decompiler = "ghidra" if use_ghidra else "radare2"
-    cache_key = f"ghidra:decompile:{file_hash}:{function_address}:{decompiler}"
 
+    # 1. Try Redis first (if enabled)
+    client = get_redis_client()
+    if client is not None:
+        cache_key = f"ghidra:decompile:{file_hash}:{function_address}:{decompiler}"
+        try:
+            serialized = await client.get(cache_key)
+            if serialized:
+                result = _deserialize_result(serialized)
+                if result:
+                    logger.info(f"Redis cache HIT for {function_address} in {file_path}")
+                    # Inject a flag indicating this result came from cache
+                    if isinstance(result, ToolSuccess):
+                        if result.metadata is None:
+                            result.metadata = {}
+                        result.metadata["cache_hit"] = True
+                    return result
+        except Exception as e:
+            logger.debug(f"Redis get error: {e}. Falling back to SQLite.")
+
+    # 2. Try SQLite
     try:
-        serialized = await client.get(cache_key)
+        db_path = _init_sqlite_db()
+        serialized = await asyncio.to_thread(
+            _read_from_sqlite, db_path, file_hash, function_address, decompiler
+        )
         if serialized:
             result = _deserialize_result(serialized)
             if result:
-                logger.info(f"Cache HIT for {function_address} in {file_path}")
+                logger.info(f"SQLite cache HIT for {function_address} in {file_path}")
                 # Inject a flag indicating this result came from cache
                 if isinstance(result, ToolSuccess):
                     if result.metadata is None:
@@ -161,7 +272,7 @@ async def get_cached_decompile(
                     result.metadata["cache_hit"] = True
                 return result
     except Exception as e:
-        logger.debug(f"Redis get error: {e}. Proceeding with cache miss.")
+        logger.error(f"SQLite get error: {e}")
 
     return None
 
@@ -173,21 +284,17 @@ async def set_cached_decompile(
     use_ghidra: bool = True,
     ttl_seconds: int = 3600,
 ) -> None:
-    """Store decompilation result in Redis with a TTL.
+    """Store decompilation result in SQLite and Redis.
 
     Args:
         file_path: Path to the binary file.
         function_address: Target function name or address.
         result: The ToolResult to cache.
         use_ghidra: Whether Ghidra decompiler was used.
-        ttl_seconds: Time-to-live in seconds (default: 1 hour).
+        ttl_seconds: Time-to-live in seconds for Redis (default: 1 hour).
     """
-    # Do not cache failed results (unless transient errors are handled differently)
+    # Do not cache failed results
     if not isinstance(result, ToolSuccess):
-        return
-
-    client = get_redis_client()
-    if client is None:
         return
 
     file_hash = calculate_file_sha256(file_path)
@@ -195,13 +302,33 @@ async def set_cached_decompile(
         return
 
     decompiler = "ghidra" if use_ghidra else "radare2"
-    cache_key = f"ghidra:decompile:{file_hash}:{function_address}:{decompiler}"
+    serialized = _serialize_result(result)
+    status = "success"
 
+    # 1. Store in SQLite (Primary persistent local cache)
     try:
-        serialized = _serialize_result(result)
-        await client.setex(cache_key, ttl_seconds, serialized)
-        logger.debug(
-            f"Cached decompile for {function_address} in {file_path} (TTL: {ttl_seconds}s)"
+        db_path = _init_sqlite_db()
+        await asyncio.to_thread(
+            _write_to_sqlite,
+            db_path,
+            file_hash,
+            function_address,
+            decompiler,
+            status,
+            serialized,
         )
+        logger.debug(f"Cached decompile in SQLite for {function_address} in {file_path}")
     except Exception as e:
-        logger.warning(f"Failed to cache decompile result in Redis: {e}")
+        logger.error(f"Failed to cache decompile result in SQLite: {e}")
+
+    # 2. Store in Redis (if enabled)
+    client = get_redis_client()
+    if client is not None:
+        cache_key = f"ghidra:decompile:{file_hash}:{function_address}:{decompiler}"
+        try:
+            await client.setex(cache_key, ttl_seconds, serialized)
+            logger.debug(
+                f"Cached decompile in Redis for {function_address} in {file_path} (TTL: {ttl_seconds}s)"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to cache decompile result in Redis: {e}")

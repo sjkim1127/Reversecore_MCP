@@ -251,7 +251,9 @@ def markdown_to_json(md_content: str, report_id: str) -> dict[str, Any]:
             if not iocs:
                 # Expecting | Type | Value | description |
                 rows = re.findall(
-                    r"^\|\s*([^|\n]+)\s*\|\s*([^|\n]+)\s*\|", section_content, re.MULTILINE
+                    r"^\|\s*([^|\n]+)\s*\|\s*([^|\n]+)\s*\|",
+                    section_content,
+                    re.MULTILINE,
                 )
                 for r_type, r_val in rows:
                     r_type_clean = r_type.strip()
@@ -282,7 +284,11 @@ def markdown_to_json(md_content: str, report_id: str) -> dict[str, Any]:
                 t_id_clean = t_id.strip()
                 if t_id_clean and t_id_clean != "ID" and not t_id_clean.startswith("-"):
                     techniques.append(
-                        {"id": t_id_clean, "name": t_name.strip(), "tactic": t_tactic.strip()}
+                        {
+                            "id": t_id_clean,
+                            "name": t_name.strip(),
+                            "tactic": t_tactic.strip(),
+                        }
                     )
             data["sections"][section_key] = {
                 "title": section_title,
@@ -291,7 +297,10 @@ def markdown_to_json(md_content: str, report_id: str) -> dict[str, Any]:
             }
         else:
             # General text section
-            data["sections"][section_key] = {"title": section_title, "content": section_content}
+            data["sections"][section_key] = {
+                "title": section_title,
+                "content": section_content,
+            }
 
     return data
 

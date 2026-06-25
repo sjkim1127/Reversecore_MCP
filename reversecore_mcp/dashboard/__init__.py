@@ -410,7 +410,9 @@ async def dashboard_report_create(
                 for h_type in ["md5", "sha1", "sha256"]:
                     if h_type in raw_iocs.get("hashes", {}):
                         await report_tools.add_session_ioc(
-                            "hashes", f"{h_type.upper()}: {raw_iocs['hashes'][h_type]}", current_sid
+                            "hashes",
+                            f"{h_type.upper()}: {raw_iocs['hashes'][h_type]}",
+                            current_sid,
                         )
 
                 # Add network IOCs
@@ -429,7 +431,9 @@ async def dashboard_report_create(
 
         # Add a note about auto-extraction
         await report_tools.add_session_note(
-            "Auto-extracted static indicators of compromise and hashes.", "general", current_sid
+            "Auto-extracted static indicators of compromise and hashes.",
+            "general",
+            current_sid,
         )
 
         # Generate report and write markdown file

@@ -72,7 +72,10 @@ async def verify_path_and_get_args(
                 return json.loads(lines[-1])
             except json.JSONDecodeError:
                 logger.error(f"Failed to parse angr worker output: {stdout}")
-                return {"satisfiable": False, "error": "Invalid output format from worker"}
+                return {
+                    "satisfiable": False,
+                    "error": "Invalid output format from worker",
+                }
 
         if stderr:
             logger.error(f"angr worker stderr: {stderr}")

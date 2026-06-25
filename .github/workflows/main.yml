@@ -179,22 +179,6 @@ jobs:
           pytest tests/integration/test_tool_installation.py::TestToolInvocation -v --tb=short || true
           pytest tests/integration/test_tool_installation.py::TestMCPToolCalls -v --tb=short || true
 
-      - name: Run advanced analysis tool tests
-        env:
-          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
-          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
-          LOG_LEVEL: INFO
-        run: |
-          pytest tests/integration/test_advanced_analysis_tools.py -v --tb=short || echo "⚠️  Some advanced tool tests skipped"
-
-      - name: Run MCP real binary tool integration tests
-        env:
-          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
-          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
-          LOG_LEVEL: INFO
-        run: |
-          pytest tests/integration/test_mcp_real_binary_tools.py -v --tb=short
-
       - name: Generate PE and large binaries
         run: |
           python3 scripts/generate-pe-and-large-binaries.py
@@ -488,6 +472,8 @@ jobs:
             -e LOG_LEVEL=WARNING \
             -v ${{ github.workspace }}/tests/fixtures/workspace:/app/workspace \
             -v ${{ github.workspace }}/tests/fixtures/rules:/app/rules \
+            -v ${{ github.workspace }}/tests:/app/tests \
+            -v ${{ github.workspace }}/requirements-dev.txt:/app/requirements-dev.txt \
             reversecore-mcp:ci
           echo "⏳ Waiting for MCP server container to be ready..."
           for i in $(seq 1 30); do
@@ -507,6 +493,18 @@ jobs:
             exit 1
           fi
 
+          echo "🔑 Adjusting workspace permissions inside container..."
+          docker exec -u root mcp-ci-test chown -R appuser:appuser /app/workspace
+
+          # Install diec (Detect It Easy CLI) inside the container
+          echo "📦 Installing Detect It Easy CLI (diec) inside container..."
+          docker exec -u root mcp-ci-test sh -c '
+            (curl -sSL "https://github.com/horsicq/DIE-engine/releases/download/3.09/die_lin64_portable_3.09.tar.gz" -o /tmp/die.tar.gz && \
+             tar -xzf /tmp/die.tar.gz -C /opt && \
+             ln -sf /opt/die_lin64_portable/diec /usr/local/bin/diec && \
+             chmod +x /opt/die_lin64_portable/diec) || echo "⚠️ Optional diec installation failed"
+          '
+
           # 1. Docker HEALTHCHECK status
           echo "🔍 Checking Docker HEALTHCHECK..."
           HEALTH=$(docker inspect --format='{{.State.Health.Status}}' mcp-ci-test 2>/dev/null || echo "unknown")
@@ -515,33 +513,42 @@ jobs:
           # 2. MCP tool registry + invocation test inside container
           echo "🔧 Checking MCP tool registry and invocation..."
           docker cp scripts/test-mcp-docker-tools.py mcp-ci-test:/tmp/test-mcp-docker-tools.py
-          docker exec mcp-ci-test python /tmp/test-mcp-docker-tools.py || echo "⚠️  MCP tool invocation test skipped"
+          docker exec mcp-ci-test python /tmp/test-mcp-docker-tools.py
 
-          # 3. Call ALL MCP tools comprehensively
+          # 3. Install dev requirements and optional python packages, then run Integration Tests inside Docker
+          echo "📋 Installing python dev dependencies and optional tools inside container..."
+          docker exec -u root mcp-ci-test /opt/venv/bin/pip install -r /app/requirements-dev.txt
+          docker exec -u root mcp-ci-test /opt/venv/bin/pip install angr qiling flare-capa
+
+          echo "🧪 Running real binary integration tests inside container..."
+          docker exec mcp-ci-test /opt/venv/bin/pytest /app/tests/integration/test_mcp_real_binary_tools.py -v --tb=short
+
+          echo "🧪 Running advanced analysis tool tests inside container..."
+          docker exec mcp-ci-test /opt/venv/bin/pytest /app/tests/integration/test_advanced_analysis_tools.py -v --tb=short
+
           echo "📋 Calling ALL MCP tools comprehensively..."
-          docker exec mcp-ci-test /opt/venv/bin/pip install angr qiling flare-capa || echo "⚠️  Optional python tools install failed"
           docker cp scripts/test-all-mcp-tools.py mcp-ci-test:/tmp/test-all-mcp-tools.py
           docker exec mcp-ci-test python /tmp/test-all-mcp-tools.py
 
           # 4. Container resilience: concurrent requests + restart
           echo "🔄 Testing container resilience..."
           docker cp scripts/test-container-resilience.py mcp-ci-test:/tmp/test-container-resilience.py
-          docker exec mcp-ci-test python /tmp/test-container-resilience.py || echo "⚠️  Resilience test skipped"
+          docker exec mcp-ci-test python /tmp/test-container-resilience.py
 
           # 5. Dashboard and metrics endpoints
           echo "📊 Testing dashboard and metrics endpoints..."
           docker cp scripts/test-dashboard.py mcp-ci-test:/tmp/test-dashboard.py
-          docker exec mcp-ci-test python /tmp/test-dashboard.py || echo "⚠️  Dashboard test skipped"
+          docker exec mcp-ci-test python /tmp/test-dashboard.py
 
           # 6. E2E: upload → analyze → result
           echo "🔄 Testing E2E upload → analyze → result..."
           docker cp scripts/test-e2e-upload-analyze.py mcp-ci-test:/tmp/test-e2e-upload-analyze.py
-          docker exec mcp-ci-test python /tmp/test-e2e-upload-analyze.py || echo "⚠️  E2E test skipped"
+          docker exec mcp-ci-test python /tmp/test-e2e-upload-analyze.py
 
           echo "✅ MCP Server Docker integration test passed"
           docker stop mcp-ci-test
           docker rm mcp-ci-test
-        timeout-minutes: 5
+        timeout-minutes: 10
 
   codeql-analysis:
     name: CodeQL Security Analysis

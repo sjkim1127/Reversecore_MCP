@@ -96,7 +96,8 @@ def generate_fuzzing_harness(
 
     if fuzzer_type.lower() != "qiling":
         return failure(
-            "UNSUPPORTED_FUZZER", f"Fuzzer type '{fuzzer_type}' is not supported yet. Use 'qiling'."
+            "UNSUPPORTED_FUZZER",
+            f"Fuzzer type '{fuzzer_type}' is not supported yet. Use 'qiling'.",
         )
 
     # Format the target address
@@ -129,13 +130,11 @@ def generate_fuzzing_harness(
     return success(
         {
             "harness_code": harness_code,
-            "instructions": textwrap.dedent(
-                """
+            "instructions": textwrap.dedent("""
                 1. Save the generated code to a Python file.
                 2. Install dependencies: pip install qiling afl
                 3. Update the TODO section in the script to map the fuzzer input to the vulnerable buffer.
                 4. Run AFL++: afl-fuzz -i in/ -o out/ -Q -m none -- python3 harness.py @@
-                """
-            ).strip(),
+                """).strip(),
         }
     )

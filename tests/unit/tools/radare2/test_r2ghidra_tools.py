@@ -110,6 +110,40 @@ class TestR2Decompile:
         assert result.status == "error"
         assert "VALIDATION_ERROR" in result.error_code or "invalid" in result.message.lower()
 
+    @pytest.mark.asyncio
+    async def test_decompilation_caching(
+        self, mock_r2_run, mock_validate_file_path, patched_config
+    ):
+        """r2_decompile uses the caching layer to avoid redundant decompiler invocations."""
+        from reversecore_mcp.tools.radare2.r2ghidra_tools import r2_decompile
+
+        workspace_dir = patched_config.workspace
+
+        # Create a dummy binary file so sha256 calculation works
+        test_file = workspace_dir / "test.elf"
+        test_file.write_bytes(b"dummy elf content")
+        mock_validate_file_path.return_value = test_file
+
+        mock_r2_run.return_value = (
+            "int main() { return 0; }",
+            100,
+        )
+
+        with patch("reversecore_mcp.core.analysis_cache.get_redis_client", return_value=None):
+            # 1. First invocation (cache miss)
+            res1 = await r2_decompile(str(test_file), "main")
+            assert res1.status == "success"
+            assert mock_r2_run.call_count == 1
+            assert res1.metadata is None or not res1.metadata.get("cache_hit")
+
+            # 2. Second invocation (cache hit)
+            res2 = await r2_decompile(str(test_file), "main")
+            assert res2.status == "success"
+            # Invocations to r2 should still be 1 (meaning it was loaded from cache)
+            assert mock_r2_run.call_count == 1
+            assert res2.metadata.get("cache_hit") is True
+            assert res2.data["pseudo_c"] == "int main() { return 0; }"
+
 
 # ---------------------------------------------------------------------------
 # r2_recover_structures tests
@@ -151,6 +185,38 @@ class TestR2RecoverStructures:
         assert result.status == "success"
         data = result.data
         assert data["structures"] == []
+
+    @pytest.mark.asyncio
+    async def test_recover_structures_caching(
+        self, mock_r2_run, mock_validate_file_path, patched_config
+    ):
+        """r2_recover_structures uses the caching layer to avoid redundant analysis."""
+        from reversecore_mcp.tools.radare2.r2ghidra_tools import r2_recover_structures
+
+        workspace_dir = patched_config.workspace
+
+        # Create a dummy binary file so sha256 calculation works
+        test_file = workspace_dir / "test.elf"
+        test_file.write_bytes(b"dummy elf content")
+        mock_validate_file_path.return_value = test_file
+
+        mock_r2_run.return_value = (
+            '[{"name":"local_10h","type":"int","delta":-16,"size":4}]\n',
+            100,
+        )
+
+        with patch("reversecore_mcp.core.analysis_cache.get_redis_client", return_value=None):
+            # 1. First invocation (cache miss)
+            res1 = await r2_recover_structures(str(test_file), "main")
+            assert res1.status == "success"
+            assert mock_r2_run.call_count == 1
+            assert res1.metadata is None or not res1.metadata.get("cache_hit")
+
+            # 2. Second invocation (cache hit)
+            res2 = await r2_recover_structures(str(test_file), "main")
+            assert res2.status == "success"
+            assert mock_r2_run.call_count == 1
+            assert res2.metadata.get("cache_hit") is True
 
 
 # ---------------------------------------------------------------------------

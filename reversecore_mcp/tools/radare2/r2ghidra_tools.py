@@ -16,6 +16,10 @@ Available tools (MCP-registered):
 import asyncio
 
 from reversecore_mcp.core import json_utils as json
+from reversecore_mcp.core.analysis_cache import (
+    get_cached_decompile,
+    set_cached_decompile,
+)
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
@@ -101,6 +105,11 @@ async def r2_decompile(
         return err
     validated = validate_file_path(file_path)
 
+    # Check cache first
+    cached_res = await get_cached_decompile(validated, function_address, use_ghidra=True)
+    if cached_res is not None:
+        return cached_res
+
     cmds = [
         f"s {function_address}",
         "pdg",  # r2ghidra decompile command
@@ -117,13 +126,15 @@ async def r2_decompile(
             hint="Try running `r2 -AA binary -c 'pdg @ main'` locally to verify.",
         )
 
-    return success(
+    res = success(
         {
             "function": function_address,
             "pseudo_c": output.strip(),
             "decompiler": "r2ghidra",
         }
     )
+    await set_cached_decompile(validated, function_address, res, use_ghidra=True)
+    return res
 
 
 # ---------------------------------------------------------------------------
@@ -160,6 +171,11 @@ async def r2_recover_structures(
         return err
     validated = validate_file_path(file_path)
 
+    # Check cache first
+    cached_res = await get_cached_decompile(validated, function_address, use_ghidra=False)
+    if cached_res is not None:
+        return cached_res
+
     cmds = [
         f"s {function_address}",
         "afvfj",  # local vars as JSON
@@ -192,13 +208,15 @@ async def r2_recover_structures(
         except (json.JSONDecodeError, ValueError):
             continue
 
-    return success(
+    res = success(
         {
             "function": function_address,
             "structures": structures,
             "field_count": len(structures),
         }
     )
+    await set_cached_decompile(validated, function_address, res, use_ghidra=False)
+    return res
 
 
 # ---------------------------------------------------------------------------
