@@ -294,6 +294,8 @@ See [Testing Guide](docs/development/testing.md) for detailed test patterns.
 
 6. **JSON Serialization**: Use `orjson` (faster) not `json` for serializing results to JSON.
 
+7. **CI/CD Bypassing**: Never modify the CI/CD workflow (`main.yml`, `pytest.ini`, etc.) to bypass test failures, lint errors, security warnings, or coverage limits. You must always address and fix the root cause directly in the source code or configurations.
+
 ## Important Files to Know
 
 | File | Purpose |
