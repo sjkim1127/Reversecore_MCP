@@ -82,10 +82,52 @@ int add(int a, int b) { return a + b; }
 int main() { return add(2, 3); }
 EOF
 
-if gcc --version &> /dev/null; then
-    gcc -fPIE -pie -o pie_x64 pie.c 2>/dev/null || echo "⚠ PIE compilation skipped"
-    [ -f pie_x64 ] && echo "✓ pie_x64 created" || echo "⚠ pie_x64 not created"
+gcc -fPIE -pie -o pie_x64 pie.c 2>/dev/null || echo "⚠ PIE compilation skipped"
+if [ -f pie_x64 ]; then
+    echo "✓ pie_x64 created"
+else
+    # Fallback minimal ELF
+    printf '\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00\x01\x00\x00\x00' > pie_x64
+    echo "✓ pie_x64 created (minimal ELF)"
 fi
+
+# 5. Vulnerable program (for testing vulnerability hunting and symbolic execution)
+echo -e "${GREEN}[6/6]${NC} Generating vuln.c..."
+cat > vuln.c << 'EOF'
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+void vuln_function(char *str) {
+    char buffer[16];
+    strcpy(buffer, str); // Buffer overflow sink
+}
+
+int main(int argc, char *argv[]) {
+    if (argc > 1) {
+        if (strcmp(argv[1], "backdoor") == 0) {
+            system("ls"); // Command injection sink
+        } else {
+            vuln_function(argv[1]);
+        }
+    }
+    return 0;
+}
+EOF
+
+gcc -o vuln_x64 vuln.c 2>/dev/null || echo "⚠ vuln compilation skipped"
+if [ ! -f vuln_x64 ]; then
+    # Fallback minimal ELF
+    printf '\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00\x01\x00\x00\x00' > vuln_x64
+    echo "✓ vuln_x64 created (minimal ELF)"
+fi
+
+if [ -f vuln_x64 ]; then
+    cp vuln_x64 vuln_x64_stripped
+    strip vuln_x64_stripped 2>/dev/null || true
+    echo "✓ vuln_x64 and vuln_x64_stripped created"
+fi
+
 
 # Create metadata file with test binaries info
 cat > BINARIES_INFO.json << 'EOF'

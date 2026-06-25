@@ -46,7 +46,13 @@ def real_binaries(workspace_dir):
     dest_bin_dir = workspace_dir / "binaries"
     dest_bin_dir.mkdir(parents=True, exist_ok=True)
 
-    binaries_to_copy = ["hello_x64", "hello_x64_stripped", "pie_x64"]
+    binaries_to_copy = [
+        "hello_x64",
+        "hello_x64_stripped",
+        "pie_x64",
+        "vuln_x64",
+        "vuln_x64_stripped",
+    ]
     copied_count = 0
 
     if fixtures_bin_dir.exists():
@@ -91,6 +97,39 @@ int main() {
         )
         if pie_path.exists():
             bin_dict["pie_x64"] = pie_path
+
+        # Compile vuln_x64 and vuln_x64_stripped
+        vuln_c = dest_bin_dir / "vuln.c"
+        vuln_c.write_text("""
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+void vuln_function(char *str) {
+    char buffer[16];
+    strcpy(buffer, str);
+}
+
+int main(int argc, char *argv[]) {
+    if (argc > 1) {
+        if (strcmp(argv[1], "backdoor") == 0) {
+            system("ls");
+        } else {
+            vuln_function(argv[1]);
+        }
+    }
+    return 0;
+}
+""")
+        vuln_path = dest_bin_dir / "vuln_x64"
+        subprocess.run(["gcc", "-o", str(vuln_path), str(vuln_c)], capture_output=True)
+        if vuln_path.exists():
+            bin_dict["vuln_x64"] = vuln_path
+
+            vuln_stripped_path = dest_bin_dir / "vuln_x64_stripped"
+            shutil.copy2(vuln_path, vuln_stripped_path)
+            subprocess.run(["strip", str(vuln_stripped_path)], capture_output=True)
+            bin_dict["vuln_x64_stripped"] = vuln_stripped_path
 
     # 3. Fallback to minimal ELFs if compilation fails and fixtures are missing
     minimal_elf = (
@@ -254,8 +293,8 @@ async def test_vulnerability_hunter_tool(real_binaries, patched_workspace_config
     if not shutil.which("radare2") and not shutil.which("r2"):
         pytest.skip("radare2 is not installed")
 
-    hello_path = real_binaries["hello_x64"]
-    result = await vulnerability_hunter(str(hello_path), use_symbolic_execution=False)
+    vuln_path = real_binaries["vuln_x64"]
+    result = await vulnerability_hunter(str(vuln_path), use_symbolic_execution=False)
     assert result.status == "success"
     assert "detected_vulnerabilities" in result.data
     assert "analysis_summary" in result.data
