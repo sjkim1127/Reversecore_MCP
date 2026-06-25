@@ -45,12 +45,12 @@ except ImportError:
 
 try:
     from capstone import (
-        CS_ARCH_AARCH64,
         CS_ARCH_ARM,
+        CS_ARCH_ARM64,
         CS_ARCH_MIPS,
         CS_ARCH_PPC,
         CS_ARCH_SPARC,
-        CS_ARCH_SYSTEMZ,
+        CS_ARCH_SYSZ,
         CS_ARCH_X86,
         CS_MODE_16,
         CS_MODE_32,
@@ -68,11 +68,11 @@ except ImportError:
     Cs = None
     CsError = Exception
     CS_ARCH_ARM = 1
-    CS_ARCH_AARCH64 = 2
+    CS_ARCH_ARM64 = 2
     CS_ARCH_MIPS = 3
     CS_ARCH_PPC = 5
     CS_ARCH_SPARC = 6
-    CS_ARCH_SYSTEMZ = 7
+    CS_ARCH_SYSZ = 7
     CS_ARCH_X86 = 4
     CS_MODE_16 = 2
     CS_MODE_32 = 4
@@ -209,7 +209,7 @@ def get_capstone_params(arch_str: str, mode_str: str) -> tuple[int | None, int]:
         cs_mode = CS_MODE_ARM
         if "big" in mode_clean or "be" in mode_clean:
             cs_mode = CS_MODE_BIG_ENDIAN
-        return CS_ARCH_AARCH64, cs_mode
+        return CS_ARCH_ARM64, cs_mode
 
     elif arch_clean == "mips":
         cs_mode = CS_MODE_MIPS32
@@ -238,7 +238,7 @@ def get_capstone_params(arch_str: str, mode_str: str) -> tuple[int | None, int]:
         return CS_ARCH_PPC, cs_mode
 
     elif arch_clean == "systemz":
-        return CS_ARCH_SYSTEMZ, CS_MODE_32
+        return CS_ARCH_SYSZ, CS_MODE_32
 
     return None, 0
 

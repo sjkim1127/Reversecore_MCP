@@ -22,8 +22,8 @@ from reversecore_mcp.tools.common import file_operations, patch_explainer
 from reversecore_mcp.tools.forensics import artifact, disk, memory, network
 
 # Ghidra tools
-from reversecore_mcp.tools.ghidra import decompilation
-
+# NOTE: Ghidra JVM integration removed in v2.2.0. r2ghidra plugin is used instead.
+# Decompilation and analysis tools are now registered via radare2/__init__.py
 # Malware tools
 from reversecore_mcp.tools.malware import (
     adaptive_vaccine,
@@ -55,10 +55,9 @@ __all__ = [
     "disk",
     "network",
     "artifact",
-    # Radare2 tools
+    # Radare2 tools (incl. r2ghidra decompilation + r2_db annotation)
     "r2_analysis",
-    # Ghidra tools
-    "decompilation",
+    # Ghidra replacement — now served via radare2/r2ghidra_tools.py
     # Malware tools
     "dormant_detector",
     "adaptive_vaccine",

@@ -1,11 +1,9 @@
 """Unit tests for analyze_xrefs and recover_structures tools."""
 
-import json
-
 import pytest
 
 from reversecore_mcp.core import r2_helpers
-from reversecore_mcp.tools.ghidra import decompilation, r2_analysis
+from reversecore_mcp.tools.radare2 import r2_analysis
 
 
 def _create_workspace_file(workspace_dir, name: str, data: str | bytes = "stub"):
@@ -172,164 +170,6 @@ class TestAnalyzeXrefs:
         assert result.status == "success"
 
 
-class TestRecoverStructures:
-    """Tests for recover_structures tool."""
-
-    @pytest.mark.asyncio
-    async def test_recover_structures_radare2_success(
-        self, monkeypatch, workspace_dir, patched_workspace_config
-    ):
-        """Test structure recovery using radare2."""
-        mocked_path = _create_workspace_file(workspace_dir, "test_binary")
-
-        # Mock radare2 variables output
-        variables_output = json.dumps(
-            [
-                {"type": "int", "name": "var_10h", "delta": -16, "ref": {"base": "rbp"}},
-                {"type": "char *", "name": "var_8h", "delta": -8, "ref": {"base": "rbp"}},
-                {"type": "int", "name": "var_4h", "delta": -4, "ref": {"base": "rbp"}},
-            ]
-        )
-
-        async def mock_exec(cmd, **kw):
-            return (variables_output, 100)
-
-        monkeypatch.setattr(
-            r2_helpers,
-            "execute_subprocess_async",
-            mock_exec,
-        )
-
-        result = await decompilation.recover_structures(str(mocked_path), "main", use_ghidra=False)
-
-        assert result.status == "success"
-        assert isinstance(result.data, dict)
-        assert "structures" in result.data
-        assert "c_definitions" in result.data
-        assert result.data["count"] > 0
-
-    @pytest.mark.asyncio
-    async def test_recover_structures_radare2_empty(
-        self, monkeypatch, workspace_dir, patched_workspace_config
-    ):
-        """Test when no structures are found."""
-        mocked_path = _create_workspace_file(workspace_dir, "test_binary")
-
-        async def mock_exec(cmd, **kw):
-            return ("[]", 10)
-
-        monkeypatch.setattr(
-            r2_helpers,
-            "execute_subprocess_async",
-            mock_exec,
-        )
-
-        result = await decompilation.recover_structures(str(mocked_path), "main", use_ghidra=False)
-
-        assert result.status == "success"
-        assert result.data["count"] == 0
-
-    @pytest.mark.asyncio
-    async def test_recover_structures_invalid_address(
-        self, monkeypatch, workspace_dir, patched_workspace_config
-    ):
-        """Test with invalid function address."""
-        mocked_path = _create_workspace_file(workspace_dir, "test_binary")
-
-        result = await decompilation.recover_structures(
-            str(mocked_path),
-            "main; echo hack",  # Shell injection attempt
-            use_ghidra=False,
-        )
-
-        assert result.status == "error"
-        assert result.error_code == "VALIDATION_ERROR"
-
-    @pytest.mark.asyncio
-    async def test_recover_structures_ghidra_not_available(
-        self, monkeypatch, workspace_dir, patched_workspace_config
-    ):
-        """Test when Ghidra is requested but not available (should fallback)."""
-        mocked_path = _create_workspace_file(workspace_dir, "test_binary")
-
-        # Mock ensure_ghidra_available to return False (use core.ghidra, not ghidra_helper)
-        def mock_ghidra_check():
-            return False
-
-        monkeypatch.setattr(
-            "reversecore_mcp.core.ghidra.ensure_ghidra_available",
-            mock_ghidra_check,
-        )
-
-        # Mock radare2 output for fallback
-        variables_output = json.dumps(
-            [{"type": "int", "name": "var_10h", "delta": -16, "ref": {"base": "rbp"}}]
-        )
-
-        async def mock_exec(cmd, **kw):
-            return (variables_output, 100)
-
-        monkeypatch.setattr(
-            r2_helpers,
-            "execute_subprocess_async",
-            mock_exec,
-        )
-
-        result = await decompilation.recover_structures(str(mocked_path), "main", use_ghidra=True)
-
-        assert result.status == "success"
-        assert result.metadata["method"] == "radare2"
-        assert "Ghidra not available" in result.metadata["description"]
-
-    @pytest.mark.asyncio
-    async def test_recover_structures_radare2_malformed_json(
-        self, monkeypatch, workspace_dir, patched_workspace_config
-    ):
-        """Test handling of malformed JSON from radare2."""
-        mocked_path = _create_workspace_file(workspace_dir, "test_binary")
-
-        async def mock_exec(cmd, **kw):
-            return ("{not valid json", 10)
-
-        monkeypatch.setattr(
-            r2_helpers,
-            "execute_subprocess_async",
-            mock_exec,
-        )
-
-        result = await decompilation.recover_structures(str(mocked_path), "main", use_ghidra=False)
-
-        assert result.status == "error"
-        assert result.error_code == "STRUCTURE_RECOVERY_ERROR"
-
-    @pytest.mark.asyncio
-    async def test_recover_structures_cpp_method_address(
-        self, monkeypatch, workspace_dir, patched_workspace_config
-    ):
-        """Test with C++ method name format (Player::update)."""
-        mocked_path = _create_workspace_file(workspace_dir, "test_binary")
-
-        variables_output = json.dumps(
-            [{"type": "Player *", "name": "this", "delta": 0, "ref": {"base": "rdi"}}]
-        )
-
-        async def mock_exec(cmd, **kw):
-            return (variables_output, 50)
-
-        monkeypatch.setattr(
-            r2_helpers,
-            "execute_subprocess_async",
-            mock_exec,
-        )
-
-        result = await decompilation.recover_structures(
-            str(mocked_path), "Player::update", use_ghidra=False
-        )
-
-        assert result.status == "success"
-        assert result.metadata["function_address"] == "Player::update"
-
-
 # Integration-style tests (will be skipped if radare2 not available)
 @pytest.mark.skipif(not __import__("shutil").which("r2"), reason="radare2 not installed")
 class TestXrefsAndStructuresIntegration:
@@ -341,10 +181,4 @@ class TestXrefsAndStructuresIntegration:
         # Create a minimal ELF binary for testing
         # This would require an actual binary file
         # Skipping for now - would need test fixtures
-        pass
-
-    @pytest.mark.asyncio
-    async def test_structures_with_real_binary(self, workspace_dir, patched_workspace_config):
-        """Test structure recovery with a real binary (if radare2 available)."""
-        # Similar to above - needs real binary
         pass

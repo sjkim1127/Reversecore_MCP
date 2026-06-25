@@ -252,7 +252,6 @@ container = ServiceContainer()
 def _initialize_default_services() -> None:
     """Register default services in the container."""
     from reversecore_mcp.core.config import get_config
-    from reversecore_mcp.core.ghidra import GhidraService
     from reversecore_mcp.core.r2_pool import R2ConnectionPool
     from reversecore_mcp.core.resource_manager import ResourceManager
 
@@ -264,9 +263,6 @@ def _initialize_default_services() -> None:
 
     # Register resource manager as singleton
     container.register_singleton("resource_manager", ResourceManager)
-
-    # Register Ghidra service as singleton
-    container.register_singleton("ghidra", GhidraService)
 
 
 # Initialize default services on module load
@@ -286,7 +282,7 @@ def get_resource_manager():
 
 def get_ghidra_service():
     """Get the Ghidra service instance."""
-    return container.get("ghidra")
+    return None
 
 
 def get_config_from_container():

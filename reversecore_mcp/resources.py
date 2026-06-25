@@ -14,8 +14,10 @@ from reversecore_mcp.core.metrics import track_metrics
 
 # Import tools at module level for better performance
 # These imports are used by resource functions below
-from reversecore_mcp.tools.ghidra import decompilation, r2_analysis, static_analysis
+from reversecore_mcp.tools.analysis import static_analysis
 from reversecore_mcp.tools.malware import ioc_tools
+from reversecore_mcp.tools.radare2 import r2_analysis
+from reversecore_mcp.tools.radare2.r2ghidra_tools import r2_decompile
 
 # Type variable for generic function wrapper
 F = TypeVar("F", bound=Callable[..., Any])
@@ -185,12 +187,13 @@ def register_resources(mcp: FastMCP):
     async def get_decompiled_code(filename: str, address: str) -> str:
         """Get decompiled pseudo-C code for a specific function"""
         try:
-            result = await decompilation.smart_decompile(
-                _get_workspace_path(filename), address, use_ghidra=True
-            )
+            result = await r2_decompile(_get_workspace_path(filename), address)
 
             if result.status == "success":
-                content = result.data if isinstance(result.data, str) else str(result.data)
+                if isinstance(result.data, dict):
+                    content = result.data.get("pseudo_c", "")
+                else:
+                    content = str(result.data)
                 return f"""# Decompiled Code: {filename} @ {address}
 
 ```c

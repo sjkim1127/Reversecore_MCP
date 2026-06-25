@@ -399,7 +399,7 @@ class TestDecompilationMain:
     @pytest.mark.asyncio
     async def test_get_pseudo_code(self, sample_binary_path, patched_config):
         """Test get_pseudo_code function."""
-        from reversecore_mcp.tools.ghidra.decompilation import get_pseudo_code
+        from reversecore_mcp.tools.radare2.r2ghidra_tools import r2_decompile as get_pseudo_code
 
         result = await get_pseudo_code(str(sample_binary_path), "0x1000")
 
@@ -408,7 +408,7 @@ class TestDecompilationMain:
     @pytest.mark.asyncio
     async def test_smart_decompile(self, sample_binary_path, patched_config):
         """Test smart_decompile function."""
-        from reversecore_mcp.tools.ghidra.decompilation import smart_decompile
+        from reversecore_mcp.tools.radare2.r2ghidra_tools import r2_decompile as smart_decompile
 
         result = await smart_decompile(str(sample_binary_path), "0x1000")
 

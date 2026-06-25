@@ -46,11 +46,6 @@ viz = [
     "matplotlib>=3.8.0",
 ]
 
-# Ghidra integration
-ghidra = [
-    "pyghidra>=2.0.0,<4.0.0",
-    "jpype1>=1.7.0",
-]
 
 # CLI and utilities
 cli = [
@@ -84,7 +79,7 @@ forensics = [
 
 # Full installation (all features)
 full = [
-    "reversecore-mcp[analysis,viz,ghidra,cli,magic,http,emulation,forensics]",
+    "reversecore-mcp[analysis,viz,cli,magic,http,emulation,forensics]",
 ]
 
 # Development & Testing dependencies

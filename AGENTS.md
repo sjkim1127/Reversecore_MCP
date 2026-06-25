@@ -4,13 +4,13 @@ This guide helps AI agents understand the codebase structure and be immediately 
 
 ## Project Overview
 
-**Reversecore_MCP** is an enterprise-grade MCP (Model Context Protocol) server for AI-powered reverse engineering. It enables AI agents to perform comprehensive binary analysis through natural language commands using Ghidra, Radare2, and other industry-standard tools.
+**Reversecore_MCP** is an enterprise-grade MCP (Model Context Protocol) server for AI-powered reverse engineering. It enables AI agents to perform comprehensive binary analysis through natural language commands using Radare2, r2ghidra, and other industry-standard tools.
 
 - **Language**: Python 3.10+
 - **Framework**: [FastMCP](https://github.com/jlowin/fastmcp) 2.13.1+
 - **Architecture**: Layered (Prompts → Tools → Core Infrastructure → External Tools)
 - **Test Coverage**: 55%+ with 700+ tests
-- **Key External Dependencies**: Ghidra (for decompilation), Radare2 (disassembly), YARA (detection)
+- **Key External Dependencies**: Radare2 (disassembly/emulation), YARA (detection)
 
 ## Quick Commands
 
@@ -92,10 +92,10 @@ AI Agent → MCP Protocol → Reversecore Server (FastMCP)
                     [Prompts] [Resources] [Tools]
                               ↓
                     Core Infrastructure Layer
-                (Config, Security, Ghidra, Radare2, Metrics)
+                (Config, Security, Radare2, Metrics)
                               ↓
-              Ghidra  │  Radare2  │  CLI Tools
-            (Java)   │ (Python)  │ (YARA, file, etc.)
+                     Radare2  │  CLI Tools
+             (disasm/r2ghidra)│ (YARA, file, etc.)
 ```
 
 ### Key Directories
@@ -103,8 +103,7 @@ AI Agent → MCP Protocol → Reversecore Server (FastMCP)
 - **`reversecore_mcp/core/`**: Infrastructure (config, exceptions, security, validation, tool management)
 - **`reversecore_mcp/tools/`**: Tool implementations organized by category
   - `analysis/`: Binary analysis (signatures, LIEF, diff, static analysis)
-  - `ghidra/`: Decompilation via Ghidra
-  - `radare2/`: Disassembly & emulation via Radare2
+  - `radare2/`: Disassembly, emulation, r2ghidra decompiler, SQLite annotation DB
   - `malware/`: Threat detection (vaccine generation, dormant detector, vulnerability hunter)
   - `report/`: Report generation
   - `common/`: File operations, patch explanation
@@ -241,12 +240,11 @@ async def process_data(
 4. Add unit tests in `tests/unit/test_*.py`
 5. Update docs if it's a significant new feature
 
-### Working with Ghidra
+### Working with r2ghidra
 
-- Use `reversecore_mcp.core.ghidra_manager.GhidraManager` to interact with Ghidra
-- Check `GHIDRA_INSTALL_DIR` environment variable is set
-- Ghidra operations are async and can timeout—always wrap in try/except
-- See [Ghidra Helper](reversecore_mcp/core/ghidra_helper.py) for utility functions
+- Decompilation is powered by the `r2ghidra` plugin (which embeds the Ghidra decompiler engine directly inside radare2).
+- Use `r2_decompile` or `r2_recover_structures` tools located in `reversecore_mcp/tools/radare2/r2ghidra_tools.py`.
+- No separate JDK or Ghidra installation is required.
 
 ### Working with Radare2
 
@@ -284,19 +282,17 @@ See [Testing Guide](docs/development/testing.md) for detailed test patterns.
 
 ## Common Pitfalls
 
-1. **Timeout Handling**: External tools (Ghidra, r2, YARA) can hang. Always use the configured timeout and wrap in try/except.
+1. **Timeout Handling**: External tools (r2, YARA) can hang. Always use the configured timeout and wrap in try/except.
 
 2. **Path Validation**: Never trust user input paths. Always validate with `validate_file_path()` or `validate_binary_path()`.
 
-3. **Resource Cleanup**: Ghidra projects and Radare2 connections are pooled. Don't manually manage lifecycle—use provided managers.
+3. **Resource Cleanup**: Radare2 connections are pooled. Don't manually manage lifecycle—use provided managers.
 
 4. **Async/Await**: Server is fully async. Use `async def` for I/O-bound operations and `await` for external calls.
 
 5. **Error Codes**: Always set error_code and error_type on exceptions. This helps AI agents understand failure categories.
 
 6. **JSON Serialization**: Use `orjson` (faster) not `json` for serializing results to JSON.
-
-7. **Environment Variables**: Ghidra needs `GHIDRA_INSTALL_DIR` set. Check with `get_config()` before use.
 
 ## Important Files to Know
 
@@ -326,6 +322,5 @@ See [Testing Guide](docs/development/testing.md) for detailed test patterns.
 
 - [FastMCP Documentation](https://github.com/jlowin/fastmcp)
 - [MCP Protocol Spec](https://modelcontextprotocol.io/)
-- [Ghidra Scripting Guide](https://ghidra.re/)
 - [Radare2 Documentation](https://radare.org/n/)
 - [YARA Documentation](https://virustotal.github.io/yara/)

@@ -74,7 +74,7 @@ class TestExplainPatch:
             "reversecore_mcp.tools.common.patch_explainer.validate_file_path", return_value=file_a
         ):
             with patch(
-                "reversecore_mcp.tools.common.patch_explainer.diff_tools.diff_binaries",
+                "reversecore_mcp.tools.common.patch_explainer.diff_binaries",
                 new_callable=AsyncMock,
                 return_value=mock_diff_result,
             ):
@@ -99,7 +99,7 @@ class TestExplainPatch:
             "reversecore_mcp.tools.common.patch_explainer.validate_file_path", return_value=file_a
         ):
             with patch(
-                "reversecore_mcp.tools.common.patch_explainer.diff_tools.diff_binaries",
+                "reversecore_mcp.tools.common.patch_explainer.diff_binaries",
                 new_callable=AsyncMock,
                 return_value=mock_diff_result,
             ):
@@ -124,7 +124,7 @@ class TestExplainPatch:
             "reversecore_mcp.tools.common.patch_explainer.validate_file_path", return_value=file_a
         ):
             with patch(
-                "reversecore_mcp.tools.common.patch_explainer.diff_tools.diff_binaries",
+                "reversecore_mcp.tools.common.patch_explainer.diff_binaries",
                 new_callable=AsyncMock,
                 return_value=mock_diff_result,
             ):

@@ -23,11 +23,16 @@ from typing import Any
 from fastmcp import FastMCP
 
 from reversecore_mcp.core.config import get_config
+from reversecore_mcp.core.decorators import log_execution
+from reversecore_mcp.core.error_handling import handle_tool_errors
 from reversecore_mcp.core.exceptions import ValidationError
 from reversecore_mcp.core.logging_config import get_logger
+from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.plugin import Plugin
+from reversecore_mcp.core.r2_helpers import execute_r2_command as _execute_r2_command
+from reversecore_mcp.core.result import ToolResult, failure, success
 from reversecore_mcp.core.security import validate_file_path
-from reversecore_mcp.core.validators import validate_address_format
+from reversecore_mcp.core.validators import validate_address_format, validate_tool_parameters
 
 # Import session management and utilities from r2_session module
 from reversecore_mcp.tools.radare2.r2_session import (
@@ -1182,7 +1187,151 @@ class Radare2ToolsPlugin(Plugin):
         mcp.tool(generate_function_graph)
         mcp.tool(analyze_xrefs)
 
-        logger.info(f"Registered {self.name} plugin with 34 Radare2 tools (security hardened)")
+        # r2ghidra decompilation tools (replaces Ghidra JVM integration)
+        from reversecore_mcp.tools.radare2.r2ghidra_tools import (
+            r2_analyze_function,
+            r2_decompile,
+            r2_get_call_graph,
+            r2_recover_structures,
+            r2_simulate_patch,
+        )
+
+        mcp.tool(r2_decompile)
+        mcp.tool(r2_recover_structures)
+        mcp.tool(r2_analyze_function)
+        mcp.tool(r2_get_call_graph)
+        mcp.tool(r2_simulate_patch)
+
+        # r2 SQLite annotation DB tools (replaces Ghidra project DB)
+        from reversecore_mcp.tools.radare2.r2_db import (
+            r2_add_bookmark,
+            r2_create_structure,
+            r2_get_structure,
+            r2_list_bookmarks,
+            r2_list_structures,
+            r2_list_types,
+            r2_read_memory,
+        )
+
+        mcp.tool(r2_list_structures)
+        mcp.tool(r2_get_structure)
+        mcp.tool(r2_create_structure)
+        mcp.tool(r2_list_types)
+        mcp.tool(r2_list_bookmarks)
+        mcp.tool(r2_add_bookmark)
+        mcp.tool(r2_read_memory)
+        mcp.tool(emulate_machine_code)
+
+        logger.info(
+            f"Registered {self.name} plugin with 47 Radare2 tools (incl. r2ghidra + r2_db + emulation)"
+        )
+
+
+def _parse_register_state(ar_output: str) -> dict:
+    """Parse radare2 'ar' command output into structured register state."""
+    registers = {}
+    for line in ar_output.strip().split("\n"):
+        if "=" in line:
+            parts = line.split("=")
+            if len(parts) == 2:
+                reg_name = parts[0].strip()
+                reg_value = parts[1].strip()
+                registers[reg_name] = reg_value
+    return registers
+
+
+def _validate_address_or_fail(address: str, param_name: str = "address"):
+    """Validate address format and return failure ToolResult if invalid."""
+
+    try:
+        validate_address_format(address, param_name)
+        return None
+    except ValidationError as e:
+        return failure("VALIDATION_ERROR", str(e))
+
+
+@log_execution(tool_name="emulate_machine_code")
+@track_metrics("emulate_machine_code")
+@handle_tool_errors
+async def emulate_machine_code(
+    file_path: str,
+    start_address: str,
+    instructions: int = 50,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> ToolResult:
+    """Emulate machine code execution using radare2 ESIL (Evaluable Strings Intermediate Language).
+
+    This tool provides safe, sandboxed emulation of binary code without actual execution.
+    Perfect for analyzing obfuscated code, understanding register states, and predicting
+    execution outcomes without security risks.
+
+    Args:
+        file_path: Path to the binary file (must be in workspace)
+        start_address: Address to start emulation (e.g., 'main', '0x401000', 'sym.decrypt')
+        instructions: Number of instructions to execute (default 50, max 1000)
+        timeout: Execution timeout in seconds
+
+    Returns:
+        ToolResult with register states and emulation summary
+    """
+    # 1. Parameter validation
+    validate_tool_parameters(
+        "emulate_machine_code",
+        {"start_address": start_address, "instructions": instructions},
+    )
+    validated_path = validate_file_path(file_path)
+
+    # 2. Security check for start address (prevent shell injection)
+    validation_error = _validate_address_or_fail(start_address, "start_address")
+    if validation_error:
+        return validation_error
+
+    # 3. Build radare2 ESIL emulation command chain
+    esil_cmds = [
+        f"s {start_address}",  # Seek to start address
+        "aei",  # Initialize ESIL VM
+        "aeim",  # Initialize ESIL memory (stack)
+        "aeip",  # Initialize program counter to current seek
+        f"aes {instructions}",  # Step through N instructions
+        "ar",  # Show all registers
+    ]
+
+    # 4. Execute emulation using helper
+    try:
+        output, bytes_read = await _execute_r2_command(
+            validated_path,
+            esil_cmds,
+            analysis_level="aaa",
+            max_output_size=10_000_000,
+            base_timeout=timeout,
+        )
+
+        # 5. Parse register state
+        register_state = _parse_register_state(output)
+
+        if not register_state:
+            return failure(
+                "EMULATION_ERROR",
+                "Failed to extract register state from emulation output",
+                hint="The binary may not be compatible with ESIL emulation, or the start address is invalid",
+            )
+
+        # 6. Build result with metadata
+        return success(
+            register_state,
+            bytes_read=bytes_read,
+            format="register_state",
+            instructions_executed=instructions,
+            start_address=start_address,
+            description=f"Emulated {instructions} instructions starting at {start_address}",
+        )
+
+    except Exception as e:
+        return failure(
+            "EMULATION_ERROR",
+            f"ESIL emulation failed: {str(e)}",
+            hint="Check that the binary architecture is supported and the start address is valid",
+        )
 
 
 def register_radare2_tools(mcp: FastMCP) -> None:

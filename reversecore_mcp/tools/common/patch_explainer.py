@@ -13,7 +13,8 @@ from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.result import ToolResult, failure, success
 from reversecore_mcp.core.security import validate_file_path
-from reversecore_mcp.tools.ghidra import decompilation, diff_tools
+from reversecore_mcp.tools.analysis.diff_tools import diff_binaries
+from reversecore_mcp.tools.radare2.r2ghidra_tools import r2_decompile
 
 logger = get_logger(__name__)
 
@@ -57,9 +58,7 @@ async def explain_patch(
     if ctx:
         await ctx.info("📊 Diffing binaries to find changed functions...")
 
-    diff_result = await diff_tools.diff_binaries(
-        str(path_a), str(path_b), function_name=function_name
-    )
+    diff_result = await diff_binaries(str(path_a), str(path_b), function_name=function_name)
 
     if diff_result.status != "success":
         return failure(
@@ -131,12 +130,20 @@ async def explain_patch(
         # Note: We need to handle the case where function exists in both.
 
         # Decompile A
-        res_a = await decompilation.smart_decompile(str(path_a), str(func))
-        code_a = res_a.data if res_a.status == "success" and isinstance(res_a.data, str) else ""
+        res_a = await r2_decompile(str(path_a), str(func))
+        code_a = (
+            res_a.data.get("pseudo_c", "")
+            if res_a.status == "success" and isinstance(res_a.data, dict)
+            else ""
+        )
 
         # Decompile B
-        res_b = await decompilation.smart_decompile(str(path_b), str(func))
-        code_b = res_b.data if res_b.status == "success" and isinstance(res_b.data, str) else ""
+        res_b = await r2_decompile(str(path_b), str(func))
+        code_b = (
+            res_b.data.get("pseudo_c", "")
+            if res_b.status == "success" and isinstance(res_b.data, dict)
+            else ""
+        )
 
         if not code_a or not code_b:
             explanations.append(

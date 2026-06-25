@@ -105,22 +105,6 @@ class TestResilienceDirect:
 
 
 # ============================================================================
-# Ghidra Helper - direct tests
-# ============================================================================
-
-
-class TestGhidraHelperDirect:
-    """Direct tests for ghidra_helper module."""
-
-    def test_ensure_ghidra_available(self):
-        """Test ensure_ghidra_available function."""
-        from reversecore_mcp.core.ghidra_helper import ensure_ghidra_available
-
-        result = ensure_ghidra_available()
-        assert isinstance(result, bool)
-
-
-# ============================================================================
 # IOC Tools - additional patterns
 # ============================================================================
 

@@ -318,7 +318,7 @@ class TestDecompilationMain:
     @pytest.mark.asyncio
     async def test_smart_decompile(self, patched_workspace_config, workspace_dir):
         """Test smart_decompile function."""
-        from reversecore_mcp.tools.ghidra.decompilation import smart_decompile
+        from reversecore_mcp.tools.radare2.r2ghidra_tools import r2_decompile as smart_decompile
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)

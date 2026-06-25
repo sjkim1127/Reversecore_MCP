@@ -333,7 +333,7 @@ class TestDynamicResources:
         mock_result.data = "int main() {\n  return 0;\n}"
         mock_result.content = [Mock(text="int main() {\n  return 0;\n}")]
 
-        with patch("reversecore_mcp.tools.decompilation.smart_decompile", return_value=mock_result):
+        with patch("reversecore_mcp.resources.r2_decompile", return_value=mock_result):
             result = await code_func("test.exe", "main")
             assert "# Decompiled Code: test.exe @ main" in result
             assert "int main()" in result
@@ -578,7 +578,7 @@ class TestDynamicResources:
         mock_result.status = "error"
         mock_result.message = "Decompilation failed"
 
-        with patch("reversecore_mcp.tools.decompilation.smart_decompile", return_value=mock_result):
+        with patch("reversecore_mcp.resources.r2_decompile", return_value=mock_result):
             result = await code_func("test.exe", "main")
             assert "Error decompiling" in result
 

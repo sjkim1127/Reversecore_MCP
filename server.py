@@ -194,11 +194,6 @@ async def server_lifespan(server: FastMCP) -> AsyncGenerator[None, None]:
         pass
 
     try:
-        # Perform cleanup
-        from reversecore_mcp.core.ghidra_manager import ghidra_manager
-
-        ghidra_manager.close_all()
-
         # Stop and cleanup plugins explicitly
         for plugin in plugins:
             if hasattr(plugin, "cleanup"):

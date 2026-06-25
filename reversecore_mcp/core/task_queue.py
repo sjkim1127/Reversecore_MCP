@@ -148,15 +148,14 @@ async def run_task_or_fallback(
 async def task_smart_decompile(
     ctx: Any, file_path: str, function_address: str, timeout: int, use_ghidra: bool
 ) -> ToolResult:
-    """ARQ Worker proxy for smart_decompile."""
+    """ARQ Worker proxy for smart_decompile (now maps to r2_decompile)."""
     logger.info(f"Worker executing task_smart_decompile for {function_address} in {file_path}")
-    from reversecore_mcp.tools.ghidra.decompilation import _smart_decompile_impl
+    from reversecore_mcp.tools.radare2.r2ghidra_tools import r2_decompile
 
-    return await _smart_decompile_impl(
+    return await r2_decompile(
         file_path=file_path,
         function_address=function_address,
         timeout=timeout,
-        use_ghidra=use_ghidra,
     )
 
 

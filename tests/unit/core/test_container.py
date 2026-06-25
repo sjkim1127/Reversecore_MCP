@@ -401,7 +401,7 @@ class TestConvenienceFunctions:
         from reversecore_mcp.core.container import get_ghidra_service
 
         svc = get_ghidra_service()
-        assert svc is not None
+        assert svc is None
 
     def test_get_config_from_container_returns_config(self):
         from reversecore_mcp.core.container import get_config_from_container

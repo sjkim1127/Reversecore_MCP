@@ -3,13 +3,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from reversecore_mcp.tools import (
-    decompilation,
-    diff_tools,
-    r2_analysis,
-    signature_tools,
-    static_analysis,
-)
+from reversecore_mcp.tools.analysis import diff_tools, signature_tools, static_analysis
+from reversecore_mcp.tools.radare2 import r2_analysis
 
 
 @pytest.mark.asyncio
@@ -139,79 +134,6 @@ _ZTIMyClass
         result = await r2_analysis.analyze_xrefs(str(test_file), "0x401000", xref_type="invalid")
         assert result.status == "error"
         assert "Invalid xref_type" in result.message
-
-    async def test_recover_structures_radare2(self, workspace_dir, patched_workspace_config):
-        test_file = workspace_dir / "test.exe"
-        test_file.write_bytes(b"FAKE")
-
-        vars_json = json.dumps(
-            [
-                {"type": "int", "name": "field1", "delta": 0, "ref": {"base": "rbp"}},
-                {"type": "char *", "name": "field2", "delta": 8, "ref": {"base": "rbp"}},
-            ]
-        )
-
-        # Mock r2_helpers where execute_subprocess_async is actually used
-        with patch(
-            "reversecore_mcp.core.r2_helpers.execute_subprocess_async", new_callable=AsyncMock
-        ) as mock_exec:
-            mock_exec.return_value = (vars_json, len(vars_json))
-
-            result = await decompilation.recover_structures(
-                str(test_file), "main", use_ghidra=False
-            )
-
-            assert result.status == "success"
-            data = result.data
-            assert data["count"] == 1
-            assert data["structures"][0]["name"] == "struct_rbp"
-            assert len(data["structures"][0]["fields"]) == 2
-
-    async def test_recover_structures_ghidra_success(self, workspace_dir, patched_workspace_config):
-        test_file = workspace_dir / "test.exe"
-        test_file.write_bytes(b"FAKE")
-
-        mock_structures = [{"name": "Player", "fields": []}]
-        mock_metadata = {"structure_count": 1}
-
-        # Mock core.ghidra (new unified module) where functions are now located
-        with (
-            patch("reversecore_mcp.core.ghidra.ensure_ghidra_available", return_value=True),
-            patch(
-                "reversecore_mcp.core.ghidra.recover_structures_with_ghidra",
-                return_value=(mock_structures, mock_metadata),
-            ),
-        ):
-            result = await decompilation.recover_structures(str(test_file), "main", use_ghidra=True)
-
-            assert result.status == "success"
-            assert result.data["structures"] == mock_structures
-            assert result.metadata["method"] == "ghidra"
-
-    async def test_recover_structures_ghidra_missing(self, workspace_dir, patched_workspace_config):
-        test_file = workspace_dir / "test.exe"
-        test_file.write_bytes(b"FAKE")
-
-        # Mock radare2 output for fallback
-        vars_json = json.dumps(
-            [{"type": "int", "name": "field1", "delta": 0, "ref": {"base": "rbp"}}]
-        )
-
-        # Mock core.ghidra (new unified module) and r2_helpers
-        with (
-            patch("reversecore_mcp.core.ghidra.ensure_ghidra_available", return_value=False),
-            patch(
-                "reversecore_mcp.core.r2_helpers.execute_subprocess_async", new_callable=AsyncMock
-            ) as mock_exec,
-        ):
-            mock_exec.return_value = (vars_json, len(vars_json))
-
-            result = await decompilation.recover_structures(str(test_file), "main", use_ghidra=True)
-
-            # Should succeed via fallback
-            assert result.status == "success"
-            assert result.metadata["method"] == "radare2"
-            assert "Ghidra not available" in result.metadata["description"]
 
     async def test_diff_binaries_success(self, workspace_dir, patched_workspace_config):
         file_a = workspace_dir / "v1.exe"

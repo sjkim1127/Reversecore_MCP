@@ -54,7 +54,6 @@ jaraco-context==6.1.2     # via keyring
 jaraco-functools==4.5.0   # via keyring
 jinja2==3.1.6             # via reversecore-mcp, reversecore-mcp (pyproject.toml)
 joserfc==1.7.1            # via authlib
-jpype1==1.7.1             # via pyghidra, reversecore-mcp
 jsonpath-ng==1.6.0        # via python-fx
 jsonref==1.1.0            # via fastmcp
 jsonschema==4.26.0        # via mcp
@@ -79,7 +78,7 @@ openapi-pydantic==0.5.1   # via fastmcp
 opentelemetry-api==1.42.1  # via fastmcp
 orjson==3.11.9            # via reversecore-mcp, reversecore-mcp (pyproject.toml)
 overrides==7.7.0          # via python-fx
-packaging==26.2           # via fastmcp, jpype1, limits, matplotlib, pyghidra
+packaging==26.2           # via fastmcp, limits, matplotlib
 pathable==0.6.0           # via jsonschema-path
 pefile==2024.8.26         # via qiling, reversecore-mcp, volatility3
 pillow==10.4.0            # via asciimatics, matplotlib, python-fx
@@ -94,7 +93,6 @@ pydantic-core==2.46.4     # via pydantic
 pydantic-settings==2.14.2  # via mcp, reversecore-mcp, reversecore-mcp (pyproject.toml)
 pyelftools==0.33          # via qiling
 pyfiglet==1.0.4           # via asciimatics, python-fx
-pyghidra==2.2.1           # via reversecore-mcp
 pygments==2.20.0          # via rich, rich-rst
 pyjwt[crypto]==2.13.0     # via mcp
 pyparsing==3.3.2          # via matplotlib

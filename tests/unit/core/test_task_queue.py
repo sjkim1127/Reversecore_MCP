@@ -110,13 +110,13 @@ async def test_get_job_result_tool():
 async def test_worker_proxy_handlers():
     # 1. task_smart_decompile
     with patch(
-        "reversecore_mcp.tools.ghidra.decompilation._smart_decompile_impl", new_callable=AsyncMock
+        "reversecore_mcp.tools.radare2.r2ghidra_tools.r2_decompile", new_callable=AsyncMock
     ) as mock_impl:
         mock_impl.return_value = success("decompiled code")
         res = await task_smart_decompile(None, "file.bin", "main", 120, True)
         assert res.status == "success"
         mock_impl.assert_called_once_with(
-            file_path="file.bin", function_address="main", timeout=120, use_ghidra=True
+            file_path="file.bin", function_address="main", timeout=120
         )
 
     # 2. task_run_yara
