@@ -10,32 +10,42 @@ aiosmtplib==5.1.2         # via reversecore-mcp, reversecore-mcp (pyproject.toml
 aiosqlite==0.22.1         # via reversecore-mcp, reversecore-mcp (pyproject.toml)
 annotated-doc==0.0.4      # via fastapi, typer
 annotated-types==0.7.0    # via pydantic
+antlr4-python3-runtime==4.13.2  # via python-fx
 anyio==4.14.0             # via httpx, mcp, py-key-value-aio, sse-starlette, starlette, watchfiles
+arq==0.26.1               # via reversecore-mcp, reversecore-mcp (pyproject.toml)
+asciimatics==1.15.0       # via python-fx
 async-lru==2.3.0          # via reversecore-mcp, reversecore-mcp (pyproject.toml)
 attrs==26.1.0             # via cyclopts, jsonschema, jsonschema-path, referencing
 authlib==1.7.2            # via fastmcp
 beartype==0.22.9          # via py-key-value-aio
 cachetools==7.1.4         # via py-key-value-aio
 caio==0.9.25              # via aiofile
-capstone==6.0.0a7         # via reversecore-mcp
+capstone==6.0.0a7         # via qiling, reversecore-mcp
 certifi==2026.6.17        # via httpcore, httpx, requests
 cffi==2.0.0               # via cryptography
 charset-normalizer==3.4.7  # via requests
-click==8.4.1              # via uvicorn
+click==8.4.2              # via arq, python-fx, uvicorn
 contourpy==1.3.3          # via matplotlib
 cryptography==49.0.0      # via authlib, joserfc, pyjwt
 cycler==0.12.1            # via matplotlib
 cyclopts==4.19.0          # via fastmcp
+dacite==1.8.0             # via python-fx
 deprecated==1.3.1         # via limits
+dill==0.4.1               # via multiprocess
 dnspython==2.8.0          # via email-validator
 docstring-parser==0.18.0  # via cyclopts
 email-validator==2.3.0    # via pydantic
+enum-compat==0.0.3        # via python-registry
 exceptiongroup==1.3.1     # via fastmcp
 fastapi==0.138.0          # via reversecore-mcp, reversecore-mcp (pyproject.toml)
 fastmcp==3.2.0            # via reversecore-mcp, reversecore-mcp (pyproject.toml)
+first==2.0.0              # via python-fx
 fonttools==4.63.0         # via matplotlib
+gevent==26.5.0            # via qiling
 graphviz==0.21            # via reversecore-mcp
+greenlet==3.5.2           # via gevent
 h11==0.16.0               # via httpcore, uvicorn
+hiredis==3.0.0            # via redis
 httpcore==1.0.9           # via httpx
 httpx==0.28.1             # via fastmcp, mcp
 httpx-sse==0.4.3          # via mcp
@@ -46,69 +56,89 @@ jaraco-functools==4.5.0   # via keyring
 jinja2==3.1.6             # via reversecore-mcp, reversecore-mcp (pyproject.toml)
 joserfc==1.7.1            # via authlib
 jpype1==1.7.1             # via pyghidra, reversecore-mcp
+jsonpath-ng==1.6.0        # via python-fx
 jsonref==1.1.0            # via fastmcp
 jsonschema==4.26.0        # via mcp
 jsonschema-path==0.5.0    # via fastmcp
 jsonschema-specifications==2025.9.1  # via jsonschema
 keyring==25.7.0           # via py-key-value-aio
-keystone-engine==0.9.2    # via reversecore-mcp
+keystone-engine==0.9.2    # via qiling, reversecore-mcp
 kiwisolver==1.5.0         # via matplotlib
 lief==0.17.6              # via reversecore-mcp
 limits==5.8.0             # via slowapi
-loguru==0.7.3             # via reversecore-mcp, reversecore-mcp (pyproject.toml)
+loguru==0.7.3             # via python-fx, reversecore-mcp, reversecore-mcp (pyproject.toml)
 markdown-it-py==4.2.0     # via rich
 markupsafe==3.0.3         # via jinja2
 matplotlib==3.11.0        # via reversecore-mcp
 mcp[cli]==1.28.0          # via fastmcp, reversecore-mcp, reversecore-mcp (pyproject.toml)
 mdurl==0.1.2              # via markdown-it-py
 more-itertools==11.1.0    # via jaraco-classes, jaraco-functools
+multiprocess==0.70.19     # via qiling
 networkx==3.6.1           # via reversecore-mcp
 numpy==2.4.6              # via contourpy, matplotlib
 openapi-pydantic==0.5.1   # via fastmcp
 opentelemetry-api==1.42.1  # via fastmcp
 orjson==3.11.9            # via reversecore-mcp, reversecore-mcp (pyproject.toml)
+overrides==7.7.0          # via python-fx
 packaging==26.2           # via fastmcp, jpype1, limits, matplotlib, pyghidra
 pathable==0.6.0           # via jsonschema-path
-pefile==2024.8.26         # via reversecore-mcp
-pillow==12.2.0            # via matplotlib
+pefile==2024.8.26         # via qiling, reversecore-mcp, volatility3
+pillow==10.4.0            # via asciimatics, matplotlib, python-fx
 platformdirs==4.10.0      # via fastmcp
+ply==3.11                 # via jsonpath-ng, python-fx
+prompt-toolkit==3.0.52    # via questionary
 psutil==7.2.2             # via reversecore-mcp
 py-key-value-aio[filetree,keyring,memory]==0.4.5  # via fastmcp
 pycparser==3.0            # via cffi
 pydantic[email]==2.13.4   # via fastapi, fastmcp, mcp, openapi-pydantic, pydantic-settings, reversecore-mcp, reversecore-mcp (pyproject.toml)
 pydantic-core==2.46.4     # via pydantic
 pydantic-settings==2.14.2  # via mcp, reversecore-mcp, reversecore-mcp (pyproject.toml)
+pyelftools==0.33          # via qiling
+pyfiglet==1.0.4           # via asciimatics, python-fx
 pyghidra==2.2.1           # via reversecore-mcp
 pygments==2.20.0          # via rich, rich-rst
 pyjwt[crypto]==2.13.0     # via mcp
 pyparsing==3.3.2          # via matplotlib
-pyperclip==1.11.0         # via fastmcp
+pyperclip==1.11.0         # via fastmcp, python-fx
 python-dateutil==2.9.0.post0  # via matplotlib
 python-dotenv==1.2.2      # via fastmcp, mcp, pydantic-settings, reversecore-mcp, reversecore-mcp (pyproject.toml)
+python-fx==0.4.0          # via qiling
 python-magic==0.4.27      # via reversecore-mcp
 python-multipart==0.0.32  # via mcp, reversecore-mcp, reversecore-mcp (pyproject.toml)
-pyyaml==6.0.3             # via fastmcp, jsonschema-path
+python-registry==1.3.1    # via qiling
+pyyaml==6.0.3             # via fastmcp, jsonschema-path, python-fx, qiling, yamale
+qiling==1.4.6             # via reversecore-mcp
+questionary==2.1.1        # via qiling
 r2pipe==1.9.8             # via reversecore-mcp
+redis[hiredis]==5.0.1     # via arq, reversecore-mcp, reversecore-mcp (pyproject.toml)
 referencing==0.37.0       # via jsonschema, jsonschema-path, jsonschema-specifications
 requests==2.34.2          # via reversecore-mcp
+reversecore-mcp[analysis,cli,emulation,forensics,ghidra,http,magic,viz] @ file:///Users/sjkim1127/Reversecore_MCP  # via reversecore-mcp (pyproject.toml)
 rich==15.0.0              # via cyclopts, fastmcp, reversecore-mcp, rich-rst, typer
 rich-rst==2.0.1           # via cyclopts
 rpds-py==2026.5.1         # via jsonschema, referencing
+scapy==2.7.0              # via reversecore-mcp
 shellingham==1.5.4        # via typer
 six==1.17.0               # via python-dateutil
 slowapi==0.1.10           # via reversecore-mcp
 sse-starlette==3.4.5      # via mcp
 starlette==1.3.1          # via fastapi, mcp, sse-starlette
+termcolor==3.3.0          # via qiling
 typer==0.26.7             # via mcp, reversecore-mcp
-typing-extensions==4.15.0  # via anyio, exceptiongroup, fastapi, limits, mcp, opentelemetry-api, py-key-value-aio, pydantic, pydantic-core, referencing, starlette, typing-inspection
+typing-extensions==4.15.0  # via anyio, exceptiongroup, fastapi, limits, mcp, opentelemetry-api, py-key-value-aio, pydantic, pydantic-core, python-fx, referencing, starlette, typing-inspection, urwid
 typing-inspection==0.4.2  # via fastapi, mcp, pydantic, pydantic-settings
 uncalled-for==0.3.2       # via fastmcp
+unicodecsv==0.14.1        # via python-registry
+unicorn==2.1.4            # via qiling
 urllib3==2.7.0            # via requests
+urwid==2.6.16             # via python-fx
 uvicorn==0.49.0           # via fastmcp, mcp, reversecore-mcp, reversecore-mcp (pyproject.toml)
+volatility3==2.28.0       # via reversecore-mcp
 watchfiles==1.2.0         # via fastmcp
+wcwidth==0.2.14           # via asciimatics, prompt-toolkit, python-fx, urwid
 websockets==16.0          # via fastmcp
 wrapt==2.2.2              # via deprecated
+yamale==5.3.0             # via python-fx
 yara-python==4.5.4        # via reversecore-mcp
-arq==0.26.1
-redis==5.0.1
-hiredis==3.0.0
+zope-event==6.2           # via gevent
+zope-interface==8.5       # via gevent

@@ -76,9 +76,15 @@ emulation = [
     "qiling>=1.4.6",
 ]
 
+# Digital forensics tools
+forensics = [
+    "volatility3>=2.4.0",
+    "scapy>=2.5.0",
+]
+
 # Full installation (all features)
 full = [
-    "reversecore-mcp[analysis,viz,ghidra,cli,magic,http,emulation]",
+    "reversecore-mcp[analysis,viz,ghidra,cli,magic,http,emulation,forensics]",
 ]
 
 # Development & Testing dependencies

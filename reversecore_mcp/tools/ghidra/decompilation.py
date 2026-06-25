@@ -649,7 +649,10 @@ async def smart_decompile(
     Returns:
         ToolResult with decompiled pseudo C code or job ID
     """
-    from reversecore_mcp.core.analysis_cache import get_cached_decompile, set_cached_decompile
+    from reversecore_mcp.core.analysis_cache import (
+        get_cached_decompile,
+        set_cached_decompile,
+    )
     from reversecore_mcp.core.task_queue import run_task_or_fallback
 
     # 1. Check Redis cache first (if not bypassing queue/cache)

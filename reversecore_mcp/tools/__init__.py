@@ -18,6 +18,9 @@ from reversecore_mcp.tools.analysis import (
 # Common tools
 from reversecore_mcp.tools.common import file_operations, patch_explainer
 
+# Forensics tools
+from reversecore_mcp.tools.forensics import artifact, disk, memory, network
+
 # Ghidra tools
 from reversecore_mcp.tools.ghidra import decompilation
 
@@ -47,6 +50,11 @@ __all__ = [
     # Common tools
     "file_operations",
     "patch_explainer",
+    # Forensics tools
+    "memory",
+    "disk",
+    "network",
+    "artifact",
     # Radare2 tools
     "r2_analysis",
     # Ghidra tools

@@ -393,7 +393,11 @@ class ExtensionRegistry:
             try:
                 commands.extend(ext.get_r2_startup_commands())
             except Exception as exc:
-                logger.error("get_r2_startup_commands() error in extension '%s': %s", ext.name, exc)
+                logger.error(
+                    "get_r2_startup_commands() error in extension '%s': %s",
+                    ext.name,
+                    exc,
+                )
         return commands
 
     # =========================================================================
