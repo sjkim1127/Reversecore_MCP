@@ -28,6 +28,9 @@ services:
     environment:
       - MCP_TRANSPORT=http
       - LOG_LEVEL=INFO
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
     deploy:
       resources:
         limits:
@@ -53,6 +56,9 @@ services:
     environment:
       - MCP_TRANSPORT=http
       - LOG_LEVEL=INFO
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
     deploy:
       resources:
         limits:
@@ -60,5 +66,18 @@ services:
           memory: 4G
     restart: unless-stopped
     profiles:
+      - arm64
+      - macos
+
+  # Redis service shared for task queue and result caching
+  redis:
+    image: redis:7-alpine
+    container_name: reversecore-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    profiles:
+      - default
+      - x86
       - arm64
       - macos

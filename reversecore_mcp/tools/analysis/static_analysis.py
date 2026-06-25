@@ -58,8 +58,23 @@ async def run_strings(
     min_length: int = 10,  # Increased default from 4 to 10 to reduce noise and memory usage
     max_output_size: int = 2_000_000,  # Reduced default to 2MB for safety
     timeout: int = DEFAULT_TIMEOUT,
+    run_async: bool = False,
+    _bypass_queue: bool = False,
 ) -> ToolResult:
     """Extract printable strings using the ``strings`` CLI."""
+    if not _bypass_queue:
+        from reversecore_mcp.core.task_queue import run_task_or_fallback
+
+        return await run_task_or_fallback(
+            "task_run_strings",
+            run_strings,
+            file_path,
+            min_length,
+            max_output_size,
+            timeout,
+            run_async=run_async,
+            _bypass_queue=True,
+        )
 
     validate_tool_parameters(
         "run_strings",

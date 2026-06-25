@@ -202,6 +202,13 @@ class Settings(BaseSettings):
         description="Path to AI memory SQLite database",
     )
 
+    # Redis configuration
+    redis_url: str = Field(
+        default="redis://localhost:6379/0",
+        alias="REDIS_URL",
+        description="Redis connection URL for task queue and result caching",
+    )
+
     # Extension plugin configuration
     plugin_dirs: str = Field(
         default="",
@@ -428,6 +435,10 @@ class Config:
     @property
     def max_emulation_instructions(self) -> int:
         return self._settings.max_emulation_instructions
+
+    @property
+    def redis_url(self) -> str:
+        return self._settings.redis_url
 
     @classmethod
     def from_env(cls) -> Config:

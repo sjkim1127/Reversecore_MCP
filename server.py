@@ -120,6 +120,26 @@ async def server_lifespan(server: FastMCP) -> AsyncGenerator[None, None]:
     # Start cleanup task
     cleanup_task = asyncio.create_task(_cleanup_old_files())
 
+    # Start embedded task queue worker if queue is enabled
+    from arq.worker import Worker
+
+    from reversecore_mcp.core.task_queue import WorkerSettings, get_arq_pool
+
+    pool = await get_arq_pool()
+    worker = None
+    worker_task = None
+    if pool is not None:
+        try:
+            worker = Worker(
+                functions=WorkerSettings.functions,
+                redis_pool=pool,
+                handle_signals=False,
+            )
+            worker_task = asyncio.create_task(worker.async_run())
+            logger.info("✅ Embedded ARQ task queue worker started successfully.")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to start embedded task queue worker: {e}")
+
     # ============================================================================
     # SERVER RUNNING (yield control)
     # ============================================================================
@@ -129,6 +149,29 @@ async def server_lifespan(server: FastMCP) -> AsyncGenerator[None, None]:
     # SHUTDOWN
     # ============================================================================
     logger.info("🛑 Reversecore MCP Server shutting down...")
+
+    # Close task queue worker and pools
+    if worker is not None:
+        try:
+            await worker.close()
+            logger.info("Embedded ARQ worker stopped.")
+        except Exception as e:
+            logger.debug(f"Error stopping ARQ worker: {e}")
+
+    if worker_task is not None:
+        worker_task.cancel()
+        try:
+            await worker_task
+        except asyncio.CancelledError:
+            pass
+
+    from reversecore_mcp.core.task_queue import close_arq_pool
+
+    await close_arq_pool()
+
+    from reversecore_mcp.core.analysis_cache import close_redis
+
+    await close_redis()
 
     # Stop Resource Manager
     await resource_manager.stop()
@@ -441,6 +484,13 @@ from reversecore_mcp.tools.report.report_mcp_tools import register_report_tools 
 
 report_tools = register_report_tools(mcp)
 logger.info("Registered report tools")
+
+# Register task queue get_job_result tool
+from reversecore_mcp.core.task_queue import get_job_result  # noqa: E402
+
+mcp.tool()(get_job_result)
+logger.info("Registered get_job_result tool")
+
 
 # ============================================================================
 # Security Middleware

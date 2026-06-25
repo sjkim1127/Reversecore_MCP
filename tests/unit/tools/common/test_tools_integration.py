@@ -264,7 +264,8 @@ class TestYaraToolsFormatMatch:
 class TestYaraToolsRunYara:
     """Tests for run_yara function."""
 
-    def test_run_yara_basic(self, patched_workspace_config, workspace_dir):
+    @pytest.mark.asyncio
+    async def test_run_yara_basic(self, patched_workspace_config, workspace_dir):
         """Test run_yara with basic file."""
         from reversecore_mcp.tools.malware.yara_tools import run_yara
 
@@ -277,7 +278,7 @@ class TestYaraToolsRunYara:
         rule_file = rules_dir / "test.yar"
         rule_file.write_text('rule test_rule { strings: $a = "ELF" condition: $a }')
 
-        result = run_yara(str(test_file), str(rule_file))
+        result = await run_yara(str(test_file), str(rule_file))
         assert result.status in ("success", "error")
 
 

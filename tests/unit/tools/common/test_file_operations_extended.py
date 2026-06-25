@@ -287,7 +287,8 @@ class TestAdaptiveVaccineMain:
 class TestYaraToolsMain:
     """Test YARA functions."""
 
-    def test_run_yara(self, sample_binary_path, patched_config, read_only_dir):
+    @pytest.mark.asyncio
+    async def test_run_yara(self, sample_binary_path, patched_config, read_only_dir):
         """Test run_yara function."""
         from reversecore_mcp.tools.malware.yara_tools import run_yara
 
@@ -302,7 +303,7 @@ rule test_rule {
 }
 """)
 
-        result = run_yara(str(sample_binary_path), str(rule_file))
+        result = await run_yara(str(sample_binary_path), str(rule_file))
 
         assert result.status in ("success", "error")
 

@@ -624,6 +624,8 @@ async def smart_decompile(
     function_address: str,
     timeout: int = DEFAULT_TIMEOUT,
     use_ghidra: bool = True,
+    run_async: bool = False,
+    _bypass_queue: bool = False,
     ctx: Context | None = None,
 ) -> ToolResult:
     """
@@ -641,29 +643,42 @@ async def smart_decompile(
         function_address: Function address to decompile (e.g., 'main', '0x401000')
         timeout: Execution timeout in seconds (default 300)
         use_ghidra: Use Ghidra decompiler if available (default True)
+        run_async: If True, run task in background and return job ID immediately (default False)
         ctx: FastMCP Context (auto-injected)
 
     Returns:
-        ToolResult with decompiled pseudo C code
+        ToolResult with decompiled pseudo C code or job ID
     """
-    import os
-    import time
+    from reversecore_mcp.core.analysis_cache import get_cached_decompile, set_cached_decompile
+    from reversecore_mcp.core.task_queue import run_task_or_fallback
 
-    # Get file mtime for cache invalidation (cache busts when file is modified)
-    try:
-        file_mtime = os.path.getmtime(file_path)
-    except OSError:
-        file_mtime = 0.0
+    # 1. Check Redis cache first (if not bypassing queue/cache)
+    if not _bypass_queue and not run_async:
+        try:
+            cached = await get_cached_decompile(file_path, function_address, use_ghidra=use_ghidra)
+            if cached is not None:
+                return cached
+        except Exception as e:
+            logger.debug(f"Decompile cache check error: {e}")
 
-    result = await _smart_decompile_impl(
-        file_path, function_address, timeout, use_ghidra, _file_mtime=file_mtime
+    # 2. Run via task queue or fallback to direct execution
+    result = await run_task_or_fallback(
+        "task_smart_decompile",
+        _smart_decompile_impl,
+        file_path,
+        function_address,
+        timeout,
+        use_ghidra,
+        run_async=run_async,
+        _bypass_queue=_bypass_queue,
     )
 
-    # Check for cache hit
-    if result.status == "success" and result.metadata:
-        ts = result.metadata.get("timestamp")
-        if ts and (time.time() - ts > 1.0):
-            result.metadata["cache_hit"] = True
+    # 3. Store in cache if successful and not running asynchronously
+    if not run_async and result.status == "success":
+        try:
+            await set_cached_decompile(file_path, function_address, result, use_ghidra=use_ghidra)
+        except Exception as e:
+            logger.debug(f"Failed to cache decompile result: {e}")
 
     return result
 
