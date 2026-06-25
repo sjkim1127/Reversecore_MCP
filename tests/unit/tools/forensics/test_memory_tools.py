@@ -58,7 +58,7 @@ async def test_memory_list_symbols_success(tmp_dump):
 @pytest.mark.asyncio
 async def test_memory_list_symbols_no_vol(tmp_dump):
     """Edge case: Volatility3 not installed."""
-    with patch("subprocess.run", side_effect=FileNotFoundError):
+    with patch("shutil.which", return_value=None):
         result = await memory_list_symbols(tmp_dump)
 
     assert result.status == "error"
@@ -342,6 +342,12 @@ async def test_memory_vol3_errors(tmp_dump):
     """Test _run_vol3 internal error handling paths."""
     from reversecore_mcp.tools.forensics.memory import _run_vol3
 
+    # Missing vol executable (FileNotFoundError)
+    with patch("shutil.which", return_value=None):
+        with pytest.raises(FileNotFoundError) as exc:
+            _run_vol3(tmp_dump, "pslist")
+        assert "vol is not installed" in str(exc.value)
+
     # Non-zero exit code with stdout (partial output warning)
     mock_res = MagicMock()
     mock_res.returncode = 1
@@ -462,7 +468,10 @@ async def test_memory_list_processes_errors(tmp_dump):
             return {"rows": [{"PID": 4, "ImageFileName": "System"}]}
         raise RuntimeError("psscan failed")
 
-    with patch("reversecore_mcp.tools.forensics.memory._run_vol3_async", side_effect=mock_run_vol):
+    with patch(
+        "reversecore_mcp.tools.forensics.memory._run_vol3_async",
+        side_effect=mock_run_vol,
+    ):
         result = await memory_list_processes(tmp_dump, include_hidden=True)
     assert result.status == "success"
     assert result.data["psscan_error"] == "psscan failed"
@@ -471,7 +480,9 @@ async def test_memory_list_processes_errors(tmp_dump):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_memory_detect_injections_task_queue_fallback_and_dependency_missing(tmp_dump):
+async def test_memory_detect_injections_task_queue_fallback_and_dependency_missing(
+    tmp_dump,
+):
     """Happy path/Edge case: detect injections task queue and FileNotFoundError."""
     # Task queue fallback path
     mock_result = MagicMock()
@@ -490,7 +501,8 @@ async def test_memory_detect_injections_task_queue_fallback_and_dependency_missi
 
     # FileNotFoundError (dependency missing)
     with patch(
-        "reversecore_mcp.tools.forensics.memory._run_vol3_async", side_effect=FileNotFoundError()
+        "reversecore_mcp.tools.forensics.memory._run_vol3_async",
+        side_effect=FileNotFoundError(),
     ):
         result = await memory_detect_injections(tmp_dump, _bypass_queue=True)
     assert result.status == "error"
@@ -498,7 +510,8 @@ async def test_memory_detect_injections_task_queue_fallback_and_dependency_missi
 
     # RuntimeError
     with patch(
-        "reversecore_mcp.tools.forensics.memory._run_vol3_async", side_effect=RuntimeError("error")
+        "reversecore_mcp.tools.forensics.memory._run_vol3_async",
+        side_effect=RuntimeError("error"),
     ):
         result = await memory_detect_injections(tmp_dump, _bypass_queue=True)
     assert result.status == "error"
@@ -509,7 +522,7 @@ async def test_memory_detect_injections_task_queue_fallback_and_dependency_missi
 @pytest.mark.asyncio
 async def test_memory_extract_strings_no_binary(tmp_dump):
     """Edge case: strings binary missing triggers pure-Python extraction fallback."""
-    with patch("subprocess.run", side_effect=FileNotFoundError()):
+    with patch("shutil.which", return_value=None):
         result = await memory_extract_strings(tmp_dump)
 
     assert result.status == "success"
@@ -551,7 +564,8 @@ async def test_memory_dump_module_module_name_and_exceptions(
 
     # Volatility dependency missing (FileNotFoundError)
     with patch(
-        "reversecore_mcp.tools.forensics.memory._run_vol3_async", side_effect=FileNotFoundError()
+        "reversecore_mcp.tools.forensics.memory._run_vol3_async",
+        side_effect=FileNotFoundError(),
     ):
         result = await memory_dump_module(tmp_dump, process_name="malware.exe")
     assert result.status == "error"
@@ -559,7 +573,8 @@ async def test_memory_dump_module_module_name_and_exceptions(
 
     # Volatility runtime error (RuntimeError)
     with patch(
-        "reversecore_mcp.tools.forensics.memory._run_vol3_async", side_effect=RuntimeError("error")
+        "reversecore_mcp.tools.forensics.memory._run_vol3_async",
+        side_effect=RuntimeError("error"),
     ):
         result = await memory_dump_module(tmp_dump, process_name="malware.exe")
     assert result.status == "error"

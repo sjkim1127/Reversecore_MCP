@@ -151,3 +151,29 @@ def config_isolation():
     os.environ.clear()
     os.environ.update(original_env)
     config_module._CONFIG = original_config
+
+
+@pytest.fixture(autouse=True)
+def mock_shutil_which():
+    """Mock shutil.which to return dummy paths for forensics tools during tests."""
+    orig_which = shutil.which
+
+    def patched_which(cmd, mode=os.F_OK, path=None):
+        if cmd in (
+            "fls",
+            "vol",
+            "strings",
+            "icat",
+            "mmls",
+            "pstree",
+            "pslist",
+            "psscan",
+            "netscan",
+            "malfind",
+        ):
+            return f"/usr/bin/{cmd}"
+        return orig_which(cmd, mode, path)
+
+    shutil.which = patched_which
+    yield
+    shutil.which = orig_which

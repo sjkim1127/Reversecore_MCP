@@ -342,14 +342,13 @@ async def test_disk_hash_verify_md5(workspace_dir, patched_workspace_config):
 
 @pytest.mark.unit
 def test_disk_check_tsk_available_real():
-    """Test _check_tsk_available returns True on success and False on FileNotFoundError."""
+    """Test _check_tsk_available returns True on success and False on missing binary."""
     from reversecore_mcp.tools.forensics.disk import _check_tsk_available
 
-    mock_res = MagicMock()
-    with patch("subprocess.run", return_value=mock_res):
+    with patch("shutil.which", return_value="/usr/bin/fls"):
         assert _check_tsk_available() is True
 
-    with patch("subprocess.run", side_effect=FileNotFoundError()):
+    with patch("shutil.which", return_value=None):
         assert _check_tsk_available() is False
 
 
@@ -367,6 +366,36 @@ def test_disk_run_tsk_real():
         assert stdout == "out"
         assert stderr == "err"
         assert rc == 0
+
+
+@pytest.mark.unit
+def test_disk_run_tsk_uncovered():
+    """Test _run_tsk with empty command or missing executable."""
+    from reversecore_mcp.tools.forensics.disk import _run_tsk
+
+    # 1. empty cmd
+    out, err, code = _run_tsk([])
+    assert code == -1
+    assert "Empty command" in err
+
+    # 2. missing exe
+    with patch("shutil.which", return_value=None):
+        out, err, code = _run_tsk(["fls"])
+        assert code == -1
+        assert "not found in PATH" in err
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_disk_recover_deleted_icat_missing(tmp_image, workspace_dir):
+    """Test disk_recover_deleted when icat executable is missing."""
+    from reversecore_mcp.tools.forensics.disk import disk_recover_deleted
+
+    out_file = str(workspace_dir / "recovered.bin")
+    with patch("shutil.which", return_value=None):
+        result = await disk_recover_deleted(tmp_image, "123", out_file)
+        assert result.status == "error"
+        assert result.error_code == "DEPENDENCY_MISSING"
 
 
 @pytest.mark.unit

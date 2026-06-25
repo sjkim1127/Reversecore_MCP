@@ -5,6 +5,7 @@ with Redis caching to avoid redundant re-analysis of the same dump.
 """
 
 import asyncio
+import shutil
 import subprocess  # nosec B404
 from pathlib import Path
 from typing import Any
@@ -57,8 +58,12 @@ def _run_vol3(dump_path: str, plugin: str, extra_args: list[str] | None = None) 
     if extra_args:
         cmd.extend(extra_args)
 
+    resolved_exe = shutil.which(cmd[0])
+    if not resolved_exe:
+        raise FileNotFoundError("vol is not installed or not in PATH")
+
     result = subprocess.run(  # nosec B603
-        cmd,
+        [resolved_exe] + cmd[1:],
         capture_output=True,
         text=True,
         timeout=300,
@@ -121,8 +126,11 @@ async def memory_list_symbols(dump_path: str) -> ToolResult:
     validated = validate_file_path(dump_path)
 
     try:
-        result = subprocess.run(  # nosec B607 B603
-            ["vol", "--info"],
+        resolved_exe = shutil.which("vol")
+        if not resolved_exe:
+            raise FileNotFoundError()
+        result = subprocess.run(  # nosec B603
+            [resolved_exe, "--info"],
             capture_output=True,
             text=True,
             timeout=30,
@@ -419,8 +427,11 @@ async def memory_extract_strings(
         )
 
     try:
-        result = subprocess.run(  # nosec B607 B603
-            ["strings", f"-n{min_length}", str(validated)],
+        resolved_exe = shutil.which("strings")
+        if not resolved_exe:
+            raise FileNotFoundError()
+        result = subprocess.run(  # nosec B603
+            [resolved_exe, f"-n{min_length}", str(validated)],
             capture_output=True,
             text=True,
             timeout=120,

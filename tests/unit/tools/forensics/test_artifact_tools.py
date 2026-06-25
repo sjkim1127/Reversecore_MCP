@@ -26,8 +26,16 @@ def sample_string_artifacts():
     """Sample string artifacts from memory analysis."""
     return [
         {"value": "cmd.exe /c whoami", "source": "memory_malfind", "type": "string"},
-        {"value": "powershell -exec bypass", "source": "memory_malfind", "type": "string"},
-        {"value": "C:\\Windows\\Temp\\evil.exe", "source": "memory_malfind", "type": "string"},
+        {
+            "value": "powershell -exec bypass",
+            "source": "memory_malfind",
+            "type": "string",
+        },
+        {
+            "value": "C:\\Windows\\Temp\\evil.exe",
+            "source": "memory_malfind",
+            "type": "string",
+        },
     ]
 
 
@@ -37,7 +45,11 @@ def sample_network_artifacts():
     return [
         {"value": "192.168.1.100", "source": "pcap_extract_c2", "type": "ip"},
         {"value": "185.199.1.1", "source": "pcap_extract_c2", "type": "ip"},
-        {"value": "evil-c2.example.com", "source": "pcap_extract_dns", "type": "dns_query"},
+        {
+            "value": "evil-c2.example.com",
+            "source": "pcap_extract_dns",
+            "type": "dns_query",
+        },
     ]
 
 
@@ -444,7 +456,12 @@ async def test_artifact_report_severity_levels():
             for i in range(n)
         ]
 
-    for count, expected_severity in [(0, "LOW"), (2, "MEDIUM"), (5, "HIGH"), (15, "CRITICAL")]:
+    for count, expected_severity in [
+        (0, "LOW"),
+        (2, "MEDIUM"),
+        (5, "HIGH"),
+        (15, "CRITICAL"),
+    ]:
         all_artifacts = _make_flagged(count)
         if count == 0:
             # Add one unflagged to avoid empty list error
