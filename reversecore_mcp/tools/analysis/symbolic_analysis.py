@@ -21,6 +21,7 @@ async def verify_path_and_get_args(
     binary_path: str | Path,
     target_addr: int | str,
     start_addr: int | str | None = None,
+    avoid_addrs: list[int | str] | None = None,
     timeout: int = 120,
 ) -> dict[str, Any]:
     """Run symbolic execution to verify path reachability.
@@ -29,6 +30,7 @@ async def verify_path_and_get_args(
         binary_path: Path to the binary file.
         target_addr: The address to reach (e.g. vulnerable API call).
         start_addr: The starting address for execution (e.g. caller function). If None, starts from entry point.
+        avoid_addrs: List of addresses (hex or int) to avoid during execution.
         timeout: Maximum execution time in seconds.
 
     Returns:
@@ -55,6 +57,10 @@ async def verify_path_and_get_args(
 
     if start_addr is not None:
         cmd.extend(["--start-addr", str(start_addr)])
+
+    if avoid_addrs:
+        avoid_str = ",".join(str(x) for x in avoid_addrs)
+        cmd.extend(["--avoid-addrs", avoid_str])
 
     try:
         stdout, stderr = await execute_subprocess_async(cmd, timeout=timeout)

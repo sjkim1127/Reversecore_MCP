@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging
+import sys
 
 # Suppress angr logs
 logging.getLogger("angr").setLevel(logging.ERROR)
@@ -8,41 +9,75 @@ logging.getLogger("claripy").setLevel(logging.ERROR)
 logging.getLogger("cle").setLevel(logging.ERROR)
 
 
-def run_symbolic_execution(binary_path: str, start_addr: int | None, target_addr: int) -> dict:
+def run_symbolic_execution(
+    binary_path: str,
+    start_addr: int | None,
+    target_addr: int,
+    avoid_addrs: list[int] | None = None,
+) -> dict:
     try:
         import angr
+        import claripy
     except ImportError:
-        return {"error": "angr is not installed", "satisfiable": False}
+        return {"error": "angr or claripy is not installed", "satisfiable": False}
 
     try:
         # Load the binary
         project = angr.Project(binary_path, auto_load_libs=False)
 
-        # Determine start state
+        # Create symbolic variables for argv[1] and stdin
+        # Let's support up to 50 bytes for argv[1]
+        sym_arg1 = claripy.BVS("arg1", 50 * 8)
+        args = [project.filename, sym_arg1]
+
+        # Determine start state using entry_state to set up argv and stack correctly
         if start_addr is not None:
-            state = project.factory.blank_state(addr=start_addr)
+            state = project.factory.entry_state(args=args, addr=start_addr)
         else:
-            state = project.factory.entry_state()
+            state = project.factory.entry_state(args=args)
 
         simgr = project.factory.simulation_manager(state)
 
-        # Explore paths to the target address
-        simgr.explore(find=target_addr)
+        # Explore paths to the target address, optionally avoiding error/exit states
+        explore_kwargs = {"find": target_addr}
+        if avoid_addrs:
+            explore_kwargs["avoid"] = avoid_addrs
+
+        simgr.explore(**explore_kwargs)
 
         if simgr.found:
             found_state = simgr.found[0]
 
-            # Try to extract concrete input data that leads to this path
-            # For standard stdin/argv inputs:
+            # Try to extract concrete values from both channels
+            concrete_results = {}
+
+            # 1. Resolve argv[1]
+            try:
+                concrete_arg1 = found_state.solver.eval(sym_arg1, cast_to=bytes)
+                # Split at null byte to get the clean string
+                arg1_str = concrete_arg1.split(b"\x00")[0].decode("utf-8", errors="ignore")
+                if arg1_str:
+                    concrete_results["argv1"] = arg1_str
+            except Exception:
+                pass
+
+            # 2. Resolve stdin
             try:
                 stdin_data = found_state.posix.dumps(0)
-                input_str = stdin_data.decode("utf-8", errors="ignore") if stdin_data else ""
+                if stdin_data:
+                    stdin_str = stdin_data.split(b"\x00")[0].decode("utf-8", errors="ignore")
+                    if stdin_str:
+                        concrete_results["stdin"] = stdin_str
             except Exception:
-                input_str = ""
+                pass
+
+            # Primary concrete input selection: prefer argv1 if resolved, otherwise stdin
+            concrete_input = concrete_results.get("argv1") or concrete_results.get("stdin") or ""
 
             return {
                 "satisfiable": True,
-                "concrete_input": input_str,
+                "concrete_input": concrete_input,
+                "inputs": concrete_results,
                 "target_address": hex(target_addr),
                 "error": None,
             }
@@ -63,12 +98,26 @@ def main():
     parser.add_argument("--binary", required=True, help="Path to the binary file")
     parser.add_argument("--start-addr", type=lambda x: int(x, 0), help="Start address (hex or int)")
     parser.add_argument(
-        "--target-addr", type=lambda x: int(x, 0), required=True, help="Target address (hex or int)"
+        "--target-addr",
+        type=lambda x: int(x, 0),
+        required=True,
+        help="Target address (hex or int)",
+    )
+    parser.add_argument(
+        "--avoid-addrs", help="Comma-separated list of addresses to avoid (hex or int)"
     )
 
     args = parser.parse_args()
 
-    result = run_symbolic_execution(args.binary, args.start_addr, args.target_addr)
+    avoid_list = None
+    if args.avoid_addrs:
+        try:
+            avoid_list = [int(x.strip(), 0) for x in args.avoid_addrs.split(",") if x.strip()]
+        except ValueError as e:
+            print(json.dumps({"satisfiable": False, "error": f"Invalid avoid-addrs format: {e}"}))
+            sys.exit(1)
+
+    result = run_symbolic_execution(args.binary, args.start_addr, args.target_addr, avoid_list)
 
     # Print the result as JSON to stdout
     print(json.dumps(result))

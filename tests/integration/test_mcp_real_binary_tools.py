@@ -401,3 +401,23 @@ async def test_trace_execution_path_tool(real_binaries, patched_workspace_config
     assert result.status == "success"
     assert "paths" in result.data
     assert isinstance(result.data["paths"], list)
+
+
+@pytest.mark.asyncio
+async def test_vulnerability_hunter_with_symbolic_execution(
+    real_binaries, patched_workspace_config
+):
+    """Test Vulnerability Hunter with symbolic execution verification."""
+    if not shutil.which("radare2") and not shutil.which("r2"):
+        pytest.skip("radare2 is not installed")
+
+    try:
+        import angr  # noqa: F401
+    except Exception:
+        pytest.skip("angr is not installed or has import issues")
+
+    vuln_path = real_binaries["vuln_x64"]
+    result = await vulnerability_hunter(str(vuln_path), use_symbolic_execution=True)
+    assert result.status == "success"
+    assert "detected_vulnerabilities" in result.data
+    assert "analysis_summary" in result.data
