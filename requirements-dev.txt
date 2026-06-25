@@ -84,6 +84,7 @@ packaging==26.2           # via black, build, fastmcp, mkdocs, pytest, wheel
 paginate==0.5.7           # via mkdocs-material
 pathable==0.6.0           # via jsonschema-path
 pathspec==1.1.1           # via black, mkdocs, mypy
+pillow==12.2.0            # via reversecore-mcp (pyproject.toml)
 pip-tools==7.5.3          # via reversecore-mcp (pyproject.toml)
 platformdirs==4.10.0      # via black, fastmcp, mkdocs-get-deps
 pluggy==1.6.0             # via pytest, pytest-cov

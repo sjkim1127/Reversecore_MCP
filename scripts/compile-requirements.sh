@@ -19,8 +19,7 @@ fi
 echo "Compiling requirements.txt (including full features)..."
 pip-compile --annotation-style=line --extra=full -o requirements.txt pyproject.toml
 
-# Post-process requirements.txt to replace the local absolute file path with relative editable path,
-# and downgrade pillow to 10.4.0 to resolve the python-fx/qiling dependency conflict.
+# Post-process requirements.txt to replace the local absolute file path with relative editable path
 if [[ "$OSTYPE" == "darwin"* ]]; then
     # Remove the editable install line entirely — Docker builds copy source directly
     # so `-e .` causes failures since pyproject.toml is not available at pip-install time
@@ -29,13 +28,11 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     # Remove hiredis C extension — Docker base image has no gcc during app layer build
     sed -i '' '/^hiredis==/d' requirements.txt
     sed -i '' 's|redis\[hiredis\]|redis|g' requirements.txt
-    sed -i '' 's|pillow==12.2.0|pillow==10.4.0|g' requirements.txt
 else
     sed -i '/^reversecore-mcp.* @ file:\/\/\//d' requirements.txt
     sed -i '/^-e \./d' requirements.txt
     sed -i '/^hiredis==/d' requirements.txt
     sed -i 's|redis\[hiredis\]|redis|g' requirements.txt
-    sed -i 's|pillow==12.2.0|pillow==10.4.0|g' requirements.txt
 fi
 
 echo "Compiling requirements-dev.txt (including dev features)..."

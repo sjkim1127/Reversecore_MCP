@@ -26,6 +26,7 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "arq>=0.25.0",
     "redis>=5.0.0",
+    "pillow>=12.2.0",
 ]
 
 [project.optional-dependencies]
@@ -79,7 +80,7 @@ forensics = [
 
 # Full installation (all features)
 full = [
-    "reversecore-mcp[analysis,viz,cli,magic,http,emulation,forensics]",
+    "reversecore-mcp[analysis,viz,cli,magic,http,forensics]",
 ]
 
 # Development & Testing dependencies
