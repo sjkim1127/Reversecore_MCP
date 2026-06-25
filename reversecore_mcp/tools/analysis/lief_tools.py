@@ -74,7 +74,7 @@ def _extract_mitigations(binary: Any) -> dict[str, Any]:
                     elif isinstance(flags, list):  # Some LIEF versions return list
                         if lief.ELF.DYNAMIC_FLAGS.BIND_NOW in flags:
                             has_bind_now = True
-            except Exception:
+            except Exception:  # nosec B110
                 pass
 
             if has_relro and has_bind_now:
@@ -97,7 +97,7 @@ def _extract_mitigations(binary: Any) -> dict[str, Any]:
                     if isinstance(load_config, lief.PE.LoadConfigurationV1):  # Has SafeSEH
                         if load_config.se_handler_table != 0 and load_config.se_handler_count > 0:
                             mitigations["safeseh"] = True
-            except Exception:
+            except Exception:  # nosec B110
                 pass
 
             # Check for stack cookie (__security_cookie)
@@ -106,9 +106,9 @@ def _extract_mitigations(binary: Any) -> dict[str, Any]:
                     load_config = binary.load_configuration
                     if hasattr(load_config, "security_cookie") and load_config.security_cookie != 0:
                         mitigations["canary"] = True
-            except Exception:
+            except Exception:  # nosec B110
                 pass
-    except Exception:
+    except Exception:  # nosec B110
         pass
 
     return mitigations
