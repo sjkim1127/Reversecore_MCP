@@ -89,30 +89,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y radare2 yara libyara-dev binutils binwalk openjdk-17-jdk build-essential nasm
-
-      - name: Cache Ghidra
-        uses: actions/cache@v5
-        id: ghidra-cache
-        with:
-          path: ${{ github.workspace }}/Tools
-          key: ghidra-${{ hashFiles('scripts/install-ghidra.sh') }}-${{ runner.os }}
-
-      - name: Install Ghidra
-        if: steps.ghidra-cache.outputs.cache-hit != 'true'
-        run: |
-          chmod +x scripts/install-ghidra.sh
-          scripts/install-ghidra.sh
-
-      - name: Set Ghidra environment
-        run: |
-          GHIDRA_DIR=$(find ${{ github.workspace }}/Tools -maxdepth 1 -type d -name "ghidra_*" | sort -r | head -1)
-          if [ -n "$GHIDRA_DIR" ]; then
-            echo "GHIDRA_INSTALL_DIR=$GHIDRA_DIR" >> $GITHUB_ENV
-            echo "✅ Ghidra found at $GHIDRA_DIR"
-          else
-            echo "⚠️ Ghidra not found in cache, skipping"
-          fi
+          sudo apt-get install -y radare2 yara libyara-dev binutils binwalk build-essential nasm
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -138,15 +115,8 @@ jobs:
           nasm --version || echo "⚠️  nasm not found"
           binwalk --version || echo "⚠️  binwalk not found"
           objdump --version | head -1 || echo "⚠️  objdump not found"
-          java -version 2>&1 | head -1 || echo "⚠️  java not found"
           capa --version 2>/dev/null || echo "⚠️  capa not found (optional)"
           diec --version 2>/dev/null || echo "⚠️  diec not found (optional)"
-          if [ -n "$GHIDRA_INSTALL_DIR" ]; then
-            echo "✅ Ghidra: $GHIDRA_INSTALL_DIR"
-            ls "$GHIDRA_INSTALL_DIR/ghidraRun" 2>/dev/null || echo "⚠️  ghidraRun not found"
-          else
-            echo "⚠️  Ghidra not installed"
-          fi
           echo "=== Host tool verification complete ==="
 
       - name: Create test workspace
@@ -421,41 +391,9 @@ jobs:
           docker run --rm reversecore-mcp:ci sh -c 'nasm --version' || echo "⚠️  nasm not found in Docker (optional)"
           docker run --rm reversecore-mcp:ci sh -c 'binwalk --version' || echo "⚠️  binwalk not found in Docker"
           docker run --rm reversecore-mcp:ci sh -c 'objdump --version | head -1' || echo "⚠️  objdump not found in Docker"
-          docker run --rm reversecore-mcp:ci sh -c 'java -version 2>&1 | head -1' || echo "⚠️  java not found in Docker"
-          docker run --rm reversecore-mcp:ci sh -c 'ls /opt/ghidra/ghidraRun' || echo "⚠️  Ghidra not found in Docker"
           docker run --rm reversecore-mcp:ci sh -c 'capa --version 2>/dev/null || echo "⚠️  capa not found in Docker (optional)"'
           docker run --rm reversecore-mcp:ci sh -c 'diec --version 2>/dev/null || echo "⚠️  diec not found in Docker (optional)"'
           echo "=== Docker tool verification complete ==="
-
-      - name: Run Ghidra headless analysis test (Docker)
-        run: |
-          echo "🔬 Testing Ghidra headless analysis inside Docker..."
-          docker run --rm \
-            -v ${{ github.workspace }}/tests/fixtures/workspace:/app/workspace \
-            -e GHIDRA_INSTALL_DIR=/opt/ghidra \
-            reversecore-mcp:ci \
-            bash -c '
-              BIN="/app/workspace/binaries/hello_x64"
-              if [ ! -f "$BIN" ]; then
-                printf "\x7fELF\x02\x01\x01\x00" > /tmp/fallback.elf
-                BIN="/tmp/fallback.elf"
-              fi
-              GHIDRA_DIR=/opt/ghidra
-              HEADLESS="$GHIDRA_DIR/support/analyzeHeadless"
-              if [ ! -x "$HEADLESS" ]; then
-                echo "⚠️ analyzeHeadless not found"
-                exit 0
-              fi
-              echo "📁 Analyzing $BIN with Ghidra..."
-              mkdir -p /tmp/ghidra-test
-              "$HEADLESS" /tmp/ghidra-test TestProject -import "$BIN" -postScript /dev/null 2>/dev/null || true
-              if [ -d /tmp/ghidra-test/TestProject.gpr ]; then
-                echo "✅ Ghidra headless analysis works"
-              else
-                echo "⚠️ Ghidra headless did not create project (may need Java tuning)"
-              fi
-            '
-          echo "✅ Ghidra headless test complete"
 
       - name: Run real tool analysis on test binaries (Docker)
         run: |
