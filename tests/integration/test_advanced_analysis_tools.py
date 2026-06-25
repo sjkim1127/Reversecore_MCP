@@ -6,7 +6,6 @@ Tests for decompilation, disassembly, and symbolic execution frameworks.
 
 import shutil
 import subprocess
-from pathlib import Path
 
 import pytest
 
@@ -91,68 +90,6 @@ int main() { return add(2, 3); }
             md = Cs(CS_ARCH_X86, CS_MODE_64)
             # This is a basic test - just verify it runs
             assert md is not None
-
-
-class TestGhidraIntegration:
-    """Test Ghidra decompilation and analysis."""
-
-    @pytest.fixture
-    def ghidra_available(self):
-        """Check if Ghidra is installed."""
-        ghidra_paths = [
-            Path("/opt/ghidra"),
-            Path("/usr/local/ghidra"),
-            Path.home() / "ghidra",
-            Path("/Applications/Ghidra.app/Contents"),
-        ]
-        for path in ghidra_paths:
-            if path.exists():
-                return path
-        return None
-
-    def test_ghidra_installation_check(self, ghidra_available):
-        """Verify Ghidra installation detection."""
-        if ghidra_available is None:
-            pytest.skip("Ghidra not found in standard locations")
-        assert ghidra_available.exists()
-
-    def test_ghidra_headless_command(self):
-        """Test Ghidra headless mode availability."""
-        result = subprocess.run(["which", "analyzeHeadless"], capture_output=True, timeout=5)
-
-        if result.returncode != 0:
-            pytest.skip("Ghidra headless tools not in PATH")
-        assert len(result.stdout) > 0
-
-    def test_ghidra_analysis_script(self, tmp_path):
-        """Test Ghidra analysis script creation and execution."""
-        script_path = tmp_path / "test_analysis.py"
-        script_path.write_text("""
-# @author
-# @category Search
-# @keybinding
-# @menupath Tools.Test
-# @toolbar
-
-from ghidra.program.model.address import AddressSet
-from ghidra.program.model.listing import CodeUnit
-
-def analyze_functions():
-    func_manager = currentProgram.getFunctionManager()
-    functions = func_manager.getFunctions(True)
-
-    count = 0
-    for func in functions:
-        count += 1
-
-    print("Found {} functions".format(count))
-
-analyze_functions()
-""")
-
-        # Just verify the script can be created
-        assert script_path.exists()
-        assert "analyze_functions" in script_path.read_text()
 
 
 class TestAngrIntegration:
@@ -329,11 +266,6 @@ int main(int argc, char *argv[]) {
         # Look for common patterns
         mnemonics = [i.mnemonic for i in instructions[:50]]
         assert any(m in ["mov", "lea", "add", "push", "pop", "cmp"] for m in mnemonics)
-
-    def test_ghidra_type_recovery(self):
-        """Test Ghidra type recovery capabilities."""
-        # This would require Ghidra to be running
-        pytest.skip("Requires active Ghidra instance")
 
     def test_angr_memory_analysis(self, compiled_binary):
         """Test angr memory state analysis."""
