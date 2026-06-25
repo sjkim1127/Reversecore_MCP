@@ -4,7 +4,8 @@
 #
 #    pip-compile --annotation-style=line --extra=full --output-file=requirements.txt pyproject.toml
 #
-aiofile==3.11.1           # via py-key-value-aio
+aiofile==3.11.1; python_version >= "3.11"           # via py-key-value-aio
+aiofile==3.9.0; python_version < "3.11"            # via py-key-value-aio
 aiofiles==25.1.0          # via reversecore-mcp, reversecore-mcp (pyproject.toml)
 aiosmtplib==5.1.2         # via reversecore-mcp, reversecore-mcp (pyproject.toml)
 aiosqlite==0.22.1         # via reversecore-mcp, reversecore-mcp (pyproject.toml)
