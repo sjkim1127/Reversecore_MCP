@@ -139,7 +139,7 @@ python-flirt==0.9.10      # via viv-utils
 python-magic==0.4.27      # via reversecore-mcp
 python-multipart==0.0.32  # via fastmcp-slim, mcp, reversecore-mcp, reversecore-mcp (pyproject.toml)
 pyvex==9.2.213            # via angr, cle
-pyxbe==1.0.4              # via cle
+pyxbe==1.0.3              # via cle, reversecore-mcp, reversecore-mcp (pyproject.toml)
 pyxdia==0.1.1             # via cle
 pyyaml==6.0.3             # via fastmcp-slim, flare-capa, jsonschema-path, pyhanko
 questionary==2.1.1        # via ida-hcli
