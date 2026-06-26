@@ -468,6 +468,10 @@ class Config:
         return self._settings.max_upload_size
 
     @property
+    def file_retention_minutes(self) -> int:
+        return self._settings.file_retention_minutes
+
+    @property
     def mcp_transport(self) -> str:
         return self._settings.mcp_transport.value
 

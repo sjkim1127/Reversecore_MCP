@@ -485,18 +485,40 @@ logger.info("Registered get_job_result tool")
 # ============================================================================
 # Security Middleware
 # ============================================================================
-from starlette.middleware.base import BaseHTTPMiddleware  # noqa: E402
-from starlette.requests import Request  # noqa: E402
 
 
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        response = await call_next(request)
-        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Content-Security-Policy"] = "default-src 'self'"
-        return response
+class SecurityHeadersMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+
+                # Helper to check if header is already present
+                def has_header(name_bytes):
+                    return any(h[0].lower() == name_bytes for h in headers)
+
+                if not has_header(b"strict-transport-security"):
+                    headers.append(
+                        (b"strict-transport-security", b"max-age=31536000; includeSubDomains")
+                    )
+                if not has_header(b"x-content-type-options"):
+                    headers.append((b"x-content-type-options", b"nosniff"))
+                if not has_header(b"x-frame-options"):
+                    headers.append((b"x-frame-options", b"DENY"))
+                if not has_header(b"content-security-policy"):
+                    headers.append((b"content-security-policy", b"default-src 'self'"))
+
+                message["headers"] = headers
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
 
 
 # Access underlying FastAPI app to add middleware
@@ -869,10 +891,21 @@ def main():
             from slowapi.middleware import SlowAPIMiddleware  # type: ignore
             from slowapi.util import get_remote_address  # type: ignore
 
+            class SafeSlowAPIMiddleware:
+                def __init__(self, app_arg):
+                    self.slowapi_middleware = SlowAPIMiddleware(app_arg)
+                    self.app = app_arg
+
+                async def __call__(self, scope, receive, send):
+                    if scope["type"] == "http" and scope.get("path", "").startswith("/mcp"):
+                        await self.app(scope, receive, send)
+                    else:
+                        await self.slowapi_middleware(scope, receive, send)
+
             rate_limit = settings.rate_limit
             limiter = Limiter(key_func=get_remote_address, default_limits=[f"{rate_limit}/minute"])
             app.state.limiter = limiter
-            app.add_middleware(SlowAPIMiddleware)
+            app.add_middleware(SafeSlowAPIMiddleware)
             app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
             logger.info(f"Rate limiting enabled: {rate_limit}/minute")
         except ImportError:
