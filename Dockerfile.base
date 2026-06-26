@@ -68,7 +68,9 @@ RUN git clone --depth 1 --branch ${RADARE2_VERSION} \
 WORKDIR /tmp/radare2
 RUN ./configure --prefix=/opt/radare2 \
     && make -j"$(nproc)" \
-    && make install
+    && make install \
+    && echo "/opt/radare2/lib" > /etc/ld.so.conf.d/radare2.conf \
+    && ldconfig
 WORKDIR /app
 RUN rm -rf /tmp/radare2
 
