@@ -189,3 +189,20 @@ def clean_service_container():
     yield
     container.reset_all()
     _initialize_default_services()
+
+
+def pytest_configure(config):
+    """Disable coverage fail-under for partial test runs to prevent false failures."""
+    is_partial_run = (
+        bool(config.option.markexpr)
+        or bool(config.option.keyword)
+        or any(
+            arg not in ("tests", "tests/", ".") for arg in config.args if not arg.startswith("-")
+        )
+    )
+    if is_partial_run:
+        if hasattr(config.option, "cov_fail_under"):
+            config.option.cov_fail_under = 0
+        cov_plugin = config.pluginmanager.get_plugin("_cov")
+        if cov_plugin and hasattr(cov_plugin, "options"):
+            cov_plugin.options.cov_fail_under = 0
