@@ -487,6 +487,9 @@ logger.info("Registered get_job_result tool")
 # ============================================================================
 
 
+LATEST_ACTIVE_SESSION_ID = None
+
+
 class SecurityHeadersMiddleware:
     def __init__(self, app):
         self.app = app
@@ -666,14 +669,46 @@ def main():
                 self.app = app_arg
 
             async def __call__(self, scope, receive, send):
-                if scope["type"] == "http" and scope.get("method") in ("POST", "DELETE"):
+                global LATEST_ACTIVE_SESSION_ID
+
+                if scope["type"] == "http":
                     path = scope.get("path", "")
-                    if path == "/mcp/sse" or path == "/mcp/sse/":
-                        scope["path"] = "/mcp/messages/"
-                        scope["raw_path"] = b"/mcp/messages/"
-                    elif path == "/sse" or path == "/sse/":
-                        scope["path"] = "/messages/"
-                        scope["raw_path"] = b"/messages/"
+                    method = scope.get("method", "")
+
+                    # 1. Capture session_id from GET /mcp/sse response stream
+                    if method == "GET" and (path == "/mcp/sse" or path == "/mcp/sse/"):
+
+                        async def send_wrapper(message):
+                            global LATEST_ACTIVE_SESSION_ID
+                            if message["type"] == "http.response.body":
+                                body = message.get("body", b"").decode("utf-8", errors="ignore")
+                                match = re.search(r"session_id=([a-f0-9\-]+)", body)
+                                if match:
+                                    LATEST_ACTIVE_SESSION_ID = match.group(1)
+                                    logger.info(
+                                        f"🔑 Captured active SSE session_id: {LATEST_ACTIVE_SESSION_ID}"
+                                    )
+                            await send(message)
+
+                        await self.app(scope, receive, send_wrapper)
+                        return
+
+                    # 2. Redirect and inject session_id for POST/DELETE requests
+                    elif method in ("POST", "DELETE") and (
+                        path in ("/mcp/sse", "/mcp/sse/", "/mcp/messages", "/mcp/messages/")
+                    ):
+                        if path in ("/mcp/sse", "/mcp/sse/"):
+                            scope["path"] = "/mcp/messages/"
+                            scope["raw_path"] = b"/mcp/messages/"
+
+                        query_string = scope.get("query_string", b"").decode("utf-8")
+                        if "session_id=" not in query_string and LATEST_ACTIVE_SESSION_ID:
+                            new_query = f"session_id={LATEST_ACTIVE_SESSION_ID}"
+                            if query_string:
+                                new_query = f"{query_string}&{new_query}"
+                            scope["query_string"] = new_query.encode("utf-8")
+                            logger.debug(f"💉 Injected session_id into query: {new_query}")
+
                 await self.app(scope, receive, send)
 
         app = FastAPI(
