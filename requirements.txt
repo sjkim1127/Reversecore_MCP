@@ -71,7 +71,8 @@ matplotlib==3.10.0; python_version < "3.11"         # via reversecore-mcp
 mcp[cli]==1.28.0          # via fastmcp, reversecore-mcp, reversecore-mcp (pyproject.toml)
 mdurl==0.1.2              # via markdown-it-py
 more-itertools==11.1.0    # via jaraco-classes, jaraco-functools
-networkx==3.6.1           # via reversecore-mcp
+networkx==3.6.1; python_version >= "3.11"
+networkx==3.4.2; python_version < "3.11"
 numpy==2.4.6; python_version >= "3.11"              # via contourpy, matplotlib
 numpy==2.2.3; python_version < "3.11"               # via contourpy, matplotlib
 openapi-pydantic==0.5.1   # via fastmcp
