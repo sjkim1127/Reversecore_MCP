@@ -83,30 +83,42 @@ def _analyze_binary_with_lief(file_path: Path) -> dict:
 
         # Determine Format
         if isinstance(binary, lief.PE.Binary):
-            result["file_type"] = (
-                "PE32+" if binary.header.machine == lief.PE.MachineType.AMD64 else "PE32"
-            )
-            result["arch"] = "x64" if binary.header.machine == lief.PE.MachineType.AMD64 else "x86"
+            machine = getattr(binary.header, "machine", None)
+            is_amd64 = False
+            if machine is not None:
+                is_amd64 = (
+                    "AMD64" in str(machine)
+                    or getattr(machine, "name", "") == "AMD64"
+                    or machine == 34404
+                )
+            result["file_type"] = "PE32+" if is_amd64 else "PE32"
+            result["arch"] = "x64" if is_amd64 else "x86"
         elif isinstance(binary, lief.ELF.Binary):
-            result["file_type"] = (
-                "ELF64"
-                if binary.header.identity_class == lief.ELF.Header.CLASS.CLASS64
-                else "ELF32"
+            identity_class = getattr(binary.header, "identity_class", None)
+            is_64 = (
+                "CLASS64" in str(identity_class)
+                or "ELF64" in str(identity_class)
+                or getattr(identity_class, "name", "") in ("CLASS64", "ELF64")
             )
-            arch_type = binary.header.machine_type
-            if arch_type == lief.ELF.Arch.x86_64:
+            result["file_type"] = "ELF64" if is_64 else "ELF32"
+
+            machine_type = getattr(binary.header, "machine_type", None)
+            mach_str = str(machine_type).upper()
+            if "X86_64" in mach_str or "AMD64" in mach_str:
                 result["arch"] = "x64"
-            elif arch_type == lief.ELF.Arch.i386:
+            elif "I386" in mach_str or "X86" in mach_str:
                 result["arch"] = "x86"
-            elif arch_type == lief.ELF.Arch.AARCH64:
+            elif "AARCH64" in mach_str or "ARM64" in mach_str:
                 result["arch"] = "arm64"
-            elif arch_type == lief.ELF.Arch.ARM:
+            elif "ARM" in mach_str:
                 result["arch"] = "arm"
         elif isinstance(binary, lief.MachO.Binary):
             result["file_type"] = "Mach-O"
-            if binary.header.cputype == lief.MachO.CPU_TYPES.ARM64:
+            cpu_type = getattr(binary.header, "cpu_type", None)
+            cpu_str = str(cpu_type).upper()
+            if "ARM64" in cpu_str:
                 result["arch"] = "arm64"
-            elif binary.header.cputype == lief.MachO.CPU_TYPES.x86_64:
+            elif "X86_64" in cpu_str:
                 result["arch"] = "x64"
 
         # Analyze Sections for Entropy and Names

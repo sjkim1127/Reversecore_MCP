@@ -4,8 +4,7 @@
 #
 #    pip-compile --annotation-style=line --extra=dev --output-file=requirements-dev.txt pyproject.toml
 #
-aiofile==3.11.1; python_version >= "3.11"           # via py-key-value-aio
-aiofile==3.9.0; python_version < "3.11"            # via py-key-value-aio
+aiofile==3.9.0            # via py-key-value-aio, reversecore-mcp (pyproject.toml)
 aiofiles==25.1.0          # via reversecore-mcp (pyproject.toml)
 aiosmtplib==5.1.2         # via reversecore-mcp (pyproject.toml)
 aiosqlite==0.22.1         # via reversecore-mcp (pyproject.toml)
@@ -124,8 +123,7 @@ reportlab==4.5.1          # via svglib, xhtml2pdf
 requests==2.34.2          # via mkdocs-material, pyhanko, pyhanko-certvalidator
 rich==15.0.0              # via cyclopts, fastmcp, rich-rst, typer
 rich-rst==2.0.1           # via cyclopts
-rpds-py==2026.5.1; python_version >= "3.11"         # via jsonschema, referencing
-rpds-py==0.30.0; python_version < "3.11"           # via jsonschema, referencing
+rpds-py==2026.5.1         # via jsonschema, referencing
 ruff==0.15.19             # via reversecore-mcp (pyproject.toml)
 shellingham==1.5.4        # via typer
 six==1.17.0               # via html5lib, python-dateutil

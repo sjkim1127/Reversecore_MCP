@@ -4,7 +4,7 @@
 #
 #    pip-compile --annotation-style=line --extra=full --output-file=requirements.txt pyproject.toml
 #
-aiofile==3.11.1           # via py-key-value-aio
+aiofile==3.9.0            # via py-key-value-aio, reversecore-mcp, reversecore-mcp (pyproject.toml)
 aiofiles==25.1.0          # via reversecore-mcp, reversecore-mcp (pyproject.toml)
 aiosmtplib==5.1.2         # via reversecore-mcp, reversecore-mcp (pyproject.toml)
 aiosqlite==0.22.1         # via reversecore-mcp, reversecore-mcp (pyproject.toml)
@@ -58,7 +58,6 @@ gitdb==4.0.12             # via gitpython
 gitpython==3.1.50         # via angr
 graphviz==0.21            # via reversecore-mcp
 h11==0.16.0               # via httpcore, uvicorn
-hiredis==3.4.0            # via redis
 html5lib==1.1             # via xhtml2pdf
 httpcore==1.0.9           # via httpx
 httpx==0.28.1             # via fastmcp, ida-hcli, mcp
@@ -143,11 +142,10 @@ pyxdia==0.1.1             # via cle
 pyyaml==6.0.3             # via fastmcp, flare-capa, jsonschema-path, pyhanko
 questionary==2.1.1        # via ida-hcli
 r2pipe==1.9.8             # via reversecore-mcp
-redis[hiredis]==5.0.1     # via arq, reversecore-mcp, reversecore-mcp (pyproject.toml)
+redis==5.0.1     # via arq, reversecore-mcp, reversecore-mcp (pyproject.toml)
 referencing==0.37.0       # via jsonschema, jsonschema-path, jsonschema-specifications
 reportlab==4.5.1          # via svglib, xhtml2pdf
 requests==2.34.2          # via pyhanko, pyhanko-certvalidator, reversecore-mcp
-
 rich==15.0.0              # via angr, cyclopts, fastmcp, flare-capa, ida-hcli, reversecore-mcp, rich-click, rich-rst, typer
 rich-click==1.9.8         # via ida-hcli
 rich-rst==2.0.1           # via cyclopts
