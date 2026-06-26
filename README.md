@@ -6,7 +6,7 @@
 
 **AI-Powered Reverse Engineering & Security Analysis via Model Context Protocol**
 
-*Enterprise-grade static analysis server — speak natural language, get expert-level reverse engineering, malware analysis, and forensics.*
+*Enterprise-grade integrated static & dynamic analysis server — speak natural language, get expert-level reverse engineering, vulnerability triage, malware analysis, and forensics.*
 
 ---
 
@@ -49,6 +49,7 @@ Reversecore MCP is an enterprise-grade **[Model Context Protocol](https://modelc
 It goes far beyond binary disassembly. Reversecore MCP integrates **50+ analysis tools** spanning:
 
 - 🔬 **Static analysis** — disassembly, decompilation, binary parsing
+- 💥 **Dynamic triage** — GDB crash parsing, exploitability assessment
 - 🦠 **Malware analysis** — capability detection, IOC extraction, threat hunting
 - 🧬 **Vulnerability research** — symbolic execution, fuzzing, ROP gadget detection
 - 🔏 **SAST** — source code auditing for Python, C, and C++

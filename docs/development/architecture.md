@@ -1,6 +1,6 @@
 # Architecture Guide
 
-This document describes the design, components, and internal workflows of the Reversecore MCP platform.
+This document describes the design, components, and internal workflows of the Reversecore MCP platform, an integrated static and dynamic analysis server.
 
 ---
 
