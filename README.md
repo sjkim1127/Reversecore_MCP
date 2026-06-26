@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="icon.png" alt="Reversecore MCP" width="120" />
+<img src="icon.png" alt="Reversecore MCP" width="300" />
 
 # Reversecore MCP
 
