@@ -30,6 +30,8 @@ dependencies = [
     "pillow>=12.2.0",
     "markdown>=3.6.0",
     "xhtml2pdf>=0.2.16",
+    "numpy<2.5.0",
+    "contourpy<1.3.3",
 ]
 
 [project.optional-dependencies]
@@ -48,8 +50,8 @@ analysis = [
 # Visualization (CFG, graphs)
 viz = [
     "graphviz>=0.20.0",
-    "networkx>=3.4.2",
-    "matplotlib>=3.8.0",
+    "networkx>=3.4.2,<3.5",
+    "matplotlib>=3.8.0,<3.11",
 ]
 
 

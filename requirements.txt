@@ -34,7 +34,7 @@ claripy==9.2.213          # via angr
 cle==9.2.213              # via angr
 click==8.4.2              # via arq, ida-hcli, rich-click, uvicorn
 colorama==0.4.6           # via flare-capa
-contourpy==1.3.3          # via matplotlib
+contourpy==1.3.2          # via matplotlib, reversecore-mcp, reversecore-mcp (pyproject.toml)
 cryptography==49.0.0      # via authlib, joserfc, pyhanko, pyhanko-certvalidator, pyjwt
 cssselect2==0.9.0         # via svglib
 cxxfilt==0.3.0            # via vivisect
@@ -91,7 +91,7 @@ lxml==6.1.1               # via pyhanko, svglib
 markdown==3.10.2          # via reversecore-mcp, reversecore-mcp (pyproject.toml)
 markdown-it-py==4.2.0     # via rich
 markupsafe==3.0.3         # via jinja2
-matplotlib==3.11.0        # via reversecore-mcp
+matplotlib==3.10.9        # via reversecore-mcp
 mcp[cli]==1.28.1          # via fastmcp-slim, reversecore-mcp, reversecore-mcp (pyproject.toml)
 mdurl==0.1.2              # via markdown-it-py
 minidump==0.0.24          # via cle
@@ -100,8 +100,8 @@ mpmath==1.3.0             # via sympy
 msgpack==1.2.1            # via vivisect
 msgspec==0.21.1           # via angr, flare-capa
 mulpyplexer==0.9          # via angr
-networkx==3.6.1           # via angr, flare-capa, reversecore-mcp
-numpy==2.5.0              # via contourpy, matplotlib
+networkx==3.4.2           # via angr, flare-capa, reversecore-mcp
+numpy==2.4.6              # via contourpy, matplotlib, reversecore-mcp, reversecore-mcp (pyproject.toml)
 openapi-pydantic==0.5.1   # via fastmcp-slim
 opentelemetry-api==1.43.0  # via fastmcp-slim
 orjson==3.11.9            # via reversecore-mcp, reversecore-mcp (pyproject.toml)
