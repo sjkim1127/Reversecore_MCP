@@ -271,8 +271,34 @@ python server.py
 
 Add the server configuration to your IDE client settings (e.g., `~/.cursor/mcp.json` or `claude_desktop_config.json`).
 
-### ⚡ Option 1: SSE Mode (Recommended)
-If you are running the server in the background using `docker compose` or `./scripts/run-docker.sh`, this mode provides **zero startup latency** and **persistent analysis memory** across sessions.
+### ⚡ Option 1: Docker Exec Mode (Highly Recommended)
+If you run the server via Docker Compose (in the background), this mode uses standard `stdio` channeled directly inside the running container. It offers **zero startup latency**, **persistent analysis memory**, and **perfect compatibility** (bypasses IDE client-side HTTP/SSE connection bugs).
+
+```json
+{
+  "mcpServers": {
+    "Reversecore_MCP": {
+      "command": "docker",
+      "args": [
+        "exec",
+        "-i",
+        "-e",
+        "MCP_TRANSPORT=stdio",
+        "reversecore-mcp-arm64",
+        "python",
+        "server.py"
+      ]
+    }
+  }
+}
+```
+
+*Note: Replace `reversecore-mcp-arm64` with `reversecore-mcp` if you are on an Intel/AMD architecture.*
+
+---
+
+### 🌐 Option 2: SSE HTTP Mode
+If you prefer network-based streaming (Server-Sent Events) for remote clients:
 
 ```json
 {
