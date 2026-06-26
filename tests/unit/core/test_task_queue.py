@@ -17,10 +17,15 @@ from reversecore_mcp.core.task_queue import (
 
 @pytest.mark.asyncio
 async def test_run_task_or_fallback_redis_disabled(patched_config):
-    mock_fallback = AsyncMock(return_value=success("fallback result"))
+    mock_inner = AsyncMock(return_value=success("fallback result"))
+
+    async def mock_fallback(*args, **kwargs):
+        return await mock_inner(*args, **kwargs)
 
     with patch(
-        "reversecore_mcp.core.task_queue.get_arq_pool", new_callable=AsyncMock, return_value=None
+        "reversecore_mcp.core.task_queue.get_arq_pool",
+        new_callable=AsyncMock,
+        return_value=None,
     ):
         # Should directly call fallback
         result = await run_task_or_fallback(
@@ -31,12 +36,16 @@ async def test_run_task_or_fallback_redis_disabled(patched_config):
         )
         assert result.status == "success"
         assert result.data == "fallback result"
-        mock_fallback.assert_called_once_with("dummy_file", "main", _bypass_queue=True)
+        mock_inner.assert_called_once_with("dummy_file", "main", _bypass_queue=True)
 
 
 @pytest.mark.asyncio
 async def test_run_task_or_fallback_enqueue_and_await(patched_config):
-    mock_fallback = AsyncMock(return_value=success("fallback result"))
+    mock_inner = AsyncMock(return_value=success("fallback result"))
+
+    async def mock_fallback(*args, **kwargs):
+        return await mock_inner(*args, **kwargs)
+
     mock_job = AsyncMock()
     mock_job.job_id = "fake-job-id"
     mock_job.result.return_value = success("queued result")
@@ -60,7 +69,7 @@ async def test_run_task_or_fallback_enqueue_and_await(patched_config):
         assert result.data == "queued result"
         mock_pool.enqueue_job.assert_called_once_with("task_smart_decompile", "dummy_file", "main")
         mock_job.result.assert_called_once()
-        mock_fallback.assert_not_called()
+        mock_inner.assert_not_called()
 
         # 2. Async mode -> enqueues and returns job ID immediately
         mock_pool.enqueue_job.reset_mock()
@@ -120,7 +129,8 @@ async def test_get_job_result_tool(patched_config):
 async def test_worker_proxy_handlers(patched_config):
     # 1. task_smart_decompile
     with patch(
-        "reversecore_mcp.tools.radare2.r2ghidra_tools.r2_decompile", new_callable=AsyncMock
+        "reversecore_mcp.tools.radare2.r2ghidra_tools.r2_decompile",
+        new_callable=AsyncMock,
     ) as mock_impl:
         mock_impl.return_value = success("decompiled code")
         res = await task_smart_decompile(None, "file.bin", "main", 120, True)
@@ -142,7 +152,8 @@ async def test_worker_proxy_handlers(patched_config):
 
     # 3. task_run_strings
     with patch(
-        "reversecore_mcp.tools.analysis.static_analysis.run_strings", new_callable=AsyncMock
+        "reversecore_mcp.tools.analysis.static_analysis.run_strings",
+        new_callable=AsyncMock,
     ) as mock_strings:
         mock_strings.return_value = success("strings output")
         res = await task_run_strings(None, "file.bin", 10, 1000, 120)
