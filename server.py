@@ -661,6 +661,21 @@ def main():
             async with mcp._lifespan_manager():
                 yield
 
+        class MCPSSECompatibleMiddleware:
+            def __init__(self, app_arg):
+                self.app = app_arg
+
+            async def __call__(self, scope, receive, send):
+                if scope["type"] == "http" and scope.get("method") in ("POST", "DELETE"):
+                    path = scope.get("path", "")
+                    if path == "/mcp/sse" or path == "/mcp/sse/":
+                        scope["path"] = "/mcp/messages/"
+                        scope["raw_path"] = b"/mcp/messages/"
+                    elif path == "/sse" or path == "/sse/":
+                        scope["path"] = "/messages/"
+                        scope["raw_path"] = b"/messages/"
+                await self.app(scope, receive, send)
+
         app = FastAPI(
             title="Reversecore_MCP",
             docs_url="/docs",
@@ -670,6 +685,7 @@ def main():
             lifespan=app_lifespan,  # Register lifespan
         )
         app.add_middleware(SecurityHeadersMiddleware)
+        app.add_middleware(MCPSSECompatibleMiddleware)
         app.mount("/mcp", mcp_app)
 
         # Add CORS middleware with restricted origins when API Key is set
