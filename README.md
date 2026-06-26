@@ -269,7 +269,25 @@ python server.py
 
 ## Connect to Your AI Client
 
-Add to `~/.cursor/mcp.json` or `claude_desktop_config.json`:
+Add the server configuration to your IDE client settings (e.g., `~/.cursor/mcp.json` or `claude_desktop_config.json`).
+
+### ⚡ Option 1: SSE Mode (Recommended)
+If you are running the server in the background using `docker compose` or `./scripts/run-docker.sh`, this mode provides **zero startup latency** and **persistent analysis memory** across sessions.
+
+```json
+{
+  "mcpServers": {
+    "Reversecore_MCP": {
+      "url": "http://localhost:8000/mcp/sse"
+    }
+  }
+}
+```
+
+---
+
+### 📦 Option 2: Stdio Mode (Docker-on-Demand)
+If you prefer running a fresh, isolated container automatically on every request:
 
 <details>
 <summary>🍎 macOS</summary>
