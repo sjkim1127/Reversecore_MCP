@@ -3,8 +3,7 @@
 # Contains all slow-to-build, rarely-changing dependencies:
 #   - YARA (compiled from source to match yara-python binding)
 #   - radare2 (compiled from source for Debian bookworm compatibility)
-#   - Eclipse Temurin JDK 21 (for Ghidra headless analysis)
-#   - Ghidra (downloaded zip)
+#   - r2ghidra plugin (embeds Ghidra decompiler engine inside radare2 — no JDK/Ghidra install needed)
 #   - Python venv with all pinned requirements
 #
 # This image is rebuilt ONLY when tool versions change (ARG values below).
