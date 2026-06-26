@@ -1,92 +1,115 @@
 # Quick Start
 
-This guide will help you get started with Reversecore MCP in minutes.
+This guide will help you run the Reversecore MCP server and begin analyzing binaries with your AI assistant in just a few minutes.
+
+---
 
 ## Step 1: Start the Server
 
-### Using Docker
+### Option A: Using Docker (Fastest)
+
+Start the pre-built container. Make sure to replace `/path/to/your/samples` with the folder where your target binaries are located:
 
 ```bash
-docker run -v $(pwd)/samples:/app/workspace \
-  ghcr.io/yourusername/reversecore_mcp:latest
+docker run -i --rm \
+  -v /path/to/your/samples:/app/workspace \
+  -e REVERSECORE_WORKSPACE=/app/workspace \
+  -e MCP_TRANSPORT=stdio \
+  ghcr.io/sjkim1127/reversecore_mcp:latest
 ```
 
-### From Source
+### Option B: Native Setup
+
+Start the Python server script directly:
 
 ```bash
 export REVERSECORE_WORKSPACE=./samples
 python server.py
 ```
 
+---
+
 ## Step 2: Connect Your AI Assistant
 
 ### Claude Desktop
 
-Add to your `claude_desktop_config.json`:
+To connect Reversecore MCP to the official Claude Desktop app, edit your configuration file:
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+Add the server definition inside the `mcpServers` object:
 
 ```json
 {
   "mcpServers": {
     "reversecore": {
-      "command": "python",
-      "args": ["/path/to/Reversecore_MCP/server.py"],
-      "env": {
-        "REVERSECORE_WORKSPACE": "/path/to/workspace"
-      }
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "-v", "/path/to/your/samples:/app/workspace",
+        "-e", "REVERSECORE_WORKSPACE=/app/workspace",
+        "-e", "MCP_TRANSPORT=stdio",
+        "ghcr.io/sjkim1127/reversecore_mcp:latest"
+      ]
     }
   }
 }
 ```
 
-### HTTP Mode
+Restart Claude Desktop, and you will see the plug icon indicating that the server is connected.
 
-For remote AI agents, use HTTP transport:
+### Cursor
 
-```bash
-export MCP_TRANSPORT=http
-export MCP_API_KEY=your-secret-key
-python server.py
-```
+1. Open Cursor and navigate to **Settings** -> **Features** -> **MCP**.
+2. Click **+ Add New MCP Server**.
+3. Fill in the fields:
+   - **Name**: `reversecore`
+   - **Type**: `command`
+   - **Command**: `docker run -i --rm -v /path/to/your/samples:/app/workspace -e REVERSECORE_WORKSPACE=/app/workspace -e MCP_TRANSPORT=stdio ghcr.io/sjkim1127/reversecore_mcp:latest`
+4. Click **Save**.
 
-Then connect to `http://localhost:8000/mcp`.
+---
 
-## Step 3: Analyze a Binary
+## Step 3: Try Your First Analysis Prompts
 
-Once connected, ask your AI assistant to analyze a binary:
+Once connected, you can interact with the server by asking the AI questions in natural language. The AI will translate your questions into tool calls behind the scenes.
 
-> "Analyze the binary at /app/workspace/sample.exe and tell me about its functions"
+> [!IMPORTANT]
+> Because your local directory is mounted to `/app/workspace` inside the container, you must always refer to files by their **filename only** (e.g. `malware.elf`), not by their full local absolute path.
 
-The AI will use Reversecore MCP tools to:
+### 1. Basic File Triage
+Ask the AI to identify a suspicious file:
+> *"What type of file is malware.elf? Extract its strings and let me know if you see anything suspicious."*
 
-1. Parse the binary metadata
-2. List functions and their addresses
-3. Decompile interesting functions
-4. Identify potential threats
+*Under the hood, the AI will call:*
+1. `run_file(file_path="malware.elf")`
+2. `run_strings(file_path="malware.elf")`
 
-## Example Prompts
+### 2. Disassembly & Decompilation
+Request pseudocode generation:
+> *"Decompile the main function of malware.elf. What parameters is it expecting?"*
 
-### Basic Analysis
+*Under the hood, the AI will call:*
+1. `r2_decompile(file_path="malware.elf", function_name="main")`
 
-> "What type of file is sample.bin?"
+### 3. Backdoor & Logic Bomb Hunting
+Instruct the AI to check for hidden paths:
+> *"Run the dormant detector on malware.elf. Are there any functions that have no callers or appear triggered by specific dates?"*
 
-### Function Analysis
+*Under the hood, the AI will call:*
+1. `dormant_detector(file_path="malware.elf")`
 
-> "List all functions in malware.exe"
+### 4. Automated Vaccine Generation
+Generate YARA signatures and proposed binary modifications:
+> *"Create an adaptive vaccine for malware.elf so we can detect and patch this threat."*
 
-### Decompilation
+*Under the hood, the AI will call:*
+1. `adaptive_vaccine(file_path="malware.elf")`
 
-> "Decompile the main function of app.exe"
-
-### Threat Detection
-
-> "Run Ghost Trace on suspicious.bin to find hidden behaviors"
-
-### YARA Signature
-
-> "Generate a YARA signature for the malicious function at 0x401000"
+---
 
 ## Next Steps
 
-- Read the [User Guide](../user-guide/overview.md) for detailed usage
-- Explore the [API Reference](../api/core/config.md) for tool documentation
-- Check [Configuration](configuration.md) for advanced setup
+- Check the [User Guide](../user-guide/overview.md) for more details on each tool category.
+- Read about [Environment Configuration](configuration.md) to customize server limits, pool sizes, and SMTP report settings.
+- Explore the [API Reference](../api/core/config.md) for a comprehensive list of tools and python types.

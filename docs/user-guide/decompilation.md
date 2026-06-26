@@ -1,202 +1,89 @@
 # Decompilation Guide
 
-This guide covers advanced decompilation techniques using Reversecore MCP's Ghidra and Radare2 integration.
+Decompilation converts raw binary machine instructions back into high-level human-readable pseudo-C code.
 
-## Overview
+Reversecore MCP provides native decompilation powered by the **r2ghidra** plugin, which integrates the Ghidra decompiler engine directly inside Radare2. This native approach runs **without a JVM or Java installation**, providing fast decompilation with low memory usage.
 
-Decompilation converts machine code back to human-readable pseudo-C code. Reversecore MCP provides two decompilation backends:
+---
 
-| Backend | Strengths | Best For |
-|---------|-----------|----------|
-| **Ghidra** | Superior type recovery, structure propagation | Complex C++ binaries |
-| **Radare2 (r2dec)** | Faster, lighter | Quick analysis, smaller binaries |
+## 1. Basic Decompilation
 
-## Smart Decompilation
-
-The `smart_decompile` tool automatically selects the best backend:
+To generate pseudo-C code for a specific function name or virtual address:
 
 ```python
-smart_decompile(
-    file_path="/app/workspace/sample.exe",
-    function_address="main"
-)
+# Decompile the main function
+r2_decompile(file_path="malware.elf", function_name="main")
 ```
 
-**Features:**
-- Automatic backend selection
-- Timeout handling
-- Error recovery with fallback
+Under the hood, `r2ghidra` performs:
+1. Entrypoint mapping and basic block parsing.
+2. Control flow analysis and structure translation.
+3. Variable name and type propagation.
 
-## Ghidra Decompilation
+---
 
-For advanced analysis, use Ghidra directly:
+## 2. Structure Recovery
+
+C++ class layouts, object structures, and struct allocations can be automatically recovered from pointer offsets and offset comparisons:
 
 ```python
-get_pseudo_code(
-    file_path="/app/workspace/sample.exe",
-    function_address="0x401000",
-    use_ghidra=True
-)
+# Recover C structures referenced by a function
+r2_recover_structures(file_path="malware.elf", function_address="0x401500")
 ```
 
-### Ghidra Advantages
+Recovered structs are saved into a stateful SQLite annotation database. You can review them or create your own custom types to assist the decompiler.
 
-1. **Type Recovery**: Better inference of data types
-2. **Structure Propagation**: Recognizes struct field access
-3. **Symbol Recovery**: Maintains function and variable names
-4. **Call Analysis**: Accurate function signature detection
+---
 
-### Performance Tips
+## 3. Function & Control Flow Analysis
+
+Obtain detailed analysis of variable definitions, parameter sizes, and stack frame layouts for a specific function:
 
 ```python
-# For large binaries, use fast_mode
-get_pseudo_code(
-    file_path="/app/workspace/large_game.exe",
-    function_address="main",
-    use_ghidra=True,
-    fast_mode=True  # Skip full binary analysis
-)
+# Deep analyze function prototype and variables
+r2_analyze_function(file_path="malware.elf", function_address="main")
+
+# Generate the call graph (callers and callees)
+r2_get_call_graph(file_path="malware.elf", function_address="main")
 ```
 
-## Neural Decompiler
+---
 
-Enhance decompiled output with AI-powered analysis:
+## 4. Decompiled Code Patterns
 
-```python
-neural_decompile(
-    file_path="/app/workspace/sample.exe",
-    function_address="main"
-)
-```
+When analyzing decompiled pseudo-C code, look for these common compiler patterns:
 
-**Enhancements:**
-- Semantic variable naming (`iVar1` → `socket_fd`)
-- Structure inference from pointer arithmetic
-- Inline comments explaining operations
-
-## Radare2 Decompilation
-
-For quick analysis:
-
-```python
-get_pseudo_code(
-    file_path="/app/workspace/sample.exe",
-    function_address="main",
-    use_ghidra=False  # Use r2dec
-)
-```
-
-### When to Use r2dec
-
-- Quick triage of small functions
-- When Ghidra is unavailable
-- ARM/MIPS architectures (broader support)
-
-## Decompilation Workflow
-
-### 1. Identify Target Functions
-
-```python
-# List all functions
-run_radare2(file_path="/app/workspace/sample.exe", r2_command="afl")
-```
-
-### 2. Analyze Cross-References
-
-```python
-# Find calls to interesting APIs
-run_radare2(
-    file_path="/app/workspace/sample.exe",
-    r2_command="axt @ sym.imp.CreateFileW"
-)
-```
-
-### 3. Decompile Key Functions
-
-```python
-smart_decompile(
-    file_path="/app/workspace/sample.exe",
-    function_address="fcn.00401234"
-)
-```
-
-### 4. Recover Structures
-
-```python
-recover_structures(
-    file_path="/app/workspace/sample.exe",
-    function_address="fcn.00401234"
-)
-```
-
-### 5. Document Findings
-
-```python
-start_analysis_session(sample_path="/app/workspace/sample.exe")
-# ... analysis ...
-create_analysis_report(template_type="full_analysis")
-```
-
-## Understanding Decompiled Output
-
-### Variable Types
-
-| Pattern | Likely Type |
-|---------|-------------|
-| `iVar1` | Integer |
-| `uVar1` | Unsigned integer |
-| `pcVar1` | Char pointer (string) |
-| `pvVar1` | Void pointer |
-| `local_XX` | Stack variable at offset XX |
-| `param_1` | First function parameter |
-
-### Common Patterns
-
-**String Comparison:**
+### String Comparisons
+Used for checking licensing, passwords, or command parameters:
 ```c
-if (strcmp(param_1, "password") == 0) {
-    // Authentication check
+if (strcmp(param_1, "admin_pass") == 0) {
+    // Authenticated path
 }
 ```
 
-**Memory Allocation:**
+### Memory Allocation
+Look for buffer allocations which could be vulnerable to overflows:
 ```c
-pvVar1 = malloc(0x100);
-if (pvVar1 == NULL) {
-    // Error handling
-}
+void *pvVar1 = malloc(0x200);
+memcpy(pvVar1, param_1, param_2); // Potential overflow if param_2 > 0x200
 ```
 
-**Loop Pattern:**
+### Socket Communications
+Standard C network socket code:
 ```c
-for (local_c = 0; local_c < param_2; local_c = local_c + 1) {
-    // Iteration
-}
+sVar1 = socket(2, 1, 6);
+connect(sVar1, &addr, 16);
+send(sVar1, "HELLO", 5, 0);
 ```
+
+---
 
 ## Troubleshooting
 
-### Timeout Issues
+### Tool Timeout
+For large or obfuscated binaries, decompilation can take longer. Increase the default timeout parameter:
 
-For large functions:
 ```python
-get_pseudo_code(
-    file_path="/app/workspace/sample.exe",
-    function_address="main",
-    timeout=600  # Increase timeout
-)
+# Run with a 10-minute timeout limit
+r2_decompile(file_path="large_game.bin", function_name="complex_loop", timeout=600)
 ```
-
-### Missing Types
-
-Use structure recovery first:
-```python
-recover_structures(file_path="/app/workspace/sample.exe", function_address="main")
-# Then decompile
-smart_decompile(file_path="/app/workspace/sample.exe", function_address="main")
-```
-
-## Next Steps
-
-- [Threat Detection Guide](threat-detection.md) - Malware analysis
-- [Ghost Trace API](../api/tools/ghost-trace.md) - Hidden behavior detection

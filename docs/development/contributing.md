@@ -1,8 +1,10 @@
 # Contributing Guide
 
-Thank you for your interest in contributing to Reversecore MCP! This guide will help you get started.
+Thank you for contributing to Reversecore MCP! This guide outlines setup instructions, coding conventions, testing requirements, and pull request procedures.
 
-## Development Setup
+---
+
+## 💻 Development Setup
 
 ### 1. Fork and Clone
 
@@ -11,7 +13,7 @@ git clone https://github.com/YOUR_USERNAME/Reversecore_MCP.git
 cd Reversecore_MCP
 ```
 
-### 2. Create Virtual Environment
+### 2. Set Up a Virtual Environment
 
 ```bash
 python -m venv venv
@@ -19,274 +21,155 @@ source venv/bin/activate  # Linux/macOS
 venv\Scripts\activate     # Windows
 ```
 
-### 3. Install Dependencies
+### 3. Install Package and Dependencies
 
 ```bash
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
 ```
 
-### 4. Install Pre-commit Hooks
+### 4. Enable Pre-commit Hooks
+
+We use pre-commit hooks to automatically check for secret leaks (Gitleaks), format code (Ruff), and run security scans (Bandit) before each commit:
 
 ```bash
 pre-commit install
 ```
 
-## Code Standards
+---
 
-### Python Style
+## 📏 Coding Standards
 
-We follow PEP 8 with these tools:
+### Python Code Style
 
-- **Ruff**: Linting and formatting
-- **Black**: Code formatting
-- **isort**: Import sorting
+We enforce standard PEP 8 compliance via **Ruff** for both linting and formatting.
 
-Run checks:
+Run checks locally:
 ```bash
+# Run linter
 ruff check reversecore_mcp/
-black --check reversecore_mcp/
+
+# Run formatter check
+ruff format --check reversecore_mcp/
 ```
 
-Auto-fix:
+Auto-fix issues:
 ```bash
 ruff check --fix reversecore_mcp/
-black reversecore_mcp/
+ruff format reversecore_mcp/
 ```
 
-### Docstrings
+### Docstring Conventions
 
-Use Google-style docstrings:
+We use **Google-style docstrings**. Every public function, class, and tool must have a clear docstring documenting arguments, types, return structures, and exceptions:
 
 ```python
 def analyze_binary(file_path: str, timeout: int = 300) -> ToolResult:
-    """Analyze a binary file for threats.
-    
+    """Analyze a binary file for capabilities.
+
     Args:
         file_path: Path to the binary file to analyze.
         timeout: Maximum execution time in seconds.
-        
+
     Returns:
         ToolResult containing analysis data or error.
-        
+
     Raises:
         ValidationError: If file_path is invalid.
-        TimeoutError: If analysis exceeds timeout.
-        
+        ExecutionTimeoutError: If analysis exceeds timeout.
+
     Example:
-        >>> result = analyze_binary("/app/workspace/sample.exe")
+        >>> result = analyze_binary("sample.exe")
         >>> print(result.status)
         'success'
     """
 ```
 
-### Type Hints
+---
 
-Always use type hints:
+## 🧪 Testing Guidelines
 
-```python
-from typing import Optional, List, Dict, Any
-
-def process_data(
-    data: Dict[str, Any],
-    filters: Optional[List[str]] = None
-) -> Dict[str, Any]:
-    ...
-```
-
-## Testing
+Write unit tests for any new features or bug fixes. Unit tests should go under `tests/unit/` and mock all external commands.
 
 ### Running Tests
 
 ```bash
-# All tests
+# Run all tests
 pytest tests/ -v
 
-# Specific module
-pytest tests/unit/test_cli_tools.py -v
+# Run unit tests only
+pytest tests/unit/ -v
 
-# With coverage
-pytest tests/ --cov=reversecore_mcp --cov-report=html
+# Run with coverage report
+pytest tests/unit/ --cov=reversecore_mcp --cov-report=html
 ```
 
-### Writing Tests
+### Coverage Threshold
 
-Place tests in appropriate directories:
+We enforce a strict **80% minimum coverage gate** in our CI/CD pipelines. Ensure your tests keep code coverage above this threshold:
 
-```
-tests/
-├── unit/           # Unit tests (mocked dependencies)
-├── integration/    # Integration tests (real tools)
-└── fixtures/       # Test data and samples
+```bash
+# Fail if code coverage falls below 80%
+pytest tests/unit/ --cov=reversecore_mcp --cov-fail-under=80
 ```
 
-Example test:
+---
+
+## 🔌 Adding New Tools
+
+To add a new tool to the MCP server:
+
+### 1. Implement Tool Function
+Add your tool function to the correct package under `reversecore_mcp/tools/`. Ensure you use validation and error handlers:
 
 ```python
-import pytest
-from reversecore_mcp.tools.cli_tools import run_file
+# reversecore_mcp/tools/analysis/my_tool.py
+from reversecore_mcp.core.decorators import log_execution
+from reversecore_mcp.core.result import ToolResult, success, failure
+from reversecore_mcp.core.security import validate_file_path
 
-class TestRunFile:
-    def test_run_file_success(self, sample_exe):
-        """Test successful file identification."""
-        result = run_file(file_path=sample_exe)
-        assert result["status"] == "success"
-        assert "PE32" in result["data"]
-    
-    def test_run_file_not_found(self):
-        """Test error handling for missing file."""
-        result = run_file(file_path="/nonexistent/file.exe")
-        assert result["status"] == "error"
-        assert result["error_code"] == "FILE_NOT_FOUND"
-```
+@log_execution()
+async def my_new_tool(file_path: str) -> ToolResult:
+    """Describe the tool behavior clearly for the AI.
 
-### Test Coverage
-
-Minimum coverage: **72%**
-
-```bash
-pytest tests/ --cov=reversecore_mcp --cov-fail-under=72
-```
-
-## Pull Request Process
-
-### 1. Create Feature Branch
-
-```bash
-git checkout -b feature/your-feature-name
-```
-
-### 2. Make Changes
-
-- Write code following style guidelines
-- Add tests for new functionality
-- Update documentation if needed
-
-### 3. Run Checks
-
-```bash
-# Linting
-ruff check reversecore_mcp/
-
-# Formatting
-black --check reversecore_mcp/
-
-# Tests
-pytest tests/ -v --cov=reversecore_mcp
-```
-
-### 4. Commit
-
-Use conventional commits:
-
-```bash
-git commit -m "feat: add new analysis tool"
-git commit -m "fix: resolve timeout issue in ghost_trace"
-git commit -m "docs: update API reference"
-git commit -m "test: add unit tests for report_tools"
-```
-
-Prefixes:
-- `feat:` - New feature
-- `fix:` - Bug fix
-- `docs:` - Documentation
-- `test:` - Tests
-- `refactor:` - Code refactoring
-- `perf:` - Performance improvement
-- `ci:` - CI/CD changes
-
-### 5. Push and Create PR
-
-```bash
-git push origin feature/your-feature-name
-```
-
-Then create a Pull Request on GitHub.
-
-### PR Checklist
-
-- [ ] Tests pass locally
-- [ ] Code follows style guidelines
-- [ ] Documentation updated (if applicable)
-- [ ] Commit messages follow convention
-- [ ] No merge conflicts
-
-## Adding New Tools
-
-### 1. Create Tool Function
-
-```python
-# reversecore_mcp/tools/my_tools.py
-
-from reversecore_mcp.core.result import ToolResult, ToolSuccess, ToolError
-from reversecore_mcp.core.validators import validate_file_path
-
-def my_new_tool(file_path: str, option: str = "default") -> ToolResult:
-    """Short description of the tool.
-    
     Args:
-        file_path: Path to the file to process.
-        option: Processing option.
-        
+        file_path: Relative path to target file in workspace.
+
     Returns:
-        ToolResult with processed data.
+        ToolResult with analysis dict.
     """
-    # Validate input
-    if not validate_file_path(file_path):
-        return ToolError(
-            error_code="VALIDATION_ERROR",
-            message="Invalid file path"
-        )
-    
     try:
-        # Tool logic here
-        result = process_file(file_path, option)
-        return ToolSuccess(data=result)
+        # Validate path isolation boundary
+        safe_path = validate_file_path(file_path)
+
+        # Implement your tool logic
+        data = await perform_custom_task(safe_path)
+        return success(data)
     except Exception as e:
-        return ToolError(
-            error_code="PROCESSING_ERROR",
-            message=str(e)
-        )
+        return failure(str(e))
 ```
 
-### 2. Register with MCP
+### 2. Register in Plugin
+Add the tool registration inside the corresponding `Plugin` class (e.g. `AnalysisToolsPlugin` under `reversecore_mcp/tools/analysis/__init__.py`):
 
 ```python
-# reversecore_mcp/tools/__init__.py
+# reversecore_mcp/tools/analysis/__init__.py
+class AnalysisToolsPlugin(Plugin):
+    def register(self, mcp_server: Any) -> None:
+        # Import your tool
+        from reversecore_mcp.tools.analysis.my_tool import my_new_tool
 
-from .my_tools import my_new_tool
-
-def register_tools(mcp):
-    # ... existing tools ...
-    mcp.tool(my_new_tool)
+        # Register it with FastMCP
+        mcp_server.tool(my_new_tool)
 ```
 
-### 3. Add Tests
+---
 
-```python
-# tests/unit/test_my_tools.py
+## 🚀 Pull Request Checklist
 
-import pytest
-from reversecore_mcp.tools.my_tools import my_new_tool
-
-class TestMyNewTool:
-    def test_success(self, sample_file):
-        result = my_new_tool(file_path=sample_file)
-        assert result["status"] == "success"
-    
-    def test_invalid_path(self):
-        result = my_new_tool(file_path="/invalid/path")
-        assert result["status"] == "error"
-```
-
-### 4. Document
-
-Add documentation in `docs/api/tools/`.
-
-## Questions?
-
-- Open an issue for bugs or feature requests
-- Start a discussion for questions
-- Check existing issues before creating new ones
-
-Thank you for contributing! 🎉
+Before submitting a Pull Request, ensure:
+1. `pytest tests/unit/ --cov-fail-under=80` passes.
+2. `ruff check reversecore_mcp/` has zero errors.
+3. `mypy reversecore_mcp/` has zero typing errors.
+4. `bandit -r reversecore_mcp/` reports no security warnings.
+5. Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) (e.g. `feat: add my tool`, `fix: handle null bytes`).

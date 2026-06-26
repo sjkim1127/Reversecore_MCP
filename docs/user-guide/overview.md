@@ -1,74 +1,51 @@
 # Overview
 
-Reversecore MCP is an AI-powered binary analysis platform built on the Model Context Protocol (MCP). It enables AI assistants to perform comprehensive binary analysis through natural language commands.
+Reversecore MCP is a security analysis platform built on the Model Context Protocol (MCP). It allows AI assistants to perform comprehensive, low-level binary analysis and forensics through natural language commands.
 
-## What is MCP?
+---
 
-The Model Context Protocol (MCP) is a standard for connecting AI models to external tools and data sources. Reversecore MCP implements this protocol to provide binary analysis capabilities to AI assistants like Claude, GPT, and others.
+## What is Model Context Protocol (MCP)?
 
-## Key Capabilities
+The Model Context Protocol (MCP) is an open standard developed by Anthropic that allows LLMs to query external databases, run code generators, and execute system commands in a controlled, structured way. Reversecore MCP implements this protocol, enabling models like Claude or GPT inside Cursor to use Radare2, YARA, Volatility3, and other utilities directly.
 
-### Static Analysis
+---
 
-- **Disassembly**: Convert binary code to assembly using Radare2 and Capstone
-- **Decompilation**: Generate pseudo-C code using Ghidra integration
-- **Structure Recovery**: Automatically recover C++ class structures from binary code
-- **Cross-Reference Analysis**: Track function calls and data references
+## Core Capabilities
 
-### Dynamic Analysis
+### 🔍 Binary Analysis & Static Triage
+- **File & Metadata Parsing**: Determine file architecture, compiler, linker, and packer signatures.
+- **Header Auditing**: Extract sections, imports, exports, and directory tables from PE, ELF, and Mach-O files.
+- **String Extraction**: Locate plain ASCII/Unicode strings with offset tracing.
 
-- **Code Emulation**: Safely emulate machine code using ESIL
-- **Execution Tracing**: Follow code paths without actual execution
+### ⚙️ Disassembly & Decompilation
+- **Native Disassembly**: Disassemble function bytes using Radare2.
+- **Native Decompilation**: Decompile binary code to human-readable pseudo-C code using the JVM-free native `r2ghidra` engine.
+- **Symbol & Struct Recovery**: Infer data types and recover C structures from compiler offsets.
 
-### Threat Detection
+### 🧬 Dynamic & Symbolic Analysis
+- **ESIL Code Emulation**: Perform lightweight code emulation with register and memory logging without executing the untrusted binary on the host OS.
+- **angr Symbolic Execution**: Compute concrete inputs to prove path reachability and solve block constraints.
+- **Fuzzing Harness**: Generate AFL++ harnesses wrapped in Qiling emulator environments.
 
-- **Ghost Trace**: Detect hidden malware behaviors and logic bombs
-- **Trinity Defense**: Automated threat detection and response pipeline
-- **YARA Integration**: Generate and scan with YARA signatures
+### 🦠 Threat Hunting & Malware Analysis
+- **Dormant Detector**: Scan for VM evasions, anti-debugging indicators, logic bombs, and orphan functions.
+- **YARA Scanner**: Match signatures against files or search directories.
+- **Adaptive Vaccine**: Generate YARA signatures and proposed binary patches to disable threat loops.
 
-### Game Security
+### 🕵️ Digital Forensics
+- **Memory Forensics**: Parse raw RAM dumps using Volatility3 plugins (e.g. `pslist`, `malfind`).
+- **Network Capture**: Inspect PCAP files using Scapy for protocol details and domain lookups.
+- **Disk & Host Artifacts**: Parse registry files, browser history, and Sleuth Kit file entries.
 
-- **Cheat Point Detection**: Find exploitable game mechanics
-- **Protocol Analysis**: Reverse engineer game network protocols
-- **Anti-Cheat Profiling**: Identify protection mechanisms
+---
 
-## Architecture Overview
+## Tool Categories in Reversecore MCP
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    AI Assistant                          │
-│              (Claude, GPT, Cursor, etc.)                │
-└─────────────────────┬───────────────────────────────────┘
-                      │ MCP Protocol
-┌─────────────────────▼───────────────────────────────────┐
-│                 Reversecore MCP Server                   │
-├─────────────────────────────────────────────────────────┤
-│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐    │
-│  │CLI Tools│  │Lib Tools│  │ Ghost   │  │ Trinity │    │
-│  │         │  │         │  │ Trace   │  │ Defense │    │
-│  └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘    │
-├───────┼────────────┼───────────┼────────────┼──────────┤
-│       │            │           │            │           │
-│  ┌────▼────┐  ┌────▼────┐  ┌───▼───┐  ┌────▼────┐     │
-│  │ Radare2 │  │  LIEF   │  │ ESIL  │  │  YARA   │     │
-│  │ Ghidra  │  │Capstone │  │Emulate│  │ Sigs    │     │
-│  └─────────┘  └─────────┘  └───────┘  └─────────┘     │
-└─────────────────────────────────────────────────────────┘
-```
-
-## Tool Categories
-
-| Category | Description | Example Tools |
-|----------|-------------|---------------|
-| **Basic Analysis** | File identification and string extraction | `run_file`, `run_strings` |
-| **Disassembly** | Low-level code analysis | `run_radare2`, `disassemble_with_capstone` |
-| **Decompilation** | High-level code recovery | `smart_decompile`, `get_pseudo_code` |
-| **Advanced** | Structure and reference analysis | `recover_structures`, `analyze_xrefs` |
-| **Defense** | Threat detection and response | `generate_yara_rule`, `trinity_defense` |
-| **Reporting** | Analysis documentation | `create_analysis_report`, `send_report` |
-
-## Next Steps
-
-- [Binary Analysis Guide](binary-analysis.md) - Learn how to analyze executables
-- [Decompilation Guide](decompilation.md) - Advanced decompilation techniques
-- [Threat Detection Guide](threat-detection.md) - Malware analysis workflows
+| Category | Primary Backend | Examples of Registered Tools |
+|----------|-----------------|------------------------------|
+| **Static Analysis** | `file`, `strings`, LIEF, DIE, CAPA | `run_file`, `run_strings`, `parse_binary_with_lief`, `run_capa`, `detect_packer` |
+| **Radare2 & Decompilation** | Radare2 + `r2ghidra` plugin | `Radare2_disassemble`, `r2_decompile`, `r2_recover_structures`, `r2_analyze_function` |
+| **Malware & Threat Hunting** | YARA, custom heuristics | `dormant_detector`, `extract_iocs`, `yara_scan`, `adaptive_vaccine` |
+| **Dynamic & Symbolic** | angr, Qiling, Radare2 ESIL | `emulate_binary`, `verify_path_and_get_args`, `generate_fuzzing_harness`, `diff_binaries` |
+| **Digital Forensics** | Volatility3, Scapy, TSK | `analyze_memory_dump`, `analyze_network_capture`, `analyze_disk_image` |
+| **Reporting & Sessions** | Python SMTP, SQLite | `start_analysis_session`, `add_session_ioc`, `create_analysis_report`, `send_report_email` |

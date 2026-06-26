@@ -84,18 +84,25 @@ nav:
           - Config: api/core/config.md
           - Exceptions: api/core/exceptions.md
           - Logging: api/core/logging.md
+          - Security & Validators: api/core/security.md
+          - Connection Pool: api/core/r2_pool.md
+          - Memory Store: api/core/memory.md
+          - Metrics & Decorators: api/core/metrics.md
+          - Task Queue: api/core/task_queue.md
       - Tools:
-          - CLI Tools: api/tools/cli-tools.md
-          - Lib Tools: api/tools/lib-tools.md
-          - Ghost Trace: api/tools/ghost-trace.md
-          - Neural Decompiler: api/tools/neural-decompiler.md
-          - Trinity Defense: api/tools/trinity-defense.md
-          - Report Tools: api/tools/report-tools.md
+          - Static Analysis: api/tools/analysis.md
+          - Radare2 & Decompilation: api/tools/radare2.md
+          - Malware & Threat Detection: api/tools/malware.md
+          - Digital Forensics: api/tools/forensics.md
+          - Common Utilities: api/tools/common.md
+          - Sessions & Reporting: api/tools/report.md
   - Development:
       - Contributing: development/contributing.md
       - Testing: development/testing.md
       - Architecture: development/architecture.md
-  - Changelog: changelog.md
+      - Tool Testing: CI_CD_TOOL_TESTING.md
+      - Enhanced CI/CD: ENHANCED_CI_CD.md
+      - Extended Tools: EXTENDED_TOOLS_ANALYSIS.md
 
 extra:
   social:

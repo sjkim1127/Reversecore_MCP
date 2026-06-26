@@ -1,172 +1,121 @@
 # Binary Analysis Guide
 
-This guide covers the fundamental binary analysis capabilities of Reversecore MCP.
+This guide covers the fundamental binary analysis capabilities of Reversecore MCP, showing how to identify, disassemble, and analyze executables.
 
-## Getting Started
+---
+
+## 1. Initial File Triage
+
+Before performing deep analysis, always begin by gathering metadata about the target file format, architecture, and packer.
 
 ### File Identification
 
-Start by identifying the binary type:
+Determine the binary type, target architecture, and compiler details:
 
 ```python
-# Identify file type
-run_file(file_path="/app/workspace/sample.exe")
+# Identify file type and basic properties
+run_file(file_path="malware.elf")
 ```
 
-**Output:**
-```json
-{
-  "status": "success",
-  "data": "PE32+ executable (GUI) x86-64, for MS Windows"
-}
+### Packer & Compiler Detection
+
+Check if the binary is packed (e.g. with UPX or VMProtect) using Detect It Easy (DIE) and identify compiler/linker fingerprints:
+
+```python
+# Query compiler and packer signatures
+detect_packer(file_path="malware.elf")
+```
+
+### Static Metadata Parsing (LIEF)
+
+Extract comprehensive file headers, section properties, import tables, and exports:
+
+```python
+# Parse detailed headers and imports
+parse_binary_with_lief(file_path="malware.elf")
 ```
 
 ### String Extraction
 
-Extract readable strings from the binary:
+Locate printable strings in the executable to identify URLs, IPs, API calls, and debug paths:
 
 ```python
-# Extract strings with minimum length 6
-run_strings(file_path="/app/workspace/sample.exe", min_length=6)
+# Extract strings with a minimum length of 6
+run_strings(file_path="malware.elf", min_length=6)
 ```
 
-### Binary Parsing with LIEF
+### Capability Scan (CAPA)
 
-Get detailed PE/ELF metadata:
+Detect high-level capabilities (e.g. registry creation, encryption, network access) mapped to the MITRE ATT&CK framework:
 
 ```python
-parse_binary_with_lief(file_path="/app/workspace/sample.exe")
+# Scan for capabilities
+run_capa(file_path="malware.elf")
 ```
 
-**Returns:**
-- Headers (DOS, PE, Optional)
-- Sections (.text, .data, .rdata, etc.)
-- Imports and Exports
-- Resources
-- Digital signatures
+---
 
-## Disassembly
+## 2. Disassembly
 
 ### Using Radare2
 
-Execute Radare2 commands for deep analysis:
+Execute specific Radare2 command strings directly on the file via connection pooling:
 
 ```python
-# List all functions
-run_radare2(file_path="/app/workspace/sample.exe", r2_command="afl")
+# List functions inside the binary
+Radare2_list_functions(file_path="malware.elf")
 
-# Disassemble main function
-run_radare2(file_path="/app/workspace/sample.exe", r2_command="pdf @ main")
-
-# Print cross-references to a function
-run_radare2(file_path="/app/workspace/sample.exe", r2_command="axt @ sym.encrypt")
+# Run a custom Radare2 command
+Radare2_run_command(file_path="malware.elf", command="pdf @ main")
 ```
 
-### Using Capstone
+### Advanced Disassembly
 
-For fine-grained disassembly control:
+Extract the assembly instructions of a function with compiler analysis:
 
 ```python
-disassemble_with_capstone(
-    file_path="/app/workspace/sample.exe",
-    start_address="0x401000",
-    length=100
-)
+# Disassemble a function at a specific virtual address
+Radare2_disassemble_function(file_path="malware.elf", offset="0x401000")
 ```
 
-## Cross-Reference Analysis
+---
 
-Track how functions and data are used:
+## 3. Emulation
+
+Execute sections of instructions without running the untrusted binary on your host CPU. Reversecore MCP logs register states and memory updates at each emulation step.
+
+### Emulating Instructions
 
 ```python
-analyze_xrefs(
-    file_path="/app/workspace/sample.exe",
-    function_address="main"
-)
-```
-
-**Returns:**
-- Functions that call this address
-- Functions called from this address
-- Data references
-
-## Structure Recovery
-
-Recover C++ class structures automatically:
-
-```python
-recover_structures(
-    file_path="/app/workspace/game.exe",
-    function_address="main",
-    fast_mode=True
-)
-```
-
-**Output:**
-```c
-struct Player {
-    int health;      // offset 0x0
-    int armor;       // offset 0x4
-    Vector3 position; // offset 0x8
-};
-```
-
-## Binary Comparison
-
-Compare two versions of a binary:
-
-```python
-diff_binaries(
-    file_path_a="/app/workspace/app_v1.exe",
-    file_path_b="/app/workspace/app_v2.exe"
-)
-```
-
-**Use Cases:**
-- Patch analysis (1-day exploit research)
-- Malware variant comparison
-- Game update analysis
-
-## Code Emulation
-
-Safely emulate code without execution:
-
-```python
+# Emulate 50 instructions starting from entrypoint
 emulate_machine_code(
-    file_path="/app/workspace/sample.exe",
+    file_path="malware.elf",
     start_address="0x401000",
     instructions=50
 )
 ```
 
-**Returns:**
-- Register states after emulation
-- Memory changes
-- Instruction trace
+---
 
-## IOC Extraction
+## 4. Binary Comparison (Diffing)
 
-Extract Indicators of Compromise:
+Compare two binary versions to analyze security patches, compiler differences, or malware mutations.
+
+### Semantic Diffing
 
 ```python
-extract_iocs(
-    text=strings_output,
-    extract_ips=True,
-    extract_urls=True,
-    extract_emails=True
+# Compare app version 1 and version 2
+diff_binaries(
+    file_path_a="app_v1.bin",
+    file_path_b="app_v2.bin"
 )
 ```
 
-## Best Practices
+---
 
-1. **Start with triage**: Use `run_file` and `run_strings` first
-2. **Parse metadata**: Use `parse_binary_with_lief` for structure info
-3. **Find entry points**: Locate `main` or `_start` functions
-4. **Follow xrefs**: Track interesting function calls
-5. **Recover structures**: For C++ binaries, recover class layouts
-6. **Document findings**: Use Report Tools to create analysis reports
+## Best Practices for Triage
 
-## Next Steps
-
-- [Decompilation Guide](decompilation.md) - Generate pseudo-C code
-- [Threat Detection Guide](threat-detection.md) - Malware analysis
+1. **Safety First**: Run analyses inside isolated virtual environments or the provided Docker container.
+2. **Start Broad**: Use `run_file` -> `detect_packer` -> `run_strings` to verify what you're dealing with.
+3. **Check Capabilities**: Use `run_capa` to establish the high-level purpose of the binary.
+4. **Decompile Main**: Identify the entry point or `main` function and start analyzing control flow.

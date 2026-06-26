@@ -1,350 +1,144 @@
 # Testing Guide
 
-This guide covers testing practices and procedures for Reversecore MCP.
+This guide details testing procedures, folder structures, and best practices for developing on the Reversecore MCP platform.
 
-## Test Structure
+---
+
+## 📁 Directory Structure
+
+Tests are organized to separate pure unit tests (isolated using mocks) from integration tests (which call external binary utilities on mock data):
 
 ```
 tests/
 ├── __init__.py
-├── conftest.py          # Shared fixtures
-├── fixtures/            # Test data
-│   ├── samples/         # Binary samples
-│   ├── rules/           # YARA rules
-│   └── workspace/       # Test workspace
-├── unit/                # Unit tests
-│   ├── test_cli_tools.py
-│   ├── test_lib_tools.py
-│   ├── test_ghost_trace.py
-│   └── ...
-└── integration/         # Integration tests
-    ├── test_cli_tools.py
+├── conftest.py              # Shared pytest fixtures (workspace, config, logs)
+├── fixtures/                # Static test data (malware rules, tiny binaries)
+│
+├── unit/                    # Unit tests (Mocked subprocesses and system calls)
+│   ├── core/                # Core infrastructure tests
+│   │   ├── test_config.py
+│   │   ├── test_security.py
+│   │   ├── test_validators.py
+│   │   ├── test_r2_pool.py
+│   │   └── ...
+│   └── tools/               # Modular tool tests
+│       ├── test_static_analysis.py
+│       ├── test_yara_tools.py
+│       ├── test_memory.py
+│       └── ...
+│
+└── integration/             # Integration tests (verifies local tool installations)
+    ├── test_tool_installation.py
     └── ...
 ```
 
-## Running Tests
+---
 
-### All Tests
+## 🚀 Running Tests
+
+### Running the Entire Suite
 
 ```bash
 pytest tests/ -v
 ```
 
-### Unit Tests Only
+### Running Specific Test Paths
 
 ```bash
+# Unit tests only
 pytest tests/unit/ -v
-```
 
-### Integration Tests
-
-```bash
+# Integration tests only
 pytest tests/integration/ -v
+
+# Run tests in a specific file
+pytest tests/unit/core/test_security.py -v
 ```
 
-### Specific Test File
+### Enforcing Code Coverage Gates
+
+Our CI/CD pipeline enforces an **80% minimum code coverage gate**. To run tests locally and generate a coverage report:
 
 ```bash
-pytest tests/unit/test_cli_tools.py -v
+# Fail if code coverage falls below 80%
+pytest tests/unit/ --cov=reversecore_mcp --cov-fail-under=80
+
+# Generate HTML report
+pytest tests/unit/ --cov=reversecore_mcp --cov-report=html
+open htmlcov/index.html  # View coverage lines in browser
 ```
 
-### Specific Test Function
+---
 
-```bash
-pytest tests/unit/test_cli_tools.py::TestRunFile::test_success -v
-```
+## 📝 Writing Tests
 
-### With Coverage
+### 1. Simple Unit Test
 
-```bash
-# Generate coverage report
-pytest tests/ --cov=reversecore_mcp --cov-report=html
-
-# Open report
-open htmlcov/index.html  # macOS
-xdg-open htmlcov/index.html  # Linux
-start htmlcov/index.html  # Windows
-```
-
-### Fail Under Coverage Threshold
-
-```bash
-pytest tests/ --cov=reversecore_mcp --cov-fail-under=72
-```
-
-## Writing Tests
-
-### Basic Test Structure
+Test validators or helper functions without external dependencies:
 
 ```python
-import pytest
-from reversecore_mcp.tools.cli_tools import run_file
-
-class TestRunFile:
-    """Tests for run_file tool."""
-    
-    def test_success(self, sample_exe):
-        """Test successful file identification."""
-        result = run_file(file_path=sample_exe)
-        assert result["status"] == "success"
-        assert "PE32" in result["data"]
-    
-    def test_file_not_found(self):
-        """Test error handling for missing file."""
-        result = run_file(file_path="/nonexistent/file.exe")
-        assert result["status"] == "error"
-        assert result["error_code"] == "FILE_NOT_FOUND"
-    
-    def test_invalid_path(self):
-        """Test validation of file path."""
-        result = run_file(file_path="../../../etc/passwd")
-        assert result["status"] == "error"
-        assert result["error_code"] == "VALIDATION_ERROR"
-```
-
-### Using Fixtures
-
-#### Shared Fixtures (conftest.py)
-
-```python
-# tests/conftest.py
-
-import pytest
-import tempfile
-import os
-
-@pytest.fixture
-def workspace():
-    """Create temporary workspace directory."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        yield tmpdir
-
-@pytest.fixture
-def sample_exe(workspace):
-    """Create a minimal PE file for testing."""
-    pe_path = os.path.join(workspace, "sample.exe")
-    # Minimal PE header
-    pe_data = bytes([
-        0x4D, 0x5A,  # MZ signature
-        # ... PE header bytes ...
-    ])
-    with open(pe_path, "wb") as f:
-        f.write(pe_data)
-    return pe_path
-
-@pytest.fixture
-def sample_elf(workspace):
-    """Create a minimal ELF file for testing."""
-    elf_path = os.path.join(workspace, "sample.elf")
-    elf_data = bytes([
-        0x7F, 0x45, 0x4C, 0x46,  # ELF signature
-        # ... ELF header bytes ...
-    ])
-    with open(elf_path, "wb") as f:
-        f.write(elf_data)
-    return elf_path
-```
-
-#### Using Fixtures
-
-```python
-def test_analyze_pe(sample_exe):
-    """Test PE file analysis."""
-    result = analyze(sample_exe)
-    assert result["format"] == "PE"
-
-def test_analyze_elf(sample_elf):
-    """Test ELF file analysis."""
-    result = analyze(sample_elf)
-    assert result["format"] == "ELF"
-```
-
-### Mocking External Dependencies
-
-```python
-from unittest.mock import patch, MagicMock
-
-class TestGhidraDecompile:
-    @patch('reversecore_mcp.core.ghidra_helper.GhidraHelper')
-    def test_decompile_success(self, mock_ghidra):
-        """Test decompilation with mocked Ghidra."""
-        # Setup mock
-        mock_instance = MagicMock()
-        mock_instance.decompile.return_value = "int main() { return 0; }"
-        mock_ghidra.return_value = mock_instance
-        
-        # Test
-        result = decompile("/app/workspace/test.exe", "main")
-        
-        assert result["status"] == "success"
-        assert "int main()" in result["code"]
-    
-    @patch('subprocess.run')
-    def test_radare2_command(self, mock_run):
-        """Test Radare2 command execution."""
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout="function list here"
-        )
-        
-        result = run_radare2("/app/workspace/test.exe", "afl")
-        
-        assert result["status"] == "success"
-        mock_run.assert_called_once()
-```
-
-### Parametrized Tests
-
-```python
+# tests/unit/core/test_validators.py
+from reversecore_mcp.core.validators import validate_file_path
 import pytest
 
-@pytest.mark.parametrize("file_type,expected", [
-    ("sample.exe", "PE32"),
-    ("sample.elf", "ELF"),
-    ("sample.dll", "PE32"),
-    ("sample.so", "ELF"),
-])
-def test_file_identification(workspace, file_type, expected):
-    """Test file type identification for various formats."""
-    file_path = create_sample(workspace, file_type)
-    result = run_file(file_path)
-    assert expected in result["data"]
+def test_validate_file_path_safe():
+    assert validate_file_path("sample.exe") == True
 
-@pytest.mark.parametrize("timeout,should_timeout", [
-    (1, True),    # Very short timeout
-    (300, False), # Normal timeout
-])
-def test_timeout_handling(sample_exe, timeout, should_timeout):
-    """Test timeout behavior."""
-    result = analyze(sample_exe, timeout=timeout)
-    if should_timeout:
-        assert result["error_code"] == "TIMEOUT"
-    else:
-        assert result["status"] == "success"
+def test_validate_file_path_traversal():
+    assert validate_file_path("../../../etc/passwd") == False
 ```
 
-### Testing Async Code
+### 2. Mocking Subprocesses (CLI Wrapper Testing)
+
+For tools that invoke command-line utilities (like `file` or `strings`), mock the async command executor to keep tests fast and platform-independent:
 
 ```python
+# tests/unit/tools/test_static_analysis.py
 import pytest
-import asyncio
+from unittest.mock import patch, AsyncMock
+from reversecore_mcp.tools.analysis.static_analysis import run_file
 
 @pytest.mark.asyncio
-async def test_async_analysis():
-    """Test asynchronous analysis function."""
-    result = await async_analyze("/app/workspace/sample.exe")
-    assert result["status"] == "success"
+@patch("reversecore_mcp.core.execution.execute_subprocess_async")
+async def test_run_file_success(mock_execute):
+    # Setup mock subprocess output
+    mock_execute.return_value = ("PE32+ executable (GUI) x86-64", "")
+
+    result = await run_file("sample.exe")
+
+    assert result.status == "success"
+    assert "PE32+" in result.data["file_type"]
+    mock_execute.assert_called_once()
 ```
 
-## Test Categories
+### 3. Parametrized Inputs
 
-### Unit Tests
-
-Test individual functions in isolation:
+Test multiple edge cases efficiently:
 
 ```python
-# tests/unit/test_validators.py
-
+import pytest
 from reversecore_mcp.core.validators import validate_file_path
 
-class TestValidateFilePath:
-    def test_valid_path(self):
-        assert validate_file_path("/app/workspace/sample.exe") == True
-    
-    def test_path_traversal(self):
-        assert validate_file_path("../../../etc/passwd") == False
-    
-    def test_null_bytes(self):
-        assert validate_file_path("/app/workspace/sample\x00.exe") == False
+@pytest.mark.parametrize("input_path,expected", [
+    ("malware.elf", True),
+    ("tmp/sub/file.bin", True),
+    ("../../etc/shadow", False),
+    ("sample.exe\x00", False),
+])
+def test_path_inputs(input_path, expected):
+    assert validate_file_path(input_path) == expected
 ```
 
-### Integration Tests
+---
 
-Test tool integration with real dependencies:
+## 🏷️ Test Categories (Markers)
 
-```python
-# tests/integration/test_cli_tools.py
+We use pytest markers to segment tests:
+- `@pytest.mark.unit`: Pure logic unit tests.
+- `@pytest.mark.integration`: Requires external executables (`radare2`, `yara`, `file`) installed on the host.
+- `@pytest.mark.slow`: Long-running symbolic or emulation tests.
 
-import pytest
-
-@pytest.mark.integration
-class TestRadare2Integration:
-    def test_real_radare2(self, sample_exe):
-        """Test with actual Radare2 installation."""
-        result = run_radare2(sample_exe, "afl")
-        assert result["status"] == "success"
-```
-
-### Slow Tests
-
-Mark slow tests for optional execution:
-
-```python
-@pytest.mark.slow
-def test_large_binary_analysis():
-    """Test analysis of large binary (may take minutes)."""
-    result = analyze("/app/workspace/large_game.exe")
-    assert result["status"] == "success"
-```
-
-Run without slow tests:
+Run only fast unit tests:
 ```bash
-pytest tests/ -v -m "not slow"
-```
-
-## CI/CD Integration
-
-### GitHub Actions
-
-Tests run automatically on:
-- Push to main branch
-- Pull requests
-- Manual trigger
-
-```yaml
-# .github/workflows/test.yml
-name: Tests
-
-on: [push, pull_request]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: pip install -r requirements.txt -r requirements-dev.txt
-      - run: pytest tests/ -v --cov=reversecore_mcp
-```
-
-## Best Practices
-
-1. **Test one thing per test**: Each test should verify a single behavior
-2. **Use descriptive names**: `test_run_file_returns_error_for_missing_file`
-3. **Arrange-Act-Assert**: Structure tests clearly
-4. **Don't test implementation**: Test behavior, not internal details
-5. **Keep tests fast**: Mock slow external dependencies
-6. **Clean up resources**: Use fixtures with cleanup
-7. **Test edge cases**: Empty inputs, large files, invalid data
-
-## Debugging Tests
-
-### Verbose Output
-
-```bash
-pytest tests/ -v -s  # -s shows print statements
-```
-
-### Drop into Debugger
-
-```bash
-pytest tests/ --pdb  # Drop into pdb on failure
-```
-
-### Run Last Failed
-
-```bash
-pytest tests/ --lf  # Run only last failed tests
+pytest tests/ -v -m "not slow and not integration"
 ```
