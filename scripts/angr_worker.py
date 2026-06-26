@@ -25,6 +25,18 @@ def run_symbolic_execution(
         # Load the binary
         project = angr.Project(binary_path, auto_load_libs=False)
 
+        # Automatically adjust relative offsets for PIE binaries
+        base_addr = project.loader.main_object.mapped_base
+        if base_addr > 0:
+            if target_addr < base_addr:
+                target_addr += base_addr
+            if start_addr is not None and start_addr < base_addr:
+                start_addr += base_addr
+            if avoid_addrs:
+                avoid_addrs = [
+                    addr + base_addr if addr < base_addr else addr for addr in avoid_addrs
+                ]
+
         # Create symbolic variables for argv[1] and stdin
         # Let's support up to 50 bytes for argv[1]
         sym_arg1 = claripy.BVS("arg1", 50 * 8)

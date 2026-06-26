@@ -49,12 +49,13 @@ body {
 }
 
 .logo h1 {
-    font-size: 1.25rem;
-    font-weight: 600;
+    font-size: 1.85rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
 }
 
 .logo .version {
-    font-size: 0.75rem;
+    font-size: 0.85rem;
     color: var(--text-secondary);
 }
 

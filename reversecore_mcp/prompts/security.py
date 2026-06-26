@@ -3,7 +3,7 @@
 from reversecore_mcp.prompts.common import DOCKER_PATH_RULE, LANGUAGE_RULE
 
 
-def vulnerability_research_mode(filename: str) -> str:
+def vulnerability_research_mode(filename: str = "target_binary") -> str:
     """Specialized mode for Bug Hunting and Vulnerability Research."""
     return f"""
     You are a Vulnerability Researcher.
@@ -53,7 +53,7 @@ def vulnerability_research_mode(filename: str) -> str:
     """
 
 
-def crypto_analysis_mode(filename: str) -> str:
+def crypto_analysis_mode(filename: str = "target_binary") -> str:
     """Specialized mode for analyzing Cryptographic algorithms and Key management."""
     return f"""
     You are a Cryptography Analyst.
@@ -78,7 +78,7 @@ def crypto_analysis_mode(filename: str) -> str:
     """
 
 
-def firmware_analysis_mode(filename: str) -> str:
+def firmware_analysis_mode(filename: str = "target_binary") -> str:
     """Specialized mode for analyzing Firmware images and IoT devices."""
     return f"""
     You are an Embedded Systems Security Expert.
@@ -105,7 +105,9 @@ def firmware_analysis_mode(filename: str) -> str:
     """
 
 
-def patch_analysis_mode(original_binary: str, patched_binary: str) -> str:
+def patch_analysis_mode(
+    original_binary: str = "original_binary", patched_binary: str = "patched_binary"
+) -> str:
     """Analyze the differences between two binaries to identify patches or vulnerabilities (1-day analysis)."""
     return f"""
     You are a Patch Analyst / 1-Day Exploit Researcher.

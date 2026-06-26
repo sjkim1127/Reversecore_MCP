@@ -2,6 +2,8 @@
 Detect It Easy (DIE) integration for packer/compiler detection.
 
 Provides tools to identify binary file characteristics using the DIE CLI (diec).
+When DIE is not available, detect_packer_deep falls back to a strings-based
+heuristic approach for basic packer/compiler identification.
 """
 
 import shutil
@@ -13,6 +15,38 @@ from reversecore_mcp.core.result import failure, success
 from reversecore_mcp.core.security import validate_file_path
 
 logger = get_logger(__name__)
+
+# Known packer/protector signature strings for heuristic fallback detection
+_PACKER_SIGNATURES: list[tuple[str, str]] = [
+    # (pattern, label)
+    (r"UPX[0-9!]", "UPX"),
+    (r"MPRESS", "MPRESS"),
+    (r"PEC2", "PEC2"),
+    (r"ASPack", "ASPack"),
+    (r"Themida", "Themida"),
+    (r"VMProtect", "VMProtect"),
+    (r"Enigma", "Enigma Protector"),
+    (r"ExeStealth", "ExeStealth"),
+    (r"NsPack", "NsPack"),
+    (r"PECompact", "PECompact"),
+    (r"FSG ", "FSG"),
+    (r"PETITE", "Petite"),
+    (r"BeRoEXEPacker", "BeRo"),
+    (r"kkrunchy", "kkrunchy"),
+]
+
+_COMPILER_SIGNATURES: list[tuple[str, str]] = [
+    (r"GCC:.*?\d+\.\d+\.\d+", "GCC"),
+    (r"Microsoft Visual C", "MSVC"),
+    (r"clang version", "Clang"),
+    (r"Delphi", "Delphi"),
+    (r"Go build", "Go"),
+    (r"rustc", "Rust"),
+    (r"PyInstaller", "PyInstaller"),
+    (r"\.NET Framework", ".NET"),
+    (r"AutoIt", "AutoIt"),
+    (r"NSIS", "NSIS"),
+]
 
 
 def _is_die_available() -> bool:
@@ -144,37 +178,108 @@ async def detect_packer(file_path: str):
 @log_execution()
 async def detect_packer_deep(file_path: str):
     """
-    Deep scan with DIE for more thorough detection.
+    Deep scan for packer/compiler/protector detection.
 
-    Uses additional DIE options for deeper analysis.
+    Primary: Uses DIE (Detect It Easy) ``diec -d`` for deep analysis.
+    Fallback: When DIE is not installed, performs a strings-based heuristic
+    scan that identifies common packer and compiler signatures embedded in
+    the binary.  Results are clearly labelled with ``source`` so callers
+    know which method was used.
 
     Args:
         file_path: Path to the binary file to analyze
 
     Returns:
-        ToolResult with detailed detection information
+        ToolResult with detailed detection information. Always returns
+        partial results even when DIE is unavailable (via strings fallback).
+        Check the ``source`` field: "diec" vs "strings_heuristic".
     """
     validated_path = validate_file_path(file_path)
 
-    if not _is_die_available():
-        return failure(
-            error_code="DIE_NOT_INSTALLED",
-            message="Detect It Easy (diec) is not installed.",
-        )
+    # -------------------------------------------------------------------------
+    # Primary path: DIE deep scan
+    # -------------------------------------------------------------------------
+    if _is_die_available():
+        try:
+            output, _ = await execute_subprocess_async(
+                ["diec", "-d", str(validated_path)],
+                timeout=60,
+            )
+            result = _parse_die_output(output)
+            return success(
+                data=result,
+                message=f"Deep scan complete: {len(result['detections'])} detections",
+                scan_type="deep",
+                source="diec",
+            )
+        except Exception as e:
+            return failure(
+                error_code="DIE_DEEP_SCAN_FAILED",
+                message=f"DIE deep scan failed: {e}",
+            )
+
+    # -------------------------------------------------------------------------
+    # Fallback path: strings-based heuristic when DIE is not installed
+    # -------------------------------------------------------------------------
+    logger.warning(
+        "DIE (diec) not available — falling back to strings-based heuristic for %s",
+        validated_path.name,
+    )
 
     try:
-        # Use deep scan option
-        output, _ = await execute_subprocess_async(
-            ["diec", "-d", str(validated_path)],
-            timeout=60,
-        )
-    except Exception as e:
-        return failure(error_code="DIE_DEEP_SCAN_FAILED", message=f"DIE deep scan failed: {e}")
+        data = validated_path.read_bytes()
+    except OSError as exc:
+        return failure("FILE_READ_ERROR", f"Cannot read file: {exc}")
 
-    result = _parse_die_output(output)
+    # Extract printable ASCII strings from binary for pattern matching
+    import re as _re
+
+    ascii_strings = b" ".join(m.group() for m in _re.finditer(rb"[ -~]{4,}", data)).decode(
+        "ascii", errors="ignore"
+    )
+
+    detections: list[dict] = []
+    found_packer: str | None = None
+    found_compiler: str | None = None
+
+    for pattern, label in _PACKER_SIGNATURES:
+        if _re.search(pattern, ascii_strings, _re.IGNORECASE):
+            found_packer = label
+            detections.append({"type": "packer", "value": label})
+            break  # report first match
+
+    for pattern, label in _COMPILER_SIGNATURES:
+        m = _re.search(pattern, ascii_strings, _re.IGNORECASE)
+        if m:
+            found_compiler = label
+            detections.append({"type": "compiler", "value": label})
+            break
+
+    result = {
+        "file_type": None,
+        "arch": None,
+        "compiler": found_compiler,
+        "linker": None,
+        "packer": found_packer,
+        "protector": None,
+        "installer": None,
+        "sfx": None,
+        "overlay": False,
+        "raw_output": ascii_strings[:2000],  # truncate for readability
+        "detections": detections,
+    }
+
+    is_packed = found_packer is not None
 
     return success(
         data=result,
-        message=f"Deep scan complete: {len(result['detections'])} detections",
-        scan_type="deep",
+        message=(
+            f"Strings-heuristic scan complete: {len(detections)} detection(s). "
+            "Install 'diec' (Detect It Easy) for higher accuracy."
+        ),
+        scan_type="strings_heuristic",
+        source="strings_heuristic",
+        is_packed=is_packed,
+        detection_count=len(detections),
+        die_available=False,
     )

@@ -34,13 +34,15 @@ COPY templates/  /app/templates/
 
 # Install python dependencies that might have updated in requirements.txt
 COPY requirements.txt    ./
-RUN apt-get update && apt-get install -y --no-install-recommends gcc python3-dev libc-dev \
+RUN apt-get update && apt-get install -y --no-install-recommends gcc g++ make python3-dev libc-dev \
     && pip install --no-cache-dir -r requirements.txt \
-    && apt-get purge -y --auto-remove gcc python3-dev libc-dev \
+    && apt-get purge -y --auto-remove gcc g++ make python3-dev libc-dev \
     && rm -rf /var/lib/apt/lists/*
+
 
 # Application source (invalidates on every code change)
 COPY server.py           ./
+COPY scripts/            ./scripts/
 COPY reversecore_mcp/    ./reversecore_mcp/
 
 # Switch to non-root user (already created in base image)

@@ -26,7 +26,7 @@ check_tool() {
     local tool_name=$1
     local version_cmd=$2
     TOTAL_TOOLS=$((TOTAL_TOOLS + 1))
-    
+
     if command -v "$tool_name" &> /dev/null; then
         INSTALLED_TOOLS=$((INSTALLED_TOOLS + 1))
         echo -e "${GREEN}✓${NC} $tool_name installed"
@@ -46,6 +46,7 @@ check_tool "yara" "yara --version"
 check_tool "file" "file --version | head -1"
 check_tool "strings" "strings --version | head -1"
 check_tool "binwalk" "binwalk --version"
+check_tool "diec" "diec --version 2>/dev/null || echo ''"
 
 echo ""
 echo -e "${BLUE}Binary Utilities:${NC}"

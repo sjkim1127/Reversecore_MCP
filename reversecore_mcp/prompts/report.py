@@ -3,7 +3,7 @@
 from reversecore_mcp.prompts.common import DOCKER_PATH_RULE, LANGUAGE_RULE
 
 
-def report_generation_mode(filename: str) -> str:
+def report_generation_mode(filename: str = "target_binary") -> str:
     """Generate professional malware analysis reports with accurate timestamps and IOC tracking."""
     return f"""
     You are a Security Report Specialist generating professional malware analysis documentation.

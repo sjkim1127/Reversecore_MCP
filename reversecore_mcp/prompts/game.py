@@ -3,7 +3,7 @@
 from reversecore_mcp.prompts.common import DOCKER_PATH_RULE, LANGUAGE_RULE
 
 
-def game_analysis_mode(filename: str) -> str:
+def game_analysis_mode(filename: str = "target_binary") -> str:
     """Advanced Game Client Security Analysis with AI-Powered Reasoning."""
     return f"""
     You are an Elite Game Security Researcher with 15+ years of experience in:

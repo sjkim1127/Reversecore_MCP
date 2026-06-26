@@ -268,12 +268,14 @@ class Radare2ToolsPlugin(Plugin):
 
             Args:
                 file_path: Path to the binary file
-                level: Analysis level 0-4 (higher = more thorough, slower)
-                    0: Basic (aa)
-                    1: Auto (aaa)
-                    2: Experimental (aaaa) - default
-                    3: Deep (aaaaa)
-                    4: Very deep (aaaaaa)
+                level: Analysis depth as an INTEGER from 0 to 4 (default: 2).
+                    IMPORTANT: Must be an integer. Do NOT pass strings like
+                    "full", "deep", or "auto" — those will be rejected.
+                    0 = aa  (basic, fastest)
+                    1 = aaa (auto)
+                    2 = aaaa (experimental, recommended default)
+                    3 = aaaaa (deep, slow)
+                    4 = aaaaaa (very deep, very slow)
 
             Returns:
                 Analysis result with function count
@@ -888,14 +890,18 @@ class Radare2ToolsPlugin(Plugin):
 
             Args:
                 file_path: Path to the binary file
-                address: Address of the function to disassemble
+                address: Address OR symbol name of the function to disassemble.
+                    Accepts hex addresses (e.g. '0x401000', '0x8d4') as well as
+                    function/symbol names (e.g. 'main', 'sym.secret_backdoor',
+                    'sym.process_request'). Symbol names are automatically
+                    resolved to their virtual address before disassembly.
                 cursor: Pagination cursor
                 page_size: Number of lines per page
 
             Returns:
                 Function disassembly with pagination
             """
-            # Validate address
+            # Validate address format (allows symbol names too)
             try:
                 validate_address_format(address)
             except ValidationError as e:
@@ -905,14 +911,26 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
+            # Auto-resolve symbol names to addresses.
+            # If address looks like a symbol name (not a hex / decimal literal),
+            # attempt resolution via radare2's `?v` expression evaluator.
+            resolved_address = address
+            if not address.startswith("0x") and not address.lstrip("-").isdigit():
+                resolved = session.cmd(f"?v {address}").strip()
+                if resolved and resolved.startswith("0x"):
+                    resolved_address = resolved
+                    logger.debug("Resolved symbol '%s' -> %s", address, resolved_address)
+
             if page_size > MAX_PAGE_SIZE:
                 page_size = MAX_PAGE_SIZE
 
-            result = session.cmd(f"pdf @ {address}")
+            result = session.cmd(f"pdf @ {resolved_address}")
             paginated, has_more, next_cursor = _paginate_text(result, cursor, page_size)
 
             return {
                 "status": "success",
+                "address_requested": address,
+                "address_resolved": resolved_address,
                 "disassembly": paginated,
                 "has_more": has_more,
                 "next_cursor": next_cursor,
@@ -1042,10 +1060,12 @@ class Radare2ToolsPlugin(Plugin):
 
             Args:
                 file_path: Path to the binary file
-                address: Address to check for cross-references
+                address: Address to check for cross-references (hex or symbol name)
 
             Returns:
-                List of xrefs to the address
+                Structured list of xrefs with xref_count field.
+                xref_count=0 means NO callers exist (not an error).
+                Each xref entry contains: from, type, opcode, ref.
             """
             # Validate address
             try:
@@ -1057,8 +1077,36 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
-            result = session.cmd(f"axt @ {address}")
-            return {"status": "success", "xrefs": result}
+            # Use JSON output (axtj) for structured, unambiguous results.
+            # axt returns an empty string when no xrefs exist, making it
+            # impossible to distinguish "no xrefs" from an error. axtj
+            # returns [] in that case, which is unambiguous.
+            raw = session.cmd(f"axtj @ {address}").strip()
+            try:
+                import json as _json
+
+                xrefs_list = _json.loads(raw) if raw else []
+                if not isinstance(xrefs_list, list):
+                    xrefs_list = []
+            except Exception:
+                xrefs_list = []
+
+            note = None
+            if not xrefs_list:
+                note = (
+                    f"No cross-references found to address {address}. "
+                    "This means no code in the binary directly calls or jumps to this address "
+                    "via a statically-visible instruction. The function may be invoked "
+                    "via indirect call, PLT, or is an orphan/dead-code export."
+                )
+
+            return {
+                "status": "success",
+                "address": address,
+                "xref_count": len(xrefs_list),
+                "xrefs": xrefs_list,
+                "note": note,
+            }
 
         # =====================================================================
         # Modification Tools

@@ -21,7 +21,7 @@ authlib==1.7.2            # via fastmcp
 beartype==0.22.9          # via py-key-value-aio
 cachetools==7.1.4         # via py-key-value-aio
 caio==0.9.25              # via aiofile
-capstone==6.0.0a7         # via reversecore-mcp
+capstone==5.0.6         # via reversecore-mcp
 certifi==2026.6.17        # via httpcore, httpx, requests
 cffi==2.0.0               # via cryptography
 charset-normalizer==3.4.7  # via reportlab, requests
@@ -135,3 +135,4 @@ websockets==16.0          # via fastmcp
 wrapt==2.2.2              # via deprecated
 xhtml2pdf==0.2.17         # via reversecore-mcp, reversecore-mcp (pyproject.toml)
 yara-python==4.5.4        # via reversecore-mcp
+angr==9.2.222               # via reversecore-mcp (symbolic execution)

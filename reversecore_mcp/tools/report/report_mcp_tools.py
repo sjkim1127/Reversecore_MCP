@@ -273,15 +273,24 @@ async def create_analysis_report(
     Generate a comprehensive analysis report.
 
     Args:
-        template_type: Report template (full_analysis, executive_summary, ioc_report, quick_scan)
-        session_id: Session ID to include data from
-        sample_path: Path to sample (if not using session)
-        analyst: Analyst name
-        classification: Classification level
-        output_format: Output format (markdown, json)
+        template_type: Report template type. Options:
+            - "full_analysis" (default) — complete technical report
+            - "executive_summary"       — high-level management brief
+            - "ioc_report"             — IOC-focused export
+            - "quick_scan"             — terse one-page summary
+        session_id: Session ID returned by start_report_session.
+            Uses the most recent active session if not specified.
+        sample_path: Path to the sample file. Only needed when not using
+            a session (session_id takes precedence when provided).
+        analyst: Analyst name shown in report header.
+            Default: "Security Researcher".
+        classification: Report classification level. Options:
+            "TLP:RED", "TLP:AMBER" (default), "TLP:GREEN", "TLP:WHITE".
+        output_format: Output format. Must be "markdown" (default) or "json".
+            IMPORTANT: The parameter name is 'output_format', NOT 'format'.
 
     Returns:
-        Generated report content and file path
+        Generated report content and saved file path.
     """
     report_tools = get_report_tools()
     result = await report_tools.create_report(
