@@ -101,7 +101,7 @@ msgpack==1.2.1            # via vivisect
 msgspec==0.21.1           # via angr, flare-capa
 mulpyplexer==0.9          # via angr
 networkx==3.4.2           # via angr, flare-capa, reversecore-mcp
-numpy==2.4.6              # via contourpy, matplotlib, reversecore-mcp, reversecore-mcp (pyproject.toml)
+numpy==2.2.6              # via contourpy, matplotlib, reversecore-mcp, reversecore-mcp (pyproject.toml)
 openapi-pydantic==0.5.1   # via fastmcp-slim
 opentelemetry-api==1.43.0  # via fastmcp-slim
 orjson==3.11.9            # via reversecore-mcp, reversecore-mcp (pyproject.toml)
