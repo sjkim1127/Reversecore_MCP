@@ -109,6 +109,8 @@ RUN apt-get update \
     file \
     # Binutils (strings, objdump, nm, etc.)
     binutils \
+    # GNU Debugger for crash triage
+    gdb \
     # Firmware analysis and file carving
     binwalk \
     # CFG image generation (FastMCP Image support)

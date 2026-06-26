@@ -29,6 +29,7 @@ class AnalysisToolsPlugin(Plugin):
             run_capa,
             run_capa_quick,
         )
+        from reversecore_mcp.tools.analysis.crash_triage import triage_crash
         from reversecore_mcp.tools.analysis.die_tools import (
             detect_packer,
             detect_packer_deep,
@@ -73,8 +74,9 @@ class AnalysisToolsPlugin(Plugin):
         mcp_server.tool(run_capa_quick)
         mcp_server.tool(emulate_binary)
         mcp_server.tool(generate_fuzzing_harness)
+        mcp_server.tool(triage_crash)
 
-        logger.info(f"Registered {self.name} plugin with 18 analysis tools (unified)")
+        logger.info(f"Registered {self.name} plugin with 19 analysis tools (unified)")
 
 
 __all__ = ["AnalysisToolsPlugin"]
