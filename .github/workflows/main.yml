@@ -101,6 +101,8 @@ jobs:
 
       - name: Install system dependencies
         run: |
+          # Remove problematic third-party repositories that cause 403 Forbidden errors on Ubuntu 24.04 (Noble) runners
+          sudo rm -f /etc/apt/sources.list.d/azure-cli.sources /etc/apt/sources.list.d/azure-cli.list /etc/apt/sources.list.d/microsoft-prod.list
           sudo apt-get update
           sudo apt-get install -y radare2 yara libyara-dev binutils binwalk build-essential nasm sleuthkit
 
