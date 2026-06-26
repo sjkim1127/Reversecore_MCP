@@ -9,6 +9,8 @@ This module provides functions to execute subprocess commands safely with:
 """
 
 import asyncio
+import os
+import shutil
 import subprocess  # nosec B404 - required for safe subprocess execution in this module
 import threading
 from collections.abc import Coroutine
@@ -56,6 +58,104 @@ def _get_background_runner() -> _BackgroundLoopRunner:
         return _BACKGROUND_LOOP_RUNNER
 
 
+def is_in_container() -> bool:
+    """Detect whether the server is running inside a Docker container."""
+    if os.path.exists("/.dockerenv"):
+        return True
+    try:
+        with open("/proc/1/cgroup") as f:
+            content = f.read()
+            if "docker" in content or "kubepods" in content or "containerd" in content:
+                return True
+    except Exception:
+        pass
+    return False
+
+
+class SandboxExecutor:
+    """Helper class to translate subprocess execution commands into sandboxed commands."""
+
+    @staticmethod
+    def wrap_cmd(cmd: list[str]) -> list[str]:
+        """Wrap the command list to run in a sandbox if enabled and applicable.
+
+        Args:
+            cmd: Original command list.
+
+        Returns:
+            Wrapped/sandboxed command list.
+        """
+        from reversecore_mcp.core.config import get_config
+
+        config = get_config()
+        if not config.sandbox_enabled:
+            return cmd
+
+        mode = config.sandbox_mode.lower()
+        if mode == "disabled":
+            return cmd
+
+        in_container = is_in_container()
+        if mode == "auto":
+            active_mode = "container" if in_container else "host"
+        else:
+            active_mode = mode
+
+        if active_mode == "host":
+            if not shutil.which("docker"):
+                logger.warning(
+                    "Sandbox enabled in 'host' mode, but 'docker' command is not available in PATH. Running locally."
+                )
+                return cmd
+
+            # Build Docker command
+            docker_cmd = [
+                "docker",
+                "run",
+                "--rm",
+                "--network",
+                "none",
+            ]
+
+            # Mount workspace (read-only)
+            workspace_path = str(config.workspace)
+            docker_cmd.extend(["-v", f"{workspace_path}:{workspace_path}:ro"])
+
+            # Mount .cache (read-write) for temporary files if it exists
+            cache_path = config.workspace / ".cache"
+            if cache_path.exists():
+                docker_cmd.extend(["-v", f"{cache_path}:{cache_path}:rw"])
+
+            # Mount read-only dirs
+            for rd in config.read_only_dirs:
+                rd_path = str(rd)
+                docker_cmd.extend(["-v", f"{rd_path}:{rd_path}:ro"])
+
+            # Add hardware limits
+            if config.sandbox_cpu_limit:
+                docker_cmd.extend(["--cpus", str(config.sandbox_cpu_limit)])
+            if config.sandbox_memory_limit:
+                docker_cmd.extend(["--memory", str(config.sandbox_memory_limit)])
+            if config.sandbox_pids_limit:
+                docker_cmd.extend(["--pids-limit", str(config.sandbox_pids_limit)])
+
+            # Target image and original command
+            docker_cmd.append(config.sandbox_docker_image)
+            docker_cmd.extend(cmd)
+            return docker_cmd
+
+        elif active_mode == "container":
+            if shutil.which("capsh"):
+                return [
+                    "capsh",
+                    f"--user={config.sandbox_user}",
+                    "--drop=all",
+                    "--",
+                ] + cmd
+
+        return cmd
+
+
 async def execute_subprocess_async(
     cmd: list[str],
     max_output_size: int = 10_000_000,  # 10 MB default
@@ -88,11 +188,35 @@ async def execute_subprocess_async(
         subprocess.CalledProcessError: If the command returns non-zero exit code
     """
     try:
+        # Wrap command and prepare kwargs for sandboxing
+        wrapped_cmd = SandboxExecutor.wrap_cmd(cmd)
+
+        extra_kwargs = {}
+        from reversecore_mcp.core.config import get_config
+
+        config = get_config()
+        if config.sandbox_enabled:
+            mode = config.sandbox_mode.lower()
+            if mode != "disabled":
+                import sys
+
+                in_container = is_in_container()
+                active_mode = (
+                    "container"
+                    if (mode == "auto" and in_container) or mode == "container"
+                    else mode
+                )
+
+                if active_mode == "container" and not shutil.which("capsh"):
+                    if sys.platform != "win32" and config.sandbox_user:
+                        extra_kwargs["user"] = config.sandbox_user
+
         # Start the process with piped stdout/stderr
         process = await asyncio.create_subprocess_exec(
-            *cmd,
+            *wrapped_cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            **extra_kwargs,
         )
 
         # Track PID for zombie cleanup in case of abnormal termination

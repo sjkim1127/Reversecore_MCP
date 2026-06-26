@@ -235,10 +235,44 @@ class Settings(BaseSettings):
     ghidra_extensions: str = Field(
         default="",
         alias="REVERSECORE_GHIDRA_EXTENSIONS",
-        description=(
-            "Comma-separated list of Ghidra extension classes in 'module:ClassName' format. "
-            "Example: mypkg.ghidra_ext:MyGhidraExtension"
-        ),
+        description=("Example: mypkg.ghidra_ext:MyGhidraExtension"),
+    )
+
+    # Sandbox configuration
+    sandbox_enabled: bool = Field(
+        default=False,
+        alias="REVERSECORE_SANDBOX_ENABLED",
+        description="Enable sandbox execution of dynamic and external analysis tools",
+    )
+    sandbox_mode: str = Field(
+        default="auto",
+        alias="REVERSECORE_SANDBOX_MODE",
+        description="Sandbox mode: 'auto' (detect container vs host), 'host', 'container', or 'disabled'",
+    )
+    sandbox_docker_image: str = Field(
+        default="reversecore-sandbox:latest",
+        alias="REVERSECORE_SANDBOX_DOCKER_IMAGE",
+        description="Docker image to use for Host Mode sandboxing",
+    )
+    sandbox_cpu_limit: float = Field(
+        default=1.0,
+        alias="REVERSECORE_SANDBOX_CPU_LIMIT",
+        description="Max CPU cores allowed for sandbox container",
+    )
+    sandbox_memory_limit: str = Field(
+        default="512m",
+        alias="REVERSECORE_SANDBOX_MEMORY_LIMIT",
+        description="Max memory limit for sandbox container (e.g. 512m)",
+    )
+    sandbox_pids_limit: int = Field(
+        default=100,
+        alias="REVERSECORE_SANDBOX_PIDS_LIMIT",
+        description="Max PIDs limit for sandbox container",
+    )
+    sandbox_user: str = Field(
+        default="nobody",
+        alias="REVERSECORE_SANDBOX_USER",
+        description="Non-root user for execution in Container Mode",
     )
 
     @field_validator("log_level")
@@ -318,6 +352,13 @@ class Config:
         lief_max_file_size: int | None = None,
         mcp_transport: str | None = None,
         default_tool_timeout: int | None = None,
+        sandbox_enabled: bool | None = None,
+        sandbox_mode: str | None = None,
+        sandbox_docker_image: str | None = None,
+        sandbox_cpu_limit: float | None = None,
+        sandbox_memory_limit: str | None = None,
+        sandbox_pids_limit: int | None = None,
+        sandbox_user: str | None = None,
     ):
         """Initialize Config with optional Settings instance or individual values.
 
@@ -353,6 +394,20 @@ class Config:
                 env_overrides["mcp_transport"] = TransportMode(mcp_transport.lower())
             if default_tool_timeout is not None:
                 env_overrides["default_tool_timeout"] = default_tool_timeout
+            if sandbox_enabled is not None:
+                env_overrides["sandbox_enabled"] = sandbox_enabled
+            if sandbox_mode is not None:
+                env_overrides["sandbox_mode"] = sandbox_mode
+            if sandbox_docker_image is not None:
+                env_overrides["sandbox_docker_image"] = sandbox_docker_image
+            if sandbox_cpu_limit is not None:
+                env_overrides["sandbox_cpu_limit"] = sandbox_cpu_limit
+            if sandbox_memory_limit is not None:
+                env_overrides["sandbox_memory_limit"] = sandbox_memory_limit
+            if sandbox_pids_limit is not None:
+                env_overrides["sandbox_pids_limit"] = sandbox_pids_limit
+            if sandbox_user is not None:
+                env_overrides["sandbox_user"] = sandbox_user
 
             if env_overrides:
                 self._settings = Settings(**env_overrides)
@@ -443,6 +498,34 @@ class Config:
     @property
     def sast_rules_path(self) -> str:
         return self._settings.sast_rules_path
+
+    @property
+    def sandbox_enabled(self) -> bool:
+        return self._settings.sandbox_enabled
+
+    @property
+    def sandbox_mode(self) -> str:
+        return self._settings.sandbox_mode
+
+    @property
+    def sandbox_docker_image(self) -> str:
+        return self._settings.sandbox_docker_image
+
+    @property
+    def sandbox_cpu_limit(self) -> float:
+        return self._settings.sandbox_cpu_limit
+
+    @property
+    def sandbox_memory_limit(self) -> str:
+        return self._settings.sandbox_memory_limit
+
+    @property
+    def sandbox_pids_limit(self) -> int:
+        return self._settings.sandbox_pids_limit
+
+    @property
+    def sandbox_user(self) -> str:
+        return self._settings.sandbox_user
 
     @classmethod
     def from_env(cls) -> Config:
