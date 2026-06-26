@@ -1,7 +1,7 @@
 [project]
 name = "reversecore-mcp"
 version = "2.1.0"
-description = "MCP Server for Reverse Engineering with Binary Analysis Tools"
+description = "A security-first MCP server that empowers AI agents to perform automated reverse engineering, malware analysis, forensics, vulnerability research, and SAST — powered by Radare2, YARA, LIEF, Capstone, and more."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
