@@ -467,13 +467,7 @@ from reversecore_mcp import resources  # noqa: E402
 
 resources.register_resources(mcp)
 
-# Register report tools for malware analysis reporting
-from reversecore_mcp.tools.report.report_mcp_tools import register_report_tools  # noqa: E402
-
-# Register report tools for malware analysis reporting
-
-report_tools = register_report_tools(mcp)
-logger.info("Registered report tools")
+# Report tools are dynamically registered via ReportToolsPlugin in loader.py
 
 # Register task queue get_job_result tool
 from reversecore_mcp.core.task_queue import get_job_result  # noqa: E402

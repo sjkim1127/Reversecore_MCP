@@ -52,6 +52,11 @@ class PluginLoader:
                         try:
                             # Instantiate the plugin
                             plugin_instance = item()
+                            if plugin_instance.name in self._plugins:
+                                logger.debug(
+                                    f"Plugin {plugin_instance.name} already loaded, skipping duplicate registration"
+                                )
+                                continue
                             self._plugins[plugin_instance.name] = plugin_instance
                             discovered_plugins.append(plugin_instance)
                             logger.info(f"Loaded plugin: {plugin_instance.name}")
