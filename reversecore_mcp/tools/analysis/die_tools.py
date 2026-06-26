@@ -1,24 +1,25 @@
 """
-Detect It Easy (DIE) integration for packer/compiler detection.
+Packer and compiler detection using native Python tools (LIEF & Strings).
 
-Provides tools to identify binary file characteristics using the DIE CLI (diec).
-When DIE is not available, detect_packer_deep falls back to a strings-based
-heuristic approach for basic packer/compiler identification.
+Provides tools to identify binary file characteristics using LIEF (for entropy
+and section anomalies) and strings-based heuristics, replacing the legacy
+Detect-It-Easy (diec) external dependency.
 """
 
-import shutil
+import re
+from pathlib import Path
+
+import lief
 
 from reversecore_mcp.core.decorators import log_execution
-from reversecore_mcp.core.execution import execute_subprocess_async
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.result import failure, success
 from reversecore_mcp.core.security import validate_file_path
 
 logger = get_logger(__name__)
 
-# Known packer/protector signature strings for heuristic fallback detection
+# Known packer/protector signature strings for heuristic detection
 _PACKER_SIGNATURES: list[tuple[str, str]] = [
-    # (pattern, label)
     (r"UPX[0-9!]", "UPX"),
     (r"MPRESS", "MPRESS"),
     (r"PEC2", "PEC2"),
@@ -48,77 +49,83 @@ _COMPILER_SIGNATURES: list[tuple[str, str]] = [
     (r"NSIS", "NSIS"),
 ]
 
+# Section names known to belong to packers
+_SUSPICIOUS_SECTIONS = {
+    ".upx0": "UPX",
+    ".upx1": "UPX",
+    ".upx2": "UPX",
+    ".vmp0": "VMProtect",
+    ".vmp1": "VMProtect",
+    ".vmp2": "VMProtect",
+    ".aspack": "ASPack",
+    ".adata": "ASPack",
+    "PECompact2": "PECompact",
+    ".enigma1": "Enigma Protector",
+    ".enigma2": "Enigma Protector",
+    ".themida": "Themida",
+}
 
-def _is_die_available() -> bool:
-    """Check if Detect It Easy CLI (diec) is available."""
-    return shutil.which("diec") is not None
 
-
-def _parse_die_output(output: str) -> dict:
-    """
-    Parse DIE output into structured data.
-
-    DIE output format example:
-    PE32
-    Compiler: Microsoft Visual C/C++(2019 v.16.0-4)[-]
-    Linker: Microsoft Linker(14.26.28805)[EXE32,console]
-    Packer: UPX(3.96)[NRV,brute]
-    """
+def _analyze_binary_with_lief(file_path: Path) -> dict:
+    """Analyze a binary using LIEF to get format, architecture, and section entropy."""
     result = {
         "file_type": None,
         "arch": None,
-        "compiler": None,
-        "linker": None,
-        "packer": None,
-        "protector": None,
-        "installer": None,
-        "sfx": None,
-        "overlay": False,
-        "raw_output": output,
-        "detections": [],
+        "high_entropy_sections": [],
+        "suspicious_sections": [],
+        "packer_from_sections": None,
     }
 
-    lines = output.strip().split("\n")
+    try:
+        binary = lief.parse(str(file_path))
+        if binary is None:
+            return result
 
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-
-        # First line is usually the file type
-        if result["file_type"] is None and ":" not in line:
-            result["file_type"] = line
-            # Extract architecture from file type
-            if "PE32+" in line or "PE64" in line or "ELF64" in line:
+        # Determine Format
+        if isinstance(binary, lief.PE.Binary):
+            result["file_type"] = (
+                "PE32+" if binary.header.machine == lief.PE.MachineType.AMD64 else "PE32"
+            )
+            result["arch"] = "x64" if binary.header.machine == lief.PE.MachineType.AMD64 else "x86"
+        elif isinstance(binary, lief.ELF.Binary):
+            result["file_type"] = (
+                "ELF64"
+                if binary.header.identity_class == lief.ELF.Header.CLASS.CLASS64
+                else "ELF32"
+            )
+            arch_type = binary.header.machine_type
+            if arch_type == lief.ELF.Arch.x86_64:
                 result["arch"] = "x64"
-            elif "PE32" in line or "ELF32" in line:
+            elif arch_type == lief.ELF.Arch.i386:
                 result["arch"] = "x86"
-            elif "Mach-O" in line:
-                result["arch"] = "arm64" if "arm64" in line.lower() else "x64"
-            continue
+            elif arch_type == lief.ELF.Arch.AARCH64:
+                result["arch"] = "arm64"
+            elif arch_type == lief.ELF.Arch.ARM:
+                result["arch"] = "arm"
+        elif isinstance(binary, lief.MachO.Binary):
+            result["file_type"] = "Mach-O"
+            if binary.header.cputype == lief.MachO.CPU_TYPES.ARM64:
+                result["arch"] = "arm64"
+            elif binary.header.cputype == lief.MachO.CPU_TYPES.x86_64:
+                result["arch"] = "x64"
 
-        # Parse key: value lines
-        if ":" in line:
-            key, _, value = line.partition(":")
-            key = key.strip().lower()
-            value = value.strip()
+        # Analyze Sections for Entropy and Names
+        for section in binary.sections:
+            entropy = section.entropy
+            if entropy > 7.0:
+                result["high_entropy_sections"].append(
+                    {"name": section.name, "entropy": round(entropy, 2), "size": section.size}
+                )
 
-            if key == "compiler":
-                result["compiler"] = value
-            elif key == "linker":
-                result["linker"] = value
-            elif key == "packer":
-                result["packer"] = value
-            elif key == "protector":
-                result["protector"] = value
-            elif key == "installer":
-                result["installer"] = value
-            elif key == "sfx":
-                result["sfx"] = value
-            elif "overlay" in key:
-                result["overlay"] = True
+            # Check for suspicious section names
+            name_lower = section.name.lower()
+            if name_lower in _SUSPICIOUS_SECTIONS:
+                result["suspicious_sections"].append(section.name)
+                if not result["packer_from_sections"]:
+                    result["packer_from_sections"] = _SUSPICIOUS_SECTIONS[name_lower]
 
-            result["detections"].append({"type": key, "value": value})
+    except Exception as e:
+        logger.warning(f"LIEF parsing failed for {file_path.name}: {e}")
 
     return result
 
@@ -126,52 +133,71 @@ def _parse_die_output(output: str) -> dict:
 @log_execution()
 async def detect_packer(file_path: str):
     """
-    Detect packer, compiler, and protector using Detect It Easy (DIE).
+    Detect packer, compiler, and protector using LIEF and Strings heuristics.
+    (Replaces legacy Detect It Easy tool)
 
     Args:
         file_path: Path to the binary file to analyze
 
     Returns:
-        ToolResult with detection information including:
-        - file_type: PE32, PE64, ELF, Mach-O, etc.
-        - compiler: Detected compiler and version
-        - linker: Detected linker information
-        - packer: Detected packer (UPX, ASPack, etc.)
-        - protector: Detected protector (Themida, VMProtect, etc.)
+        ToolResult with detection information
     """
-    # Validate file path
     validated_path = validate_file_path(file_path)
 
-    # Check if DIE is available
-    if not _is_die_available():
-        return failure(
-            error_code="DIE_NOT_INSTALLED",
-            message="Detect It Easy (diec) is not installed. "
-            "Install with: apt install detect-it-easy (Linux) or brew install detect-it-easy (macOS)",
-        )
-
-    # Run DIE
     try:
-        output, _ = await execute_subprocess_async(
-            ["diec", str(validated_path)],
-            timeout=30,
-        )
-    except Exception as e:
-        return failure(error_code="DIE_EXECUTION_ERROR", message=f"DIE execution failed: {e}")
+        data = validated_path.read_bytes()
+    except OSError as exc:
+        return failure("FILE_READ_ERROR", f"Cannot read file: {exc}")
 
-    # Parse output
-    result = _parse_die_output(output)
+    # LIEF Analysis
+    lief_info = _analyze_binary_with_lief(validated_path)
 
-    # Determine if packed
-    is_packed = result["packer"] is not None or result["protector"] is not None
+    # Strings Analysis
+    ascii_strings = b" ".join(m.group() for m in re.finditer(rb"[ -~]{4,}", data)).decode(
+        "ascii", errors="ignore"
+    )
+
+    found_packer = lief_info["packer_from_sections"]
+    found_compiler = None
+    detections = []
+
+    for pattern, label in _PACKER_SIGNATURES:
+        if re.search(pattern, ascii_strings, re.IGNORECASE):
+            if not found_packer:
+                found_packer = label
+            detections.append({"type": "packer", "value": label})
+            break
+
+    for pattern, label in _COMPILER_SIGNATURES:
+        if re.search(pattern, ascii_strings, re.IGNORECASE):
+            found_compiler = label
+            detections.append({"type": "compiler", "value": label})
+            break
+
+    is_packed = found_packer is not None or len(lief_info["high_entropy_sections"]) > 0
+
+    result = {
+        "file_type": lief_info["file_type"],
+        "arch": lief_info["arch"],
+        "compiler": found_compiler,
+        "packer": found_packer,
+        "is_packed": is_packed,
+        "detections": detections,
+    }
+
+    message_parts = [f"Detected: {result['file_type'] or 'Unknown'}"]
+    if found_packer:
+        message_parts.append(f"Packer: {found_packer}")
+    elif is_packed:
+        message_parts.append("Packer: Unknown (High Entropy)")
+    if found_compiler:
+        message_parts.append(f"Compiler: {found_compiler}")
 
     return success(
         data=result,
-        message=f"Detected: {result['file_type'] or 'Unknown'}"
-        + (f" | Packer: {result['packer']}" if result["packer"] else "")
-        + (f" | Compiler: {result['compiler']}" if result["compiler"] else ""),
+        message=" | ".join(message_parts),
         is_packed=is_packed,
-        detection_count=len(result["detections"]),
+        detection_count=len(detections),
     )
 
 
@@ -179,107 +205,62 @@ async def detect_packer(file_path: str):
 async def detect_packer_deep(file_path: str):
     """
     Deep scan for packer/compiler/protector detection.
-
-    Primary: Uses DIE (Detect It Easy) ``diec -d`` for deep analysis.
-    Fallback: When DIE is not installed, performs a strings-based heuristic
-    scan that identifies common packer and compiler signatures embedded in
-    the binary.  Results are clearly labelled with ``source`` so callers
-    know which method was used.
+    Combines LIEF section entropy analysis with full strings heuristic scanning.
 
     Args:
         file_path: Path to the binary file to analyze
 
     Returns:
-        ToolResult with detailed detection information. Always returns
-        partial results even when DIE is unavailable (via strings fallback).
-        Check the ``source`` field: "diec" vs "strings_heuristic".
+        ToolResult with detailed detection information.
     """
     validated_path = validate_file_path(file_path)
-
-    # -------------------------------------------------------------------------
-    # Primary path: DIE deep scan
-    # -------------------------------------------------------------------------
-    if _is_die_available():
-        try:
-            output, _ = await execute_subprocess_async(
-                ["diec", "-d", str(validated_path)],
-                timeout=60,
-            )
-            result = _parse_die_output(output)
-            return success(
-                data=result,
-                message=f"Deep scan complete: {len(result['detections'])} detections",
-                scan_type="deep",
-                source="diec",
-            )
-        except Exception as e:
-            return failure(
-                error_code="DIE_DEEP_SCAN_FAILED",
-                message=f"DIE deep scan failed: {e}",
-            )
-
-    # -------------------------------------------------------------------------
-    # Fallback path: strings-based heuristic when DIE is not installed
-    # -------------------------------------------------------------------------
-    logger.warning(
-        "DIE (diec) not available — falling back to strings-based heuristic for %s",
-        validated_path.name,
-    )
 
     try:
         data = validated_path.read_bytes()
     except OSError as exc:
         return failure("FILE_READ_ERROR", f"Cannot read file: {exc}")
 
-    # Extract printable ASCII strings from binary for pattern matching
-    import re as _re
-
-    ascii_strings = b" ".join(m.group() for m in _re.finditer(rb"[ -~]{4,}", data)).decode(
+    lief_info = _analyze_binary_with_lief(validated_path)
+    ascii_strings = b" ".join(m.group() for m in re.finditer(rb"[ -~]{4,}", data)).decode(
         "ascii", errors="ignore"
     )
 
-    detections: list[dict] = []
-    found_packer: str | None = None
-    found_compiler: str | None = None
+    detections = []
+    found_packers = set()
+    found_compilers = set()
+
+    if lief_info["packer_from_sections"]:
+        found_packers.add(lief_info["packer_from_sections"])
+        detections.append({"type": "packer_section", "value": lief_info["packer_from_sections"]})
 
     for pattern, label in _PACKER_SIGNATURES:
-        if _re.search(pattern, ascii_strings, _re.IGNORECASE):
-            found_packer = label
-            detections.append({"type": "packer", "value": label})
-            break  # report first match
+        if re.search(pattern, ascii_strings, re.IGNORECASE):
+            found_packers.add(label)
+            detections.append({"type": "packer_signature", "value": label})
 
     for pattern, label in _COMPILER_SIGNATURES:
-        m = _re.search(pattern, ascii_strings, _re.IGNORECASE)
-        if m:
-            found_compiler = label
-            detections.append({"type": "compiler", "value": label})
-            break
+        if re.search(pattern, ascii_strings, re.IGNORECASE):
+            found_compilers.add(label)
+            detections.append({"type": "compiler_signature", "value": label})
+
+    is_packed = len(found_packers) > 0 or len(lief_info["high_entropy_sections"]) > 0
 
     result = {
-        "file_type": None,
-        "arch": None,
-        "compiler": found_compiler,
-        "linker": None,
-        "packer": found_packer,
-        "protector": None,
-        "installer": None,
-        "sfx": None,
-        "overlay": False,
-        "raw_output": ascii_strings[:2000],  # truncate for readability
+        "file_type": lief_info["file_type"],
+        "arch": lief_info["arch"],
+        "compilers": list(found_compilers),
+        "packers": list(found_packers),
+        "high_entropy_sections": lief_info["high_entropy_sections"],
+        "suspicious_sections": lief_info["suspicious_sections"],
+        "raw_strings_sample": ascii_strings[:2000],
         "detections": detections,
     }
 
-    is_packed = found_packer is not None
-
     return success(
         data=result,
-        message=(
-            f"Strings-heuristic scan complete: {len(detections)} detection(s). "
-            "Install 'diec' (Detect It Easy) for higher accuracy."
-        ),
-        scan_type="strings_heuristic",
-        source="strings_heuristic",
+        message=f"Deep scan complete: {len(detections)} signatures, {len(lief_info['high_entropy_sections'])} high-entropy sections found.",
+        scan_type="native_deep",
+        source="lief_and_strings",
         is_packed=is_packed,
         detection_count=len(detections),
-        die_available=False,
     )

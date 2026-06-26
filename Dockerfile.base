@@ -136,13 +136,6 @@ COPY --from=compiler /opt/radare2            /opt/radare2
 COPY --from=compiler /root/.local/share/radare2 /root/.local/share/radare2
 COPY --from=compiler /opt/venv               /opt/venv
 
-# ── Detect-It-Easy (diec) ───────────────────────────────────────────────────────────
-# Install pre-compiled DIE if on amd64 (arm64 users must build from source)
-RUN if [ "$TARGETARCH" = "amd64" ]; then \
-        curl -sSL "https://github.com/horsicq/DIE-engine/releases/download/3.10/die_3.10_Debian_12_amd64.deb" -o /tmp/die.deb \
-        && apt-get update && apt-get install -y --no-install-recommends /tmp/die.deb \
-        && rm -rf /tmp/die.deb /var/lib/apt/lists/*; \
-    fi
 
 # Ensure radare2 shared libs are discovered by the dynamic linker
 RUN echo "/opt/radare2/lib" > /etc/ld.so.conf.d/radare2.conf && ldconfig

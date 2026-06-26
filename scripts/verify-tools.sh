@@ -46,7 +46,7 @@ check_tool "yara" "yara --version"
 check_tool "file" "file --version | head -1"
 check_tool "strings" "strings --version | head -1"
 check_tool "binwalk" "binwalk --version"
-check_tool "diec" "diec --version 2>/dev/null || echo ''"
+check_tool "capa" "capa --version"
 
 echo ""
 echo -e "${BLUE}Binary Utilities:${NC}"

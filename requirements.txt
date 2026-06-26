@@ -4,49 +4,72 @@
 #
 #    pip-compile --annotation-style=line --extra=full --output-file=requirements.txt pyproject.toml
 #
-aiofile==3.11.1; python_version >= "3.11"           # via py-key-value-aio
-aiofile==3.9.0; python_version < "3.11"            # via py-key-value-aio
+aiofile==3.11.1           # via py-key-value-aio
 aiofiles==25.1.0          # via reversecore-mcp, reversecore-mcp (pyproject.toml)
 aiosmtplib==5.1.2         # via reversecore-mcp, reversecore-mcp (pyproject.toml)
 aiosqlite==0.22.1         # via reversecore-mcp, reversecore-mcp (pyproject.toml)
+angr==9.2.222             # via reversecore-mcp
+angr-data==0.1.0.post1    # via angr
 annotated-doc==0.0.4      # via fastapi, typer
 annotated-types==0.7.0    # via pydantic
 anyio==4.14.0             # via httpx, mcp, py-key-value-aio, sse-starlette, starlette, watchfiles
 arabic-reshaper==3.0.1    # via xhtml2pdf
+archinfo==9.2.222         # via angr, cle
+arpy==1.1.1               # via cle
 arq==0.26.1               # via reversecore-mcp, reversecore-mcp (pyproject.toml)
 asn1crypto==1.5.1         # via oscrypto, pyhanko, pyhanko-certvalidator
 async-lru==2.3.0          # via reversecore-mcp, reversecore-mcp (pyproject.toml)
 attrs==26.1.0             # via cyclopts, jsonschema, jsonschema-path, referencing
 authlib==1.7.2            # via fastmcp
 beartype==0.22.9          # via py-key-value-aio
-cachetools==7.1.4         # via py-key-value-aio
+bitarray==3.8.2           # via bitstring
+bitstring==4.4.0          # via pyvex
+cachetools==7.1.4         # via angr, claripy, py-key-value-aio
 caio==0.9.25              # via aiofile
-capstone==5.0.6         # via reversecore-mcp
+capstone==5.0.6           # via angr, reversecore-mcp
+cart==1.2.3               # via cle
 certifi==2026.6.17        # via httpcore, httpx, requests
-cffi==2.0.0               # via cryptography
+cffi==2.0.0               # via angr, cryptography, pyvex
 charset-normalizer==3.4.7  # via reportlab, requests
-click==8.4.2              # via arq, uvicorn
-contourpy==1.3.3; python_version >= "3.11"          # via matplotlib
-contourpy==1.3.2; python_version < "3.11"           # via matplotlib
+claripy==9.2.222          # via angr
+cle==9.2.222              # via angr
+click==8.4.2              # via arq, ida-hcli, rich-click, uvicorn
+colorama==0.4.6           # via flare-capa
+contourpy==1.3.3          # via matplotlib
 cryptography==49.0.0      # via authlib, joserfc, pyhanko, pyhanko-certvalidator, pyjwt
 cssselect2==0.9.0         # via svglib
+cxxfilt==0.3.0            # via vivisect
+cxxheaderparser==1.8.1    # via angr
 cycler==0.12.1            # via matplotlib
 cyclopts==4.19.0          # via fastmcp
 deprecated==1.3.1         # via limits
+dncil==1.0.2              # via flare-capa
+dnfile==0.18.0            # via flare-capa
 dnspython==2.8.0          # via email-validator
 docstring-parser==0.18.0  # via cyclopts
 email-validator==2.3.0    # via pydantic
 exceptiongroup==1.3.1     # via fastmcp
 fastapi==0.138.0          # via reversecore-mcp, reversecore-mcp (pyproject.toml)
 fastmcp==3.2.0            # via reversecore-mcp, reversecore-mcp (pyproject.toml)
+flare-capa==9.4.0         # via reversecore-mcp
 fonttools==4.63.0         # via matplotlib
+funcy==2.0                # via viv-utils
+gitdb==4.0.12             # via gitpython
+gitpython==3.1.50         # via angr
 graphviz==0.21            # via reversecore-mcp
 h11==0.16.0               # via httpcore, uvicorn
+hiredis==3.4.0            # via redis
 html5lib==1.1             # via xhtml2pdf
 httpcore==1.0.9           # via httpx
-httpx==0.28.1             # via fastmcp, mcp
+httpx==0.28.1             # via fastmcp, ida-hcli, mcp
 httpx-sse==0.4.3          # via mcp
+humanize==4.15.0          # via flare-capa
+ida-hcli==0.18.3          # via ida-settings
+ida-netnode==3.0          # via flare-capa
+ida-settings==3.4.1       # via flare-capa
+idapro==0.0.9             # via ida-hcli
 idna==3.18                # via anyio, email-validator, httpx, requests
+intervaltree==3.2.1       # via viv-utils
 jaraco-classes==3.4.0     # via keyring
 jaraco-context==6.1.2     # via keyring
 jaraco-functools==4.5.0   # via keyring
@@ -61,78 +84,110 @@ keystone-engine==0.9.2    # via reversecore-mcp
 kiwisolver==1.5.0         # via matplotlib
 lief==0.17.6              # via reversecore-mcp
 limits==5.8.0             # via slowapi
+lmdb==2.1.1               # via angr
 loguru==0.7.3             # via reversecore-mcp, reversecore-mcp (pyproject.toml)
 lxml==6.1.1               # via pyhanko, svglib
 markdown==3.10.2          # via reversecore-mcp, reversecore-mcp (pyproject.toml)
 markdown-it-py==4.2.0     # via rich
 markupsafe==3.0.3         # via jinja2
-matplotlib==3.11.0; python_version >= "3.11"        # via reversecore-mcp
-matplotlib==3.10.0; python_version < "3.11"         # via reversecore-mcp
+matplotlib==3.11.0        # via reversecore-mcp
 mcp[cli]==1.28.0          # via fastmcp, reversecore-mcp, reversecore-mcp (pyproject.toml)
 mdurl==0.1.2              # via markdown-it-py
+minidump==0.0.24          # via cle
 more-itertools==11.1.0    # via jaraco-classes, jaraco-functools
-networkx==3.6.1; python_version >= "3.11"
-networkx==3.4.2; python_version < "3.11"
-numpy==2.4.6; python_version >= "3.11"              # via contourpy, matplotlib
-numpy==2.2.3; python_version < "3.11"               # via contourpy, matplotlib
+mpmath==1.3.0             # via sympy
+msgpack==1.2.1            # via vivisect
+msgspec==0.21.1           # via angr, flare-capa
+mulpyplexer==0.9          # via angr
+networkx==3.6.1           # via angr, flare-capa, reversecore-mcp
+numpy==2.5.0              # via contourpy, matplotlib
 openapi-pydantic==0.5.1   # via fastmcp
 opentelemetry-api==1.42.1  # via fastmcp
 orjson==3.11.9            # via reversecore-mcp, reversecore-mcp (pyproject.toml)
 oscrypto==1.3.0           # via pyhanko-certvalidator
-packaging==26.2           # via fastmcp, limits, matplotlib
+packaging==26.2           # via fastmcp, ida-hcli, limits, matplotlib
 pathable==0.6.0           # via jsonschema-path
-pefile==2024.8.26         # via reversecore-mcp, volatility3
+pefile==2024.8.26         # via cle, dnfile, flare-capa, reversecore-mcp, viv-utils, volatility3
 pillow==12.2.0            # via matplotlib, reportlab, reversecore-mcp, reversecore-mcp (pyproject.toml), svglib, xhtml2pdf
-platformdirs==4.10.0      # via fastmcp
-psutil==7.2.2             # via reversecore-mcp
+platformdirs==4.10.0      # via angr, fastmcp, ida-hcli
+prompt-toolkit==3.0.52    # via questionary
+protobuf==7.35.1          # via angr, flare-capa
+psutil==7.2.2             # via angr, reversecore-mcp
 py-key-value-aio[filetree,keyring,memory]==0.4.5  # via fastmcp
-pycparser==3.0            # via cffi
-pydantic[email]==2.13.4   # via fastapi, fastmcp, mcp, openapi-pydantic, pydantic-settings, reversecore-mcp, reversecore-mcp (pyproject.toml)
+pyasn1==0.6.3             # via pyasn1-modules, vivisect
+pyasn1-modules==0.4.2     # via vivisect
+pycparser==3.0            # via angr, cffi, vivisect
+pycryptodome==3.23.0      # via cart
+pydantic[email]==2.13.4   # via fastapi, fastmcp, flare-capa, ida-hcli, mcp, openapi-pydantic, pydantic-settings, reversecore-mcp, reversecore-mcp (pyproject.toml)
 pydantic-core==2.46.4     # via pydantic
 pydantic-settings==2.14.2  # via mcp, reversecore-mcp, reversecore-mcp (pyproject.toml)
+pydemumble==0.0.1         # via angr
+pyelftools==0.33          # via cle, flare-capa
 pygments==2.20.0          # via rich, rich-rst
 pyhanko==0.35.1           # via xhtml2pdf
 pyhanko-certvalidator==0.31.1  # via pyhanko, xhtml2pdf
 pyjwt[crypto]==2.13.0     # via mcp
 pyparsing==3.3.2          # via matplotlib
+pypcode==4.0.0            # via angr
 pypdf==6.14.2             # via xhtml2pdf
 pyperclip==1.11.0         # via fastmcp
 python-bidi==0.6.10       # via xhtml2pdf
 python-dateutil==2.9.0.post0  # via matplotlib
 python-dotenv==1.2.2      # via fastmcp, mcp, pydantic-settings, reversecore-mcp, reversecore-mcp (pyproject.toml)
+python-flirt==0.9.10      # via viv-utils
 python-magic==0.4.27      # via reversecore-mcp
 python-multipart==0.0.32  # via mcp, reversecore-mcp, reversecore-mcp (pyproject.toml)
-pyyaml==6.0.3             # via fastmcp, jsonschema-path, pyhanko
+pyvex==9.2.222            # via angr, cle
+pyxbe==1.0.4              # via cle
+pyxdia==0.1.1             # via cle
+pyyaml==6.0.3             # via fastmcp, flare-capa, jsonschema-path, pyhanko
+questionary==2.1.1        # via ida-hcli
 r2pipe==1.9.8             # via reversecore-mcp
-redis==5.0.1     # via arq, reversecore-mcp, reversecore-mcp (pyproject.toml)
+redis[hiredis]==5.0.1     # via arq, reversecore-mcp, reversecore-mcp (pyproject.toml)
 referencing==0.37.0       # via jsonschema, jsonschema-path, jsonschema-specifications
 reportlab==4.5.1          # via svglib, xhtml2pdf
 requests==2.34.2          # via pyhanko, pyhanko-certvalidator, reversecore-mcp
-rich==15.0.0              # via cyclopts, fastmcp, reversecore-mcp, rich-rst, typer
+
+rich==15.0.0              # via angr, cyclopts, fastmcp, flare-capa, ida-hcli, reversecore-mcp, rich-click, rich-rst, typer
+rich-click==1.9.8         # via ida-hcli
 rich-rst==2.0.1           # via cyclopts
-rpds-py==2026.5.1; python_version >= "3.11"         # via jsonschema, referencing
-rpds-py==0.30.0; python_version < "3.11"           # via jsonschema, referencing
+rpds-py==2026.5.1         # via jsonschema, referencing
+ruamel-yaml==0.19.1       # via flare-capa
+rust-demangler==1.0       # via angr
 scapy==2.7.0              # via reversecore-mcp
+semantic-version==2.10.0  # via ida-hcli
 shellingham==1.5.4        # via typer
-six==1.17.0               # via html5lib, python-dateutil
+six==1.17.0               # via html5lib, ida-netnode, python-dateutil
 slowapi==0.1.10           # via reversecore-mcp
+smmap==5.0.3              # via gitdb
+sortedcontainers==2.4.0   # via angr, cle, intervaltree
 sse-starlette==3.4.5      # via mcp
 starlette==1.3.1          # via fastapi, mcp, sse-starlette
 svglib==2.0.2             # via xhtml2pdf
+sympy==1.14.0             # via angr
+tenacity==9.1.4           # via ida-hcli
+tibs==0.5.7               # via bitstring
 tinycss2==1.5.1           # via cssselect2, svglib
 typer==0.26.7             # via mcp, reversecore-mcp
-typing-extensions==4.15.0  # via anyio, exceptiongroup, fastapi, limits, mcp, opentelemetry-api, py-key-value-aio, pydantic, pydantic-core, referencing, starlette, typing-inspection
+typing-extensions==4.15.0  # via angr, anyio, exceptiongroup, fastapi, limits, mcp, opentelemetry-api, py-key-value-aio, pydantic, pydantic-core, referencing, starlette, typing-inspection, viv-utils
 typing-inspection==0.4.2  # via fastapi, mcp, pydantic, pydantic-settings
 tzlocal==5.4.3            # via pyhanko
 uncalled-for==0.3.2       # via fastmcp
 uritools==6.1.2           # via pyhanko-certvalidator
 urllib3==2.7.0            # via requests
 uvicorn==0.49.0           # via fastmcp, mcp, reversecore-mcp, reversecore-mcp (pyproject.toml)
+viv-utils[flirt]==0.8.1   # via flare-capa
+vivisect==1.3.2           # via flare-capa, viv-utils
 volatility3==2.28.0       # via reversecore-mcp
 watchfiles==1.2.0         # via fastmcp
+wcwidth==0.8.1            # via prompt-toolkit
 webencodings==0.5.1       # via cssselect2, html5lib, tinycss2
 websockets==16.0          # via fastmcp
 wrapt==2.2.2              # via deprecated
 xhtml2pdf==0.2.17         # via reversecore-mcp, reversecore-mcp (pyproject.toml)
+xmltodict==1.0.4          # via flare-capa
 yara-python==4.5.4        # via reversecore-mcp
-angr==9.2.222               # via reversecore-mcp (symbolic execution)
+z3-solver==4.13.0.0       # via claripy
+
+# The following packages are considered to be unsafe in a requirements file:
+# pip
