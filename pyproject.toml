@@ -33,6 +33,7 @@ dependencies = [
     "numpy<2.5.0",
     "contourpy<1.3.3",
     "pyxbe<=1.0.3",
+    "pyxdia<=0.1.0",
 ]
 
 [project.optional-dependencies]

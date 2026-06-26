@@ -38,7 +38,7 @@ contourpy==1.3.2          # via matplotlib, reversecore-mcp, reversecore-mcp (py
 cryptography==49.0.0      # via authlib, joserfc, pyhanko, pyhanko-certvalidator, pyjwt
 cssselect2==0.9.0         # via svglib
 cxxfilt==0.3.0            # via vivisect
-cxxheaderparser==1.8.1    # via angr
+cxxheaderparser==1.9.0    # via angr
 cycler==0.12.1            # via matplotlib
 cyclopts==4.19.0          # via fastmcp-slim
 deprecated==1.3.1         # via limits
@@ -140,7 +140,7 @@ python-magic==0.4.27      # via reversecore-mcp
 python-multipart==0.0.32  # via fastmcp-slim, mcp, reversecore-mcp, reversecore-mcp (pyproject.toml)
 pyvex==9.2.213            # via angr, cle
 pyxbe==1.0.3              # via cle, reversecore-mcp, reversecore-mcp (pyproject.toml)
-pyxdia==0.1.1             # via cle
+pyxdia==0.1.0             # via cle, reversecore-mcp, reversecore-mcp (pyproject.toml)
 pyyaml==6.0.3             # via fastmcp-slim, flare-capa, jsonschema-path, pyhanko
 questionary==2.1.1        # via ida-hcli
 r2pipe==1.9.8             # via reversecore-mcp

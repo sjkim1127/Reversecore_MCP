@@ -119,6 +119,7 @@ python-dotenv==1.2.2      # via fastmcp-slim, mcp, pydantic-settings, reversecor
 python-multipart==0.0.32  # via fastmcp-slim, mcp, reversecore-mcp (pyproject.toml)
 pytokens==0.4.1           # via black
 pyxbe==1.0.3              # via reversecore-mcp (pyproject.toml)
+pyxdia==0.1.0             # via reversecore-mcp (pyproject.toml)
 pyyaml==6.0.3             # via fastmcp-slim, jsonschema-path, mkdocs, mkdocs-get-deps, pyhanko, pymdown-extensions, pyyaml-env-tag
 pyyaml-env-tag==1.1       # via mkdocs
 redis[hiredis]==5.3.1     # via arq, reversecore-mcp (pyproject.toml)
