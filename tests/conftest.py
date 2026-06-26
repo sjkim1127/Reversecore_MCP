@@ -177,3 +177,15 @@ def mock_shutil_which():
     shutil.which = patched_which
     yield
     shutil.which = orig_which
+
+
+@pytest.fixture(autouse=True)
+def clean_service_container():
+    """Reset the global service container before and after each test to ensure state isolation."""
+    from reversecore_mcp.core.container import _initialize_default_services, container
+
+    container.reset_all()
+    _initialize_default_services()
+    yield
+    container.reset_all()
+    _initialize_default_services()

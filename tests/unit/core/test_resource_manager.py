@@ -182,7 +182,7 @@ class TestResourceManager:
         manager = ResourceManager()
         manager._tracked_pids.add(99999)
         with patch(
-            "reversecore_mcp.core.resource_manager.os.waitpid",
+            "reversecore_mcp.core.resource_manager.waitpid",
             side_effect=ChildProcessError,
         ):
             manager._reap_zombies()
@@ -194,7 +194,7 @@ class TestResourceManager:
         manager = ResourceManager()
         manager._tracked_pids.add(88888)
         with patch(
-            "reversecore_mcp.core.resource_manager.os.waitpid",
+            "reversecore_mcp.core.resource_manager.waitpid",
             side_effect=PermissionError("denied"),
         ):
             manager._reap_zombies()
@@ -285,7 +285,7 @@ class TestResourceManager:
         assert 12345 in manager._tracked_pids
 
         # Mock waitpid to return the PID (as if it was a zombie and successfully reaped)
-        with patch("reversecore_mcp.core.resource_manager.os.waitpid", return_value=(12345, 0)):
+        with patch("reversecore_mcp.core.resource_manager.waitpid", return_value=(12345, 0)):
             manager._reap_zombies()
 
         # The PID should have been removed from tracked
@@ -294,7 +294,7 @@ class TestResourceManager:
     def test_reap_zombies_empty_tracked(self):
         """Test _reap_zombies returns early when tracked_pids is empty."""
         manager = ResourceManager()
-        with patch("reversecore_mcp.core.resource_manager.os.waitpid") as mock_waitpid:
+        with patch("reversecore_mcp.core.resource_manager.waitpid") as mock_waitpid:
             manager._reap_zombies()
             mock_waitpid.assert_not_called()
 

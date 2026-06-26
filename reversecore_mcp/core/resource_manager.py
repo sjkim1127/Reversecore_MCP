@@ -9,6 +9,7 @@ import asyncio
 import os
 import time
 from contextlib import suppress
+from os import waitpid
 
 from reversecore_mcp.core import config
 from reversecore_mcp.core.logging_config import get_logger
@@ -95,7 +96,7 @@ class ResourceManager:
             try:
                 # Check if process is still alive and defunct
                 # waitpid with WNOHANG returns (pid, status) if dead, (0, 0) if running
-                wpid, status = os.waitpid(pid, os.WNOHANG)
+                wpid, status = waitpid(pid, os.WNOHANG)
                 if wpid > 0:
                     # Process was a zombie and is now reaped
                     dead_pids.add(pid)

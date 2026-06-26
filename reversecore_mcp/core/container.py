@@ -26,6 +26,7 @@ Usage:
 
 import asyncio
 import threading
+from asyncio import create_task
 from collections.abc import Callable
 from typing import Any, TypeVar
 
@@ -127,7 +128,7 @@ class ServiceContainer:
                     logger.warning(
                         f"Service '{name}' instantiated after initialization. Scheduling start."
                     )
-                    asyncio.create_task(self._safe_start(name, instance))
+                    create_task(self._safe_start(name, instance))
 
                 return instance
 
