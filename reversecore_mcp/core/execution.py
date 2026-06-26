@@ -191,7 +191,7 @@ async def execute_subprocess_async(
         # Wrap command and prepare kwargs for sandboxing
         wrapped_cmd = SandboxExecutor.wrap_cmd(cmd)
 
-        extra_kwargs = {}
+        extra_kwargs: dict[str, Any] = {}
         from reversecore_mcp.core.config import get_config
 
         config = get_config()
