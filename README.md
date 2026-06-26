@@ -1,77 +1,104 @@
-# Reversecore_MCP
+<div align="center">
 
-![Icon](icon.png)
+<img src="icon.png" alt="Reversecore MCP" width="120" />
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
-[![FastMCP](https://img.shields.io/badge/FastMCP-2.13.1-green)](https://github.com/jlowin/fastmcp)
-[![Docker](https://img.shields.io/badge/docker-ready-blue)](https://www.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-1000%2B%20passed-brightgreen)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-67%25-green)](htmlcov/)
+# Reversecore MCP
 
-[![Watch the Demo](https://img.shields.io/badge/Watch_Demo-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtu.be/wJGW2bp3c5A)
-[![SafeSkill 93/100](https://img.shields.io/badge/SafeSkill-93%2F100_Verified%20Safe-brightgreen)](https://safeskill.dev/scan/sjkim1127-reversecore-mcp)
+**AI-Powered Reverse Engineering via Model Context Protocol**
 
-[🇰🇷 한국어 (Korean)](README_KR.md)
+*Enterprise-grade binary analysis server — speak natural language, get expert-level reverse engineering.*
 
-An enterprise-grade MCP (Model Context Protocol) server for AI-powered reverse engineering. Enables AI agents to perform comprehensive binary analysis through natural language commands.
+---
 
-## 📋 Prerequisites
+[![CI/CD](https://github.com/sjkim1127/Reversecore_MCP/actions/workflows/main.yml/badge.svg)](https://github.com/sjkim1127/Reversecore_MCP/actions/workflows/main.yml)
+[![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-1520%20passed-brightgreen)](#testing)
+[![Coverage](https://img.shields.io/badge/coverage-82%25-green)](#testing)
+[![FastMCP](https://img.shields.io/badge/FastMCP-3.2.0-purple)](https://github.com/jlowin/fastmcp)
+[![Docker](https://img.shields.io/badge/docker-ghcr.io-blue)](https://github.com/sjkim1127/Reversecore_MCP/pkgs/container/reversecore_mcp)
 
-### Radare2 & r2ghidra (Required for Decompilation & Analysis)
+[![Watch the Demo](https://img.shields.io/badge/▶_Watch_Demo-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtu.be/wJGW2bp3c5A)
+[![SafeSkill Verified](https://img.shields.io/badge/SafeSkill-93%2F100_Verified_Safe-brightgreen?style=for-the-badge)](https://safeskill.dev/scan/sjkim1127-reversecore-mcp)
 
-Analysis and decompilation features are powered by Radare2 and the `r2ghidra` plugin.
+[🇰🇷 한국어](README_KR.md)
 
-**Automatic Installation**
+</div>
 
-The easiest way is to use the provided setup scripts or run inside Docker, which has all dependencies preconfigured.
+---
 
-For local installation:
-1. Install **Radare2** via your system package manager or from [radare.org](https://radare.org/).
-2. Install **r2ghidra** using `r2pm`:
-   ```bash
-   r2pm -i r2ghidra
-   ```
+## What is Reversecore MCP?
 
-No external JDK or JVM is required.
+Reversecore MCP is an enterprise-grade **[Model Context Protocol](https://modelcontextprotocol.io/)** server that transforms AI assistants like Claude and Cursor into expert reverse engineering workstations.
 
+Instead of learning complex tools like Radare2 or writing YARA rules by hand, you simply **describe what you want in natural language** — and the AI executes the analysis for you.
 
-## 🚀 Quick Start
+```
+"Decompile the main function of this malware sample and identify
+ what network connections it's trying to establish."
+```
 
-### Docker (Recommended)
+↓
+
+*Reversecore MCP invokes `r2_decompile`, `extract_iocs`, `analyze_xrefs` automatically, returning structured results the AI interprets for you.*
+
+---
+
+## Architecture at a Glance
+
+```
+AI Client (Claude / Cursor)
+        │  MCP Protocol (stdio or HTTP)
+        ▼
+┌─────────────────────────────┐
+│      FastMCP Server         │  Python 3.10–3.12
+│   50+ registered tools      │  Async, fully typed
+├──────────────────┬──────────┤
+│   Prompts        │ Resources│  Guided analysis modes
+├──────────────────┴──────────┤
+│        Core Infrastructure  │
+│  Config · Security · Metrics│
+│  R2 Pool · Exception Hier.  │
+├─────────────────────────────┤
+│  Radare2 + r2ghidra plugin  │  Binary analysis engine
+│  YARA · LIEF · Capstone     │  Detection & parsing
+│  Volatility3 · Scapy        │  Forensics & network
+└─────────────────────────────┘
+```
+
+---
+
+## Quick Start
+
+### Option 1 — Docker (Recommended)
 
 ```bash
-# Auto-detect architecture (Intel/AMD or Apple Silicon)
-./scripts/run-docker.sh
-
-# Or manually:
-# Intel/AMD
-docker compose --profile x86 up -d
-
-# Apple Silicon (M1/M2/M3/M4)
-docker compose --profile arm64 up -d
+# Pull and run the pre-built image
+docker run -i --rm \
+  -v /path/to/your/samples:/app/workspace \
+  -e REVERSECORE_WORKSPACE=/app/workspace \
+  -e MCP_TRANSPORT=stdio \
+  ghcr.io/sjkim1127/reversecore_mcp:latest
 ```
 
-### MCP Client Configuration (Cursor AI)
-
-**Step 1: Build Docker Image**
-
-The unified Dockerfile automatically detects your system architecture:
+### Option 2 — Build from Source
 
 ```bash
-# Automatic architecture detection (works for all platforms)
-docker build -t reversecore-mcp:latest .
-
-# Or use the convenience script
-./scripts/run-docker.sh
+git clone https://github.com/sjkim1127/Reversecore_MCP.git
+cd Reversecore_MCP
+./scripts/run-docker.sh        # auto-detects Intel / Apple Silicon
 ```
 
-**Step 2: Configure MCP Client**
+---
 
-Add to `~/.cursor/mcp.json`:
+## Connect to Your AI Client
+
+### Cursor / Claude Desktop
+
+Add to `~/.cursor/mcp.json` (or `claude_desktop_config.json`):
 
 <details>
-<summary>🍎 <b>macOS (All Processors)</b></summary>
+<summary>🍎 macOS</summary>
 
 ```json
 {
@@ -80,19 +107,20 @@ Add to `~/.cursor/mcp.json`:
       "command": "docker",
       "args": [
         "run", "-i", "--rm",
-        "-v", "/Users/YOUR_USERNAME/Reversecore_Workspace:/app/workspace",
+        "-v", "/Users/YOUR_USERNAME/samples:/app/workspace",
         "-e", "REVERSECORE_WORKSPACE=/app/workspace",
         "-e", "MCP_TRANSPORT=stdio",
-        "reversecore-mcp:latest"
+        "ghcr.io/sjkim1127/reversecore_mcp:latest"
       ]
     }
   }
 }
 ```
+
 </details>
 
 <details>
-<summary>🐧 <b>Linux</b></summary>
+<summary>🐧 Linux</summary>
 
 ```json
 {
@@ -101,19 +129,20 @@ Add to `~/.cursor/mcp.json`:
       "command": "docker",
       "args": [
         "run", "-i", "--rm",
-        "-v", "/path/to/workspace:/app/workspace",
+        "-v", "/home/YOUR_USERNAME/samples:/app/workspace",
         "-e", "REVERSECORE_WORKSPACE=/app/workspace",
         "-e", "MCP_TRANSPORT=stdio",
-        "reversecore-mcp:latest"
+        "ghcr.io/sjkim1127/reversecore_mcp:latest"
       ]
     }
   }
 }
 ```
+
 </details>
 
 <details>
-<summary>🪟 <b>Windows</b></summary>
+<summary>🪟 Windows</summary>
 
 ```json
 {
@@ -122,353 +151,277 @@ Add to `~/.cursor/mcp.json`:
       "command": "docker",
       "args": [
         "run", "-i", "--rm",
-        "-v", "C:/Reversecore_Workspace:/app/workspace",
+        "-v", "C:/samples:/app/workspace",
         "-e", "REVERSECORE_WORKSPACE=/app/workspace",
         "-e", "MCP_TRANSPORT=stdio",
-        "reversecore-mcp:latest"
+        "ghcr.io/sjkim1127/reversecore_mcp:latest"
       ]
     }
   }
 }
 ```
+
 </details>
 
-> ⚠️ **IMPORTANT: File Path Usage in Docker**
+> **⚠️ Important — File Paths Inside Docker**
 >
-> The MCP server runs inside a Docker container. When using analysis tools, **use only the filename, not the full local path**.
+> Your local folder is mounted to `/app/workspace` inside the container.
+> Always reference files by **filename only**, not by full local path.
 >
 > | ❌ Wrong | ✅ Correct |
-> |----------|-----------|
-> | `run_file("/Users/john/Reversecore_Workspace/sample.exe")` | `run_file("sample.exe")` |
->
-> **Why?** Your local path (e.g., `/Users/.../Reversecore_Workspace/`) is mounted to `/app/workspace/` inside the container. Tools automatically look for files in the workspace directory.
->
-> **Tip:** Use `list_workspace()` to see all available files in your workspace.
+> |---|---|
+> | `r2_decompile("/Users/john/samples/mal.exe")` | `r2_decompile("mal.exe")` |
 
-## ✨ Key Features
+---
+
+## Tool Reference
 
 ### 🔍 Static Analysis
 
-Comprehensive file analysis and metadata extraction:
-
-- **File Type Detection**: Identify binary format, architecture, and compiler information (`run_file`)
-- **String Extraction**: Extract ASCII/Unicode strings with configurable limits (`run_strings`)
-- **Firmware Analysis**: Deep scan for embedded files and signatures (`run_binwalk`)
-- **Binary Parsing**: Parse PE/ELF/Mach-O headers and sections with LIEF (`parse_binary_with_lief`)
-- **Source Code Auditing (SAST)**: Run configurable rules on source code or decompiled files (`audit_source_code`). Employs a precise Python AST-based scanner and a regex-based scanner for C/C++ to flag security vulnerabilities without bloating false positives.
+| Tool | Description |
+|---|---|
+| `run_file` | File type, architecture, and compiler fingerprinting |
+| `run_strings` | ASCII/Unicode string extraction with configurable limits |
+| `run_binwalk` | Firmware deep-scan for embedded signatures and filesystems |
+| `parse_binary_with_lief` | Full PE / ELF / Mach-O header and section parsing |
+| `audit_source_code` | SAST via Python AST scanner + C/C++ regex scanner |
 
 ### ⚙️ Disassembly & Decompilation
 
-Multi-architecture binary analysis with intelligent tooling:
+| Tool | Description |
+|---|---|
+| `run_radare2` | Raw Radare2 command execution with connection pooling |
+| `Radare2_disassemble` | Function disassembly with auto-analysis |
+| `r2_decompile` | High-quality C decompilation via r2ghidra (Ghidra engine, no JVM) |
+| `r2_recover_structures` | Auto-recover C structs and persist to SQLite annotation DB |
+| `r2_analyze_function` | Deep single-function analysis with type inference |
+| `r2_get_call_graph` | Call graph extraction for a function |
+| `r2_simulate_patch` | Preview the effect of a binary patch before applying |
+| `disassemble_with_capstone` | Multi-arch disassembly (x86/ARM/MIPS/PPC) via Capstone |
 
-- **Radare2 Integration**: Full r2 command access with connection pooling (`run_radare2`, `Radare2_disassemble`)
-- **r2ghidra Decompilation**: Native decompilation using the Ghidra decompiler plugin for Radare2 (`r2_decompile`, `r2_recover_structures`, `r2_analyze_function`)
-- **Multi-Architecture Support**: x86, x86-64, ARM, ARM64, MIPS, PowerPC via Capstone (`disassemble_with_capstone`)
+### 🔗 Cross-Reference & Memory
 
-### 🧬 Advanced Analysis
+| Tool | Description |
+|---|---|
+| `analyze_xrefs` | Track function calls, data references, and control flow |
+| `r2_read_memory` | Read raw bytes from a given address |
+| `r2_list_structures` | List all annotated structures from the SQLite DB |
+| `r2_create_structure` | Create and persist a new struct annotation |
+| `r2_add_bookmark` | Annotate an address with a comment |
+| `r2_list_bookmarks` | List all address bookmarks |
+| `r2_list_types` | List all known types in the current binary |
 
-Deep code analysis and behavior understanding:
+### 🧬 Dynamic Analysis & Emulation
 
-- **Cross-Reference Analysis**: Track function calls, data references, and control flow (`analyze_xrefs`)
-- **Structure Recovery**: Auto-recover C structures and persist annotations using SQLite DB (`r2_create_structure`, `r2_list_structures`)
-- **Emulation**: ESIL-based code emulation for dynamic behavior analysis (`emulate_machine_code`)
-- **Binary Comparison**: Diff binaries and match library functions (`diff_binaries`, `match_libraries`)
+| Tool | Description |
+|---|---|
+| `emulate_machine_code` | ESIL-based code emulation with register/memory tracing |
+| `diff_binaries` | Semantic binary diff to track patch changes |
+| `match_libraries` | Identify statically linked libraries by function fingerprint |
 
-### 🦠 Malware Analysis & Defense
+### 🦠 Malware Analysis
 
-Specialized tools for threat detection and mitigation:
+| Tool | Description |
+|---|---|
+| `dormant_detector` | Find hidden backdoors, orphan functions, and logic bombs |
+| `extract_iocs` | Extract IPs, URLs, domains, hashes, crypto addresses |
+| `run_yara` | YARA rule scanning with custom rule support |
+| `adaptive_vaccine` | Generate YARA rules + binary patches for a threat |
+| `vulnerability_hunter` | Detect dangerous API patterns and ROP gadget chains |
 
-- **Dormant Threat Detection**: Find hidden backdoors, orphan functions, and logic bombs (`dormant_detector`)
-- **IOC Extraction**: Automatically extract IPs, URLs, domains, emails, hashes, and crypto addresses (`extract_iocs`)
-- **YARA Scanning**: Pattern-based malware detection with custom rules (`run_yara`)
-- **Adaptive Vaccine**: Generate defensive measures (YARA rules, binary patches, NOP injection) (`adaptive_vaccine`)
-- **Vulnerability Hunter**: Detect dangerous API patterns and exploit paths (`vulnerability_hunter`)
+### 📝 Report Generation
 
-### 📊 Server Health & Monitoring
+| Tool | Description |
+|---|---|
+| `generate_malware_submission` | One-shot standardized JSON report |
+| `start_analysis_session` | Start a timed analysis session |
+| `add_session_ioc` | Collect IOCs during a session |
+| `add_session_mitre` | Document MITRE ATT&CK techniques |
+| `end_analysis_session` | Finalize session with duration calculation |
+| `create_analysis_report` | Render report (full / triage / IOC summary / executive) |
+| `send_report_email` | Deliver report via SMTP |
 
-Built-in observability tools for enterprise environments:
+### 🛡️ Forensics
 
-- **Health Check**: Monitor uptime, memory usage, and operational status (`get_server_health`)
-- **Performance Metrics**: Track tool execution times, error rates, and call counts (`get_tool_metrics`)
-- **Auto-Recovery**: Automatic retry mechanism with exponential backoff for transient failures
+| Tool | Description |
+|---|---|
+| `analyze_memory_dump` | Volatility3-based memory forensics |
+| `analyze_network_capture` | Scapy-based PCAP analysis |
+| `analyze_disk_image` | Sleuth Kit filesystem forensics |
+| `analyze_artifacts` | Browser history, registry, event log parsing |
 
-### 🖥️ Web Dashboard (NEW)
+### 📊 Server & Monitoring
 
-Visual interface for binary analysis without LLM:
+| Tool | Description |
+|---|---|
+| `get_server_health` | Uptime, memory, and operational status |
+| `get_tool_metrics` | Per-tool execution times, call counts, error rates |
+| `list_workspace` | List files available in the analysis workspace |
+| `get_file_info` | Metadata for a specific workspace file |
+
+---
+
+## Guided Analysis Prompts
+
+Activate expert-level analysis modes by referencing these prompts in your AI client:
+
+| Prompt | Use Case |
+|---|---|
+| `full_analysis_mode` | 6-phase comprehensive malware analysis with evidence classification |
+| `basic_analysis_mode` | Rapid triage for initial assessment |
+| `game_analysis_mode` | Game client analysis with anti-cheat detection |
+| `firmware_analysis_mode` | IoT/embedded firmware security review |
+| `report_generation_mode` | Structured report workflow with MITRE ATT&CK mapping |
+
+> **How prompts work:** Each prompt primes the AI with an expert persona, Chain-of-Thought checkpoints, and evidence classification (`OBSERVED` / `INFERRED` / `POSSIBLE`). This produces analyst-grade output, not just tool output.
+
+---
+
+## Security Model
+
+| Control | Detail |
+|---|---|
+| **No shell injection** | All subprocess calls use list arguments, never shell strings |
+| **Path validation** | All file access restricted to the configured workspace |
+| **Input sanitization** | All parameters validated before execution |
+| **Rate limiting** | Configurable per-minute request limits (HTTP mode) |
+| **Zero-Trust CI/CD** | Gitleaks (secrets), Bandit (SAST), pip-audit (CVEs), Trivy (container), CodeQL |
+| **Workspace isolation** | Container runs as non-root `appuser` (UID 1000) |
+
+---
+
+## Development
+
+### Setup
 
 ```bash
-# Start server in HTTP mode
-MCP_TRANSPORT=http MCP_API_KEY=your-secret-key python server.py
-
-# Access dashboard
-open http://localhost:8000/dashboard/
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+pre-commit install
 ```
 
-**Features:**
-- **Overview**: File list with upload stats
-- **Analysis**: Functions list, disassembly viewer
-- **IOCs**: Extracted URLs, IPs, emails, strings
+### Testing
 
-**Security:**
-- XSS protection with HTML sanitization
-- Path traversal prevention
-- API key authentication (optional)
+```bash
+# Run full unit test suite with coverage
+pytest tests/unit/ --cov=reversecore_mcp --cov-fail-under=80
 
-### 📝 Report Generation (v3.1)
-
-Professional malware analysis report generation with accurate timestamps:
-
-- **One-Shot Submission**: Generate standardized JSON reports with a single command (`generate_malware_submission`)
-- **Session Tracking**: Start/end analysis sessions with automatic duration calculation (`start_analysis_session`, `end_analysis_session`)
-- **IOC Collection**: Collect and organize indicators during analysis (`add_session_ioc`)
-- **MITRE ATT&CK Mapping**: Document techniques with proper framework references (`add_session_mitre`)
-- **Email Delivery**: Send reports directly to security teams with SMTP support (`send_report_email`)
-- **Multiple Templates**: Full analysis, quick triage, IOC summary, executive brief
-
-```python
-# Example 1: One-Shot JSON Submission
-generate_malware_submission(
-    file_path="wannacry.exe",
-    analyst_name="Hunter",
-    tags="ransomware,critical"
-)
-
-# Example 2: Interactive Session Workflow
-get_system_time()
-start_analysis_session(sample_path="malware.exe")
-add_session_ioc("ips", "192.168.1.100")
-add_session_mitre("T1059.001", "PowerShell", "Execution")
-end_analysis_session(summary="Ransomware detected")
-create_analysis_report(template_type="full_analysis")
-send_report_email(to="security-team@company.com")
+# Run all tests
+pytest tests/ -v
 ```
 
-### ⚡ Performance & Reliability (v3.1)
+**Test status:**
+- ✅ **1,520 unit tests** passing across Python 3.10 / 3.11 / 3.12
+- 📊 **82% code coverage** (80% minimum enforced in CI)
+- 🔒 Zero Bandit findings · Zero pip-audit CVEs · Zero container vulnerabilities
 
-- **Resource Management**:
-  - **Zombie Killer**: Guaranteed subprocess termination with `try...finally` blocks
-  - **Memory Guard**: Strict 2MB limit on `strings` output to prevent OOM
-  - **Crash Isolation**: LIEF parser runs in isolated process to handle segfaults safely
-- **Optimizations**:
-  - **Dynamic Timeout**: Auto-scales with file size (base + 2s/MB, max +600s)
-  - **Lightweight Architecture**: Native `r2ghidra` integration eliminates JVM startup latency and OOM issues, reducing the RAM/CPU footprint.
-  - **Sink-Aware Pruning**: 39 dangerous sink APIs for intelligent path prioritization
-  - **Trace Depth Optimization**: Reduced from 3 to 2 for faster execution path analysis
-- **Infrastructure**:
-  - **Stateless Reports**: Timezone-aware reporting without global state mutation
-  - **Robust Retries**: Decorators now correctly propagate exceptions for auto-recovery
-  - **Config-Driven**: Validation limits synchronized with central configuration
+### Code Quality
 
-### 🛠️ Core Tools
-
-| Category | Tools |
-|----------|-------|
-| **File Operations** | `list_workspace`, `get_file_info` |
-| **Static Analysis** | `run_file`, `run_strings`, `run_binwalk`, `audit_source_code` |
-| **Disassembly & DB** | `run_radare2`, `Radare2_disassemble`, `disassemble_with_capstone`, `r2_list_structures`, `r2_create_structure`, `r2_add_bookmark`, `r2_list_bookmarks`, `r2_list_types`, `r2_read_memory` |
-| **Decompilation** | `r2_decompile`, `r2_recover_structures`, `r2_analyze_function`, `r2_get_call_graph`, `r2_simulate_patch` |
-| **Advanced Analysis** | `analyze_xrefs`, `emulate_machine_code` |
-| **Binary Parsing** | `parse_binary_with_lief` |
-| **Binary Comparison** | `diff_binaries`, `match_libraries` |
-| **Malware Analysis** | `dormant_detector`, `extract_iocs`, `run_yara`, `adaptive_vaccine`, `vulnerability_hunter` |
-| **Report Generation** | `get_system_time`, `set_timezone`, `start_analysis_session`, `add_session_ioc`, `add_session_mitre`, `end_analysis_session`, `create_analysis_report`, `send_report_email`, `generate_malware_submission` |
-| **Server Management** | `get_server_health`, `get_tool_metrics` |
-
-## 📊 Analysis Workflow
-
-```
-📥 Upload → 🔍 Triage → 🔗 X-Refs → 🏗️ Structures → 📝 Decompile → 🛡️ Defense
+```bash
+ruff check reversecore_mcp/      # Lint
+ruff format reversecore_mcp/     # Format
+mypy reversecore_mcp/            # Type check  (0 errors in 87 files)
+bandit -r reversecore_mcp/       # Security scan
 ```
 
-**Use built-in prompts for guided analysis:**
+### CI/CD Pipeline
 
-- `full_analysis_mode` - Comprehensive malware analysis with **6-phase expert reasoning** and evidence classification
-- `basic_analysis_mode` - Quick triage for fast initial assessment
-- `game_analysis_mode` - Game client analysis with cheat detection guidance
-- `firmware_analysis_mode` - IoT/Firmware security analysis with embedded system focus
-- `report_generation_mode` - Professional report generation workflow with MITRE ATT&CK mapping
+Every push to `main` runs the following gates — **all must pass before deployment**:
 
-> 💡 **AI Reasoning Enhancement**: Analysis prompts use expert persona priming, Chain-of-Thought checkpoints, structured reasoning phases, and evidence classification (OBSERVED/INFERRED/POSSIBLE) to maximize AI analysis capabilities and ensure thorough documentation.
+```
+Lint & Security          Unit Tests (3.10 / 3.11 / 3.12)
+  ├─ Gitleaks              ├─ pytest --cov-fail-under=80
+  ├─ Hadolint              └─ (all 3 matrix versions must pass)
+  ├─ Ruff check + format
+  ├─ Mypy type check    Docker Verification
+  ├─ Bandit (all sev.)    ├─ Trivy container scan (LOW→CRITICAL)
+  └─ pip-audit            ├─ Integration tests (inside container)
+                          └─ E2E MCP tool invocation
 
-## 🏗️ Architecture
+CodeQL Analysis       Deploy (main branch only)
+  └─ Python SAST          └─ Push to GHCR + Trivy rescan
+```
+
+> **Zero-bypass policy:** CI/CD failures are **never** resolved by modifying the pipeline configuration. Root causes are always fixed in source code or dependencies.
+
+---
+
+## Configuration
+
+| Environment Variable | Default | Description |
+|---|---|---|
+| `MCP_TRANSPORT` | `http` | Transport mode: `stdio` or `http` |
+| `REVERSECORE_WORKSPACE` | `/app/workspace` | Analysis workspace path |
+| `REVERSECORE_READ_DIRS` | `""` | Additional read-only directories |
+| `LOG_LEVEL` | `INFO` | Logging verbosity |
+| `MCP_API_KEY` | *(unset)* | API key for HTTP mode (optional) |
+| `RATE_LIMIT` | `60` | Max requests per minute (HTTP mode) |
+
+---
+
+## System Requirements
+
+| Component | Minimum | Recommended |
+|---|---|---|
+| CPU | 4 cores | 8+ cores |
+| RAM | 8 GB | 16 GB |
+| Storage | 20 GB | 50 GB SSD |
+| OS | Linux / macOS | Docker environment |
+
+---
+
+## Project Structure
 
 ```
 reversecore_mcp/
-├── core/                           # Infrastructure & Services
-│   ├── config.py                   # Configuration management
-│   ├── r2_helpers.py, r2_pool.py   # Radare2 connection pooling
-│   ├── security.py                 # Path validation & input sanitization
-│   ├── result.py                   # ToolSuccess/ToolError response models
-│   ├── metrics.py                  # Tool execution metrics
-│   ├── report_generator.py         # Report generation service
-│   ├── plugin.py                   # Plugin interface for extensibility
-│   ├── decorators.py               # @log_execution, @track_metrics
-│   ├── error_handling.py           # @handle_tool_errors decorator
-│   ├── logging_config.py           # Structured logging setup
-│   ├── memory.py                   # AI memory store (async SQLite)
-│   ├── mitre_mapper.py             # MITRE ATT&CK framework mapping
-│   ├── resource_manager.py         # Subprocess lifecycle management
-│   └── validators.py               # Input validation
+├── core/                    # Infrastructure
+│   ├── config.py            # Centralized configuration
+│   ├── exceptions.py        # Exception hierarchy (RCMCP-E* codes)
+│   ├── security.py          # Input sanitization & path validation
+│   ├── validators.py        # File & binary path validators
+│   ├── r2_pool.py           # Radare2 connection pool
+│   ├── r2_helpers.py        # Radare2 helper utilities
+│   ├── metrics.py           # Tool execution metrics
+│   ├── decorators.py        # @log_execution, @track_metrics
+│   ├── error_handling.py    # @handle_tool_errors
+│   ├── memory.py            # AI memory store (async SQLite)
+│   ├── mitre_mapper.py      # MITRE ATT&CK mapping
+│   └── sast/                # Source code scanners
 │
-├── tools/                          # MCP Tool Implementations
-│   ├── analysis/                   # Basic analysis tools
-│   │   ├── static_analysis.py      # file, strings, binwalk
-│   │   ├── lief_tools.py           # PE/ELF/Mach-O parsing
-│   │   ├── diff_tools.py           # Binary comparison
-│   │   └── signature_tools.py      # YARA scanning
-│   │
-│   ├── radare2/                    # Radare2 & r2ghidra integration
-│   │   ├── r2_analysis.py          # Core r2 analysis
-│   │   ├── r2ghidra_tools.py       # r2ghidra decompilation & analysis
-│   │   ├── r2_db.py                # SQLite annotation database
-│   │   ├── radare2_mcp_tools.py    # Advanced r2 tools (CFG, ESIL)
-│   │   └── r2_session.py           # Session management
-│   │
-│   ├── malware/                    # Malware analysis & defense
-│   │   ├── dormant_detector.py     # Hidden threat detection
-│   │   ├── adaptive_vaccine.py     # Defense generation
-│   │   ├── vulnerability_hunter.py # Vulnerability detection
-│   │   ├── ioc_tools.py            # IOC extraction
-│   │   └── yara_tools.py           # YARA rule management
-│   │
-│   ├── common/                     # Cross-cutting concerns
-│   │   ├── file_operations.py      # Workspace file management
-│   │   ├── server_tools.py         # Health checks, metrics
-│   │   └── memory_tools.py         # AI memory operations
-│   │
-│   └── report/                     # Report generation (v3.1)
-│       ├── report_tools.py         # Core report engine
-│       ├── report_mcp_tools.py     # MCP tool registration
-│       ├── session.py              # Analysis session tracking
-│       └── email.py                # SMTP integration
+├── tools/                   # MCP Tool implementations
+│   ├── analysis/            # Static analysis, LIEF, diff, SAST
+│   ├── radare2/             # Disassembly, decompilation, SQLite DB
+│   ├── malware/             # Threat detection & defense
+│   ├── forensics/           # Memory, disk, network forensics
+│   ├── report/              # Report generation & email
+│   └── common/              # File ops, server health
 │
-├── prompts.py                      # AI reasoning prompts (5 modes)
-├── resources.py                    # Dynamic MCP resources (reversecore:// URIs)
-└── server.py                       # FastMCP server initialization & HTTP setup
+├── prompts/                 # AI reasoning prompts (5 modes)
+├── resources.py             # Dynamic MCP resources
+└── server.py                # FastMCP server entrypoint
 ```
 
-## 🐳 Docker Deployment
+---
 
-### Multi-Architecture Support
-
-The unified `Dockerfile` automatically detects your system architecture:
-
-| Architecture | Auto-Detected | Support |
-|--------------|---------------|---------|
-| x86_64 (Intel/AMD) | ✅ | Full support |
-| ARM64 (Apple Silicon M1-M4) | ✅ | Full support |
-
-### Run Commands
-
-```bash
-# Using convenience script (auto-detects architecture)
-./scripts/run-docker.sh              # Start
-./scripts/run-docker.sh stop         # Stop
-./scripts/run-docker.sh logs         # View logs
-./scripts/run-docker.sh shell        # Shell access
-
-# Manual Docker build (works for all architectures)
-docker build -t reversecore-mcp:latest .
-
-# Or using Docker Compose
-docker compose up -d
-```
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| \`MCP_TRANSPORT\` | \`http\` | Transport mode (\`stdio\` or \`http\`) |
-| \`REVERSECORE_WORKSPACE\` | \`/app/workspace\` | Analysis workspace path |
-| \`LOG_LEVEL\` | \`INFO\` | Logging level |
-| \`REVERSECORE_SAST_RULES_PATH\` | \`""\` | Custom YAML path for SAST rules |
-
-## 🔒 Security
-
-- **No shell injection**: All subprocess calls use list arguments
-- **Path validation**: Workspace-restricted file access
-- **Input sanitization**: All parameters validated
-- **Rate limiting**: Configurable request limits (HTTP mode)
-- **CI checks**: Bandit (static analysis), pip-audit (dependency vulnerabilities), Gitleaks (secrets)
-
-## 🧪 Development
-
-```bash
-# Install dependencies
-pip install -r requirements-dev.txt
-
-# Run tests
-pytest tests/ -v
-
-# Run with coverage
-pytest tests/ --cov=reversecore_mcp --cov-fail-under=54
-
-# Code quality
-ruff check reversecore_mcp/
-black reversecore_mcp/
-```
-
-### Test Status
-
-- ✅ **700+ tests passed** (unit + integration)
-- 📊 **55% coverage** (minimum 54% enforced in CI)
-- ⏱️ Bandit security scan, pip-audit dependency check, pytest
-
-## 📚 API Reference
-
-### Tool Response Format
-
-All tools return structured \`ToolResult\`:
-
-```json
-{
-  "status": "success",
-  "data": "...",
-  "metadata": { "bytes_read": 1024 }
-}
-```
-
-```json
-{
-  "status": "error",
-  "error_code": "VALIDATION_ERROR",
-  "message": "File not found",
-  "hint": "Check file path"
-}
-```
-
-### Common Error Codes
-
-| Code | Description |
-|------|-------------|
-| \`VALIDATION_ERROR\` | Invalid input parameters |
-| \`TIMEOUT\` | Operation exceeded time limit |
-| \`PARSE_ERROR\` | Failed to parse tool output |
-| \`TOOL_NOT_FOUND\` | Required CLI tool missing |
-
-## 💻 System Requirements
-
-| Component | Minimum | Recommended |
-|-----------|---------|-------------|
-| **CPU** | 4 cores | 8+ cores |
-| **RAM** | 16 GB | 32 GB |
-| **Storage** | 512 GB SSD | 1 TB NVMe |
-| **OS** | Linux/macOS | Docker environment |
-
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make changes with tests
-4. Run \`pytest\` and \`ruff check\`
-5. Submit a pull request
+2. Create a feature branch (`git checkout -b feat/my-feature`)
+3. Write tests alongside your code
+4. Ensure `pytest`, `ruff check`, `mypy`, and `bandit` all pass
+5. Open a pull request
 
-## 📄 License
+---
 
-MIT License - see [LICENSE](LICENSE) for details.
+## License
 
-## 🔗 Links
+MIT — see [LICENSE](LICENSE) for details.
 
-- [GitHub Repository](https://github.com/sjkim1127/Reversecore_MCP)
-- [FastMCP Documentation](https://github.com/jlowin/fastmcp)
-- [MCP Protocol Specification](https://modelcontextprotocol.io/)
+---
+
+<div align="center">
+
+**[GitHub](https://github.com/sjkim1127/Reversecore_MCP)** · **[FastMCP Docs](https://github.com/jlowin/fastmcp)** · **[MCP Spec](https://modelcontextprotocol.io/)**
+
+</div>

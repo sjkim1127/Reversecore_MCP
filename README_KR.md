@@ -1,75 +1,104 @@
-# Reversecore_MCP
+<div align="center">
 
-![Icon](icon.png)
+<img src="icon.png" alt="Reversecore MCP" width="120" />
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
-[![FastMCP](https://img.shields.io/badge/FastMCP-2.13.1-green)](https://github.com/jlowin/fastmcp)
-[![Docker](https://img.shields.io/badge/docker-ready-blue)](https://www.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-700%2B%20passed-brightgreen)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-55%25-green)](htmlcov/)
+# Reversecore MCP
 
-[![데모 영상 시청](https://img.shields.io/badge/데모_영상_시청-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtu.be/wJGW2bp3c5A)
+**AI 기반 리버스 엔지니어링 — Model Context Protocol 서버**
 
-[🇺🇸 English](README.md)
+*엔터프라이즈급 바이너리 분석 서버 — 자연어로 대화하고, 전문가 수준의 리버스 엔지니어링을 받으세요.*
 
-AI 에이전트가 자연어 명령을 통해 포괄적인 바이너리 분석을 수행할 수 있게 하는 엔터프라이즈급 MCP(Model Context Protocol) 서버입니다.
+---
 
-## 📋 사전 요구사항
+[![CI/CD](https://github.com/sjkim1127/Reversecore_MCP/actions/workflows/main.yml/badge.svg)](https://github.com/sjkim1127/Reversecore_MCP/actions/workflows/main.yml)
+[![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-1520%20passed-brightgreen)](#테스트)
+[![Coverage](https://img.shields.io/badge/coverage-82%25-green)](#테스트)
+[![FastMCP](https://img.shields.io/badge/FastMCP-3.2.0-purple)](https://github.com/jlowin/fastmcp)
+[![Docker](https://img.shields.io/badge/docker-ghcr.io-blue)](https://github.com/sjkim1127/Reversecore_MCP/pkgs/container/reversecore_mcp)
 
-### Radare2 및 r2ghidra (디컴파일 및 분석에 필수)
+[![데모 보기](https://img.shields.io/badge/▶_데모_보기-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtu.be/wJGW2bp3c5A)
+[![SafeSkill 인증](https://img.shields.io/badge/SafeSkill-93%2F100_Verified_Safe-brightgreen?style=for-the-badge)](https://safeskill.dev/scan/sjkim1127-reversecore-mcp)
 
-디컴파일 및 분석 기능은 Radare2와 `r2ghidra` 플러그인을 사용하여 작동합니다.
+[🌐 English](README.md)
 
-**자동 설치**
+</div>
 
-제공되는 설정 스크립트나 Docker를 사용하는 것이 가장 간편하며, 이 경우 모든 의존성이 미리 구성되어 제공됩니다.
+---
 
-로컬 환경에 직접 설치하는 방법:
-1. OS 패키지 관리자나 [radare.org](https://radare.org/)에서 **Radare2**를 설치합니다.
-2. `r2pm`을 사용하여 **r2ghidra**를 설치합니다.
-   ```bash
-   r2pm -i r2ghidra
-   ```
+## Reversecore MCP란?
 
-별도의 JDK나 JVM 설치는 필요하지 않습니다.
+Reversecore MCP는 Claude, Cursor 같은 AI 어시스턴트를 **전문 리버스 엔지니어링 워크스테이션**으로 변환하는 엔터프라이즈급 **[Model Context Protocol](https://modelcontextprotocol.io/)** 서버입니다.
 
-## 🚀 빠른 시작
+Radare2 같은 복잡한 도구를 직접 배우거나 YARA 룰을 손으로 작성할 필요 없이, **자연어로 원하는 분석을 설명하면** AI가 알아서 실행합니다.
 
-### Docker (권장)
+```
+"이 악성코드 샘플의 main 함수를 디컴파일하고,
+어떤 네트워크 연결을 시도하는지 파악해줘."
+```
+
+↓
+
+*Reversecore MCP가 자동으로 `r2_decompile`, `extract_iocs`, `analyze_xrefs`를 호출하고, AI가 결과를 해석하여 설명합니다.*
+
+---
+
+## 아키텍처 개요
+
+```
+AI 클라이언트 (Claude / Cursor)
+        │  MCP 프로토콜 (stdio 또는 HTTP)
+        ▼
+┌─────────────────────────────┐
+│      FastMCP 서버            │  Python 3.10–3.12
+│   50개 이상 등록된 도구       │  비동기, 완전한 타입 힌트
+├──────────────────┬──────────┤
+│   프롬프트        │  리소스   │  가이드 분석 모드
+├──────────────────┴──────────┤
+│       핵심 인프라             │
+│  설정 · 보안 · 메트릭         │
+│  R2 풀 · 예외 계층구조        │
+├─────────────────────────────┤
+│  Radare2 + r2ghidra 플러그인 │  바이너리 분석 엔진
+│  YARA · LIEF · Capstone     │  탐지 및 파싱
+│  Volatility3 · Scapy        │  포렌식 및 네트워크
+└─────────────────────────────┘
+```
+
+---
+
+## 빠른 시작
+
+### 방법 1 — Docker (권장)
 
 ```bash
-# 아키텍처 자동 감지 (Intel/AMD 또는 Apple Silicon)
-./scripts/run-docker.sh
-
-# 또는 수동으로:
-# Intel/AMD
-docker compose --profile x86 up -d
-
-# Apple Silicon (M1/M2/M3/M4)/
-docker compose --profile arm64 up -d
+# 사전 빌드된 이미지 다운로드 및 실행
+docker run -i --rm \
+  -v /path/to/your/samples:/app/workspace \
+  -e REVERSECORE_WORKSPACE=/app/workspace \
+  -e MCP_TRANSPORT=stdio \
+  ghcr.io/sjkim1127/reversecore_mcp:latest
 ```
 
-### MCP 클라이언트 설정 (Cursor AI)
-
-**1단계: Docker 이미지 빌드**
-
-통합 Dockerfile이 시스템 아키텍처를 자동으로 감지합니다:
+### 방법 2 — 소스에서 빌드
 
 ```bash
-# 자동 아키텍처 감지 (모든 플랫폼에서 작동)
-docker build -t reversecore-mcp:latest .
-
-# 또는 편의 스크립트 사용
-./scripts/run-docker.sh
+git clone https://github.com/sjkim1127/Reversecore_MCP.git
+cd Reversecore_MCP
+./scripts/run-docker.sh        # Intel / Apple Silicon 자동 감지
 ```
 
-**2단계: MCP 클라이언트 설정**
+---
 
-`~/.cursor/mcp.json`에 추가:
+## AI 클라이언트 연결
+
+### Cursor / Claude Desktop
+
+`~/.cursor/mcp.json` (또는 `claude_desktop_config.json`)에 추가:
 
 <details>
-<summary>🍎 <b>macOS (모든 프로세서)</b></summary>
+<summary>🍎 macOS</summary>
 
 ```json
 {
@@ -78,19 +107,20 @@ docker build -t reversecore-mcp:latest .
       "command": "docker",
       "args": [
         "run", "-i", "--rm",
-        "-v", "/Users/YOUR_USERNAME/Reversecore_Workspace:/app/workspace",
+        "-v", "/Users/사용자이름/samples:/app/workspace",
         "-e", "REVERSECORE_WORKSPACE=/app/workspace",
         "-e", "MCP_TRANSPORT=stdio",
-        "reversecore-mcp:latest"
+        "ghcr.io/sjkim1127/reversecore_mcp:latest"
       ]
     }
   }
 }
 ```
+
 </details>
 
 <details>
-<summary>🐧 <b>Linux</b></summary>
+<summary>🐧 Linux</summary>
 
 ```json
 {
@@ -99,19 +129,20 @@ docker build -t reversecore-mcp:latest .
       "command": "docker",
       "args": [
         "run", "-i", "--rm",
-        "-v", "/path/to/workspace:/app/workspace",
+        "-v", "/home/사용자이름/samples:/app/workspace",
         "-e", "REVERSECORE_WORKSPACE=/app/workspace",
         "-e", "MCP_TRANSPORT=stdio",
-        "reversecore-mcp:latest"
+        "ghcr.io/sjkim1127/reversecore_mcp:latest"
       ]
     }
   }
 }
 ```
+
 </details>
 
 <details>
-<summary>🪟 <b>Windows</b></summary>
+<summary>🪟 Windows</summary>
 
 ```json
 {
@@ -120,353 +151,277 @@ docker build -t reversecore-mcp:latest .
       "command": "docker",
       "args": [
         "run", "-i", "--rm",
-        "-v", "C:/Reversecore_Workspace:/app/workspace",
+        "-v", "C:/samples:/app/workspace",
         "-e", "REVERSECORE_WORKSPACE=/app/workspace",
         "-e", "MCP_TRANSPORT=stdio",
-        "reversecore-mcp:latest"
+        "ghcr.io/sjkim1127/reversecore_mcp:latest"
       ]
     }
   }
 }
 ```
+
 </details>
 
-> ⚠️ **중요: Docker에서의 파일 경로 사용**
+> **⚠️ 중요 — Docker 내부 파일 경로**
 >
-> MCP 서버는 Docker 컨테이너 내부에서 실행됩니다. 분석 도구를 사용할 때는 **전체 로컬 경로가 아닌 파일 이름만 사용하세요**.
+> 로컬 폴더가 컨테이너 내부의 `/app/workspace`에 마운트됩니다.
+> **파일 이름만** 사용하세요. 전체 로컬 경로를 사용하면 안 됩니다.
 >
-> | ❌ 잘못된 예 | ✅ 올바른 예 |
-> |----------|-----------|
-> | `run_file("/Users/john/Reversecore_Workspace/sample.exe")` | `run_file("sample.exe")` |
->
-> **이유:** 로컬 경로(예: `/Users/.../Reversecore_Workspace/`)가 컨테이너 내부의 `/app/workspace/`로 마운트됩니다. 도구는 자동으로 작업 공간 디렉토리에서 파일을 찾습니다.
->
-> **팁:** `list_workspace()`를 사용하여 작업 공간에서 사용 가능한 모든 파일을 확인하세요.
+> | ❌ 잘못된 사용 | ✅ 올바른 사용 |
+> |---|---|
+> | `r2_decompile("/Users/john/samples/mal.exe")` | `r2_decompile("mal.exe")` |
 
-## ✨ 핵심 기능
+---
+
+## 도구 레퍼런스
 
 ### 🔍 정적 분석
 
-포괄적인 파일 분석 및 메타데이터 추출:
+| 도구 | 설명 |
+|---|---|
+| `run_file` | 파일 타입, 아키텍처, 컴파일러 핑거프린팅 |
+| `run_strings` | 설정 가능한 제한으로 ASCII/유니코드 문자열 추출 |
+| `run_binwalk` | 내장 시그니처 및 파일시스템 펌웨어 딥스캔 |
+| `parse_binary_with_lief` | PE / ELF / Mach-O 헤더 및 섹션 전체 파싱 |
+| `audit_source_code` | Python AST 스캐너 + C/C++ 정규식 스캐너를 통한 SAST |
 
-- **파일 타입 감지**: 바이너리 형식, 아키텍처, 컴파일러 정보 식별 (`run_file`)
-- **문자열 추출**: 설정 가능한 제한으로 ASCII/Unicode 문자열 추출 (`run_strings`)
-- **펌웨어 분석**: 임베디드 파일 및 시그니처 심층 스캔 (`run_binwalk`)
-- **바이너리 파싱**: LIEF를 사용한 PE/ELF/Mach-O 헤더 및 섹션 파싱 (`parse_binary_with_lief`)
-- **소스코드 감사 (SAST)**: 소스코드 파일 및 디컴파일 결과물에 대해 설정 가능한 규칙 기반 감사 수행 (`audit_source_code`). 오탐을 줄이기 위해 Python 파일에는 AST 기반 스캐너를 사용하며, C/C++ 파일에는 정밀 정규표현식 스캐너를 적용합니다.
+### ⚙️ 디스어셈블리 & 디컴파일
 
-### ⚙️ 디스어셈블리 및 디컴파일
+| 도구 | 설명 |
+|---|---|
+| `run_radare2` | 연결 풀링이 적용된 Radare2 원시 명령 실행 |
+| `Radare2_disassemble` | 자동 분석이 포함된 함수 디스어셈블리 |
+| `r2_decompile` | r2ghidra를 통한 고품질 C 디컴파일 (JVM 불필요) |
+| `r2_recover_structures` | C 구조체 자동 복원 및 SQLite 주석 DB에 영속화 |
+| `r2_analyze_function` | 타입 추론이 포함된 단일 함수 심층 분석 |
+| `r2_get_call_graph` | 함수의 콜 그래프 추출 |
+| `r2_simulate_patch` | 바이너리 패치 적용 전 미리보기 |
+| `disassemble_with_capstone` | Capstone을 통한 멀티 아키텍처 디스어셈블리 (x86/ARM/MIPS/PPC) |
 
-지능형 도구를 사용한 멀티 아키텍처 바이너리 분석:
+### 🔗 크로스 레퍼런스 & 메모리
 
-- **Radare2 통합**: 연결 풀링을 사용한 전체 r2 명령 접근 (`run_radare2`, `Radare2_disassemble`)
-- **r2ghidra 디컴파일**: Radare2용 Ghidra 디컴파일러 플러그인을 사용한 네이티브 디컴파일 (`r2_decompile`, `r2_recover_structures`, `r2_analyze_function`)
-- **멀티 아키텍처 지원**: Capstone을 통한 x86, x86-64, ARM, ARM64, MIPS, PowerPC 지원 (`disassemble_with_capstone`)
+| 도구 | 설명 |
+|---|---|
+| `analyze_xrefs` | 함수 호출, 데이터 참조, 제어 흐름 추적 |
+| `r2_read_memory` | 지정된 주소에서 원시 바이트 읽기 |
+| `r2_list_structures` | SQLite DB에서 모든 주석 구조체 목록 |
+| `r2_create_structure` | 새 구조체 주석 생성 및 영속화 |
+| `r2_add_bookmark` | 주소에 코멘트 주석 추가 |
+| `r2_list_bookmarks` | 모든 주소 북마크 목록 |
+| `r2_list_types` | 현재 바이너리의 모든 알려진 타입 목록 |
 
-### 🧬 고급 분석
+### 🧬 동적 분석 & 에뮬레이션
 
-심층 코드 분석 및 동작 이해:
+| 도구 | 설명 |
+|---|---|
+| `emulate_machine_code` | 레지스터/메모리 트레이싱이 포함된 ESIL 기반 코드 에뮬레이션 |
+| `diff_binaries` | 패치 변경 사항 추적을 위한 시맨틱 바이너리 diff |
+| `match_libraries` | 함수 핑거프린트로 정적 링크 라이브러리 식별 |
 
-- **크로스 레퍼런스 분석**: 함수 호출, 데이터 참조, 제어 흐름 추적 (`analyze_xrefs`)
-- **구조 복구**: C 구조체를 자동 복구하고 SQLite DB에 저장 (`r2_create_structure`, `r2_list_structures`)
-- **에뮬레이션**: 동적 동작 분석을 위한 ESIL 기반 코드 에뮬레이션 (`emulate_machine_code`)
-- **바이너리 비교**: 바이너리 비교 및 라이브러리 함수 매칭 (`diff_binaries`, `match_libraries`)
+### 🦠 악성코드 분석
 
-### 🦠 악성코드 분석 및 방어
+| 도구 | 설명 |
+|---|---|
+| `dormant_detector` | 숨겨진 백도어, 고아 함수, 논리 폭탄 탐지 |
+| `extract_iocs` | IP, URL, 도메인, 해시, 암호화폐 주소 추출 |
+| `run_yara` | 커스텀 룰 지원 YARA 룰 스캐닝 |
+| `adaptive_vaccine` | 위협에 대한 YARA 룰 + 바이너리 패치 생성 |
+| `vulnerability_hunter` | 위험한 API 패턴 및 ROP 가젯 체인 탐지 |
 
-위협 탐지 및 완화를 위한 전문 도구:
+### 📝 보고서 생성
 
-- **잠복 위협 탐지**: 숨겨진 백도어, 고립된 함수, 논리 폭탄 발견 (`dormant_detector`)
-- **IOC 추출**: IP, URL, 도메인, 이메일, 해시, 암호화폐 주소 자동 추출 (`extract_iocs`)
-- **YARA 스캔**: 사용자 정의 규칙을 사용한 패턴 기반 악성코드 탐지 (`run_yara`)
-- **적응형 백신**: 방어 조치 생성 (YARA 규칙, 바이너리 패치, NOP 주입) (`adaptive_vaccine`)
-- **취약점 헌터**: 위험한 API 패턴 및 익스플로잇 경로 탐지 (`vulnerability_hunter`)
+| 도구 | 설명 |
+|---|---|
+| `generate_malware_submission` | 원샷 표준화 JSON 보고서 |
+| `start_analysis_session` | 타이머가 포함된 분석 세션 시작 |
+| `add_session_ioc` | 세션 중 IOC 수집 |
+| `add_session_mitre` | MITRE ATT&CK 기법 문서화 |
+| `end_analysis_session` | 소요 시간 계산과 함께 세션 종료 |
+| `create_analysis_report` | 보고서 렌더링 (전체 / 트리아지 / IOC 요약 / 경영진) |
+| `send_report_email` | SMTP로 보고서 전송 |
 
-### 📊 서버 상태 및 모니터링
+### 🛡️ 포렌식
 
-엔터프라이즈 환경을 위한 내장 관측 도구:
+| 도구 | 설명 |
+|---|---|
+| `analyze_memory_dump` | Volatility3 기반 메모리 포렌식 |
+| `analyze_network_capture` | Scapy 기반 PCAP 분석 |
+| `analyze_disk_image` | Sleuth Kit 파일시스템 포렌식 |
+| `analyze_artifacts` | 브라우저 기록, 레지스트리, 이벤트 로그 파싱 |
 
-- **헬스 체크**: 가동 시간, 메모리 사용량, 운영 상태 모니터링 (`get_server_health`)
-- **성능 메트릭**: 도구 실행 시간, 오류율, 호출 횟수 추적 (`get_tool_metrics`)
-- **자동 복구**: 일시적 장애에 대응하는 지수 백오프 기반 자동 재시도 메커니즘
+### 📊 서버 & 모니터링
 
-### 🖥️ 웹 대시보드 (NEW)
+| 도구 | 설명 |
+|---|---|
+| `get_server_health` | 가동 시간, 메모리, 운영 상태 |
+| `get_tool_metrics` | 도구별 실행 시간, 호출 횟수, 에러율 |
+| `list_workspace` | 분석 워크스페이스의 파일 목록 |
+| `get_file_info` | 특정 워크스페이스 파일의 메타데이터 |
 
-LLM 없이 바이너리 분석을 위한 시각적 인터페이스:
+---
+
+## 가이드 분석 프롬프트
+
+AI 클라이언트에서 이 프롬프트를 참조하여 전문가 수준의 분석 모드를 활성화하세요:
+
+| 프롬프트 | 사용 사례 |
+|---|---|
+| `full_analysis_mode` | 증거 분류가 포함된 6단계 종합 악성코드 분석 |
+| `basic_analysis_mode` | 초기 평가를 위한 빠른 트리아지 |
+| `game_analysis_mode` | 안티치트 탐지가 포함된 게임 클라이언트 분석 |
+| `firmware_analysis_mode` | IoT/임베디드 펌웨어 보안 검토 |
+| `report_generation_mode` | MITRE ATT&CK 매핑이 포함된 구조화된 보고서 워크플로우 |
+
+> **프롬프트 작동 방식:** 각 프롬프트는 AI에 전문가 페르소나, Chain-of-Thought 체크포인트, 증거 분류(`OBSERVED` / `INFERRED` / `POSSIBLE`)를 주입합니다. 이는 단순한 도구 출력이 아닌 분석가 수준의 결과물을 생성합니다.
+
+---
+
+## 보안 모델
+
+| 제어 | 세부 내용 |
+|---|---|
+| **쉘 인젝션 방지** | 모든 서브프로세스 호출은 리스트 인자 사용, 쉘 문자열 없음 |
+| **경로 검증** | 모든 파일 접근은 설정된 워크스페이스로 제한 |
+| **입력 살균** | 실행 전 모든 파라미터 검증 |
+| **속도 제한** | 분당 최대 요청 수 설정 가능 (HTTP 모드) |
+| **제로 트러스트 CI/CD** | Gitleaks (시크릿), Bandit (SAST), pip-audit (CVE), Trivy (컨테이너), CodeQL |
+| **워크스페이스 격리** | 컨테이너는 비루트 `appuser` (UID 1000)로 실행 |
+
+---
+
+## 개발 환경
+
+### 설치
 
 ```bash
-# HTTP 모드로 서버 시작
-MCP_TRANSPORT=http MCP_API_KEY=your-secret-key python server.py
-
-# 대시보드 접속
-open http://localhost:8000/dashboard/
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+pre-commit install
 ```
 
-**기능:**
-- **Overview**: 업로드된 파일 목록 및 통계
-- **Analysis**: 함수 목록, 디스어셈블리 뷰어
-- **IOCs**: 추출된 URL, IP, 이메일, 문자열
+### 테스트
 
-**보안:**
-- XSS 방지를 위한 HTML 이스케이프
-- 경로 탐색(Path Traversal) 방지
-- API 키 인증 (선택사항)
+```bash
+# 커버리지와 함께 전체 단위 테스트 실행
+pytest tests/unit/ --cov=reversecore_mcp --cov-fail-under=80
 
-### 📝 리포트 생성 (v3.1)
-
-정확한 타임스탬프를 포함한 전문적인 악성코드 분석 리포트 생성:
-
-- **원샷 제출**: 단일 명령으로 표준화된 JSON 리포트 생성 (`generate_malware_submission`)
-- **세션 추적**: 자동 소요 시간 계산을 통한 분석 세션 시작/종료 (`start_analysis_session`, `end_analysis_session`)
-- **IOC 수집**: 분석 중 지표 수집 및 정리 (`add_session_ioc`)
-- **MITRE ATT&CK 매핑**: 적절한 프레임워크 참조로 기법 문서화 (`add_session_mitre`)
-- **이메일 전송**: SMTP 지원으로 보안 팀에 리포트 직접 전송 (`send_report_email`)
-- **다중 템플릿**: 전체 분석, 빠른 분류, IOC 요약, 경영진 보고서
-
-```python
-# 예시 1: 원샷 JSON 제출
-generate_malware_submission(
-    file_path="wannacry.exe",
-    analyst_name="Hunter",
-    tags="ransomware,critical"
-)
-
-# 예시 2: 대화형 세션 워크플로우
-get_system_time()
-start_analysis_session(sample_path="malware.exe")
-add_session_ioc("ips", "192.168.1.100")
-add_session_mitre("T1059.001", "PowerShell", "Execution")
-end_analysis_session(summary="랜섬웨어 탐지")
-create_analysis_report(template_type="full_analysis")
-send_report_email(to="security-team@company.com")
+# 전체 테스트 실행
+pytest tests/ -v
 ```
 
-### ⚡ 성능 및 신뢰성 (v3.1)
+**테스트 현황:**
+- ✅ Python 3.10 / 3.11 / 3.12 전체에서 **1,520개 단위 테스트** 통과
+- 📊 **82% 코드 커버리지** (CI에서 80% 최소 기준 강제)
+- 🔒 Bandit 발견 0건 · pip-audit CVE 0건 · 컨테이너 취약점 0건
 
-- **리소스 관리**:
-  - **좀비 킬러(Zombie Killer)**: `try...finally` 블록으로 서브프로세스 종료 보장 및 리소스 누수 방지
-  - **메모리 가드(Memory Guard)**: `strings` 등 도구 출력의 엄격한 2MB 제한으로 OOM(메모리 부족) 방지
-  - **크래시 격리(Crash Isolation)**: LIEF 파서를 별도 프로세스로 격리하여 C++ 레벨 세그폴트로부터 서버 보호
-- **최적화**:
-  - **동적 타임아웃**: 파일 크기에 따라 자동 조절 (base + 2s/MB, 최대 +600s)
-  - **경량 아키텍처**: JVM을 제거하고 네이티브 `r2ghidra`를 사용함으로써, 시작 지연시간을 낮추고 메모리 사용량을 획기적으로 줄였습니다.
-  - **싱크 인식 가지치기**: 39개의 위험한 싱크 API로 지능적 경로 우선순위화
-  - **트레이스 깊이 최적화**: 더 빠른 실행 경로 분석을 위해 3에서 2로 축소
-- **인프라**:
-  - **무상태 리포트(Stateless Reports)**: 전역 상태 변조 없는 요청별 타임존 처리로 데이터 무결성 보장
-  - **강력한 재시도**: 데코레이터가 예외를 올바르게 전파하여 자동 복구 메커니즘 활성화
-  - **설정 기반 검증**: 중앙 설정 파일과 동기화된 유효성 검사 제한값 적용
+### 코드 품질
 
-### 🛠️ 핵심 도구
-
-| 카테고리 | 도구 |
-|----------|------|
-| **파일 작업** | `list_workspace`, `get_file_info` |
-| **정적 분석** | `run_file`, `run_strings`, `run_binwalk`, `audit_source_code` |
-| **디스어셈블리 및 DB** | `run_radare2`, `Radare2_disassemble`, `disassemble_with_capstone`, `r2_list_structures`, `r2_create_structure`, `r2_add_bookmark`, `r2_list_bookmarks`, `r2_list_types`, `r2_read_memory` |
-| **디컴파일** | `r2_decompile`, `r2_recover_structures`, `r2_analyze_function`, `r2_get_call_graph`, `r2_simulate_patch` |
-| **고급 분석** | `analyze_xrefs`, `emulate_machine_code` |
-| **바이너리 파싱** | `parse_binary_with_lief` |
-| **바이너리 비교** | `diff_binaries`, `match_libraries` |
-| **악성코드 분석** | `dormant_detector`, `extract_iocs`, `run_yara`, `adaptive_vaccine`, `vulnerability_hunter` |
-| **리포트 생성** | `get_system_time`, `set_timezone`, `start_analysis_session`, `add_session_ioc`, `add_session_mitre`, `end_analysis_session`, `create_analysis_report`, `send_report_email`, `generate_malware_submission` |
-| **서버 관리** | `get_server_health`, `get_tool_metrics` |
-
-## 📊 분석 워크플로우
-
-```
-📥 업로드 → 🔍 분류 → 🔗 X-Refs → 🏗️ 구조 → 📝 디컴파일 → 🛡️ 방어
+```bash
+ruff check reversecore_mcp/      # 린트
+ruff format reversecore_mcp/     # 포맷
+mypy reversecore_mcp/            # 타입 검사 (87개 파일에서 0 에러)
+bandit -r reversecore_mcp/       # 보안 스캔
 ```
 
-**가이드 분석을 위한 내장 프롬프트 사용:**
+### CI/CD 파이프라인
 
-- `full_analysis_mode` - **6단계 전문가 추론** 및 증거 분류를 갖춘 포괄적인 악성코드 분석
-- `basic_analysis_mode` - 빠른 초기 평가를 위한 신속 분류
-- `game_analysis_mode` - 치트 탐지 가이드를 포함한 게임 클라이언트 분석
-- `firmware_analysis_mode` - 임베디드 시스템에 초점을 맞춘 IoT/펌웨어 보안 분석
-- `report_generation_mode` - MITRE ATT&CK 매핑을 포함한 전문적인 리포트 생성 워크플로우
+`main` 브랜치로의 모든 푸시는 다음 게이트를 실행합니다 — **배포 전 모두 통과해야 합니다:**
 
-> 💡 **AI 추론 강화**: 분석 프롬프트는 전문가 페르소나 프라이밍, Chain-of-Thought 체크포인트, 구조화된 추론 단계, 증거 분류(OBSERVED/INFERRED/POSSIBLE)를 사용하여 AI 분석 능력을 극대화하고 철저한 문서화를 보장합니다.
+```
+린트 & 보안                단위 테스트 (3.10 / 3.11 / 3.12)
+  ├─ Gitleaks                ├─ pytest --cov-fail-under=80
+  ├─ Hadolint                └─ (3개 매트릭스 버전 모두 통과 필요)
+  ├─ Ruff check + format
+  ├─ Mypy 타입 검사         Docker 검증
+  ├─ Bandit (전체 심각도)    ├─ Trivy 컨테이너 스캔 (LOW→CRITICAL)
+  └─ pip-audit               ├─ 통합 테스트 (컨테이너 내부)
+                             └─ E2E MCP 도구 호출
 
-## 🏗️ 아키텍처
+CodeQL 분석              배포 (main 브랜치만)
+  └─ Python SAST             └─ GHCR 푸시 + Trivy 재스캔
+```
+
+> **우회 금지 정책:** CI/CD 실패는 **절대** 파이프라인 설정을 수정하여 해결하지 않습니다. 근본 원인은 항상 소스 코드나 의존성에서 직접 수정합니다.
+
+---
+
+## 환경 설정
+
+| 환경 변수 | 기본값 | 설명 |
+|---|---|---|
+| `MCP_TRANSPORT` | `http` | 전송 모드: `stdio` 또는 `http` |
+| `REVERSECORE_WORKSPACE` | `/app/workspace` | 분석 워크스페이스 경로 |
+| `REVERSECORE_READ_DIRS` | `""` | 추가 읽기 전용 디렉토리 |
+| `LOG_LEVEL` | `INFO` | 로그 상세도 |
+| `MCP_API_KEY` | *(미설정)* | HTTP 모드용 API 키 (선택) |
+| `RATE_LIMIT` | `60` | 분당 최대 요청 수 (HTTP 모드) |
+
+---
+
+## 시스템 요구사항
+
+| 구성 요소 | 최소 | 권장 |
+|---|---|---|
+| CPU | 4코어 | 8코어 이상 |
+| RAM | 8 GB | 16 GB |
+| 저장소 | 20 GB | 50 GB SSD |
+| OS | Linux / macOS | Docker 환경 |
+
+---
+
+## 프로젝트 구조
 
 ```
 reversecore_mcp/
-├── core/                           # 인프라 및 서비스
-│   ├── config.py                   # 설정 관리
-│   ├── r2_helpers.py, r2_pool.py   # Radare2 연결 풀링
-│   ├── security.py                 # 경로 검증 및 입력 위생화
-│   ├── result.py                   # ToolSuccess/ToolError 응답 모델
-│   ├── metrics.py                  # 도구 실행 메트릭
-│   ├── report_generator.py         # 리포트 생성 서비스
-│   ├── plugin.py                   # 확장성을 위한 플러그인 인터페이스
-│   ├── decorators.py               # @log_execution, @track_metrics
-│   ├── error_handling.py           # @handle_tool_errors 데코레이터
-│   ├── logging_config.py           # 구조화된 로깅 설정
-│   ├── memory.py                   # AI 메모리 저장소 (비동기 SQLite)
-│   ├── mitre_mapper.py             # MITRE ATT&CK 프레임워크 매핑
-│   ├── resource_manager.py         # 서브프로세스 수명 주기 관리
-│   └── validators.py               # 입력 검증
+├── core/                    # 인프라
+│   ├── config.py            # 중앙 집중식 설정
+│   ├── exceptions.py        # 예외 계층구조 (RCMCP-E* 코드)
+│   ├── security.py          # 입력 살균 & 경로 검증
+│   ├── validators.py        # 파일 & 바이너리 경로 검증기
+│   ├── r2_pool.py           # Radare2 연결 풀
+│   ├── r2_helpers.py        # Radare2 헬퍼 유틸리티
+│   ├── metrics.py           # 도구 실행 메트릭
+│   ├── decorators.py        # @log_execution, @track_metrics
+│   ├── error_handling.py    # @handle_tool_errors
+│   ├── memory.py            # AI 메모리 저장소 (비동기 SQLite)
+│   ├── mitre_mapper.py      # MITRE ATT&CK 매핑
+│   └── sast/                # 소스 코드 스캐너
 │
-├── tools/                          # MCP 도구 구현
-│   ├── analysis/                   # 기본 분석 도구
-│   │   ├── static_analysis.py      # file, strings, binwalk
-│   │   ├── lief_tools.py           # PE/ELF/Mach-O 파싱
-│   │   ├── diff_tools.py           # 바이너리 비교
-│   │   └── signature_tools.py      # YARA 스캔
-│   │
-│   ├── radare2/                    # Radare2 & r2ghidra 통합
-│   │   ├── r2_analysis.py          # 핵심 r2 분석
-│   │   ├── r2ghidra_tools.py       # r2ghidra 디컴파일 및 분석
-│   │   ├── r2_db.py                # SQLite 어노테이션 데이터베이스
-│   │   ├── radare2_mcp_tools.py    # 고급 r2 도구 (CFG, ESIL)
-│   │   └── r2_session.py           # 세션 관리
-│   │
-│   ├── malware/                    # 악성코드 분석 및 방어
-│   │   ├── dormant_detector.py     # 숨겨진 위협 탐지
-│   │   ├── adaptive_vaccine.py     # 방어 생성
-│   │   ├── vulnerability_hunter.py # 취약점 탐지
-│   │   ├── ioc_tools.py            # IOC 추출
-│   │   └── yara_tools.py           # YARA 규칙 관리
-│   │
-│   ├── common/                     # 범용 관심사
-│   │   ├── file_operations.py      # 작업 공간 파일 관리
-│   │   ├── server_tools.py         # 헬스 체크, 메트릭
-│   │   └── memory_tools.py         # AI 메모리 작업
-│   │
-│   └── report/                     # 리포트 생성 (v3.1)
-│       ├── report_tools.py         # 핵심 리포트 엔진
-│       ├── report_mcp_tools.py     # MCP 도구 등록
-│       ├── session.py              # 분석 세션 추적
-│       └── email.py                # SMTP 통합
+├── tools/                   # MCP 도구 구현
+│   ├── analysis/            # 정적 분석, LIEF, diff, SAST
+│   ├── radare2/             # 디스어셈블리, 디컴파일, SQLite DB
+│   ├── malware/             # 위협 탐지 & 방어
+│   ├── forensics/           # 메모리, 디스크, 네트워크 포렌식
+│   ├── report/              # 보고서 생성 & 이메일
+│   └── common/              # 파일 작업, 서버 상태
 │
-├── prompts.py                      # AI 추론 프롬프트 (5가지 모드)
-├── resources.py                    # 동적 MCP 리소스 (reversecore:// URI)
-└── server.py                       # FastMCP 서버 초기화 및 HTTP 설정
+├── prompts/                 # AI 추론 프롬프트 (5가지 모드)
+├── resources.py             # 동적 MCP 리소스
+└── server.py                # FastMCP 서버 진입점
 ```
 
-## 🐳 Docker 배포
+---
 
-### 멀티 아키텍처 지원
+## 기여하기
 
-통합 `Dockerfile`이 시스템 아키텍처를 자동으로 감지합니다:
+1. 저장소를 포크하세요
+2. 기능 브랜치를 생성하세요 (`git checkout -b feat/my-feature`)
+3. 코드와 함께 테스트를 작성하세요
+4. `pytest`, `ruff check`, `mypy`, `bandit` 모두 통과 확인
+5. 풀 리퀘스트를 열어주세요
 
-| 아키텍처 | 자동 감지 | 지원 |
-|---------|-----------|------|
-| x86_64 (Intel/AMD) | ✅ | 완전 지원 |
-| ARM64 (Apple Silicon M1-M4) | ✅ | 완전 지원 |
+---
 
-### 실행 명령
+## 라이선스
 
-```bash
-# 편의 스크립트 사용 (아키텍처 자동 감지)
-./scripts/run-docker.sh              # 시작
-./scripts/run-docker.sh stop         # 중지
-./scripts/run-docker.sh logs         # 로그 보기
-./scripts/run-docker.sh shell        # 셸 접근
+MIT — 자세한 내용은 [LICENSE](LICENSE)를 참조하세요.
 
-# 수동 Docker 빌드 (모든 아키텍처에서 작동)
-docker build -t reversecore-mcp:latest .
+---
 
-# 또는 Docker Compose 사용
-docker compose up -d
-```
+<div align="center">
 
-### 환경 변수
+**[GitHub](https://github.com/sjkim1127/Reversecore_MCP)** · **[FastMCP 문서](https://github.com/jlowin/fastmcp)** · **[MCP 스펙](https://modelcontextprotocol.io/)**
 
-| 변수 | 기본값 | 설명 |
-|------|--------|------|
-| `MCP_TRANSPORT` | `http` | 전송 모드 (`stdio` 또는 `http`) |
-| `REVERSECORE_WORKSPACE` | `/app/workspace` | 분석 작업 공간 경로 |
-| `LOG_LEVEL` | `INFO` | 로깅 레벨 |
-| `REVERSECORE_SAST_RULES_PATH` | `""` | SAST 규칙을 정의한 커스텀 YAML 파일 경로 |
-
-## 🔒 보안
-
-- **쉘 주입 방지**: 모든 subprocess 호출은 리스트 인수 사용
-- **경로 검증**: 작업 공간으로 제한된 파일 접근
-- **입력 위생화**: 모든 매개변수 검증
-- **속도 제한**: 설정 가능한 요청 제한 (HTTP 모드)
-- **CI 검사**: Bandit(정적 분석), pip-audit(의존성 취약점), Gitleaks(시크릿 검사)
-
-## 🧪 개발
-
-```bash
-# 의존성 설치
-pip install -r requirements-dev.txt
-
-# 테스트 실행
-pytest tests/ -v
-
-# 커버리지와 함께 실행
-pytest tests/ --cov=reversecore_mcp --cov-fail-under=54
-
-# 코드 품질
-ruff check reversecore_mcp/
-black reversecore_mcp/
-```
-
-### 테스트 현황
-
-- ✅ **700+ 테스트 통과** (단위 + 통합)
-- 📊 **55% 커버리지** (CI 기준 54% 이상)
-- ⏱️ Bandit 보안 스캔, pip-audit 의존성 검사, pytest
-
-## 📚 API 참조
-
-### 도구 응답 형식
-
-모든 도구는 구조화된 `ToolResult`를 반환:
-
-```json
-{
-  "status": "success",
-  "data": "...",
-  "metadata": { "bytes_read": 1024 }
-}
-```
-
-```json
-{
-  "status": "error",
-  "error_code": "VALIDATION_ERROR",
-  "message": "파일을 찾을 수 없음",
-  "hint": "파일 경로 확인"
-}
-```
-
-### 주요 오류 코드
-
-| 코드 | 설명 |
-|------|------|
-| `VALIDATION_ERROR` | 잘못된 입력 매개변수 |
-| `TIMEOUT` | 작업이 시간 제한 초과 |
-| `PARSE_ERROR` | 도구 출력 파싱 실패 |
-| `TOOL_NOT_FOUND` | 필요한 CLI 도구 없음 |
-
-## 💻 시스템 요구 사항
-
-| 구성 요소 | 최소 | 권장 |
-|-----------|------|------|
-| **CPU** | 4코어 | 8코어 이상 |
-| **RAM** | 16 GB | 32 GB |
-| **저장 공간** | 512 GB SSD | 1 TB NVMe |
-| **OS** | Linux/macOS | Docker 환경 |
-
-## 🤝 기여
-
-1. 저장소 포크
-2. 기능 브랜치 생성
-3. 테스트와 함께 변경
-4. `pytest` 및 `ruff check` 실행
-5. 풀 리퀘스트 제출
-
-## 📄 라이선스
-
-MIT 라이선스 - 자세한 내용은 [LICENSE](LICENSE) 참조.
-
-## 🔗 링크
-
-- [GitHub 저장소](https://github.com/sjkim1127/Reversecore_MCP)
-- [FastMCP 문서](https://github.com/jlowin/fastmcp)
-- [MCP 프로토콜 사양](https://modelcontextprotocol.io/)
+</div>
