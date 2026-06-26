@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from reversecore_mcp.core.exceptions import ExecutionTimeoutError, ToolNotFoundError
+from reversecore_mcp.core.resource_manager import ResourceManager
 
 
 class TestExecuteSubprocessAsync:
@@ -16,7 +17,7 @@ class TestExecuteSubprocessAsync:
         """Execute a simple command successfully."""
         from reversecore_mcp.core.execution import execute_subprocess_async
 
-        with patch("reversecore_mcp.core.resource_manager.ResourceManager.track_pid"):
+        with patch.object(ResourceManager, "track_pid"):
             output, bytes_read = await execute_subprocess_async(
                 ["python", "-c", "print('hello')"],
                 timeout=10,
@@ -37,7 +38,7 @@ class TestExecuteSubprocessAsync:
         """Truncate output when exceeding max_output_size."""
         from reversecore_mcp.core.execution import execute_subprocess_async
 
-        with patch("reversecore_mcp.core.resource_manager.ResourceManager.track_pid"):
+        with patch.object(ResourceManager, "track_pid"):
             output, bytes_read = await execute_subprocess_async(
                 ["python", "-c", "print('x' * 1000)"],
                 max_output_size=100,
@@ -51,7 +52,7 @@ class TestExecuteSubprocessAsync:
         """Raise CalledProcessError on nonzero exit code."""
         from reversecore_mcp.core.execution import execute_subprocess_async
 
-        with patch("reversecore_mcp.core.resource_manager.ResourceManager.track_pid"):
+        with patch.object(ResourceManager, "track_pid"):
             with pytest.raises(subprocess.CalledProcessError):
                 await execute_subprocess_async(
                     ["python", "-c", "import sys; sys.exit(1)"],
@@ -63,7 +64,7 @@ class TestExecuteSubprocessAsync:
         """Raise ExecutionTimeoutError on timeout."""
         from reversecore_mcp.core.execution import execute_subprocess_async
 
-        with patch("reversecore_mcp.core.resource_manager.ResourceManager.track_pid"):
+        with patch.object(ResourceManager, "track_pid"):
             with pytest.raises(ExecutionTimeoutError):
                 await execute_subprocess_async(
                     ["python", "-c", "import time; time.sleep(10)"],
@@ -78,7 +79,7 @@ class TestExecuteSubprocessStreaming:
         """Execute a simple command via sync wrapper."""
         from reversecore_mcp.core.execution import execute_subprocess_streaming
 
-        with patch("reversecore_mcp.core.resource_manager.ResourceManager.track_pid"):
+        with patch.object(ResourceManager, "track_pid"):
             output, bytes_read = execute_subprocess_streaming(
                 ["python", "-c", "print('hello')"],
                 timeout=10,

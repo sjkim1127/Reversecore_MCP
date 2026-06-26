@@ -13,6 +13,8 @@ from reversecore_mcp.core import config
 from reversecore_mcp.core.config import Config
 from reversecore_mcp.core.resource_manager import ResourceManager, resource_manager
 
+resource_manager_mod = sys.modules["reversecore_mcp.core.resource_manager"]
+
 
 def _create_mock_config(workspace: Path) -> Config:
     """Helper to create a mock Config instance."""
@@ -181,8 +183,9 @@ class TestResourceManager:
         """_reap_zombies handles ChildProcessError and removes PID from tracked."""
         manager = ResourceManager()
         manager._tracked_pids.add(99999)
-        with patch(
-            "reversecore_mcp.core.resource_manager.waitpid",
+        with patch.object(
+            resource_manager_mod,
+            "waitpid",
             side_effect=ChildProcessError,
         ):
             manager._reap_zombies()
@@ -193,8 +196,9 @@ class TestResourceManager:
         """_reap_zombies handles generic Exception for a PID and does not crash."""
         manager = ResourceManager()
         manager._tracked_pids.add(88888)
-        with patch(
-            "reversecore_mcp.core.resource_manager.waitpid",
+        with patch.object(
+            resource_manager_mod,
+            "waitpid",
             side_effect=PermissionError("denied"),
         ):
             manager._reap_zombies()
@@ -285,7 +289,7 @@ class TestResourceManager:
         assert 12345 in manager._tracked_pids
 
         # Mock waitpid to return the PID (as if it was a zombie and successfully reaped)
-        with patch("reversecore_mcp.core.resource_manager.waitpid", return_value=(12345, 0)):
+        with patch.object(resource_manager_mod, "waitpid", return_value=(12345, 0)):
             manager._reap_zombies()
 
         # The PID should have been removed from tracked
@@ -294,7 +298,7 @@ class TestResourceManager:
     def test_reap_zombies_empty_tracked(self):
         """Test _reap_zombies returns early when tracked_pids is empty."""
         manager = ResourceManager()
-        with patch("reversecore_mcp.core.resource_manager.waitpid") as mock_waitpid:
+        with patch.object(resource_manager_mod, "waitpid") as mock_waitpid:
             manager._reap_zombies()
             mock_waitpid.assert_not_called()
 

@@ -75,25 +75,15 @@ class TestEmulateBinary:
 
     @pytest.mark.asyncio
     @patch("reversecore_mcp.tools.analysis.emulation_tools.validate_file_path")
-    @patch("builtins.__import__")
-    async def test_emulate_binary_qiling_not_installed(self, mock_import, mock_validate_file_path):
+    async def test_emulate_binary_qiling_not_installed(self, mock_validate_file_path):
         """Test emulation fails gracefully when Qiling is not installed."""
         mock_validate_file_path.return_value = Path("/app/workspace/sample.elf")
 
-        # Set up fallback import mock to allow other packages to import, but qiling to fail
-        original_import = __import__
-
-        def fallback_import(name, *args, **kwargs):
-            if name == "qiling":
-                raise ImportError("No module named 'qiling'")
-            return original_import(name, *args, **kwargs)
-
-        mock_import.side_effect = fallback_import
-
-        result = await emulate_binary("sample.elf")
-        assert result.status == "error"
-        assert result.error_code == "EMULATION_ERROR"
-        assert "Qiling framework is not installed" in result.message
+        with patch.dict("sys.modules", {"qiling": None}):
+            result = await emulate_binary("sample.elf")
+            assert result.status == "error"
+            assert result.error_code == "EMULATION_ERROR"
+            assert "Qiling framework is not installed" in result.message
 
     @pytest.mark.asyncio
     @patch("reversecore_mcp.tools.analysis.emulation_tools.validate_file_path")

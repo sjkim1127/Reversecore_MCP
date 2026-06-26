@@ -1,13 +1,16 @@
 """Unit tests for R2ConnectionPool."""
 
 import asyncio
+import sys
 import threading
 import time
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from reversecore_mcp.core.r2_pool import R2ConnectionPool, R2PoolTimeout
+from reversecore_mcp.core.r2_pool import R2ConnectionPool
+
+r2_pool_mod = sys.modules["reversecore_mcp.core.r2_pool"]
 
 
 class TestR2ConnectionPoolInit:
@@ -199,7 +202,7 @@ class TestR2ConnectionPoolGetConnection:
     def test_r2pipe_not_installed(self):
         """Should raise ImportError when r2pipe missing."""
         pool = R2ConnectionPool()
-        with patch("reversecore_mcp.core.r2_pool.r2pipe", None):
+        with patch.object(r2_pool_mod, "r2pipe", None):
             with pytest.raises(ImportError, match="r2pipe is not installed"):
                 pool.get_connection("/app/test.bin")
 
@@ -210,7 +213,7 @@ class TestR2ConnectionPoolGetConnection:
         mock_r2.cmd = MagicMock(return_value="0x0")
         pool._pool["/app/test.bin"] = mock_r2
         pool._last_health_check["/app/test.bin"] = time.time()
-        with patch("reversecore_mcp.core.r2_pool.r2pipe"):
+        with patch.object(r2_pool_mod, "r2pipe"):
             result = pool.get_connection("/app/test.bin")
             assert result is mock_r2
             assert pool._stats["cache_hits"] == 1
@@ -219,7 +222,7 @@ class TestR2ConnectionPoolGetConnection:
         """Should create new connection on cache miss."""
         pool = R2ConnectionPool()
         mock_r2 = MagicMock()
-        with patch("reversecore_mcp.core.r2_pool.r2pipe") as mock_r2pipe:
+        with patch.object(r2_pool_mod, "r2pipe") as mock_r2pipe:
             mock_r2pipe.open = MagicMock(return_value=mock_r2)
             result = pool.get_connection("/app/test.bin")
             assert result is mock_r2
@@ -232,7 +235,7 @@ class TestR2ConnectionPoolGetConnection:
         old_r2 = MagicMock()
         new_r2 = MagicMock()
         pool._pool["/app/old.bin"] = old_r2
-        with patch("reversecore_mcp.core.r2_pool.r2pipe") as mock_r2pipe:
+        with patch.object(r2_pool_mod, "r2pipe") as mock_r2pipe:
             mock_r2pipe.open = MagicMock(return_value=new_r2)
             pool.get_connection("/app/new.bin")
         assert "/app/old.bin" not in pool._pool
@@ -245,7 +248,7 @@ class TestR2ConnectionPoolGetConnection:
         old_r2.cmd = MagicMock(side_effect=RuntimeError("stale"))
         new_r2 = MagicMock()
         pool._pool["/app/test.bin"] = old_r2
-        with patch("reversecore_mcp.core.r2_pool.r2pipe") as mock_r2pipe:
+        with patch.object(r2_pool_mod, "r2pipe") as mock_r2pipe:
             mock_r2pipe.open = MagicMock(return_value=new_r2)
             result = pool.get_connection("/app/test.bin")
             assert result is new_r2
@@ -261,7 +264,7 @@ class TestR2ConnectionPoolExecute:
         mock_r2.cmd = MagicMock(return_value="result")
         pool._pool["/app/test.bin"] = mock_r2
         pool._last_health_check["/app/test.bin"] = time.time()
-        with patch("reversecore_mcp.core.r2_pool.r2pipe"):
+        with patch.object(r2_pool_mod, "r2pipe"):
             result = pool.execute("/app/test.bin", "pdf")
             assert result == "result"
 
@@ -270,7 +273,7 @@ class TestR2ConnectionPoolExecute:
         pool = R2ConnectionPool()
         mock_r2 = MagicMock()
         mock_r2.cmd = MagicMock(side_effect=[RuntimeError("fail"), "success"])
-        with patch.object(pool, "get_connection", return_value=mock_r2) as mock_get:
+        with patch.object(pool, "get_connection", return_value=mock_r2):
             result = pool.execute("/app/test.bin", "pdf")
             assert result == "success"
             assert pool._stats["reconnections"] == 1
@@ -280,7 +283,7 @@ class TestR2ConnectionPoolExecute:
         pool = R2ConnectionPool()
         mock_r2 = MagicMock()
         mock_r2.cmd = MagicMock(side_effect=RuntimeError("fail"))
-        with patch.object(pool, "get_connection", return_value=mock_r2) as mock_get:
+        with patch.object(pool, "get_connection", return_value=mock_r2):
             with pytest.raises(RuntimeError):
                 pool.execute("/app/test.bin", "pdf")
 
@@ -296,7 +299,7 @@ class TestR2ConnectionPoolAsync:
         mock_r2.cmd = MagicMock(return_value="async result")
         pool._pool["/app/test.bin"] = mock_r2
         pool._last_health_check["/app/test.bin"] = time.time()
-        with patch("reversecore_mcp.core.r2_pool.r2pipe"):
+        with patch.object(r2_pool_mod, "r2pipe"):
             result = await pool.execute_async("/app/test.bin", "pdf")
             assert result == "async result"
 
@@ -307,7 +310,7 @@ class TestR2ConnectionPoolAsync:
         mock_r2 = MagicMock()
         pool._pool["/app/test.bin"] = mock_r2
         pool._last_health_check["/app/test.bin"] = time.time()
-        with patch("reversecore_mcp.core.r2_pool.r2pipe"):
+        with patch.object(r2_pool_mod, "r2pipe"):
             async with pool.async_session("/app/test.bin") as r2:
                 assert r2 is mock_r2
 
@@ -318,9 +321,9 @@ class TestR2ConnectionPoolAsync:
         mock_r2 = MagicMock()
         pool._pool["/app/test.bin"] = mock_r2
         pool._last_health_check["/app/test.bin"] = time.time()
-        with patch("reversecore_mcp.core.r2_pool.r2pipe"):
+        with patch.object(r2_pool_mod, "r2pipe"):
             with pytest.raises(RuntimeError):
-                async with pool.async_session("/app/test.bin") as r2:
+                async with pool.async_session("/app/test.bin"):
                     raise RuntimeError("session error")
         assert "/app/test.bin" not in pool._pool
 
@@ -334,7 +337,7 @@ class TestR2ConnectionPoolSyncSession:
         mock_r2 = MagicMock()
         pool._pool["/app/test.bin"] = mock_r2
         pool._last_health_check["/app/test.bin"] = time.time()
-        with patch("reversecore_mcp.core.r2_pool.r2pipe"):
+        with patch.object(r2_pool_mod, "r2pipe"):
             with pool.sync_session("/app/test.bin") as r2:
                 assert r2 is mock_r2
 
@@ -344,9 +347,9 @@ class TestR2ConnectionPoolSyncSession:
         mock_r2 = MagicMock()
         pool._pool["/app/test.bin"] = mock_r2
         pool._last_health_check["/app/test.bin"] = time.time()
-        with patch("reversecore_mcp.core.r2_pool.r2pipe"):
+        with patch.object(r2_pool_mod, "r2pipe"):
             with pytest.raises(RuntimeError):
-                with pool.sync_session("/app/test.bin") as r2:
+                with pool.sync_session("/app/test.bin"):
                     raise RuntimeError("session error")
         assert "/app/test.bin" not in pool._pool
 

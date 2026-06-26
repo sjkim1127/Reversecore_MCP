@@ -338,7 +338,10 @@ class TestLazySingletonAfterInit:
                 coro.close()
                 return MagicMock()
 
-            with patch("reversecore_mcp.core.container.create_task", fake_create_task):
+            import sys
+
+            container_mod = sys.modules["reversecore_mcp.core.container"]
+            with patch.object(container_mod, "create_task", fake_create_task):
                 svc = c.get("very_late")
             assert isinstance(svc, LateService)
 

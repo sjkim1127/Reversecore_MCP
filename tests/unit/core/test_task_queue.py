@@ -16,10 +16,12 @@ from reversecore_mcp.core.task_queue import (
 
 
 @pytest.mark.asyncio
-async def test_run_task_or_fallback_redis_disabled():
+async def test_run_task_or_fallback_redis_disabled(patched_config):
     mock_fallback = AsyncMock(return_value=success("fallback result"))
 
-    with patch("reversecore_mcp.core.task_queue.get_arq_pool", return_value=None):
+    with patch(
+        "reversecore_mcp.core.task_queue.get_arq_pool", new_callable=AsyncMock, return_value=None
+    ):
         # Should directly call fallback
         result = await run_task_or_fallback(
             "task_smart_decompile",
@@ -33,8 +35,8 @@ async def test_run_task_or_fallback_redis_disabled():
 
 
 @pytest.mark.asyncio
-async def test_run_task_or_fallback_enqueue_and_await():
-    mock_fallback = AsyncMock()
+async def test_run_task_or_fallback_enqueue_and_await(patched_config):
+    mock_fallback = AsyncMock(return_value=success("fallback result"))
     mock_job = AsyncMock()
     mock_job.job_id = "fake-job-id"
     mock_job.result.return_value = success("queued result")
@@ -42,7 +44,11 @@ async def test_run_task_or_fallback_enqueue_and_await():
     mock_pool = AsyncMock()
     mock_pool.enqueue_job.return_value = mock_job
 
-    with patch("reversecore_mcp.core.task_queue.get_arq_pool", return_value=mock_pool):
+    with patch(
+        "reversecore_mcp.core.task_queue.get_arq_pool",
+        new_callable=AsyncMock,
+        return_value=mock_pool,
+    ):
         # 1. Sync mode (default) -> enqueues and waits for result
         result = await run_task_or_fallback(
             "task_smart_decompile",
@@ -72,7 +78,7 @@ async def test_run_task_or_fallback_enqueue_and_await():
 
 
 @pytest.mark.asyncio
-async def test_get_job_result_tool():
+async def test_get_job_result_tool(patched_config):
     mock_pool = AsyncMock()
     mock_job = MagicMock()
 
@@ -82,7 +88,11 @@ async def test_get_job_result_tool():
 
     # Patch Job instantiation
     with (
-        patch("reversecore_mcp.core.task_queue.get_arq_pool", return_value=mock_pool),
+        patch(
+            "reversecore_mcp.core.task_queue.get_arq_pool",
+            new_callable=AsyncMock,
+            return_value=mock_pool,
+        ),
         patch("reversecore_mcp.core.task_queue.Job", return_value=mock_job),
     ):
         # Test complete status
@@ -107,7 +117,7 @@ async def test_get_job_result_tool():
 
 
 @pytest.mark.asyncio
-async def test_worker_proxy_handlers():
+async def test_worker_proxy_handlers(patched_config):
     # 1. task_smart_decompile
     with patch(
         "reversecore_mcp.tools.radare2.r2ghidra_tools.r2_decompile", new_callable=AsyncMock
