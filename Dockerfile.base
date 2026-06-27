@@ -84,6 +84,8 @@ RUN git clone --depth 1 --branch ${R2GHIDRA_VERSION} \
     && cd /tmp/r2ghidra \
     && PKG_CONFIG_PATH="/opt/radare2/lib/pkgconfig" ./configure --prefix=/opt/radare2 \
     && make -C subprojects \
+    && ls -la Makefile \
+    && file Makefile \
     && make -j2 \
     && make install \
     && rm -rf /tmp/r2ghidra
