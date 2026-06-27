@@ -82,10 +82,9 @@ ARG R2GHIDRA_VERSION=6.0.4
 RUN git clone --depth 1 --branch ${R2GHIDRA_VERSION} \
         https://github.com/radareorg/r2ghidra.git /tmp/r2ghidra \
     && cd /tmp/r2ghidra \
+    && sed -i 's/VPATH=.dirname.*/VPATH=./' configure \
     && PKG_CONFIG_PATH="/opt/radare2/lib/pkgconfig" ./configure --prefix=/opt/radare2 \
     && make -C subprojects \
-    && ls -la Makefile \
-    && file Makefile \
     && make -j2 \
     && make install \
     && rm -rf /tmp/r2ghidra
