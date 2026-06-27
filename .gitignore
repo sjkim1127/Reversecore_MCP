@@ -51,3 +51,6 @@ build/
 
 # Vendor sources (cloned locally for reference, do not commit)
 vendor/
+
+# MkDocs build output (generated, never commit)
+site/
