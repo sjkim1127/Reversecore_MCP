@@ -7,6 +7,7 @@ from typing import Any
 
 from fastmcp import Context
 
+from reversecore_mcp.core import json_utils as json
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
 from reversecore_mcp.core.logging_config import get_logger
@@ -66,7 +67,10 @@ async def explain_patch(
             message=f"Binary diff failed: {diff_result.message}",
         )
 
-    changes = diff_result.data.get("changes", [])
+    diff_data = (
+        json.loads(diff_result.data) if isinstance(diff_result.data, str) else diff_result.data
+    )
+    changes = diff_data.get("changes", []) if diff_data else []
     if not changes:
         return success(
             {

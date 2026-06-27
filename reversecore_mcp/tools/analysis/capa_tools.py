@@ -137,14 +137,16 @@ async def run_capa(file_path: str, output_format: str = "summary"):
             "collection",
             "command-and-control",
             "defense-evasion",
+            "execution",
             "exfiltration",
             "impact",
             "persistence",
         ]
 
-        high_risk_count = sum(
-            result["summary"]["namespaces"].get(ns, 0) for ns in high_risk_namespaces
-        )
+        high_risk_count = 0
+        for ns_name, count in result["summary"]["namespaces"].items():
+            if any(ns_name.startswith(hr_ns) or hr_ns in ns_name for hr_ns in high_risk_namespaces):
+                high_risk_count += count
 
         message = f"Detected {len(capabilities)} capabilities"
         if high_risk_count > 0:
@@ -193,10 +195,10 @@ async def run_capa_quick(file_path: str):
         "collection",
         "command-and-control",
         "defense-evasion",
+        "execution",
         "exfiltration",
         "impact",
         "persistence",
-        "execution",
     }
 
     filtered_caps = [

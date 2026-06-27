@@ -4,7 +4,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from reversecore_mcp.tools.common.memory_tools import MemoryToolsPlugin, register_memory_tools
+from reversecore_mcp.tools.common.memory_tools import (
+    MemoryToolsPlugin,
+    register_memory_tools,
+)
 
 
 class TestMemoryToolsPlugin:
@@ -21,13 +24,20 @@ class TestMemoryToolsPlugin:
         store.get_session = AsyncMock(return_value={"name": "test_session"})
         store.list_sessions = AsyncMock(return_value=[{"id": "session_123"}])
         store.recall_memories = AsyncMock(return_value=[{"content": "test"}])
+        store.get_session_context = AsyncMock()
+        store.update_session = AsyncMock()
+        store.find_latest_session = AsyncMock()
+        store.save_pattern = AsyncMock()
+        store.find_similar_patterns = AsyncMock()
+        store.get_relevant_context = AsyncMock()
         return store
 
     @pytest.fixture
     def plugin(self, mock_store):
         """Create plugin with mocked store."""
         with patch(
-            "reversecore_mcp.tools.common.memory_tools.get_memory_store", return_value=mock_store
+            "reversecore_mcp.tools.common.memory_tools.get_memory_store",
+            return_value=mock_store,
         ):
             p = MemoryToolsPlugin()
             yield p
@@ -95,12 +105,468 @@ class TestMemoryToolsPlugin:
         assert result["status"] == "success"
         assert result["binary_hash"] is not None
 
+    @pytest.mark.asyncio
+    async def test_list_memory_sessions(self, plugin, mock_mcp, mock_store):
+        """Test list_memory_sessions tool."""
+        mock_store.list_sessions.return_value = [
+            {"id": "session_123", "analysis_duration_seconds": 3660}
+        ]
+        plugin.register(mock_mcp)
+        list_sessions = mock_mcp.tools["list_memory_sessions"]
+
+        result = await list_sessions(status="in_progress", limit=5)
+
+        mock_store.list_sessions.assert_called_once_with(status="in_progress", limit=5)
+        assert result["status"] == "success"
+        assert result["count"] == 1
+        assert result["sessions"][0]["analysis_duration_formatted"] == "1h 1m"
+
+    @pytest.mark.asyncio
+    async def test_get_memory_session_detail(self, plugin, mock_mcp, mock_store):
+        """Test get_memory_session_detail tool."""
+        mock_store.get_session_context.return_value = {
+            "session": {"id": "session_123"},
+            "memories": [{"id": "m1"}],
+            "patterns": [{"id": "p1"}],
+            "memory_count": 1,
+            "pattern_count": 1,
+        }
+        plugin.register(mock_mcp)
+        get_detail = mock_mcp.tools["get_memory_session_detail"]
+
+        result = await get_detail(session_id="session_123")
+
+        mock_store.get_session_context.assert_called_once_with("session_123")
+        assert result["status"] == "success"
+        assert result["session"] == {"id": "session_123"}
+        assert result["memories"] == [{"id": "m1"}]
+        assert result["patterns"] == [{"id": "p1"}]
+        assert result["summary"] == {"memory_count": 1, "pattern_count": 1}
+
+    @pytest.mark.asyncio
+    async def test_get_memory_session_detail_not_found(self, plugin, mock_mcp, mock_store):
+        """Test get_memory_session_detail tool when session is not found."""
+        mock_store.get_session_context.return_value = {}
+        plugin.register(mock_mcp)
+        get_detail = mock_mcp.tools["get_memory_session_detail"]
+
+        result = await get_detail(session_id="nonexistent")
+
+        mock_store.get_session_context.assert_called_once_with("nonexistent")
+        assert result["status"] == "error"
+        assert "not found" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_resume_memory_session_by_id(self, plugin, mock_mcp, mock_store):
+        """Test resume_memory_session tool with session_id."""
+        mock_store.get_session.return_value = {
+            "id": "session_123",
+            "name": "test_session",
+        }
+        mock_store.update_session.return_value = True
+        mock_store.get_session_context.return_value = {
+            "session": {"id": "session_123"},
+            "memories": [
+                {"memory_type": "instruction", "content": "inst"},
+                {"memory_type": "finding", "content": "finding"},
+            ],
+            "patterns": [],
+            "memory_count": 2,
+        }
+        plugin.register(mock_mcp)
+        resume_session = mock_mcp.tools["resume_memory_session"]
+
+        result = await resume_session(session_id="session_123")
+
+        mock_store.get_session.assert_called_once_with("session_123")
+        mock_store.update_session.assert_called_once_with("session_123", status="in_progress")
+        mock_store.get_session_context.assert_called_once_with("session_123")
+        assert result["status"] == "success"
+        assert result["session"] == {"id": "session_123"}
+        assert len(result["instructions"]) == 1
+        assert result["instructions"][0]["memory_type"] == "instruction"
+
+    @pytest.mark.asyncio
+    async def test_resume_memory_session_by_binary(self, plugin, mock_mcp, mock_store):
+        """Test resume_memory_session tool with binary_name."""
+        mock_store.find_latest_session.return_value = {
+            "id": "session_456",
+            "name": "latest_session",
+        }
+        mock_store.update_session.return_value = True
+        mock_store.get_session_context.return_value = {
+            "session": {"id": "session_456"},
+            "memories": [],
+            "patterns": [],
+            "memory_count": 0,
+        }
+        plugin.register(mock_mcp)
+        resume_session = mock_mcp.tools["resume_memory_session"]
+
+        result = await resume_session(binary_name="test.exe")
+
+        mock_store.find_latest_session.assert_called_once_with("test.exe")
+        mock_store.update_session.assert_called_once_with("session_456", status="in_progress")
+        mock_store.get_session_context.assert_called_once_with("session_456")
+        assert result["status"] == "success"
+
+    @pytest.mark.asyncio
+    async def test_resume_memory_session_not_found(self, plugin, mock_mcp, mock_store):
+        """Test resume_memory_session tool when no session is found."""
+        mock_store.get_session.return_value = None
+        plugin.register(mock_mcp)
+        resume_session = mock_mcp.tools["resume_memory_session"]
+
+        result = await resume_session(session_id="nonexistent")
+
+        mock_store.get_session.assert_called_once_with("nonexistent")
+        assert result["status"] == "error"
+        assert "No session found" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_complete_memory_session(self, plugin, mock_mcp, mock_store):
+        """Test complete_memory_session tool."""
+        mock_store.update_session.return_value = True
+        plugin.register(mock_mcp)
+        complete_session = mock_mcp.tools["complete_memory_session"]
+
+        result = await complete_session(
+            session_id="session_123", summary="analysis completed successfully"
+        )
+
+        mock_store.update_session.assert_called_once_with(
+            session_id="session_123",
+            status="completed",
+            summary="analysis completed successfully",
+        )
+        assert result["status"] == "success"
+        assert result["summary"] == "analysis completed successfully"
+
+    @pytest.mark.asyncio
+    async def test_complete_memory_session_not_found(self, plugin, mock_mcp, mock_store):
+        """Test complete_memory_session tool when session is not found."""
+        mock_store.update_session.return_value = False
+        plugin.register(mock_mcp)
+        complete_session = mock_mcp.tools["complete_memory_session"]
+
+        result = await complete_session(session_id="nonexistent", summary="summary")
+
+        assert result["status"] == "error"
+        assert "not found" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_save_pattern(self, plugin, mock_mcp, mock_store):
+        """Test save_pattern tool."""
+        mock_store.save_pattern.return_value = 101
+        plugin.register(mock_mcp)
+        save_pattern_tool = mock_mcp.tools["save_pattern"]
+
+        result = await save_pattern_tool(
+            session_id="session_123",
+            pattern_type="api_sequence",
+            pattern_signature="VirtualAlloc,WriteProcessMemory",
+            description="inject code",
+        )
+
+        mock_store.save_pattern.assert_called_once_with(
+            session_id="session_123",
+            pattern_type="api_sequence",
+            pattern_signature="VirtualAlloc,WriteProcessMemory",
+            description="inject code",
+        )
+        assert result["status"] == "success"
+        assert result["pattern_id"] == 101
+
+    @pytest.mark.asyncio
+    async def test_find_similar_patterns(self, plugin, mock_mcp, mock_store):
+        """Test find_similar_patterns tool."""
+        mock_store.find_similar_patterns.return_value = [
+            {
+                "id": 101,
+                "pattern_signature": "VirtualAlloc,WriteProcessMemory",
+                "session_name": "prev_session",
+            }
+        ]
+        plugin.register(mock_mcp)
+        find_similar = mock_mcp.tools["find_similar_patterns"]
+
+        result = await find_similar(
+            pattern_signature="VirtualAlloc,WriteProcessMemory",
+            pattern_type="api_sequence",
+            current_session_id="session_123",
+            limit=5,
+        )
+
+        mock_store.find_similar_patterns.assert_called_once_with(
+            pattern_signature="VirtualAlloc,WriteProcessMemory",
+            pattern_type="api_sequence",
+            exclude_session="session_123",
+            limit=5,
+        )
+        assert result["status"] == "success"
+        assert result["count"] == 1
+        assert "Found 1 similar patterns" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_find_similar_patterns_none(self, plugin, mock_mcp, mock_store):
+        """Test find_similar_patterns tool when no similar pattern is found."""
+        mock_store.find_similar_patterns.return_value = []
+        plugin.register(mock_mcp)
+        find_similar = mock_mcp.tools["find_similar_patterns"]
+
+        result = await find_similar(pattern_signature="VirtualAlloc,WriteProcessMemory")
+
+        assert result["status"] == "success"
+        assert result["count"] == 0
+        assert "No similar patterns found" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_get_relevant_context(self, plugin, mock_mcp, mock_store):
+        """Test get_relevant_context tool."""
+        mock_store.get_relevant_context.return_value = [{"id": 1, "content": "relevant finding"}]
+        plugin.register(mock_mcp)
+        get_context = mock_mcp.tools["get_relevant_context"]
+
+        result = await get_context(
+            description="process hollowing analysis",
+            current_session_id="session_123",
+            limit=3,
+        )
+
+        mock_store.get_relevant_context.assert_called_once_with(
+            current_analysis="process hollowing analysis",
+            current_session_id="session_123",
+            limit=3,
+        )
+        assert result["status"] == "success"
+        assert result["count"] == 1
+        assert "Found 1 relevant memories" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_get_relevant_context_none(self, plugin, mock_mcp, mock_store):
+        """Test get_relevant_context tool when no context is found."""
+        mock_store.get_relevant_context.return_value = []
+        plugin.register(mock_mcp)
+        get_context = mock_mcp.tools["get_relevant_context"]
+
+        result = await get_context(description="process hollowing analysis")
+
+        assert result["status"] == "success"
+        assert result["count"] == 0
+        assert "No relevant past context found" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_update_memory_session_time(self, plugin, mock_mcp, mock_store):
+        """Test update_memory_session_time tool."""
+        mock_store.update_session.return_value = True
+        plugin.register(mock_mcp)
+        update_time = mock_mcp.tools["update_memory_session_time"]
+
+        result = await update_time(session_id="session_123", duration_seconds=120.5)
+
+        mock_store.update_session.assert_called_once_with(
+            session_id="session_123", add_duration=120.5
+        )
+        assert result["status"] == "success"
+        assert "Added 120.5s to analysis time" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_update_memory_session_time_error(self, plugin, mock_mcp, mock_store):
+        """Test update_memory_session_time tool error handling."""
+        mock_store.update_session.return_value = False
+        plugin.register(mock_mcp)
+        update_time = mock_mcp.tools["update_memory_session_time"]
+
+        result = await update_time(session_id="session_123", duration_seconds=120.5)
+
+        assert result["status"] == "error"
+
+    @pytest.mark.asyncio
+    async def test_create_memory_session_with_binary_hash_failure(self, plugin, mock_mcp):
+        """Test session creation when binary hashing fails."""
+        plugin.register(mock_mcp)
+        create_session = mock_mcp.tools["create_memory_session"]
+        with (
+            patch(
+                "reversecore_mcp.tools.common.memory_tools.Path.exists",
+                return_value=True,
+            ),
+            patch(
+                "reversecore_mcp.tools.common.memory_tools.Path.read_bytes",
+                side_effect=OSError("Read error"),
+            ),
+        ):
+            result = await create_session(
+                name="test",
+                binary_path="some_fake_path.exe",
+            )
+        assert result["status"] == "success"
+        assert result["binary_hash"] is None
+
+    @pytest.mark.asyncio
+    async def test_db_initialization_failure(self, plugin, mock_mcp, mock_store):
+        """Test DB initialization failure propagates as error."""
+        import sqlite3
+
+        mock_store.initialize.side_effect = sqlite3.OperationalError("Unable to open database file")
+        plugin.register(mock_mcp)
+
+        list_sessions = mock_mcp.tools["list_memory_sessions"]
+        with pytest.raises(sqlite3.OperationalError) as excinfo:
+            await list_sessions()
+        assert "Unable to open database file" in str(excinfo.value)
+
+    @pytest.mark.asyncio
+    async def test_resume_memory_session_missing_id_key(self, plugin, mock_mcp, mock_store):
+        """Test resume_memory_session tool when session dict is missing 'id' key."""
+        mock_store.get_session.return_value = {
+            "name": "test_session",
+            # "id" is missing
+        }
+        plugin.register(mock_mcp)
+        resume_session = mock_mcp.tools["resume_memory_session"]
+
+        with pytest.raises(KeyError):
+            await resume_session(session_id="session_123")
+
+    @pytest.mark.asyncio
+    async def test_resume_memory_session_missing_name_key(self, plugin, mock_mcp, mock_store):
+        """Test resume_memory_session tool when session dict is missing 'name' key."""
+        mock_store.get_session.return_value = {
+            "id": "session_123",
+            # "name" is missing
+        }
+        mock_store.update_session.return_value = True
+        mock_store.get_session_context.return_value = {
+            "session": {"id": "session_123"},
+            "memories": [],
+            "patterns": [],
+            "memory_count": 0,
+        }
+        plugin.register(mock_mcp)
+        resume_session = mock_mcp.tools["resume_memory_session"]
+
+        with pytest.raises(KeyError):
+            await resume_session(session_id="session_123")
+
+    @pytest.mark.asyncio
+    async def test_resume_memory_session_missing_context_memories(
+        self, plugin, mock_mcp, mock_store
+    ):
+        """Test resume_memory_session tool when context dict is missing 'memories' key."""
+        mock_store.get_session.return_value = {
+            "id": "session_123",
+            "name": "test_session",
+        }
+        mock_store.update_session.return_value = True
+        mock_store.get_session_context.return_value = {
+            "session": {"id": "session_123"},
+            "patterns": [],
+            "memory_count": 0,
+            # "memories" is missing
+        }
+        plugin.register(mock_mcp)
+        resume_session = mock_mcp.tools["resume_memory_session"]
+
+        with pytest.raises(KeyError):
+            await resume_session(session_id="session_123")
+
+    @pytest.mark.asyncio
+    async def test_get_memory_session_detail_missing_context_keys(
+        self, plugin, mock_mcp, mock_store
+    ):
+        """Test get_memory_session_detail tool when context dict is missing keys."""
+        mock_store.get_session_context.return_value = {
+            "session": {"id": "session_123"},
+            # other keys missing
+        }
+        plugin.register(mock_mcp)
+        get_detail = mock_mcp.tools["get_memory_session_detail"]
+
+        with pytest.raises(KeyError):
+            await get_detail(session_id="session_123")
+
+    @pytest.mark.asyncio
+    async def test_create_memory_session_name_none(self, plugin, mock_mcp, mock_store):
+        """Test create_memory_session when name is None."""
+        import sqlite3
+
+        async def mock_create_session(name, binary_name=None, binary_hash=None):
+            if name is None:
+                raise sqlite3.IntegrityError("NOT NULL constraint failed: analysis_sessions.name")
+            return "session_123"
+
+        mock_store.create_session.side_effect = mock_create_session
+
+        plugin.register(mock_mcp)
+        create_session = mock_mcp.tools["create_memory_session"]
+
+        with pytest.raises(sqlite3.IntegrityError):
+            await create_session(name=None)
+
+    @pytest.mark.asyncio
+    async def test_create_memory_session_with_directory_path(self, plugin, mock_mcp, tmp_path):
+        """Test session creation when binary_path is a directory."""
+        plugin.register(mock_mcp)
+        create_session = mock_mcp.tools["create_memory_session"]
+        result = await create_session(
+            name="test",
+            binary_path=str(tmp_path),
+        )
+        assert result["status"] == "success"
+        assert result["binary_hash"] is None
+
+    @pytest.mark.asyncio
+    async def test_save_memory_item_invalid_importance(self, plugin, mock_mcp, mock_store):
+        """Test save_memory_item with invalid importance value."""
+        plugin.register(mock_mcp)
+        save_memory = mock_mcp.tools["save_memory_item"]
+        mock_store.save_memory.side_effect = ValueError("importance must be an integer")
+
+        with pytest.raises(ValueError):
+            await save_memory(
+                session_id="session_123",
+                memory_type="finding",
+                content="test content",
+                importance="high",
+            )
+
 
 class TestRegisterMemoryTools:
     """Tests for register_memory_tools."""
 
     def test_registration(self):
         mock_mcp = MagicMock()
+        mock_mcp.tools = {}
+
+        def tool_decorator(*args, **kwargs):
+            if args and callable(args[0]):
+                mock_mcp.tools[args[0].__name__] = args[0]
+                return args[0]
+
+            def decorator(func):
+                mock_mcp.tools[func.__name__] = func
+                return func
+
+            return decorator
+
+        mock_mcp.tool = tool_decorator
+
         register_memory_tools(mock_mcp)
-        # plugin.register calls mcp.tool() 11 times
-        assert mock_mcp.tool.call_count == 11
+
+        expected_tools = {
+            "create_memory_session",
+            "save_memory_item",
+            "recall_memory_item",
+            "list_memory_sessions",
+            "get_memory_session_detail",
+            "resume_memory_session",
+            "complete_memory_session",
+            "save_pattern",
+            "find_similar_patterns",
+            "get_relevant_context",
+            "update_memory_session_time",
+        }
+
+        assert set(mock_mcp.tools.keys()) == expected_tools
+        assert len(mock_mcp.tools) == 11

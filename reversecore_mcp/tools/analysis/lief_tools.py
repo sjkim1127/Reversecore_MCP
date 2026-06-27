@@ -43,6 +43,29 @@ def _extract_mitigations(binary: Any) -> dict[str, Any]:
     try:
         import lief
 
+        # Compatibility aliases for newer LIEF versions (0.14+)
+        if (
+            not hasattr(lief.ELF, "DYNAMIC_TAGS")
+            and hasattr(lief.ELF, "DynamicEntry")
+            and hasattr(lief.ELF.DynamicEntry, "TAG")
+        ):
+            lief.ELF.DYNAMIC_TAGS = lief.ELF.DynamicEntry.TAG
+        if not hasattr(lief.ELF, "DYNAMIC_FLAGS") and hasattr(lief.ELF.DynamicEntryFlags, "FLAG"):
+            lief.ELF.DYNAMIC_FLAGS = lief.ELF.DynamicEntryFlags.FLAG
+        if not hasattr(lief.ELF, "SEGMENT_TYPES") and hasattr(lief.ELF.Segment, "TYPE"):
+            lief.ELF.SEGMENT_TYPES = lief.ELF.Segment.TYPE
+        if (
+            not hasattr(lief.PE, "DLL_CHARACTERISTICS")
+            and hasattr(lief.PE, "OptionalHeader")
+            and hasattr(lief.PE.OptionalHeader, "DLL_CHARACTERISTICS")
+        ):
+            lief.PE.DLL_CHARACTERISTICS = lief.PE.OptionalHeader.DLL_CHARACTERISTICS
+        if not hasattr(lief.PE, "LoadConfigurationV1") and hasattr(lief.PE, "LoadConfiguration"):
+            try:
+                lief.PE.LoadConfigurationV1 = lief.PE.LoadConfiguration
+            except Exception:
+                pass
+
         if isinstance(binary, lief.ELF.Binary):
             mitigations["nx"] = binary.has_nx
             mitigations["pie"] = binary.is_pie
@@ -283,38 +306,45 @@ def parse_binary_with_lief(file_path: str, format: str = "json") -> ToolResult:
     # Isolate potentially dangerous LIEF parsing in a separate process
     # This protects the main server from C++ level crashes (segfaults) in the LIEF library
     import concurrent.futures
+    from concurrent.futures.process import BrokenProcessPool
 
     try:
         # Use ProcessPoolExecutor to run parsing in a separate process
-        with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
-            # Prepare arguments
-            future = executor.submit(
-                _run_lief_in_process,
-                str(validated_path),
-                max_imports,
-                max_exports,
-                max_sections,
-            )
+        executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
+        future = executor.submit(
+            _run_lief_in_process,
+            str(validated_path),
+            max_imports,
+            max_exports,
+            max_sections,
+        )
 
-            # Wait for result with timeout
+        # Wait for result with timeout
+        try:
+            result_data = future.result(timeout=60)  # 60s timeout for LIEF
+            executor.shutdown(wait=True)
+        except concurrent.futures.TimeoutError:
             try:
-                result_data = future.result(timeout=60)  # 60s timeout for LIEF
-            except concurrent.futures.TimeoutError:
-                # Kill the worker via shutdown (not perfect but best effort)
-                executor.shutdown(wait=False, cancel_futures=True)
-                return failure(
-                    "TIMEOUT",
-                    "LIEF parsing timed out (possible hang in C++ library)",
-                )
-            except concurrent.futures.ProcessBrokenExecutor:
-                # This catches SEGFAULTs!
-                return failure(
-                    "CRASH_DETECTED",
-                    "LIEF parser crashed (segmentation fault detected). Analysis aborted safely.",
-                    hint="The file may be malformed intentionally to crash analysis tools.",
-                )
-            except Exception as e:
-                return failure("LIEF_ERROR", f"LIEF failed to parse binary: {e}")
+                for p in list(executor._processes.values()):
+                    p.terminate()
+                    p.join(timeout=1.0)
+            except Exception:
+                pass
+            executor.shutdown(wait=False, cancel_futures=True)
+            return failure(
+                "TIMEOUT",
+                "LIEF parsing timed out (possible hang in C++ library)",
+            )
+        except BrokenProcessPool:
+            executor.shutdown(wait=False)
+            return failure(
+                "CRASH_DETECTED",
+                "LIEF parser crashed (segmentation fault detected). Analysis aborted safely.",
+                hint="The file may be malformed intentionally to crash analysis tools.",
+            )
+        except Exception as e:
+            executor.shutdown(wait=False)
+            return failure("LIEF_ERROR", f"LIEF failed to parse binary: {e}")
 
     except Exception as e:
         return failure("EXECUTION_ERROR", f"Failed to run LIEF isolation: {e}")
