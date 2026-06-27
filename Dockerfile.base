@@ -38,6 +38,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     flex \
     bison \
     libssl-dev \
+    zlib1g-dev \
     libffi-dev \
     git \
     patch \
