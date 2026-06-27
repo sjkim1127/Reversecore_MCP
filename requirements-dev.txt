@@ -128,7 +128,7 @@ reportlab==4.5.1          # via svglib, xhtml2pdf
 requests==2.34.2          # via mkdocs-material, pyhanko, pyhanko-certvalidator
 rich==15.0.0              # via cyclopts, fastmcp-slim, rich-rst, typer
 rich-rst==2.0.2           # via cyclopts
-rpds-py==2026.5.1         # via jsonschema, referencing
+rpds-py==0.30.0           # via jsonschema, referencing
 ruff==0.15.20             # via reversecore-mcp (pyproject.toml)
 shellingham==1.5.4        # via typer
 six==1.17.0               # via html5lib, python-dateutil
