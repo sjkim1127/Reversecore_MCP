@@ -81,12 +81,9 @@ ARG R2GHIDRA_VERSION=6.0.4
 RUN git clone --depth 1 --branch ${R2GHIDRA_VERSION} \
         https://github.com/radareorg/r2ghidra.git /tmp/r2ghidra \
     && cd /tmp/r2ghidra \
-    && cmake -DCMAKE_BUILD_TYPE=Release \
-             -DCMAKE_INSTALL_PREFIX=/opt/radare2 \
-             -Dr2_INCLUDE_DIRS=/opt/radare2/include/libr \
-             -B build \
-    && cmake --build build -j"$(nproc)" \
-    && cmake --install build \
+    && ./configure --prefix=/opt/radare2 \
+    && make -j"$(nproc)" \
+    && make install \
     && rm -rf /tmp/r2ghidra
 
 
