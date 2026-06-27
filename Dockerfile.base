@@ -75,9 +75,20 @@ WORKDIR /app
 RUN rm -rf /tmp/radare2
 
 # ── r2ghidra plugin ────────────────────────────────────────────
-# Installs the Ghidra decompiler engine as a radare2 plugin (no JDK/Ghidra install required)
+# Build from source against the EXACT radare2 version installed above.
 ENV PATH="/opt/radare2/bin:$PATH"
-RUN r2pm -U && r2pm -ci r2ghidra
+ARG R2GHIDRA_VERSION=6.0.4
+RUN git clone --depth 1 --branch ${R2GHIDRA_VERSION} \
+        https://github.com/radareorg/r2ghidra.git /tmp/r2ghidra \
+    && cd /tmp/r2ghidra \
+    && cmake -DCMAKE_BUILD_TYPE=Release \
+             -DCMAKE_INSTALL_PREFIX=/opt/radare2 \
+             -Dr2_INCLUDE_DIRS=/opt/radare2/include/libr \
+             -B build \
+    && cmake --build build -j"$(nproc)" \
+    && cmake --install build \
+    && rm -rf /tmp/r2ghidra
+
 
 # ── Python venv + dependencies ───────────────────────────────────────────────
 COPY requirements.txt .
@@ -132,8 +143,9 @@ COPY --from=compiler /usr/local/lib/libyara* /usr/local/lib/
 COPY --from=compiler /usr/local/include/yara /usr/local/include/yara
 COPY --from=compiler /usr/local/lib/pkgconfig/yara.pc /usr/local/lib/pkgconfig/yara.pc
 COPY --from=compiler /opt/radare2            /opt/radare2
-# Copy r2ghidra plugin data (installed by r2pm in compiler stage)
-COPY --from=compiler /root/.local/share/radare2 /root/.local/share/radare2
+# r2ghidra plugin is installed into /opt/radare2 by cmake —
+# it is already included in the COPY --from=compiler /opt/radare2 line above.
+
 COPY --from=compiler /opt/venv               /opt/venv
 
 
