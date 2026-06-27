@@ -21,6 +21,10 @@ from reversecore_mcp.prompts.security import (
     patch_analysis_mode,
     vulnerability_research_mode,
 )
+from reversecore_mcp.prompts.server_health import (
+    server_health_check_mode,
+    server_tool_catalog_mode,
+)
 
 
 def register_prompts(mcp: FastMCP):
@@ -54,3 +58,7 @@ def register_prompts(mcp: FastMCP):
 
     # Report Generation Prompts
     mcp.prompt("report_generation_mode")(report_generation_mode)
+
+    # Server Inspection Prompts
+    mcp.prompt("server_health_check_mode")(server_health_check_mode)
+    mcp.prompt("server_tool_catalog_mode")(server_tool_catalog_mode)
