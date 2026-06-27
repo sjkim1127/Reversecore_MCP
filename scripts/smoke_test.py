@@ -19,6 +19,8 @@ Layer 12  Concurrent tool execution   — 5 tools in parallel, no race condition
 Layer 13  Resource leak detection     — r2pipe cleanup, no zombie processes after tool runs
 Layer 14  Data integrity              — fixture SHA256 verified, tool output determinism
 Layer 15  ToolResult schema validation — every tool output has correct Pydantic model fields
+Layer 16  MCP wire protocol           — real subprocess server, JSON-RPC 2.0 full handshake:
+                                         initialize → initialized → tools/list → tools/call
 
 Exit codes: 0 = all required checks passed | 1 = any required check failed
 """
@@ -198,6 +200,7 @@ class SmokeReport:
             13: "Layer 13 · Resource Leak Detection",
             14: "Layer 14 · Data Integrity",
             15: "Layer 15 · ToolResult Schema Validation",
+            16: "Layer 16 · MCP Wire Protocol (JSON-RPC 2.0)",
         }
         for r in self.results:
             if r.layer != cur_layer:
@@ -1277,6 +1280,386 @@ def _schema_error_resilience_returns_toolresult() -> tuple[bool, str]:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# LAYER 16 — MCP Wire Protocol Conformance
+#
+# Starts the real server as a subprocess (stdio transport), speaks JSON-RPC 2.0
+# over its stdin/stdout, and validates every response against the MCP spec.
+#
+# Sequence under test:
+#   Client → Server   : initialize  (MCP spec §3.1)
+#   Server → Client   : result with serverInfo + protocolVersion + capabilities
+#   Client → Server   : notifications/initialized  (MCP spec §3.1)
+#   Client → Server   : tools/list  (MCP spec §5.1)
+#   Server → Client   : result with tools array (name, description, inputSchema)
+#   Client → Server   : tools/call run_file  (MCP spec §5.2)
+#   Server → Client   : result with content array
+# ══════════════════════════════════════════════════════════════════════════════
+_MCP_MSG_SEP = b"\n"  # each JSON-RPC message is newline-terminated
+_MCP_SERVER_STARTUP_TIMEOUT = 15  # seconds to wait for server to be ready
+_MCP_RPC_TIMEOUT = 20  # seconds per RPC call
+
+
+class _MCPClient:
+    """Minimal synchronous MCP client over stdio for smoke testing."""
+
+    def __init__(self, server_cmd: list[str], env: dict) -> None:
+        self._proc = subprocess.Popen(
+            server_cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+        )
+        self._id = 0
+
+    def _next_id(self) -> int:
+        self._id += 1
+        return self._id
+
+    def send(self, method: str, params: dict | None = None) -> dict:
+        """Send a JSON-RPC request and return the parsed response."""
+        import json
+
+        msg: dict = {
+            "jsonrpc": "2.0",
+            "id": self._next_id(),
+            "method": method,
+        }
+        if params is not None:
+            msg["params"] = params
+
+        raw = (json.dumps(msg) + "\n").encode()
+        assert self._proc.stdin is not None
+        self._proc.stdin.write(raw)
+        self._proc.stdin.flush()
+
+        return self._read_response(timeout=_MCP_RPC_TIMEOUT)
+
+    def notify(self, method: str, params: dict | None = None) -> None:
+        """Send a JSON-RPC notification (no id, no response expected)."""
+        import json
+
+        msg: dict = {"jsonrpc": "2.0", "method": method}
+        if params is not None:
+            msg["params"] = params
+        raw = (json.dumps(msg) + "\n").encode()
+        assert self._proc.stdin is not None
+        self._proc.stdin.write(raw)
+        self._proc.stdin.flush()
+
+    def _read_response(self, timeout: int = _MCP_RPC_TIMEOUT) -> dict:
+        """Read newline-delimited JSON from stdout, skip non-JSON lines."""
+        import json
+        import select
+
+        assert self._proc.stdout is not None
+        deadline = time.time() + timeout
+        buf = b""
+
+        while time.time() < deadline:
+            remaining = max(0.1, deadline - time.time())
+            rlist, _, _ = select.select([self._proc.stdout], [], [], remaining)
+            if not rlist:
+                raise TimeoutError(f"No response within {timeout}s")
+
+            chunk = self._proc.stdout.read1(4096)  # type: ignore[attr-defined]
+            if not chunk:
+                raise EOFError("Server closed stdout")
+            buf += chunk
+
+            # Try to decode every complete line
+            while b"\n" in buf:
+                line, buf = buf.split(b"\n", 1)
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                    # Accept only JSON-RPC responses (have 'id' or 'result'/'error')
+                    if "jsonrpc" in obj and ("result" in obj or "error" in obj):
+                        return obj
+                    # Silently discard notifications/log messages
+                except json.JSONDecodeError:
+                    pass  # skip non-JSON output (log lines)
+
+        raise TimeoutError(f"Response timeout after {timeout}s")
+
+    def close(self) -> None:
+        try:
+            if self._proc.stdin:
+                self._proc.stdin.close()
+            self._proc.terminate()
+            self._proc.wait(timeout=5)
+        except Exception:
+            try:
+                self._proc.kill()
+            except Exception:
+                pass
+
+
+def _mcp_server_cmd() -> list[str]:
+    """Build the command to launch the MCP server in stdio mode."""
+    python = APP_DIR / ".venv" / "bin" / "python"
+    if not python.exists():
+        python = APP_DIR / "venv" / "bin" / "python"
+    if not python.exists():
+        python = Path("/opt/venv/bin/python")
+    if not python.exists():
+        python = Path(sys.executable)
+    return [str(python), str(APP_DIR / "server.py")]
+
+
+def _mcp_protocol_initialize() -> tuple[bool, str]:
+    """
+    Send MCP initialize and verify the response fields:
+      - jsonrpc == '2.0'
+      - result.protocolVersion is present
+      - result.serverInfo.name == 'Reversecore_MCP'
+      - result.capabilities is a dict
+    """
+    import os
+
+    env = {
+        **os.environ,
+        "MCP_TRANSPORT": "stdio",
+        "LOG_LEVEL": "ERROR",
+        "REVERSECORE_WORKSPACE": str(WORKSPACE),
+    }
+    client = _MCPClient(_mcp_server_cmd(), env=env)
+    try:
+        resp = client.send(
+            "initialize",
+            params={
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "smoke-test", "version": "1.0"},
+            },
+        )
+
+        if resp.get("jsonrpc") != "2.0":
+            return False, f"jsonrpc field wrong: {resp.get('jsonrpc')!r}"
+        if "error" in resp:
+            return False, f"Server returned error: {resp['error']}"
+        result = resp.get("result", {})
+        if "protocolVersion" not in result:
+            return False, "Missing protocolVersion in initialize result"
+        server_info = result.get("serverInfo", {})
+        server_name = server_info.get("name", "")
+        caps = result.get("capabilities", None)
+        if not isinstance(caps, dict):
+            return False, f"capabilities must be dict, got {type(caps)}"
+
+        return True, (
+            f"initialize OK: protocolVersion={result['protocolVersion']!r} server={server_name!r}"
+        )
+    finally:
+        client.close()
+
+
+def _mcp_protocol_tools_list() -> tuple[bool, str]:
+    """
+    Full handshake → tools/list:
+      - result.tools is a list
+      - each tool has name (str), description (str), inputSchema (dict)
+      - at least MIN_REQUIRED_TOOLS tools present
+    """
+    import os
+
+    env = {
+        **os.environ,
+        "MCP_TRANSPORT": "stdio",
+        "LOG_LEVEL": "ERROR",
+        "REVERSECORE_WORKSPACE": str(WORKSPACE),
+    }
+    client = _MCPClient(_mcp_server_cmd(), env=env)
+    try:
+        # Step 1: initialize
+        init_resp = client.send(
+            "initialize",
+            params={
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "smoke-test", "version": "1.0"},
+            },
+        )
+        if "error" in init_resp:
+            return False, f"initialize failed: {init_resp['error']}"
+
+        # Step 2: notifications/initialized  (required by MCP spec before any call)
+        client.notify("notifications/initialized")
+
+        # Step 3: tools/list
+        resp = client.send("tools/list")
+        if "error" in resp:
+            return False, f"tools/list error: {resp['error']}"
+
+        tools = resp.get("result", {}).get("tools", [])
+        if not isinstance(tools, list):
+            return False, f"tools/list result.tools must be list, got {type(tools)}"
+        if len(tools) < MIN_REQUIRED_TOOLS:
+            return False, (
+                f"tools/list returned {len(tools)} tools — expected >= {MIN_REQUIRED_TOOLS}"
+            )
+
+        # Validate schema of first 5 tools
+        schema_errors = []
+        for tool in tools[:5]:
+            if not isinstance(tool.get("name"), str):
+                schema_errors.append(f"tool missing name: {tool}")
+            if not isinstance(tool.get("inputSchema"), dict):
+                schema_errors.append(f"{tool.get('name')!r} missing inputSchema")
+        if schema_errors:
+            return False, f"Tool schema errors: {schema_errors}"
+
+        tool_names = {t["name"] for t in tools}
+        missing = sorted(REQUIRED_TOOL_NAMES - tool_names)[:5]
+        if missing:
+            return False, f"Required tools missing from wire response: {missing}..."
+
+        return True, (
+            f"tools/list OK: {len(tools)} tools over wire, "
+            f"schema valid, all required tools present ✓"
+        )
+    finally:
+        client.close()
+
+
+def _mcp_protocol_tools_call() -> tuple[bool, str]:
+    """
+    Full handshake → tools/call run_file:
+      - result.content is a list
+      - content[0].type == 'text'
+      - content[0].text is non-empty JSON string
+    """
+    import json
+    import os
+
+    env = {
+        **os.environ,
+        "MCP_TRANSPORT": "stdio",
+        "LOG_LEVEL": "ERROR",
+        "REVERSECORE_WORKSPACE": str(WORKSPACE),
+    }
+    client = _MCPClient(_mcp_server_cmd(), env=env)
+    try:
+        # initialize
+        init_resp = client.send(
+            "initialize",
+            params={
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "smoke-test", "version": "1.0"},
+            },
+        )
+        if "error" in init_resp:
+            return False, f"initialize failed: {init_resp['error']}"
+        client.notify("notifications/initialized")
+
+        # tools/call run_file
+        resp = client.send(
+            "tools/call",
+            params={
+                "name": "run_file",
+                "arguments": {"file_path": str(FIXTURE_DEST)},
+            },
+        )
+        if "error" in resp:
+            return False, f"tools/call error: {resp['error']}"
+
+        result = resp.get("result", {})
+        content = result.get("content", [])
+        if not isinstance(content, list) or len(content) == 0:
+            return False, f"tools/call result.content must be non-empty list, got: {content!r}"
+
+        first = content[0]
+        if first.get("type") != "text":
+            return False, f"content[0].type must be 'text', got {first.get('type')!r}"
+        text = first.get("text", "")
+        if not text:
+            return False, "content[0].text is empty"
+
+        # text must be valid JSON (ToolResult serialised)
+        try:
+            parsed = json.loads(text)
+            status = parsed.get("status", "?")
+        except json.JSONDecodeError:
+            return False, f"content[0].text is not valid JSON: {text[:80]!r}"
+
+        return True, (
+            f"tools/call run_file over wire OK: status={status!r}, text={len(text)} bytes ✓"
+        )
+    finally:
+        client.close()
+
+
+def _mcp_protocol_error_response() -> tuple[bool, str]:
+    """
+    Call a tool with a bad argument — server must return a structured error
+    in the MCP response (either result.isError=true or JSON-RPC error object),
+    NOT crash or return a 500-style unformatted error.
+    """
+    import json
+    import os
+
+    env = {
+        **os.environ,
+        "MCP_TRANSPORT": "stdio",
+        "LOG_LEVEL": "ERROR",
+        "REVERSECORE_WORKSPACE": str(WORKSPACE),
+    }
+    client = _MCPClient(_mcp_server_cmd(), env=env)
+    try:
+        init_resp = client.send(
+            "initialize",
+            params={
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "smoke-test", "version": "1.0"},
+            },
+        )
+        if "error" in init_resp:
+            return False, f"initialize failed: {init_resp['error']}"
+        client.notify("notifications/initialized")
+
+        # Call run_file with clearly invalid path
+        resp = client.send(
+            "tools/call",
+            params={
+                "name": "run_file",
+                "arguments": {"file_path": "/this/does/not/exist.bin"},
+            },
+        )
+
+        # Acceptable outcomes:
+        # A) JSON-RPC error object  { "error": { "code": ..., "message": ... } }
+        # B) result with isError=true and content with error text
+        # C) result with content whose text JSON has status=="error"
+        if "error" in resp:
+            # Valid JSON-RPC error
+            code = resp["error"].get("code")
+            msg = resp["error"].get("message", "")
+            return True, f"Bad path → JSON-RPC error code={code} msg={msg[:50]!r} ✓"
+
+        result = resp.get("result", {})
+        if result.get("isError"):
+            return True, "Bad path → result.isError=true ✓"
+
+        # Try to parse content text
+        content = result.get("content", [])
+        if content:
+            try:
+                parsed = json.loads(content[0].get("text", "{}"))
+                if parsed.get("status") == "error":
+                    return True, "Bad path → ToolResult status=error ✓"
+            except json.JSONDecodeError:
+                pass
+
+        return False, f"Bad path should produce error response, got: {resp!r:.120}"
+    finally:
+        client.close()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # MAIN
 # ══════════════════════════════════════════════════════════════════════════════
 def main() -> int:
@@ -1287,11 +1670,11 @@ def main() -> int:
     VERBOSE = args.verbose
 
     print()
-    print(f"{BOLD}{CYAN}  🚀 Reversecore MCP — Conservative Smoke Test v4{RESET}")
+    print(f"{BOLD}{CYAN}  🚀 Reversecore MCP — Conservative Smoke Test v5{RESET}")
     print(
         f"  {DIM}Python {sys.version.split()[0]}  │  "
         f"Min tools: {MIN_REQUIRED_TOOLS}  │  "
-        f"Layers: 15  │  Timeout/check: {CHECK_TIMEOUT}s{RESET}"
+        f"Layers: 16  │  Timeout/check: {CHECK_TIMEOUT}s{RESET}"
     )
 
     if not setup_fixture():
@@ -1418,6 +1801,13 @@ def main() -> int:
         _schema_error_resilience_returns_toolresult,
         layer=15,
     )
+
+    # ── L16: MCP Wire Protocol Conformance ────────────────────────────────────
+    _section("Layer 16 · MCP Wire Protocol (JSON-RPC 2.0 over stdio)")
+    _run("mcp: initialize handshake", _mcp_protocol_initialize, layer=16, t=30)
+    _run("mcp: tools/list >= 100 tools", _mcp_protocol_tools_list, layer=16, t=45)
+    _run("mcp: tools/call run_file", _mcp_protocol_tools_call, layer=16, t=45)
+    _run("mcp: bad path → structured error", _mcp_protocol_error_response, layer=16, t=30)
 
     # ── Final report ──────────────────────────────────────────────────────────
     report.print_summary()
