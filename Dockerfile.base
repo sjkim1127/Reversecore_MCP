@@ -16,7 +16,7 @@
 # ============================================================================
 # Stage 1: Compile stage (contains build toolchain)
 # ============================================================================
-FROM python:3.14-slim-bookworm AS compiler
+FROM python:3.12-slim-bookworm AS compiler
 ARG TARGETARCH
 ARG YARA_VERSION=4.3.1
 ARG RADARE2_VERSION=6.0.4
@@ -92,7 +92,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # ============================================================================
 # Stage 2: Final base image (no build toolchain, runtime-only)
 # ============================================================================
-FROM python:3.14-slim-bookworm AS base
+FROM python:3.12-slim-bookworm AS base
 ARG TARGETARCH
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]

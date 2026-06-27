@@ -540,12 +540,97 @@ jobs:
         run: echo "ℹ️ Base image already up to date — no push needed"
 
   # ──────────────────────────────────────────────────────────────────────────
+  # Smoke Test: Build app image, start container, verify ALL tools work
+  # CI pass = tools actually function (not just mock-tested)
+  # ──────────────────────────────────────────────────────────────────────────
+  smoke-test:
+    name: 🩺 In-Container Smoke Test
+    runs-on: ubuntu-latest
+    needs: [unit-and-integration-tests, build-base-image]
+    if: always() && !cancelled() && (needs.unit-and-integration-tests.result == 'success')
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Downcase repository name
+        run: |
+          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> ${GITHUB_ENV}
+          echo "BASE_IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/base" >> ${GITHUB_ENV}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build app image for smoke test
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          build-args: |
+            BASE_IMAGE=${{ env.BASE_IMAGE }}
+            BASE_TAG=${{ env.BASE_TAG }}
+          tags: reversecore-mcp:smoke
+          cache-from: |
+            type=registry,ref=${{ env.BASE_IMAGE }}:cache-${{ env.BASE_TAG }}
+            type=gha,scope=app
+
+      - name: Start container for smoke test
+        run: |
+          docker run -d --name mcp-smoke \
+            -e MCP_TRANSPORT=stdio \
+            -e LOG_LEVEL=WARNING \
+            -v ${{ github.workspace }}/workspace:/app/workspace \
+            reversecore-mcp:smoke \
+            sleep infinity
+          echo "Container started: $(docker ps --filter name=mcp-smoke --format '{{.Status}}')"
+
+      - name: Copy fixture binary into container
+        run: |
+          mkdir -p ${{ github.workspace }}/workspace
+          docker cp tests/fixtures/smoke_test_elf mcp-smoke:/app/workspace/smoke_test_elf
+          echo "Fixture copied into container workspace"
+
+      - name: 🧪 Run smoke tests inside container
+        run: |
+          docker exec mcp-smoke \
+            /opt/venv/bin/python /app/scripts/smoke_test.py
+        # Non-zero exit = required tool broken = CI FAILS → deploy blocked
+
+      - name: Collect smoke test logs on failure
+        if: failure()
+        run: |
+          echo "=== Container logs ==="
+          docker logs mcp-smoke --tail 100 || true
+          echo "=== Installed packages ==="
+          docker exec mcp-smoke /opt/venv/bin/pip list | grep -E 'fastmcp|lief|yara|r2pipe|radare' || true
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker stop mcp-smoke || true
+          docker rm mcp-smoke || true
+
+  # ──────────────────────────────────────────────────────────────────────────
   # Deploy: Build lightweight app image on top of pre-built base
   # ──────────────────────────────────────────────────────────────────────────
   deploy:
     name: Docker Build & Push (CD)
     runs-on: ubuntu-latest
-    needs: [lint-and-security, unit-and-integration-tests, docker-verification, codeql-analysis, build-base-image]
+    needs: [lint-and-security, unit-and-integration-tests, docker-verification, smoke-test, codeql-analysis, build-base-image]
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     permissions:
       contents: read
