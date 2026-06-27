@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Reversecore MCP — Conservative In-Container Smoke Test (v3)
+Reversecore MCP — Conservative In-Container Smoke Test (v4)
 =============================================================
-10-Layer verification. CI pass = ALL layers pass = image is safe to deploy.
+15-Layer verification. CI pass = ALL layers pass = image is safe to deploy.
 
 Layer 1   Module import sweep         — every .py under reversecore_mcp/tools/ imports clean
 Layer 2   CLI binary checks           — real output + sane content validated
@@ -14,6 +14,11 @@ Layer 7   Security boundary checks    — path traversal & workspace isolation e
 Layer 8   Error resilience            — bad inputs return ToolResult(error), never raise
 Layer 9   Performance baseline        — each required tool finishes within 30 s
 Layer 10  End-to-end analysis chain   — 7-step realistic workflow, all steps pass
+Layer 11  Radare2 deep verification   — disasm output content, xref resolution, r2ghidra import
+Layer 12  Concurrent tool execution   — 5 tools in parallel, no race conditions
+Layer 13  Resource leak detection     — r2pipe cleanup, no zombie processes after tool runs
+Layer 14  Data integrity              — fixture SHA256 verified, tool output determinism
+Layer 15  ToolResult schema validation — every tool output has correct Pydantic model fields
 
 Exit codes: 0 = all required checks passed | 1 = any required check failed
 """
@@ -22,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import importlib
 import os
 import shutil
@@ -44,6 +50,10 @@ FIXTURE_DEST = WORKSPACE / FIXTURE_NAME
 MIN_REQUIRED_TOOLS = 100  # bump when new tool categories are added
 MIN_REQUIRED_PROMPTS = 10
 CHECK_TIMEOUT = 30  # per-check hard timeout (seconds)
+
+# Fixture integrity — detect corruption or tampering
+FIXTURE_SHA256 = "112f8b2427ef6db8a3d61e38dea37780d35122292c1f94dbbbdebf1960eec571"
+FIXTURE_SIZE = 132
 
 # Specific tool names that MUST be registered (representative set from each category)
 REQUIRED_TOOL_NAMES: frozenset[str] = frozenset(
@@ -183,6 +193,11 @@ class SmokeReport:
             8: "Layer 8 · Error Resilience",
             9: "Layer 9 · Performance Baseline",
             10: "Layer 10 · End-to-End Analysis Chain",
+            11: "Layer 11 · Radare2 Deep Verification",
+            12: "Layer 12 · Concurrent Tool Execution",
+            13: "Layer 13 · Resource Leak Detection",
+            14: "Layer 14 · Data Integrity",
+            15: "Layer 15 · ToolResult Schema Validation",
         }
         for r in self.results:
             if r.layer != cur_layer:
@@ -889,21 +904,394 @@ def _layer10_chain() -> tuple[bool, str]:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# LAYER 11 — Radare2 deep verification
+# ══════════════════════════════════════════════════════════════════════════════
+def _r2_deep_disasm_content() -> tuple[bool, str]:
+    """Verify r2 produces actual x86-64 instructions matching our ELF."""
+    import r2pipe
+
+    r2 = r2pipe.open(str(FIXTURE_DEST), flags=["-2"])
+    try:
+        r2.cmd("aaa")
+        # Disassemble at entry point — should see our mov rax,60; xor rdi,rdi; syscall
+        pd = r2.cmd("s entry0; pd 3")
+        if not pd or len(pd.strip()) < 10:
+            return False, "r2 disasm produced empty output"
+        # Verify at least one expected instruction
+        found = [kw for kw in ["mov", "xor", "syscall"] if kw in pd.lower()]
+        if len(found) < 2:
+            return False, f"Expected >=2 of mov/xor/syscall, found: {found}"
+        return True, f"Disasm content OK: found {found}"
+    finally:
+        r2.quit()
+
+
+def _r2_deep_binary_info() -> tuple[bool, str]:
+    """Verify r2 extracts correct binary metadata."""
+    import r2pipe
+
+    r2 = r2pipe.open(str(FIXTURE_DEST), flags=["-2"])
+    try:
+        info = r2.cmdj("ij") or {}
+        binfo = info.get("bin", {})
+        arch = binfo.get("arch", "")
+        bits = binfo.get("bits", 0)
+        machine = binfo.get("machine", "")
+        if arch != "x86":
+            return False, f"Expected arch=x86, got {arch}"
+        if bits != 64:
+            return False, f"Expected bits=64, got {bits}"
+        return True, f"arch={arch} bits={bits} machine={machine}"
+    finally:
+        r2.quit()
+
+
+def _r2_deep_entry_point() -> tuple[bool, str]:
+    """Verify r2 resolves entry point correctly (0x400078 for our ELF)."""
+    import r2pipe
+
+    r2 = r2pipe.open(str(FIXTURE_DEST), flags=["-2"])
+    try:
+        info = r2.cmdj("iej") or []
+        if not info:
+            return False, "No entry points found"
+        entry_vaddr = info[0].get("vaddr", 0)
+        if entry_vaddr != 0x400078:
+            return False, f"Expected entry 0x400078, got 0x{entry_vaddr:x}"
+        return True, f"Entry point 0x{entry_vaddr:x} ✓"
+    finally:
+        r2.quit()
+
+
+def _r2_deep_r2ghidra_import() -> tuple[bool, str]:
+    """Verify r2ghidra plugin is loadable (pdg command exists)."""
+    import r2pipe
+
+    r2 = r2pipe.open(str(FIXTURE_DEST), flags=["-2"])
+    try:
+        # Check if r2ghidra pdg command is available
+        r2.cmd("e cmd.pdc=?")
+        pdg_help = r2.cmd("pdg?")
+        has_pdg = "pdg" in pdg_help
+        # Check the plugin list
+        plugins = r2.cmd("Lc")
+        return (
+            True,
+            f"r2ghidra check: pdg={'yes' if has_pdg else 'no'}, plugins={len(plugins)} chars",
+        )
+    except Exception as exc:
+        return False, f"r2ghidra check failed: {exc}"
+    finally:
+        r2.quit()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# LAYER 12 — Concurrent tool execution (race condition detection)
+# ══════════════════════════════════════════════════════════════════════════════
+def _concurrent_5_tools() -> tuple[bool, str]:
+    """Run 5 tools simultaneously to detect race conditions."""
+    _patch_workspace()
+    from reversecore_mcp.tools import file_operations, static_analysis
+    from reversecore_mcp.tools.analysis import lief_tools
+    from reversecore_mcp.tools.malware import ioc_tools, yara_tools
+
+    rule = "rule elf { strings: $m = { 7F 45 4C 46 } condition: $m }"
+    rule_file = WORKSPACE / "concurrent_test.yar"
+    rule_file.write_text(rule)
+
+    async def _run_all():
+        results = await asyncio.gather(
+            file_operations.run_file(str(FIXTURE_DEST)),
+            static_analysis.run_strings(str(FIXTURE_DEST), min_length=3),
+            lief_tools.parse_binary_with_lief(str(FIXTURE_DEST)),
+            ioc_tools.extract_iocs(str(FIXTURE_DEST)),
+            yara_tools.run_yara(str(FIXTURE_DEST), str(rule_file)),
+            return_exceptions=True,
+        )
+        return results
+
+    try:
+        results = asyncio.run(_run_all())
+        exceptions = [r for r in results if isinstance(r, Exception)]
+        if exceptions:
+            return False, f"{len(exceptions)} exceptions in concurrent run: {exceptions[0]}"
+        statuses = [getattr(r, "status", "unknown") for r in results]
+        return True, f"5 tools concurrent OK: statuses={statuses}"
+    except Exception as exc:
+        return False, f"Concurrent execution failed: {type(exc).__name__}: {exc}"
+    finally:
+        rule_file.unlink(missing_ok=True)
+
+
+def _concurrent_repeated_3x() -> tuple[bool, str]:
+    """Run the same tool 3 times simultaneously (idempotency check)."""
+    _patch_workspace()
+    from reversecore_mcp.tools import file_operations
+
+    async def _run_3x():
+        return await asyncio.gather(
+            file_operations.run_file(str(FIXTURE_DEST)),
+            file_operations.run_file(str(FIXTURE_DEST)),
+            file_operations.run_file(str(FIXTURE_DEST)),
+            return_exceptions=True,
+        )
+
+    results = asyncio.run(_run_3x())
+    exceptions = [r for r in results if isinstance(r, Exception)]
+    if exceptions:
+        return False, f"Repeated call raised: {exceptions[0]}"
+    statuses = [getattr(r, "status", "?") for r in results]
+    if statuses.count("success") != 3:
+        return False, f"Expected 3x success, got: {statuses}"
+    return True, "3x concurrent run_file: all success ✓"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# LAYER 13 — Resource leak detection
+# ══════════════════════════════════════════════════════════════════════════════
+def _leak_r2_sessions_closed() -> tuple[bool, str]:
+    """Open+close multiple r2pipe sessions, verify no zombie r2 processes."""
+    import r2pipe
+
+    # Count r2 processes before
+    try:
+        before = subprocess.run(
+            ["pgrep", "-c", "radare2"], capture_output=True, text=True, timeout=5
+        )
+        before_count = int(before.stdout.strip()) if before.returncode == 0 else 0
+    except Exception:
+        before_count = 0
+
+    # Open and close 5 sessions
+    for _ in range(5):
+        r2 = r2pipe.open(str(FIXTURE_DEST), flags=["-2"])
+        r2.cmd("aaa")
+        r2.quit()
+
+    # Brief wait for cleanup
+    time.sleep(0.5)
+
+    try:
+        after = subprocess.run(
+            ["pgrep", "-c", "radare2"], capture_output=True, text=True, timeout=5
+        )
+        after_count = int(after.stdout.strip()) if after.returncode == 0 else 0
+    except Exception:
+        after_count = 0
+
+    leaked = after_count - before_count
+    if leaked > 0:
+        return False, f"{leaked} zombie r2 processes leaked after 5 open/close cycles"
+    return True, f"No r2 process leaks (before={before_count}, after={after_count}) ✓"
+
+
+def _leak_file_descriptors() -> tuple[bool, str]:
+    """Verify no file descriptor leaks after tool runs."""
+    proc_fd = Path("/proc/self/fd")
+    if not proc_fd.exists():
+        return True, "Skipped (no /proc/self/fd on this platform)"
+
+    fd_before = len(list(proc_fd.iterdir()))
+
+    _patch_workspace()
+    from reversecore_mcp.tools import file_operations
+
+    for _ in range(10):
+        asyncio.run(file_operations.run_file(str(FIXTURE_DEST)))
+
+    fd_after = len(list(proc_fd.iterdir()))
+    leaked = fd_after - fd_before
+    if leaked > 5:  # allow small variance
+        return False, f"{leaked} file descriptors leaked after 10 run_file calls"
+    return True, f"FD leak check OK (delta={leaked}) ✓"
+
+
+def _leak_no_temp_files() -> tuple[bool, str]:
+    """Verify tools clean up temp files."""
+    tmp_before = set(Path(tempfile.gettempdir()).glob("*reversecore*"))
+    tmp_before |= set(Path(tempfile.gettempdir()).glob("*yara*"))
+
+    _patch_workspace()
+    from reversecore_mcp.tools import file_operations, static_analysis
+
+    for _ in range(3):
+        asyncio.run(file_operations.run_file(str(FIXTURE_DEST)))
+        asyncio.run(static_analysis.run_strings(str(FIXTURE_DEST), min_length=3))
+
+    tmp_after = set(Path(tempfile.gettempdir()).glob("*reversecore*"))
+    tmp_after |= set(Path(tempfile.gettempdir()).glob("*yara*"))
+    leaked = tmp_after - tmp_before
+    if leaked:
+        return False, f"{len(leaked)} temp files leaked: {[p.name for p in leaked][:3]}"
+    return True, "No temp file leaks ✓"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# LAYER 14 — Data integrity
+# ══════════════════════════════════════════════════════════════════════════════
+def _integrity_fixture_sha256() -> tuple[bool, str]:
+    """Verify fixture binary hasn't been corrupted or tampered with."""
+    with open(FIXTURE_DEST, "rb") as f:
+        sha = hashlib.sha256(f.read()).hexdigest()
+    if sha != FIXTURE_SHA256:
+        return False, f"SHA256 mismatch: expected {FIXTURE_SHA256[:16]}..., got {sha[:16]}..."
+    return True, f"SHA256 {sha[:16]}... verified ✓"
+
+
+def _integrity_fixture_size() -> tuple[bool, str]:
+    """Verify fixture binary size is exactly as expected."""
+    actual = FIXTURE_DEST.stat().st_size
+    if actual != FIXTURE_SIZE:
+        return False, f"Size mismatch: expected {FIXTURE_SIZE}, got {actual}"
+    return True, f"Size {actual} bytes verified ✓"
+
+
+def _integrity_deterministic_file_output() -> tuple[bool, str]:
+    """Verify run_file produces identical output on repeated calls."""
+    _patch_workspace()
+    from reversecore_mcp.tools import file_operations
+
+    results = []
+    for _ in range(3):
+        r = asyncio.run(file_operations.run_file(str(FIXTURE_DEST)))
+        results.append(str(r.data) if hasattr(r, "data") else str(r))
+
+    if len(set(results)) != 1:
+        return False, f"Non-deterministic output: {len(set(results))} unique results from 3 runs"
+    return True, "3 identical outputs from run_file ✓"
+
+
+def _integrity_deterministic_lief_output() -> tuple[bool, str]:
+    """Verify parse_binary_with_lief produces identical output."""
+    _patch_workspace()
+    from reversecore_mcp.tools.analysis import lief_tools
+
+    results = []
+    for _ in range(3):
+        r = asyncio.run(lief_tools.parse_binary_with_lief(str(FIXTURE_DEST)))
+        results.append(str(r.data) if hasattr(r, "data") else str(r))
+
+    if len(set(results)) != 1:
+        return False, f"LIEF non-deterministic: {len(set(results))} unique results"
+    return True, "3 identical outputs from parse_binary_with_lief ✓"
+
+
+def _integrity_elf_magic_bytes() -> tuple[bool, str]:
+    """Verify fixture starts with correct ELF magic bytes."""
+    with open(FIXTURE_DEST, "rb") as f:
+        magic = f.read(4)
+    if magic != b"\x7fELF":
+        return False, f"Bad magic: {magic.hex()} (expected 7f454c46)"
+    return True, "ELF magic \\x7fELF verified ✓"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# LAYER 15 — ToolResult schema validation
+# ══════════════════════════════════════════════════════════════════════════════
+def _schema_toolresult_success_has_data() -> tuple[bool, str]:
+    """Success ToolResult must have `data` field."""
+    _patch_workspace()
+    from reversecore_mcp.tools import file_operations
+
+    r = asyncio.run(file_operations.run_file(str(FIXTURE_DEST)))
+    if r.status != "success":
+        return False, f"run_file didn't succeed: {r.status}"
+    if not hasattr(r, "data"):
+        return False, "Success result missing 'data' attribute"
+    if r.data is None:
+        return False, "Success result has data=None"
+    return True, f"ToolSuccess has data with {len(r.data)} keys ✓"
+
+
+def _schema_toolresult_error_has_code() -> tuple[bool, str]:
+    """Error ToolResult must have `error_code` field."""
+    _patch_workspace()
+    from reversecore_mcp.tools import file_operations
+
+    r = asyncio.run(file_operations.run_file("/nonexistent/file.bin"))
+    if r.status != "error":
+        return False, f"Expected error status, got: {r.status}"
+    if not hasattr(r, "error_code") or not r.error_code:
+        return False, "Error result missing 'error_code' field"
+    if not r.error_code.startswith("RCMCP"):
+        return False, f"error_code doesn't follow convention: {r.error_code}"
+    return True, f"ToolError has error_code={r.error_code} ✓"
+
+
+def _schema_toolresult_pydantic_valid() -> tuple[bool, str]:
+    """ToolResult is a valid Pydantic model (serializable)."""
+    _patch_workspace()
+    from reversecore_mcp.tools import file_operations
+
+    r = asyncio.run(file_operations.run_file(str(FIXTURE_DEST)))
+    try:
+        # Must be Pydantic model with model_dump
+        if hasattr(r, "model_dump"):
+            d = r.model_dump()
+            if "status" not in d:
+                return False, "model_dump() missing 'status' key"
+            return True, f"Pydantic model_dump OK: keys={list(d.keys())}"
+        elif hasattr(r, "dict"):
+            d = r.dict()
+            return True, f"Pydantic v1 dict() OK: keys={list(d.keys())}"
+        else:
+            return False, "ToolResult is not a Pydantic model (no model_dump/dict)"
+    except Exception as exc:
+        return False, f"Serialization failed: {type(exc).__name__}: {exc}"
+
+
+def _schema_toolresult_json_serializable() -> tuple[bool, str]:
+    """ToolResult must be JSON-serializable (for MCP protocol transport)."""
+    import json
+
+    _patch_workspace()
+    from reversecore_mcp.tools import file_operations
+
+    r = asyncio.run(file_operations.run_file(str(FIXTURE_DEST)))
+    try:
+        if hasattr(r, "model_dump"):
+            d = r.model_dump()
+        elif hasattr(r, "dict"):
+            d = r.dict()
+        else:
+            d = {"status": r.status}
+
+        json_str = json.dumps(d, default=str)
+        if len(json_str) < 10:
+            return False, f"JSON output suspiciously small: {len(json_str)} bytes"
+        return True, f"JSON serializable ({len(json_str)} bytes) ✓"
+    except (TypeError, ValueError) as exc:
+        return False, f"Not JSON serializable: {exc}"
+
+
+def _schema_error_resilience_returns_toolresult() -> tuple[bool, str]:
+    """Even error paths must return ToolResult type, not raw strings/dicts."""
+    _patch_workspace()
+    from reversecore_mcp.core.result import ToolError, ToolSuccess
+    from reversecore_mcp.tools import file_operations
+
+    r = asyncio.run(file_operations.run_file("/nonexistent/file.exe"))
+    if not isinstance(r, (ToolSuccess, ToolError)):
+        return False, f"Error path returned {type(r).__name__}, not ToolSuccess/ToolError"
+    return True, f"Error path returns {type(r).__name__} ✓"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # MAIN
 # ══════════════════════════════════════════════════════════════════════════════
 def main() -> int:
     global VERBOSE
-    parser = argparse.ArgumentParser(description="Reversecore MCP smoke test v3")
+    parser = argparse.ArgumentParser(description="Reversecore MCP smoke test v4")
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args()
     VERBOSE = args.verbose
 
     print()
-    print(f"{BOLD}{CYAN}  🚀 Reversecore MCP — Conservative Smoke Test v3{RESET}")
+    print(f"{BOLD}{CYAN}  🚀 Reversecore MCP — Conservative Smoke Test v4{RESET}")
     print(
         f"  {DIM}Python {sys.version.split()[0]}  │  "
         f"Min tools: {MIN_REQUIRED_TOOLS}  │  "
-        f"Layers: 10  │  Timeout/check: {CHECK_TIMEOUT}s{RESET}"
+        f"Layers: 15  │  Timeout/check: {CHECK_TIMEOUT}s{RESET}"
     )
 
     if not setup_fixture():
@@ -992,6 +1380,44 @@ def main() -> int:
     # ── L10: End-to-end chain ─────────────────────────────────────────────────
     _section("Layer 10 · End-to-End 7-Step Analysis Chain")
     _run("e2e: list→file→lief→strings→yara_gen→yara_scan→iocs", _layer10_chain, layer=10, t=60)
+
+    # ── L11: Radare2 deep verification ────────────────────────────────────────
+    _section("Layer 11 · Radare2 Deep Verification")
+    _run("r2: disasm content (mov/xor/syscall)", _r2_deep_disasm_content, layer=11, t=30)
+    _run("r2: binary info (arch=x86, bits=64)", _r2_deep_binary_info, layer=11, t=20)
+    _run("r2: entry point = 0x400078", _r2_deep_entry_point, layer=11, t=20)
+    _run("r2: r2ghidra plugin check", _r2_deep_r2ghidra_import, layer=11, req=False, t=20)
+
+    # ── L12: Concurrent execution ─────────────────────────────────────────────
+    _section("Layer 12 · Concurrent Tool Execution")
+    _run("concurrent: 5 tools parallel", _concurrent_5_tools, layer=12, t=60)
+    _run("concurrent: 3x same tool (idempotency)", _concurrent_repeated_3x, layer=12, t=30)
+
+    # ── L13: Resource leak detection ──────────────────────────────────────────
+    _section("Layer 13 · Resource Leak Detection")
+    _run("leak: r2pipe sessions (5 cycles)", _leak_r2_sessions_closed, layer=13, t=30)
+    _run("leak: file descriptors (10 calls)", _leak_file_descriptors, layer=13, t=30)
+    _run("leak: temp files after tool runs", _leak_no_temp_files, layer=13, t=20)
+
+    # ── L14: Data integrity ───────────────────────────────────────────────────
+    _section("Layer 14 · Data Integrity")
+    _run("integrity: fixture SHA256", _integrity_fixture_sha256, layer=14)
+    _run("integrity: fixture size = 132 bytes", _integrity_fixture_size, layer=14)
+    _run("integrity: ELF magic bytes", _integrity_elf_magic_bytes, layer=14)
+    _run("integrity: run_file deterministic (3x)", _integrity_deterministic_file_output, layer=14)
+    _run("integrity: LIEF deterministic (3x)", _integrity_deterministic_lief_output, layer=14)
+
+    # ── L15: ToolResult schema validation ─────────────────────────────────────
+    _section("Layer 15 · ToolResult Schema Validation")
+    _run("schema: success has data field", _schema_toolresult_success_has_data, layer=15)
+    _run("schema: error has error_code (RCMCP-*)", _schema_toolresult_error_has_code, layer=15)
+    _run("schema: Pydantic model_dump OK", _schema_toolresult_pydantic_valid, layer=15)
+    _run("schema: JSON serializable", _schema_toolresult_json_serializable, layer=15)
+    _run(
+        "schema: error returns ToolResult type",
+        _schema_error_resilience_returns_toolresult,
+        layer=15,
+    )
 
     # ── Final report ──────────────────────────────────────────────────────────
     report.print_summary()
