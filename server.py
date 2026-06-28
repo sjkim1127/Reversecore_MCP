@@ -808,16 +808,19 @@ def main():
             """Kubernetes liveness probe endpoint."""
             return JSONResponse(content={"status": "alive"})
 
-        # Readiness probe
         @app.get("/health/ready")
         async def readiness():
             """Kubernetes readiness probe endpoint."""
             is_ready = settings.workspace.exists() and shutil.which("radare2") is not None
             if is_ready:
-                return JSONResponse(content={"status": "ready"})
+                return JSONResponse(content={"status": "ready", "ready": True})
             return JSONResponse(
                 status_code=503,
-                content={"status": "not_ready", "reason": "Dependencies not available"},
+                content={
+                    "status": "not_ready",
+                    "ready": False,
+                    "reason": "Dependencies not available",
+                },
             )
 
         # Add metrics endpoint
