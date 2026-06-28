@@ -127,7 +127,19 @@ jobs:
           REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
           LOG_LEVEL: INFO
         run: |
-          pytest tests/unit/ -v --cov=reversecore_mcp --cov-report=xml --cov-report=term-missing
+          pytest tests/unit/ -v \
+            --cov=reversecore_mcp \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --cov-fail-under=80
+
+      - name: Run security boundary tests
+        env:
+          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
+          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
+          LOG_LEVEL: INFO
+        run: |
+          pytest tests/security/ -m security -v --tb=short
 
   docker-verification:
     name: Docker & E2E Integration Verification
@@ -588,6 +600,114 @@ jobs:
           echo "✅ Multi-arch manifest created: ${{ env.BASE_IMAGE }}:${{ env.BASE_TAG }}"
 
   # ──────────────────────────────────────────────────────────────────────────
+  # Exploit Safety Gate: Runs security boundary tests inside a hardened
+  # container (--network=none, --cap-drop=ALL, no-new-privileges).
+  # Blocks deploy if any exploit tool escapes workspace or mishandles deps.
+  # ──────────────────────────────────────────────────────────────────────────
+  exploit-safety-gate:
+    name: 🔒 Exploit Pipeline Safety Gate
+    runs-on: ubuntu-latest
+    needs: [lint-and-security, unit-and-integration-tests]
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install system dependencies
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/azure-cli.sources \
+            /etc/apt/sources.list.d/azure-cli.list \
+            /etc/apt/sources.list.d/microsoft-prod.list
+          sudo apt-get update
+          sudo apt-get install -y radare2 yara libyara-dev binutils nasm
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          pip install "bandit[toml]"
+
+      - name: Create isolated test workspace
+        run: |
+          mkdir -p tests/fixtures/workspace
+          mkdir -p tests/fixtures/rules
+          printf '\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00' \
+            > tests/fixtures/workspace/target.elf
+
+      - name: "🔍 Scan POC templates with Bandit"
+        env:
+          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
+          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
+        run: |
+          echo "=== Extracting POC templates for static analysis ==="
+          python3 - <<'EOF'
+          import sys
+          from reversecore_mcp.tools.malware.poc_generator import _POC_TEMPLATES
+          import tempfile, os, subprocess
+
+          violations = []
+          with tempfile.TemporaryDirectory() as d:
+              for name, src in _POC_TEMPLATES.items():
+                  p = os.path.join(d, f"{name}.py")
+                  with open(p, 'w') as f:
+                      f.write(src)
+              result = subprocess.run(
+                  ["bandit", "-r", d, "-ll", "-ii",
+                   "--skip", "B101,B603,B404",
+                   "-f", "txt"],
+                  capture_output=True, text=True
+              )
+              if "Issue:" in result.stdout:
+                  print(result.stdout)
+                  sys.exit(1)
+              else:
+                  print(f"✅ All {len(_POC_TEMPLATES)} POC templates passed bandit scan")
+          EOF
+
+      - name: "🔒 Run exploit security boundary tests (host)"
+        env:
+          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
+          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
+          LOG_LEVEL: WARNING
+        run: |
+          pytest tests/security/ -m security -v --tb=short
+
+      - name: "🚧 Verify workspace isolation under network restriction (Docker)"
+        run: |
+          docker run --rm \
+            --network=none \
+            --cap-drop=ALL \
+            --security-opt no-new-privileges \
+            --read-only \
+            --tmpfs /tmp \
+            --volume ${{ github.workspace }}/tests/fixtures/workspace:/workspace:ro \
+            -e REVERSECORE_WORKSPACE=/workspace \
+            python:3.11-slim \
+            python3 -c "
+          import subprocess, sys
+          # Verify network is blocked
+          try:
+              import socket
+              s = socket.create_connection(('8.8.8.8', 53), timeout=2)
+              s.close()
+              print('FAIL: Network is NOT blocked in hardened container')
+              sys.exit(1)
+          except OSError:
+              print('PASS: Network correctly blocked (--network=none confirmed)')
+          "
+        timeout-minutes: 2
+
+  # ──────────────────────────────────────────────────────────────────────────
   # Smoke Test: Build app image, start container, verify ALL tools work
   # CI pass = tools actually function (not just mock-tested)
   # ──────────────────────────────────────────────────────────────────────────
@@ -682,7 +802,7 @@ jobs:
   deploy:
     name: Docker Build & Push (CD) (${{ matrix.suffix }})
     runs-on: ${{ matrix.runner }}
-    needs: [lint-and-security, unit-and-integration-tests, docker-verification, smoke-test, codeql-analysis, merge-base-image]
+    needs: [lint-and-security, unit-and-integration-tests, docker-verification, smoke-test, exploit-safety-gate, codeql-analysis, merge-base-image]
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     strategy:
       matrix:

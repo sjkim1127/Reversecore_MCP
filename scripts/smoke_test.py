@@ -57,7 +57,7 @@ FIXTURE_NAME = "smoke_test_elf"
 FIXTURE_SRC = APP_DIR / "tests" / "fixtures" / FIXTURE_NAME
 FIXTURE_DEST = WORKSPACE / FIXTURE_NAME
 
-MIN_REQUIRED_TOOLS = 100  # bump when new tool categories are added
+MIN_REQUIRED_TOOLS = 103  # bump when new tool categories are added
 MIN_REQUIRED_PROMPTS = 10
 CHECK_TIMEOUT = 30  # per-check hard timeout (seconds)
 
@@ -99,6 +99,10 @@ REQUIRED_TOOL_NAMES: frozenset[str] = frozenset(
         "dormant_detector",
         "adaptive_vaccine",
         "vulnerability_hunter",
+        # exploit pipeline (Phase 3.0)
+        "generate_poc_exploit",
+        "build_rop_chain",
+        "autonomous_vuln_hunt",
         # forensics
         "memory_analyze",
         "memory_list_processes",
@@ -126,6 +130,7 @@ REQUIRED_PROMPT_NAMES: frozenset[str] = frozenset(
         "server_health_check_mode",
         "server_tool_catalog_mode",
         "report_generation_mode",
+        "autonomous_vuln_hunt_mode",
     ]
 )
 
@@ -1328,7 +1333,119 @@ def _l24_parse_lief_deterministic() -> tuple[bool, str]:
     return True, f"parse_lief deterministic (.text count={count1})"
 
 
-# LAYER 5 — Named tool existence (by exact name)
+# ══════════════════════════════════════════════════════════════════════════════
+# LAYER 25 — Exploit Pipeline Safety
+# Verifies that the three new exploit tools enforce workspace boundaries,
+# that generated POC scripts do not contain dangerous escape patterns,
+# and that missing optional dependencies (pwntools) are handled gracefully.
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Patterns that must NOT appear in any POC script generated inside the sandbox.
+# If present, the script could exfiltrate data or escape the container.
+_DANGEROUS_POC_PATTERNS: list[str] = [
+    "socket.connect",  # direct network callback (reverse shell)
+    "urllib.request",  # HTTP exfiltration
+    "requests.get",  # HTTP exfiltration
+    "os.system(",  # arbitrary shell commands
+    "subprocess.Popen(",  # arbitrary subprocess (outside pwn context)
+    "__import__('os')",  # obfuscated os import
+    "eval(",  # arbitrary code evaluation
+    "exec(",  # arbitrary code execution
+]
+
+
+def _l25_poc_workspace_boundary() -> tuple[bool, str]:
+    """generate_poc_exploit must reject paths outside the workspace."""
+    _patch_workspace()
+    import asyncio
+
+    from reversecore_mcp.tools.malware.poc_generator import generate_poc_exploit
+
+    result = asyncio.run(generate_poc_exploit("/etc/passwd", vulnerability_class="buffer_overflow"))
+    if result.status != "error":
+        return False, f"Expected error for /etc/passwd, got status={result.status}"
+    return True, "generate_poc_exploit correctly rejects /etc/passwd"
+
+
+def _l25_rop_workspace_boundary() -> tuple[bool, str]:
+    """build_rop_chain must reject paths outside the workspace."""
+    _patch_workspace()
+    import asyncio
+
+    from reversecore_mcp.tools.malware.rop_builder import build_rop_chain
+
+    result = asyncio.run(build_rop_chain("/etc/shadow", objective="shell"))
+    if result.status != "error":
+        return False, f"Expected error for /etc/shadow, got status={result.status}"
+    return True, "build_rop_chain correctly rejects /etc/shadow"
+
+
+def _l25_autonomous_workspace_boundary() -> tuple[bool, str]:
+    """autonomous_vuln_hunt must reject paths outside the workspace."""
+    _patch_workspace()
+    import asyncio
+
+    from reversecore_mcp.tools.malware.autonomous_hunter import autonomous_vuln_hunt
+
+    result = asyncio.run(autonomous_vuln_hunt("/etc/passwd", max_functions=1))
+    if result.status != "error":
+        return False, f"Expected error for /etc/passwd, got status={result.status}"
+    return True, "autonomous_vuln_hunt correctly rejects /etc/passwd"
+
+
+def _l25_poc_script_bandit_safe() -> tuple[bool, str]:
+    """Generated POC template scripts must not contain known dangerous patterns."""
+    from reversecore_mcp.tools.malware.poc_generator import _POC_TEMPLATES
+
+    violations: list[str] = []
+    for template_name, template_src in _POC_TEMPLATES.items():
+        for pattern in _DANGEROUS_POC_PATTERNS:
+            if pattern in template_src:
+                violations.append(f"{template_name}: contains '{pattern}'")
+
+    if violations:
+        return False, f"Dangerous patterns in POC templates: {violations}"
+    return (
+        True,
+        f"All {len(_POC_TEMPLATES)} POC templates clean "
+        f"({len(_DANGEROUS_POC_PATTERNS)} patterns checked)",
+    )
+
+
+def _l25_pwntools_missing_graceful() -> tuple[bool, str]:
+    """generate_poc_exploit must return ToolResult(error) when pwntools is absent."""
+    _patch_workspace()
+    import asyncio
+    import sys
+    from unittest.mock import patch
+
+    from reversecore_mcp.tools.malware.poc_generator import generate_poc_exploit
+
+    # Temporarily hide pwntools even if installed
+    saved = sys.modules.pop("pwn", None)
+    try:
+        with patch(
+            "reversecore_mcp.tools.malware.poc_generator.validate_file_path",
+            return_value=FIXTURE_DEST,
+        ):
+            with patch(
+                "builtins.__import__",
+                side_effect=lambda n, *a, **kw: (
+                    (_ for _ in ()).throw(ImportError("No module named 'pwn'"))
+                    if n == "pwn"
+                    else __import__(n, *a, **kw)
+                ),
+            ):
+                result = asyncio.run(generate_poc_exploit(str(FIXTURE_DEST)))
+    finally:
+        if saved is not None:
+            sys.modules["pwn"] = saved
+
+    if result.status != "error":
+        return False, f"Expected error when pwntools absent, got status={result.status}"
+    return True, "generate_poc_exploit returns graceful error when pwntools not installed"
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 def _layer5_named_tools() -> tuple[bool, str]:
     _patch_workspace()
@@ -2619,6 +2736,39 @@ def main() -> int:
     _section("Layer 24 · Analysis Determinism")
     _run("determinism: run_file consistent", _l24_run_file_deterministic, layer=24, t=30)
     _run("determinism: parse_lief consistent", _l24_parse_lief_deterministic, layer=24, t=30)
+
+    # ── L25: Exploit Pipeline Safety ──────────────────────────────────────────
+    _section("Layer 25 · Exploit Pipeline Safety")
+    _run(
+        "exploit: generate_poc_exploit workspace boundary",
+        _l25_poc_workspace_boundary,
+        layer=25,
+        t=10,
+    )
+    _run(
+        "exploit: build_rop_chain workspace boundary",
+        _l25_rop_workspace_boundary,
+        layer=25,
+        t=10,
+    )
+    _run(
+        "exploit: autonomous_vuln_hunt workspace boundary",
+        _l25_autonomous_workspace_boundary,
+        layer=25,
+        t=10,
+    )
+    _run(
+        "exploit: generated poc script safety scan",
+        _l25_poc_script_bandit_safe,
+        layer=25,
+        t=30,
+    )
+    _run(
+        "exploit: pwntools import graceful when missing",
+        _l25_pwntools_missing_graceful,
+        layer=25,
+        t=10,
+    )
 
     # ── Final report ──────────────────────────────────────────────────────────
     report.print_summary()
