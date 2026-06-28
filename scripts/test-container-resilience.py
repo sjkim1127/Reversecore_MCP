@@ -4,35 +4,47 @@
 import asyncio
 import sys
 import time
-
-import aiohttp
+import urllib.error
+import urllib.request
 
 HEALTH_URL = "http://127.0.0.1:8000/health"
 MCP_SSE_URL = "http://127.0.0.1:8000/mcp/sse"
 
 
 async def concurrent_health_check(count: int = 10) -> tuple[int, int]:
-    """Send N concurrent /health requests."""
+    """Send N concurrent /health requests using asyncio + urllib."""
     passed = 0
     failed = 0
 
-    async def fetch(session: aiohttp.ClientSession) -> bool:
+    def fetch() -> bool:
         try:
-            async with session.get(HEALTH_URL, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+            req = urllib.request.Request(HEALTH_URL)
+            with urllib.request.urlopen(req, timeout=5) as resp:
                 return resp.status == 200
         except Exception:
             return False
 
-    async with aiohttp.ClientSession() as session:
-        tasks = [fetch(session) for _ in range(count)]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        for r in results:
-            if r is True:
-                passed += 1
-            else:
-                failed += 1
+    loop = asyncio.get_event_loop()
+    tasks = [loop.run_in_executor(None, fetch) for _ in range(count)]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    for r in results:
+        if r is True:
+            passed += 1
+        else:
+            failed += 1
 
     return passed, failed
+
+
+def http_get(url: str, timeout: int = 5) -> tuple[int, str]:
+    """Simple synchronous HTTP GET, returns (status_code, body)."""
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            return resp.status, resp.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as e:
+        return e.code, ""
+    except Exception as exc:
+        return 0, str(exc)
 
 
 async def test_resilience() -> int:
@@ -49,25 +61,22 @@ async def test_resilience() -> int:
 
     # 2. SSE endpoint availability
     print("\n📡 Checking SSE endpoint availability...")
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(MCP_SSE_URL, timeout=aiohttp.ClientTimeout(total=5)) as resp:
-                if resp.status in (200, 405):
-                    print(f"   ✅ SSE responds with HTTP {resp.status}")
-                else:
-                    print(f"   ⚠️  SSE responds with HTTP {resp.status}")
-    except Exception as exc:
-        print(f"   ⚠️  SSE error: {exc}")
+    status, _ = http_get(MCP_SSE_URL)
+    if status in (200, 405):
+        print(f"   ✅ SSE responds with HTTP {status}")
+    elif status == 0:
+        print("   ⚠️  SSE endpoint unreachable (server may use stdio transport)")
+    else:
+        print(f"   ⚠️  SSE responds with HTTP {status}")
 
     # 3. Response time check
     print("\n⏱️  Response time check...")
-    async with aiohttp.ClientSession() as session:
-        start = time.perf_counter()
-        async with session.get(HEALTH_URL, timeout=aiohttp.ClientTimeout(total=5)) as resp:
-            elapsed = time.perf_counter() - start
-            print(f"   Response time: {elapsed:.3f}s")
-            if elapsed > 2.0:
-                print("   ⚠️  Health check is slow (>2s)")
+    start = time.perf_counter()
+    status, _ = http_get(HEALTH_URL)
+    elapsed = time.perf_counter() - start
+    print(f"   Response time: {elapsed:.3f}s (HTTP {status})")
+    if elapsed > 2.0:
+        print("   ⚠️  Health check is slow (>2s)")
 
     print("\n✅ Resilience tests complete")
     return 0
