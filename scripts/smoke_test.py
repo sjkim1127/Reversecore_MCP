@@ -923,8 +923,13 @@ def _l19_arch_detection_elf() -> tuple[bool, str]:
     # Use FIXTURE_DEST which is within the workspace and passes path validation
     r = asyncio.run(file_operations.run_file(str(FIXTURE_DEST)))
     if r.status != "success":
-        return False, f"run_file failed: {r.status}"
-    text = str(r.content)
+        error_info = (
+            f" (code={getattr(r, 'error_code', 'N/A')}, message={getattr(r, 'message', 'N/A')})"
+            if hasattr(r, "error_code")
+            else ""
+        )
+        return False, f"run_file failed: {r.status}{error_info}"
+    text = str(r.data)
     if "x86" not in text.lower() and "elf" not in text.lower() and "64" not in text:
         return False, f"Architecture not found in run_file output: {text[:200]}"
     return True, "arch detection OK (x86/ELF/64 found)"
@@ -938,8 +943,13 @@ def _l19_section_detection_elf() -> tuple[bool, str]:
     # parse_binary_with_lief is a sync function (decorated with @log_execution)
     r = lief_tools.parse_binary_with_lief(str(FIXTURE_DEST))
     if r.status != "success":
-        return False, f"parse_lief failed: {r.status}"
-    text = str(r.content)
+        error_info = (
+            f" (code={getattr(r, 'error_code', 'N/A')}, message={getattr(r, 'message', 'N/A')})"
+            if hasattr(r, "error_code")
+            else ""
+        )
+        return False, f"parse_lief failed: {r.status}{error_info}"
+    text = str(r.data)
     if ".text" not in text:
         return False, f".text section not found in lief output: {text[:200]}"
     return True, ".text section detected"
@@ -950,10 +960,15 @@ def _l19_entrypoint_nonzero() -> tuple[bool, str]:
     _patch_workspace()
     from reversecore_mcp.tools.radare2 import r2_analysis
 
-    r = asyncio.run(r2_analysis.run_radare2(str(_SYSTEM_ELF), "ij"))
+    r = asyncio.run(r2_analysis.run_radare2(str(FIXTURE_DEST), "ij"))
     if r.status != "success":
-        return False, f"run_radare2 failed: {r.status}"
-    text = str(r.content)
+        error_info = (
+            f" (code={getattr(r, 'error_code', 'N/A')}, message={getattr(r, 'message', 'N/A')})"
+            if hasattr(r, "error_code")
+            else ""
+        )
+        return False, f"run_radare2 failed: {r.status}{error_info}"
+    text = str(r.data)
     # entry should appear and not be 0x0
     if '"vaddr":0' in text.replace(" ", "") and '"vaddr":0x0' in text.replace(" ", ""):
         return False, "Entrypoint appears to be 0x0"
@@ -961,14 +976,19 @@ def _l19_entrypoint_nonzero() -> tuple[bool, str]:
 
 
 def _l19_disasm_min_instructions() -> tuple[bool, str]:
-    """r2_disassemble must return >= 5 instructions for /bin/ls entry0."""
+    """r2_disassemble must return >= 5 instructions."""
     _patch_workspace()
     from reversecore_mcp.tools.radare2 import r2_analysis
 
-    r = asyncio.run(r2_analysis.run_radare2(str(_SYSTEM_ELF), "pd 20"))
+    r = asyncio.run(r2_analysis.run_radare2(str(FIXTURE_DEST), "pd 20"))
     if r.status != "success":
-        return False, f"run_radare2 pd 20 failed: {r.status}"
-    text = str(r.content)
+        error_info = (
+            f" (code={getattr(r, 'error_code', 'N/A')}, message={getattr(r, 'message', 'N/A')})"
+            if hasattr(r, "error_code")
+            else ""
+        )
+        return False, f"run_radare2 pd 20 failed: {r.status}{error_info}"
+    text = str(r.data)
     # Each instruction line typically contains ';' or '0x' prefix
     line_count = len([ln for ln in text.splitlines() if "0x" in ln])
     if line_count < 5:
@@ -993,23 +1013,23 @@ def _l19_pe_arch_detection() -> tuple[bool, str]:
             True,
             f"run_file on PE stub returned {r.status} (soft-pass: tool may not handle stubs)",
         )
-    text = str(r.content)
+    text = str(r.data)
     if "PE" in text or "MZ" in text or "DOS" in text or "executable" in text.lower():
         return True, "PE format detected"
     return True, f"PE stub run_file OK (content: {text[:80]})"
 
 
 def _l19_ioc_extraction_nonempty() -> tuple[bool, str]:
-    """extract_iocs on /bin/ls must return a non-empty result."""
+    """extract_iocs on fixture must return a non-empty result."""
     _patch_workspace()
     from reversecore_mcp.tools.malware import ioc_tools
 
-    r = asyncio.run(ioc_tools.extract_iocs(str(_SYSTEM_ELF)))
+    r = asyncio.run(ioc_tools.extract_iocs(str(FIXTURE_DEST)))
     if r.status not in ("success", "error"):
         return False, f"Unexpected status: {r.status}"
-    text = str(r.content)
+    text = str(r.data)
     if r.status == "success" and len(text.strip()) < 2:
-        return False, "extract_iocs returned empty result on /bin/ls"
+        return False, "extract_iocs returned empty result on fixture"
     return True, f"extract_iocs OK (status={r.status}, len={len(text)})"
 
 
@@ -1096,7 +1116,7 @@ def _l21_run_file_no_hang() -> tuple[bool, str]:
     _patch_workspace()
     from reversecore_mcp.tools.common import file_operations
 
-    return _l21_tool_no_hang(file_operations.run_file(str(_SYSTEM_ELF)))
+    return _l21_tool_no_hang(file_operations.run_file(str(FIXTURE_DEST)))
 
 
 def _l21_parse_lief_no_hang() -> tuple[bool, str]:
@@ -1122,7 +1142,7 @@ def _l21_r2_file_info_no_hang() -> tuple[bool, str]:
     _patch_workspace()
     from reversecore_mcp.tools.radare2 import r2_analysis
 
-    return _l21_tool_no_hang(r2_analysis.run_radare2(str(_SYSTEM_ELF), "ij"))
+    return _l21_tool_no_hang(r2_analysis.run_radare2(str(FIXTURE_DEST), "ij"))
 
 
 def _l21_yara_scan_no_hang() -> tuple[bool, str]:
@@ -1136,7 +1156,7 @@ def _l21_extract_iocs_no_hang() -> tuple[bool, str]:
     _patch_workspace()
     from reversecore_mcp.tools.malware import ioc_tools
 
-    return _l21_tool_no_hang(ioc_tools.extract_iocs(str(_SYSTEM_ELF)))
+    return _l21_tool_no_hang(ioc_tools.extract_iocs(str(FIXTURE_DEST)))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1147,15 +1167,10 @@ def _l22_resources_exposed() -> tuple[bool, str]:
     _patch_workspace()
     from fastmcp import FastMCP
 
-    import reversecore_mcp.tools as pkg
-    from reversecore_mcp.core.loader import PluginLoader
+    from reversecore_mcp.resources import register_resources
 
     mcp = FastMCP("res-check")
-    loader = PluginLoader()
-    tools_path = os.path.dirname(pkg.__file__)
-    plugins = loader.discover_plugins(tools_path)
-    for p in plugins:
-        p.register(mcp)
+    register_resources(mcp)
 
     try:
         resources = asyncio.run(mcp.list_resources())
@@ -1169,30 +1184,22 @@ def _l22_resources_exposed() -> tuple[bool, str]:
 
 
 def _l22_resource_health_present() -> tuple[bool, str]:
-    """A 'health' resource must be present."""
+    """A 'guide' resource must be present."""
     _patch_workspace()
     from fastmcp import FastMCP
 
-    import reversecore_mcp.tools as pkg
-    from reversecore_mcp.core.loader import PluginLoader
+    from reversecore_mcp.resources import register_resources
 
-    mcp = FastMCP("res-health-check")
-    loader = PluginLoader()
-    tools_path = os.path.dirname(pkg.__file__)
-    plugins = loader.discover_plugins(tools_path)
-    for p in plugins:
-        p.register(mcp)
+    mcp = FastMCP("res-guide-check")
+    register_resources(mcp)
 
     try:
         resources = asyncio.run(mcp.list_resources())
         uris = [str(getattr(r, "uri", "")).lower() for r in resources]
-        names = [str(getattr(r, "name", "")).lower() for r in resources]
-        health_found = any(
-            "health" in u or "health" in n for u, n in zip(uris, names, strict=False)
-        )
-        if not health_found:
-            return False, f"No health resource found in: {uris[:10]}"
-        return True, "Health resource present"
+        guide_found = any("guide" in u for u in uris)
+        if not guide_found:
+            return False, f"No guide resource found in: {uris[:10]}"
+        return True, "Guide resource present"
     except Exception as e:
         return False, f"list_resources() failed: {e}"
 
@@ -1256,7 +1263,7 @@ def _l24_run_file_deterministic() -> tuple[bool, str]:
         return True, f"Both calls returned {r1.status} (consistent)"
 
     def extract_arch(result) -> str:
-        text = str(result.content)
+        text = str(result.data)
         for keyword in ("x86-64", "x86_64", "aarch64", "arm", "ELF", "executable"):
             if keyword.lower() in text.lower():
                 return keyword
@@ -1280,7 +1287,7 @@ def _l24_parse_lief_deterministic() -> tuple[bool, str]:
         return False, f"Status differs: {r1.status} vs {r2.status}"
     if r1.status != "success":
         return True, f"Both calls returned {r1.status} (consistent)"
-    text1, text2 = str(r1.content), str(r2.content)
+    text1, text2 = str(r1.data), str(r2.data)
     count1 = text1.count(".text")
     count2 = text2.count(".text")
     if count1 != count2:
