@@ -282,6 +282,12 @@ def _print_result(r: CheckResult) -> None:
 # ─── setup ────────────────────────────────────────────────────────────────────
 def setup_fixture() -> bool:
     WORKSPACE.mkdir(parents=True, exist_ok=True)
+    if FIXTURE_DEST.exists():
+        os.chmod(FIXTURE_DEST, 0o755)
+        print(
+            f"  {DIM}Fixture already exists at {FIXTURE_DEST}  ({FIXTURE_DEST.stat().st_size} bytes){RESET}"
+        )
+        return True
     if not FIXTURE_SRC.exists():
         print(f"{RED}  ❌ Fixture not found: {FIXTURE_SRC}{RESET}")
         return False
