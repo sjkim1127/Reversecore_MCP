@@ -12,11 +12,19 @@
 #
 # Rebuild trigger: bump any of the ARG version values and push to main.
 # The `build-base-image` GitHub Actions job detects changes to this file.
+#
+# Build parallelism (BuildKit):
+#   compiler-toolchain
+#     ├── compiler-yara    (parallel)
+#     ├── compiler-r2
+#     │     └── compiler-r2ghidra  (sequential — needs r2 installed)
+#     └── compiler-pip     (parallel)
+#   All three artifact streams are merged in the final `base` stage.
 
 # ============================================================================
-# Stage 1: Compile stage (contains build toolchain)
+# Stage 0: Shared build toolchain (base for all compiler stages)
 # ============================================================================
-FROM python:3.12-slim-bookworm AS compiler
+FROM python:3.12-slim-bookworm AS compiler-toolchain
 ARG TARGETARCH
 ARG YARA_VERSION=4.3.1
 ARG RADARE2_VERSION=6.0.4
@@ -48,7 +56,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# ── YARA ─────────────────────────────────────────────────────────────────────
+# ============================================================================
+# Stage 1a: Compile YARA  ← runs in PARALLEL with compiler-r2 and compiler-pip
+# ============================================================================
+FROM compiler-toolchain AS compiler-yara
+ARG YARA_VERSION=4.3.1
+
 # Build from source so the native library exactly matches the yara-python wheel
 RUN curl -sSL "https://github.com/VirusTotal/yara/archive/refs/tags/v${YARA_VERSION}.tar.gz" \
         -o /tmp/yara.tar.gz \
@@ -62,7 +75,12 @@ RUN ./bootstrap.sh \
 WORKDIR /app
 RUN rm -rf /tmp/yara*
 
-# ── radare2 ──────────────────────────────────────────────────────────────────
+# ============================================================================
+# Stage 1b: Compile radare2  ← runs in PARALLEL with compiler-yara and compiler-pip
+# ============================================================================
+FROM compiler-toolchain AS compiler-r2
+ARG RADARE2_VERSION=6.0.4
+
 # Build from source (not in Debian bookworm main repo)
 RUN git clone --depth 1 --branch ${RADARE2_VERSION} \
         https://github.com/radareorg/radare2.git /tmp/radare2
@@ -75,10 +93,14 @@ RUN ./configure --prefix=/opt/radare2 \
 WORKDIR /app
 RUN rm -rf /tmp/radare2
 
-# ── r2ghidra plugin ────────────────────────────────────────────
+# ============================================================================
+# Stage 1c: Compile r2ghidra  ← sequential after compiler-r2 (needs r2 binary)
+# ============================================================================
+FROM compiler-r2 AS compiler-r2ghidra
+ARG R2GHIDRA_VERSION=6.0.4
+
 # Build from source against the EXACT radare2 version installed above.
 ENV PATH="/opt/radare2/bin:$PATH"
-ARG R2GHIDRA_VERSION=6.0.4
 RUN git clone --depth 1 --branch ${R2GHIDRA_VERSION} \
         https://github.com/radareorg/r2ghidra.git /tmp/r2ghidra \
     && cd /tmp/r2ghidra \
@@ -89,8 +111,11 @@ RUN git clone --depth 1 --branch ${R2GHIDRA_VERSION} \
     && make install \
     && rm -rf /tmp/r2ghidra
 
+# ============================================================================
+# Stage 1d: Install Python venv  ← runs in PARALLEL with compiler-yara and compiler-r2
+# ============================================================================
+FROM compiler-toolchain AS compiler-pip
 
-# ── Python venv + dependencies ───────────────────────────────────────────────
 COPY requirements.txt .
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
@@ -98,7 +123,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 # hadolint ignore=DL3042
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt \
-    && pip install volatility3>=2.4.0 scapy>=2.5.0
+    && pip install "volatility3>=2.4.0" "scapy>=2.5.0"
 
 # ============================================================================
 # Stage 2: Final base image (no build toolchain, runtime-only)
@@ -135,19 +160,21 @@ RUN apt-get update \
     sleuthkit \
     && rm -rf /var/lib/apt/lists/*
 
-# ── Copy compiled artifacts from compiler stage ───────────────────────────────
+# ── Copy compiled artifacts from parallel compiler stages ─────────────────────
 RUN mkdir -p /usr/local/include /usr/local/lib/pkgconfig
-COPY --from=compiler /usr/local/bin/yara     /usr/local/bin/yara
-COPY --from=compiler /usr/local/bin/yarac    /usr/local/bin/yarac
-COPY --from=compiler /usr/local/lib/libyara* /usr/local/lib/
-COPY --from=compiler /usr/local/include/yara /usr/local/include/yara
-COPY --from=compiler /usr/local/lib/pkgconfig/yara.pc /usr/local/lib/pkgconfig/yara.pc
-COPY --from=compiler /opt/radare2            /opt/radare2
-# r2ghidra plugin is installed into /opt/radare2 by cmake —
-# it is already included in the COPY --from=compiler /opt/radare2 line above.
 
-COPY --from=compiler /opt/venv               /opt/venv
+# From compiler-yara stage
+COPY --from=compiler-yara /usr/local/bin/yara      /usr/local/bin/yara
+COPY --from=compiler-yara /usr/local/bin/yarac     /usr/local/bin/yarac
+COPY --from=compiler-yara /usr/local/lib/libyara*  /usr/local/lib/
+COPY --from=compiler-yara /usr/local/include/yara  /usr/local/include/yara
+COPY --from=compiler-yara /usr/local/lib/pkgconfig/yara.pc /usr/local/lib/pkgconfig/yara.pc
 
+# From compiler-r2ghidra stage (includes radare2 + r2ghidra plugin)
+COPY --from=compiler-r2ghidra /opt/radare2 /opt/radare2
+
+# From compiler-pip stage
+COPY --from=compiler-pip /opt/venv /opt/venv
 
 # Ensure radare2 shared libs are discovered by the dynamic linker
 RUN echo "/opt/radare2/lib" > /etc/ld.so.conf.d/radare2.conf && ldconfig

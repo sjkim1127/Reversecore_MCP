@@ -132,8 +132,8 @@ jobs:
   docker-verification:
     name: Docker & E2E Integration Verification
     runs-on: ubuntu-latest
-    needs: [build-base-image]
-    if: always()  # run even when build-base-image is skipped (PRs)
+    needs: [merge-base-image]
+    if: always()  # run even when merge-base-image is skipped (PRs)
     permissions:
       contents: read
       packages: write
@@ -193,6 +193,8 @@ jobs:
 
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker  # Uses bundled BuildKit — no Docker Hub pull needed
 
       - name: Ensure base image is available
         run: |
@@ -468,16 +470,26 @@ jobs:
         uses: github/codeql-action/analyze@v4
 
   # ──────────────────────────────────────────────────────────────────────────
-  # Build base image (slow compilation stage — only when Dockerfile.base
-  # or tool versions change)
+  # Build base image — matrix strategy: one native runner per architecture.
+  # No QEMU emulation = 2× faster per-arch build.
+  # driver: docker avoids pulling moby/buildkit from Docker Hub.
   # ──────────────────────────────────────────────────────────────────────────
   build-base-image:
-    name: Build & Push Base Image
-    runs-on: ubuntu-latest
+    name: Build & Push Base Image (${{ matrix.suffix }})
+    runs-on: ${{ matrix.runner }}
     needs: [lint-and-security]
     if: |
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            suffix: amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            suffix: arm64
     permissions:
       contents: read
       packages: write
@@ -493,6 +505,8 @@ jobs:
 
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker  # Uses bundled BuildKit — no Docker Hub pull needed
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -504,21 +518,21 @@ jobs:
       - name: Check if base image already exists
         id: base-exists
         run: |
-          if docker manifest inspect ${{ env.BASE_IMAGE }}:${{ env.BASE_TAG }} > /dev/null 2>&1; then
+          if docker manifest inspect ${{ env.BASE_IMAGE }}:${{ env.BASE_TAG }}-${{ matrix.suffix }} > /dev/null 2>&1; then
             echo "exists=true" >> $GITHUB_OUTPUT
-            echo "✅ Base image ${{ env.BASE_TAG }} already exists — skipping rebuild"
+            echo "✅ Base image ${{ env.BASE_TAG }}-${{ matrix.suffix }} already exists — skipping rebuild"
           else
             echo "exists=false" >> $GITHUB_OUTPUT
-            echo "🔨 Base image ${{ env.BASE_TAG }} not found — will build"
+            echo "🔨 Base image ${{ env.BASE_TAG }}-${{ matrix.suffix }} not found — will build"
           fi
 
-      - name: Build and Push base image
+      - name: Build and Push base image (${{ matrix.platform }})
         if: steps.base-exists.outputs.exists == 'false'
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile.base
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.platform }}
           push: true
           target: base
           build-args: |
@@ -526,20 +540,51 @@ jobs:
             RADARE2_VERSION=${{ env.RADARE2_VERSION }}
             GHIDRA_VERSION=${{ env.GHIDRA_VERSION }}
             GHIDRA_DATE=${{ env.GHIDRA_DATE }}
-          tags: |
-            ${{ env.BASE_IMAGE }}:${{ env.BASE_TAG }}
-            ${{ env.BASE_IMAGE }}:latest
-          # Persistent cache keyed by tool versions — survives across runs
-          cache-from: |
-            type=registry,ref=${{ env.BASE_IMAGE }}:cache-${{ env.BASE_TAG }}
-            type=gha,scope=base-${{ env.BASE_TAG }}
-          cache-to: |
-            type=registry,ref=${{ env.BASE_IMAGE }}:cache-${{ env.BASE_TAG }},mode=max
-            type=gha,scope=base-${{ env.BASE_TAG }},mode=max
+          tags: ${{ env.BASE_IMAGE }}:${{ env.BASE_TAG }}-${{ matrix.suffix }}
+          # Registry-based persistent cache keyed by tool version + arch
+          cache-from: type=registry,ref=${{ env.BASE_IMAGE }}:cache-${{ env.BASE_TAG }}-${{ matrix.suffix }}
+          cache-to: type=registry,ref=${{ env.BASE_IMAGE }}:cache-${{ env.BASE_TAG }}-${{ matrix.suffix }},mode=max
 
-      - name: Re-tag base image as latest (if already existed)
-        if: steps.base-exists.outputs.exists == 'true'
-        run: echo "ℹ️ Base image already up to date — no push needed"
+  # ──────────────────────────────────────────────────────────────────────────
+  # Merge per-arch base image digests into a single multi-arch manifest list
+  # ──────────────────────────────────────────────────────────────────────────
+  merge-base-image:
+    name: Merge Base Image Manifests
+    runs-on: ubuntu-latest
+    needs: [build-base-image]
+    if: |
+      always() && !cancelled() &&
+      needs.build-base-image.result == 'success' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Downcase repository name
+        run: |
+          echo "BASE_IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/base" >> ${GITHUB_ENV}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker
+
+      - name: Create and push multi-arch manifest
+        run: |
+          docker buildx imagetools create \
+            --tag ${{ env.BASE_IMAGE }}:${{ env.BASE_TAG }} \
+            --tag ${{ env.BASE_IMAGE }}:latest \
+            ${{ env.BASE_IMAGE }}:${{ env.BASE_TAG }}-amd64 \
+            ${{ env.BASE_IMAGE }}:${{ env.BASE_TAG }}-arm64
+          echo "✅ Multi-arch manifest created: ${{ env.BASE_IMAGE }}:${{ env.BASE_TAG }}"
 
   # ──────────────────────────────────────────────────────────────────────────
   # Smoke Test: Build app image, start container, verify ALL tools work
@@ -548,7 +593,7 @@ jobs:
   smoke-test:
     name: 🩺 In-Container Smoke Test
     runs-on: ubuntu-latest
-    needs: [unit-and-integration-tests, build-base-image]
+    needs: [unit-and-integration-tests, merge-base-image]
     if: always() && !cancelled() && (needs.unit-and-integration-tests.result == 'success')
     permissions:
       contents: read
@@ -573,6 +618,8 @@ jobs:
 
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker  # Uses bundled BuildKit — no Docker Hub pull needed
 
       - name: Build app image for smoke test
         uses: docker/build-push-action@v6
@@ -627,13 +674,24 @@ jobs:
           docker rm mcp-smoke || true
 
   # ──────────────────────────────────────────────────────────────────────────
-  # Deploy: Build lightweight app image on top of pre-built base
+  # Deploy: Build lightweight app image — matrix strategy, one native runner
+  # per architecture to avoid QEMU overhead.
+  # driver: docker avoids pulling moby/buildkit from Docker Hub.
   # ──────────────────────────────────────────────────────────────────────────
   deploy:
-    name: Docker Build & Push (CD)
-    runs-on: ubuntu-latest
-    needs: [lint-and-security, unit-and-integration-tests, docker-verification, smoke-test, codeql-analysis, build-base-image]
+    name: Docker Build & Push (CD) (${{ matrix.suffix }})
+    runs-on: ${{ matrix.runner }}
+    needs: [lint-and-security, unit-and-integration-tests, docker-verification, smoke-test, codeql-analysis, merge-base-image]
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            suffix: amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            suffix: arm64
     permissions:
       contents: read
       packages: write
@@ -650,6 +708,8 @@ jobs:
 
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker  # Uses bundled BuildKit — no Docker Hub pull needed
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -658,22 +718,58 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and Push app image
+      - name: Build and Push app image (${{ matrix.platform }})
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.platform }}
           push: true
           build-args: |
             BASE_IMAGE=${{ env.BASE_IMAGE }}
             BASE_TAG=${{ env.BASE_TAG }}
-          tags: |
-            ${{ env.IMAGE_NAME }}:latest
-            ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
-          # GHA cache for app layer (code only) — hits almost every run
-          cache-from: type=gha,scope=app
-          cache-to: type=gha,scope=app,mode=max
+          tags: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}-${{ matrix.suffix }}
+          # Registry cache per arch — survives across GHA cache evictions
+          cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:cache-app-${{ matrix.suffix }}
+          cache-to: type=registry,ref=${{ env.IMAGE_NAME }}:cache-app-${{ matrix.suffix }},mode=max
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Merge per-arch app image digests into a single multi-arch manifest list
+  # and run Trivy on the final image.
+  # ──────────────────────────────────────────────────────────────────────────
+  merge-deploy:
+    name: Merge App Image Manifests & Security Scan
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Downcase repository name
+        run: |
+          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> ${GITHUB_ENV}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker
+
+      - name: Create and push multi-arch app manifest
+        run: |
+          docker buildx imagetools create \
+            --tag ${{ env.IMAGE_NAME }}:latest \
+            --tag ${{ env.IMAGE_NAME }}:sha-${{ github.sha }} \
+            ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}-amd64 \
+            ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}-arm64
+          echo "✅ Multi-arch app manifest created: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}"
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
