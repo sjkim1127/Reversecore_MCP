@@ -847,7 +847,7 @@ def _layer17_radare2_plugin_e2e() -> tuple[bool, str]:
     from reversecore_mcp.tools.radare2 import radare2_mcp_tools
 
     mcp = FastMCP("r2-test")
-    plugin = radare2_mcp_tools.Radare2Plugin()
+    plugin = radare2_mcp_tools.Radare2ToolsPlugin()
     plugin.register(mcp)
 
     tools = asyncio.run(mcp.list_tools())
