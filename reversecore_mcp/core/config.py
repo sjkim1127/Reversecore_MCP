@@ -421,6 +421,10 @@ class Config:
     def workspace(self) -> Path:
         return self._settings.workspace
 
+    @workspace.setter
+    def workspace(self, val: Path | str) -> None:
+        self._settings.workspace = Path(val)
+
     @property
     def read_only_dirs(self) -> tuple[Path, ...]:
         if self._read_only_dirs_override is not None:

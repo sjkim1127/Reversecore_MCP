@@ -169,14 +169,14 @@ class TestMCPToolCalls:
         if shutil.which("r2") is None:
             pytest.skip("radare2 (r2) is not installed")
 
-        from reversecore_mcp.tools.radare2.r2_analysis import get_file_info
+        from reversecore_mcp.tools.radare2.r2_analysis import run_radare2
 
         workspace, binary_path = sample_binary_file
 
         try:
-            result = get_file_info(str(binary_path))
+            result = await run_radare2(str(binary_path))
             # Should return a dict with analysis results
-            assert isinstance(result, dict), "get_file_info should return dict"
+            assert isinstance(result, dict), "run_radare2 should return dict"
         except Exception as e:
             # May fail on minimal binary, but should not be tool unavailable error
             error_msg = str(e).lower()
