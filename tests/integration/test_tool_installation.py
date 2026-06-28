@@ -174,9 +174,12 @@ class TestMCPToolCalls:
         workspace, binary_path = sample_binary_file
 
         try:
-            result = await run_radare2(str(binary_path))
-            # Should return a dict with analysis results
-            assert isinstance(result, dict), "run_radare2 should return dict"
+            result = await run_radare2(str(binary_path), "iI")
+            # run_radare2 returns a ToolResult, not a dict
+            assert result.status in (
+                "success",
+                "error",
+            ), f"run_radare2 should return ToolResult, got status={getattr(result, 'status', '?')}"
         except Exception as e:
             # May fail on minimal binary, but should not be tool unavailable error
             error_msg = str(e).lower()
