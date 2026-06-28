@@ -16,6 +16,7 @@ from reversecore_mcp.prompts.malware import (
 )
 from reversecore_mcp.prompts.report import report_generation_mode
 from reversecore_mcp.prompts.security import (
+    autonomous_vuln_hunt_mode,
     crypto_analysis_mode,
     firmware_analysis_mode,
     patch_analysis_mode,
@@ -52,6 +53,7 @@ def register_prompts(mcp: FastMCP):
     mcp.prompt("crypto_analysis_mode")(crypto_analysis_mode)
     mcp.prompt("firmware_analysis_mode")(firmware_analysis_mode)
     mcp.prompt("vulnerability_research_mode")(vulnerability_research_mode)
+    mcp.prompt("autonomous_vuln_hunt_mode")(autonomous_vuln_hunt_mode)
 
     # Game Analysis Prompts
     mcp.prompt("game_analysis_mode")(game_analysis_mode)

@@ -1,0 +1,152 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.1, pytest-9.1.1, pluggy-1.6.0 -- /Users/sjkim1127/Reversecore_MCP/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/sjkim1127/Reversecore_MCP
+configfile: pytest.ini (WARNING: ignoring pytest config in pyproject.toml!)
+plugins: anyio-4.14.0, cov-7.1.0, asyncio-1.4.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=session
+collecting ... collected 43 items
+
+tests/unit/tools/malware/test_dormant_detector.py::TestExtractJsonSafely::test_empty_string PASSED [  2%]
+tests/unit/tools/malware/test_dormant_detector.py::TestExtractJsonSafely::test_none_input PASSED [  4%]
+tests/unit/tools/malware/test_dormant_detector.py::TestExtractJsonSafely::test_valid_json PASSED [  6%]
+tests/unit/tools/malware/test_dormant_detector.py::TestExtractJsonSafely::test_invalid_json PASSED [  9%]
+tests/unit/tools/malware/test_dormant_detector.py::TestExtractJsonSafely::test_json_with_whitespace PASSED [ 11%]
+tests/unit/tools/malware/test_dormant_detector.py::TestValidateR2Identifier::test_valid_hex_address PASSED [ 13%]
+tests/unit/tools/malware/test_dormant_detector.py::TestValidateR2Identifier::test_valid_symbol PASSED [ 16%]
+tests/unit/tools/malware/test_dormant_detector.py::TestValidateR2Identifier::test_valid_function_name PASSED [ 18%]
+tests/unit/tools/malware/test_dormant_detector.py::TestValidateR2Identifier::test_invalid_injection_attempt PASSED [ 20%]
+tests/unit/tools/malware/test_dormant_detector.py::TestValidateR2Identifier::test_invalid_backtick PASSED [ 23%]
+tests/unit/tools/malware/test_dormant_detector.py::TestValidateR2Identifier::test_invalid_dollar PASSED [ 25%]
+tests/unit/tools/malware/test_dormant_detector.py::TestValidateR2Identifier::test_invalid_pipe PASSED [ 27%]
+tests/unit/tools/malware/test_dormant_detector.py::TestValidateR2Identifier::test_empty_string PASSED [ 30%]
+tests/unit/tools/malware/test_dormant_detector.py::TestFileCacheKey::test_generates_key PASSED [ 32%]
+tests/unit/tools/malware/test_dormant_detector.py::TestFileCacheKey::test_different_files_different_keys PASSED [ 34%]
+tests/unit/tools/malware/test_dormant_detector.py::TestFileCacheKey::test_nonexistent_file PASSED [ 37%]
+tests/unit/tools/malware/test_dormant_detector.py::TestFunctionsToTuple::test_empty_list PASSED [ 39%]
+tests/unit/tools/malware/test_dormant_detector.py::TestFunctionsToTuple::test_single_function PASSED [ 41%]
+tests/unit/tools/malware/test_dormant_detector.py::TestFunctionsToTuple::test_multiple_functions PASSED [ 44%]
+tests/unit/tools/malware/test_dormant_detector.py::TestFunctionsToTuple::test_missing_fields PASSED [ 46%]
+tests/unit/tools/malware/test_dormant_detector.py::TestFindOrphanFunctions::test_finds_orphan PASSED [ 48%]
+tests/unit/tools/malware/test_dormant_detector.py::TestFindOrphanFunctions::test_skips_imports PASSED [ 51%]
+tests/unit/tools/malware/test_dormant_detector.py::TestFindOrphanFunctions::test_skips_main_and_entry PASSED [ 53%]
+tests/unit/tools/malware/test_dormant_detector.py::TestFindOrphanFunctions::test_small_functions_skipped PASSED [ 55%]
+tests/unit/tools/malware/test_dormant_detector.py::TestDormantDetectorEntryPoint::test_register_dormant_detector PASSED [ 58%]
+tests/unit/tools/malware/test_dormant_detector.py::TestCheckGameContext::test_no_lief_returns_default PASSED [ 60%]
+tests/unit/tools/malware/test_dormant_detector.py::TestCheckGameContext::test_lief_detects_game_lib PASSED [ 62%]
+tests/unit/tools/malware/test_dormant_detector.py::TestCheckGameContext::test_lief_parse_failure PASSED [ 65%]
+tests/unit/tools/malware/test_dormant_detector.py::TestDormantDetectorMain::test_discovery_phase PASSED [ 67%]
+tests/unit/tools/malware/test_dormant_detector.py::TestDormantDetectorMain::test_emulation_phase PASSED [ 69%]
+tests/unit/tools/malware/test_dormant_detector.py::TestDormantDetectorMain::test_json_parse_failure PASSED [ 72%]
+tests/unit/tools/malware/test_dormant_detector.py::TestDormantDetectorMain::test_game_context_adjusts_confidence PASSED [ 74%]
+tests/unit/tools/malware/test_dormant_detector.py::TestIdentifyConditionalPaths::test_empty_functions PASSED [ 76%]
+tests/unit/tools/malware/test_dormant_detector.py::TestIdentifyConditionalPaths::test_with_function PASSED [ 79%]
+tests/unit/tools/malware/test_dormant_detector.py::TestIdentifyConditionalPaths::test_identify_conditional_paths_simple_values_filtering PASSED [ 81%]
+tests/unit/tools/malware/test_dormant_detector.py::TestIdentifyConditionalPaths::test_identify_conditional_paths_heuristics PASSED [ 83%]
+tests/unit/tools/malware/test_dormant_detector.py::TestVerifyHypothesisWithEmulation::test_emulation_success PASSED [ 86%]
+tests/unit/tools/malware/test_dormant_detector.py::TestVerifyHypothesisWithEmulation::test_emulation_validation_errors PASSED [ 88%]
+tests/unit/tools/malware/test_dormant_detector.py::TestVerifyHypothesisWithEmulation::test_emulation_parse_failure PASSED [ 90%]
+tests/unit/tools/malware/test_dormant_detector.py::TestDormantDetectorGameContextFallback::test_check_game_context_with_lief_mocked PASSED [ 93%]
+tests/unit/tools/malware/test_dormant_detector.py::TestDormantDetectorCoverageAdditions::test_run_r2_cmd_direct_uncached PASSED [ 95%]
+tests/unit/tools/malware/test_dormant_detector.py::TestDormantDetectorCoverageAdditions::test_dormant_detector_fallback_parse PASSED [ 97%]
+tests/unit/tools/malware/test_dormant_detector.py::TestDormantDetectorCoverageAdditions::test_dormant_detector_context_reporting_and_suppression PASSED [100%]/Users/sjkim1127/Reversecore_MCP/.venv/lib/python3.12/site-packages/coverage/inorout.py:561: CoverageWarning: Module reversecore_mcp/tools/malware/dormant_detector was never imported. (module-not-imported); see https://coverage.readthedocs.io/en/7.14.3/messages.html#warning-module-not-imported
+  self.warn(f"Module {pkg} was never imported.", slug="module-not-imported")
+
+
+================================ tests coverage ================================
+_______________ coverage: platform darwin, python 3.12.1-final-0 _______________
+
+Name                                                    Stmts   Miss  Cover   Missing
+-------------------------------------------------------------------------------------
+reversecore_mcp/__init__.py                                 1      0   100%
+reversecore_mcp/core/__init__.py                           11      0   100%
+reversecore_mcp/core/analysis_cache.py                    164    139    15%   31-65, 72-86, 98-112, 123-142, 148-155, 160-173, 178-192, 197-214, 233-277, 297-334
+reversecore_mcp/core/audit.py                              41      6    85%   41, 61-64, 88-98
+reversecore_mcp/core/binary_cache.py                       71     71     0%   8-138
+reversecore_mcp/core/command_spec.py                       35     18    49%   46, 307-333, 353-357
+reversecore_mcp/core/config.py                            259    110    58%   285, 293, 307-310, 316-324, 378-415, 426-428, 432, 436, 440, 444, 448, 452, 456, 460, 464, 468, 472, 476, 484, 488, 492, 496, 500, 504, 508, 512, 516, 520, 524, 528, 532, 541-564, 584, 590-597, 602
+reversecore_mcp/core/container.py                         114     65    43%   76, 104-139, 149-151, 155-157, 166-169, 180-181, 190-194, 202-220, 228-246, 276, 281, 286, 291
+reversecore_mcp/core/decorators.py                         84     40    52%   59-62, 87-97, 103-148
+reversecore_mcp/core/error_formatting.py                   44     39    11%   26-71, 84-93
+reversecore_mcp/core/error_handling.py                     73     39    47%   37-76, 121-141, 149-166, 171
+reversecore_mcp/core/evidence.py                          101    101     0%   9-251
+reversecore_mcp/core/exceptions.py                        135     55    59%   36-38, 48-50, 60-66, 87, 107-109, 125-129, 144-148, 163-164, 179-180, 195-196, 216-223, 233-238, 253-258, 273-274, 284-285, 295-296
+reversecore_mcp/core/execution.py                         163    140    14%   32-38, 41-42, 45-46, 55-58, 63-72, 88-156, 190-321, 358-374
+reversecore_mcp/core/extension.py                          54     15    72%   169, 184, 198, 210, 214-217, 261, 279, 294, 308, 317, 321-323
+reversecore_mcp/core/extension_registry.py                256    209    18%   82-84, 92-102, 106-111, 124-135, 139-177, 181-192, 196-221, 225-246, 254-270, 287-294, 306-313, 317-321, 325-329, 342-349, 355-362, 375-381, 385-391, 395-405, 413, 420, 424, 428-430, 444-453, 470-472, 478-480
+reversecore_mcp/core/json_utils.py                         32     16    50%   63-114, 124
+reversecore_mcp/core/loader.py                             37     37     0%   5-78
+reversecore_mcp/core/logging_config.py                     77     60    22%   33-36, 40-89, 97-101, 123-175, 209-212
+reversecore_mcp/core/memory.py                            194    194     0%   11-727
+reversecore_mcp/core/metrics.py                           102     40    61%   49, 54-55, 84-88, 92-96, 100-105, 109-110, 118-121, 145-147, 171-173, 183-195
+reversecore_mcp/core/mitre_mapper.py                       54     54     0%   8-429
+reversecore_mcp/core/plugin.py                             20      3    85%   30, 35, 45
+reversecore_mcp/core/r2_helpers.py                        155     94    39%   54, 69, 85-86, 109-110, 129-154, 172-184, 194-201, 237-255, 273, 280-281, 296-353, 379-380, 395
+reversecore_mcp/core/r2_pool.py                           231    175    24%   26-27, 102-120, 125-126, 131-132, 136-138, 142-144, 152-158, 162-167, 171-177, 181-215, 219-221, 225-232, 236-242, 246-260, 264-265, 275-289, 293-325, 335-344, 354-361, 365-374, 378-379, 383-385, 389-390
+reversecore_mcp/core/report_generator.py                  167    167     0%   8-275
+reversecore_mcp/core/resilience.py                        128     84    34%   53-68, 72-78, 82-95, 136-137, 147-156, 161-174, 189-214, 227-252
+reversecore_mcp/core/resource_manager.py                   95     71    25%   41, 45-51, 57-63, 67-74, 78-85, 89-113, 117-166
+reversecore_mcp/core/result.py                             65      0   100%
+reversecore_mcp/core/sast/__init__.py                       2      0   100%
+reversecore_mcp/core/sast/python_ast_scanner.py            63     51    19%   21-27, 34-36, 40-106, 114-124
+reversecore_mcp/core/sast/regex_scanner.py                 27     19    30%   24-69
+reversecore_mcp/core/sast/rule_manager.py                  67     42    37%   43-95, 99-101, 105-113, 117-118
+reversecore_mcp/core/security.py                           79     58    27%   34-35, 57-61, 67-71, 82-84, 96-102, 138-213
+reversecore_mcp/core/task_queue.py                        123    123     0%   7-312
+reversecore_mcp/core/validators.py                        117     96    18%   34-37, 54-71, 76-82, 87-91, 96-102, 110-115, 120-127, 134-148, 155-161, 166-178, 183-185, 190-192, 197-212, 217-227, 232-238
+reversecore_mcp/dashboard/__init__.py                     202    202     0%   12-500
+reversecore_mcp/prompts/__init__.py                        21     21     0%   3-56
+reversecore_mcp/prompts/common.py                           2      2     0%   5-20
+reversecore_mcp/prompts/game.py                             3      3     0%   3-8
+reversecore_mcp/prompts/malware.py                         19     19     0%   3-1090
+reversecore_mcp/prompts/report.py                           3      3     0%   3-8
+reversecore_mcp/prompts/security.py                        11     11     0%   3-143
+reversecore_mcp/resources.py                              179    179     0%   1-332
+reversecore_mcp/tools/__init__.py                           7      0   100%
+reversecore_mcp/tools/analysis/__init__.py                 42     31    26%   19, 23, 28-79
+reversecore_mcp/tools/analysis/capa_tools.py               69     69     0%   8-217
+reversecore_mcp/tools/analysis/crash_triage.py            135    115    15%   48-119, 124-180, 185-250
+reversecore_mcp/tools/analysis/die_tools.py               117    117     0%   9-271
+reversecore_mcp/tools/analysis/diff_tools.py              219    181    17%   55-66, 135-259, 297-388, 475-635, 665-714
+reversecore_mcp/tools/analysis/emulation_tools.py         148    129    13%   24-79, 120-296
+reversecore_mcp/tools/analysis/fuzz_tools.py               23     23     0%   3-130
+reversecore_mcp/tools/analysis/lief_tools.py              219    199     9%   18-20, 35-153, 166-217, 222-266, 287-380, 390-421
+reversecore_mcp/tools/analysis/signature_tools.py         170    130    24%   57-64, 80, 97, 142-245, 283-394, 468-588
+reversecore_mcp/tools/analysis/source_auditor.py           68     44    35%   58-135, 153
+reversecore_mcp/tools/analysis/static_analysis.py         176    136    23%   65-161, 183-190, 239-351, 371-375, 404-431, 458-499
+reversecore_mcp/tools/analysis/symbolic_analysis.py        33     25    24%   43-87
+reversecore_mcp/tools/common/__init__.py                   29     18    38%   19, 23, 28-59
+reversecore_mcp/tools/common/assembler.py                 197    197     0%   3-365
+reversecore_mcp/tools/common/file_operations.py           149    122    18%   26-44, 84-194, 214-229, 263-373
+reversecore_mcp/tools/common/memory_tools.py              115    115     0%   8-515
+reversecore_mcp/tools/common/patch_explainer.py            90     71    21%   52-172, 184-238, 243-252
+reversecore_mcp/tools/common/server_tools.py               49     49     0%   5-118
+reversecore_mcp/tools/forensics/__init__.py                41     29    29%   25, 29, 33-94
+reversecore_mcp/tools/forensics/artifact.py               187    156    17%   48, 89-111, 150-200, 244-340, 379-444, 487-587
+reversecore_mcp/tools/forensics/disk.py                   139    100    28%   37, 42-50, 70-107, 146-200, 242-279, 317-358, 396, 427-446
+reversecore_mcp/tools/forensics/memory.py                 186    147    21%   57-95, 102-103, 126-153, 201-261, 286-319, 345-383, 416-456, 496-551
+reversecore_mcp/tools/forensics/network.py                238    204    14%   58-63, 91-168, 204-248, 285-362, 405-486, 534-589
+reversecore_mcp/tools/malware/__init__.py                  28     13    54%   29, 33, 38-57
+reversecore_mcp/tools/malware/adaptive_vaccine.py         400    358    10%   27-28, 72, 89-136, 151-155, 160, 198-257, 262-310, 314-329, 334-436, 442-458, 472-533, 546-622, 639-775
+reversecore_mcp/tools/malware/dormant_detector.py         366     84    77%   20-21, 81, 89-97, 102-123, 149-152, 155-167, 207-210, 214-216, 252-257, 280-281, 327, 373-376, 591, 604-608, 615, 648-653, 660, 672, 702, 712, 731-732, 734-735, 767-772
+reversecore_mcp/tools/malware/ioc_tools.py                159    133    16%   28-43, 60-83, 142-310
+reversecore_mcp/tools/malware/vulnerability_hunter.py     254    224    12%   346-354, 359-361, 408-794, 817-829, 834-856, 863-895, 900-907
+reversecore_mcp/tools/malware/yara_tools.py               111     84    24%   56-105, 125-231
+reversecore_mcp/tools/patch_explainer.py                    3      3     0%   8-15
+reversecore_mcp/tools/radare2/__init__.py                   4      0   100%
+reversecore_mcp/tools/radare2/r2_analysis.py              351    297    15%   68-144, 296-309, 319-357, 371-391, 438-600, 624-688, 705-769, 794-863, 921-1048
+reversecore_mcp/tools/radare2/r2_db.py                    163    163     0%   21-417
+reversecore_mcp/tools/radare2/r2_session.py               175    135    23%   22-24, 86-90, 106-117, 130-148, 163-175, 186-197, 201-224, 228-235, 239-247, 251-258, 267-270, 278-281, 285-298, 302, 313-316, 321-334, 339-352, 361-376
+reversecore_mcp/tools/radare2/r2ghidra_tools.py           163    127    22%   44-50, 61-68, 103-137, 169-219, 251-286, 333-381, 426-485
+reversecore_mcp/tools/radare2/radare2_mcp_tools.py        479    444     7%   67-69, 73-94, 102-153, 163-164, 173-1276, 1283-1291, 1297-1301, 1329-1381, 1395-1396
+reversecore_mcp/tools/report/__init__.py                    2      0   100%
+reversecore_mcp/tools/report/converter.py                 108    108     0%   10-366
+reversecore_mcp/tools/report/email.py                      45     27    40%   27-44, 53-57, 65-83
+reversecore_mcp/tools/report/report_mcp_tools.py           92     65    29%   28-49, 67-69, 82-84, 94-96, 121-130, 147-153, 166-168, 178-180, 195-199, 214-218, 236-243, 257-261, 295-304, 319, 324-340, 351-353
+reversecore_mcp/tools/report/report_tools.py              350    294    16%   64-79, 92-100, 110, 125-127, 133-142, 153-161, 198, 225-255, 281-310, 314-334, 340-357, 369-377, 393-401, 410-418, 422-438, 442-461, 487-619, 633-647, 651-665, 675-692, 700, 725-734, 748-750, 758, 782-868, 881-920, 925-957, 962-966, 971-972, 976-982, 986-993, 997-1003, 1007-1022, 1051-1078, 1084
+reversecore_mcp/tools/report/session.py                    94     51    46%   29-50, 55-58, 128-129, 133-134, 138-141, 145-160, 164-167, 171-172, 176-178, 182-183, 187-194
+reversecore_mcp/tools/report_tools.py                       3      3     0%   8-11
+-------------------------------------------------------------------------------------
+TOTAL                                                   10077   7891    22%
+Coverage HTML written to dir htmlcov
+============================== 43 passed in 3.32s ==============================

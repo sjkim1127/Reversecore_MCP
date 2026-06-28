@@ -34,6 +34,9 @@ dependencies = [
     "contourpy<1.3.3",
     "pyxbe<=1.0.3",
     "pyxdia<=0.1.0",
+    # Exploit generation tools
+    "pwntools>=4.12.0",
+    "ROPgadget>=7.3",
 ]
 
 [project.optional-dependencies]
