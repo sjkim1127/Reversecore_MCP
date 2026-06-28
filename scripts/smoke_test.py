@@ -1823,7 +1823,10 @@ def main() -> int:
 
     # ── Final report ──────────────────────────────────────────────────────────
     report.print_summary()
-    FIXTURE_DEST.unlink(missing_ok=True)
+    try:
+        FIXTURE_DEST.unlink(missing_ok=True)
+    except PermissionError:
+        pass
 
     if report.failed_required:
         n = len(report.failed_required)
