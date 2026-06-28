@@ -963,7 +963,9 @@ def _l19_section_detection_elf() -> tuple[bool, str]:
         ep = data.get("entry_point", 0)
         if fmt != "elf":
             return False, f"Expected ELF format, got {fmt}"
-        if ep != 4194424:
+        # Convert hex string or int to verify value
+        val = int(ep, 16) if isinstance(ep, str) else ep
+        if val != 4194424:
             return False, f"Expected entry_point 4194424, got {ep}"
         return True, f"LIEF correctly parsed ELF (format={fmt}, entry_point={ep})"
     else:
