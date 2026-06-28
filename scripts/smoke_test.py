@@ -283,7 +283,10 @@ def _print_result(r: CheckResult) -> None:
 def setup_fixture() -> bool:
     WORKSPACE.mkdir(parents=True, exist_ok=True)
     if FIXTURE_DEST.exists():
-        os.chmod(FIXTURE_DEST, 0o755)
+        try:
+            os.chmod(FIXTURE_DEST, 0o755)
+        except PermissionError:
+            pass
         print(
             f"  {DIM}Fixture already exists at {FIXTURE_DEST}  ({FIXTURE_DEST.stat().st_size} bytes){RESET}"
         )
@@ -292,7 +295,10 @@ def setup_fixture() -> bool:
         print(f"{RED}  ❌ Fixture not found: {FIXTURE_SRC}{RESET}")
         return False
     shutil.copy2(FIXTURE_SRC, FIXTURE_DEST)
-    os.chmod(FIXTURE_DEST, 0o755)
+    try:
+        os.chmod(FIXTURE_DEST, 0o755)
+    except PermissionError:
+        pass
     print(f"  {DIM}Fixture → {FIXTURE_DEST}  ({FIXTURE_DEST.stat().st_size} bytes){RESET}")
     return True
 
