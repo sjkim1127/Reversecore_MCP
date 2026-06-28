@@ -28,6 +28,8 @@ FROM ${BASE_IMAGE}:${BASE_TAG}
 # Ordered from least-frequently-changed to most-frequently-changed
 # so Docker layer cache is invalidated as rarely as possible.
 
+WORKDIR /app
+
 # Static resources (AI knowledge base, report templates)
 COPY resources/  /app/resources/
 COPY templates/  /app/templates/

@@ -356,6 +356,7 @@ jobs:
             -v ${{ github.workspace }}/tests/fixtures/rules:/app/rules \
             -v ${{ github.workspace }}/tests:/app/tests \
             -v ${{ github.workspace }}/requirements-dev.txt:/app/requirements-dev.txt \
+            -v ${{ github.workspace }}/pytest.ini:/app/pytest.ini \
             reversecore-mcp:ci
           echo "⏳ Waiting for MCP server container to be ready..."
           for i in $(seq 1 30); do
