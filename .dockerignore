@@ -57,6 +57,7 @@ docs/
 # ── CI tooling and scripts ───────────────────────────────────────────────────
 scripts/*
 !scripts/angr_worker.py
+!scripts/smoke_test.py
 Makefile
 
 # ── Misc project files not needed at runtime ─────────────────────────────────
