@@ -214,8 +214,8 @@ jobs:
               --build-arg RADARE2_VERSION="${{ env.RADARE2_VERSION }}" \
               --build-arg GHIDRA_VERSION="${{ env.GHIDRA_VERSION }}" \
               --build-arg GHIDRA_DATE="${{ env.GHIDRA_DATE }}" \
-              --cache-from "type=gha,scope=base-${BASE_TAG}" \
-              --cache-to "type=gha,scope=base-${BASE_TAG},mode=max" \
+              --cache-from "type=registry,ref=${BASE_IMAGE}:${BASE_TAG}" \
+              --cache-to "type=inline" \
               -t "${BASE_IMAGE}:${BASE_TAG}" \
               -f Dockerfile.base .
             echo "✅ Base image built locally and tagged as ${BASE_IMAGE}:${BASE_TAG}"
@@ -541,9 +541,10 @@ jobs:
             GHIDRA_VERSION=${{ env.GHIDRA_VERSION }}
             GHIDRA_DATE=${{ env.GHIDRA_DATE }}
           tags: ${{ env.BASE_IMAGE }}:${{ env.BASE_TAG }}-${{ matrix.suffix }}
-          # Registry-based persistent cache keyed by tool version + arch
-          cache-from: type=registry,ref=${{ env.BASE_IMAGE }}:cache-${{ env.BASE_TAG }}-${{ matrix.suffix }}
-          cache-to: type=registry,ref=${{ env.BASE_IMAGE }}:cache-${{ env.BASE_TAG }}-${{ matrix.suffix }},mode=max
+          # Inline cache embeds metadata in the pushed image — readable by
+          # cache-from: type=registry on subsequent runs. Compatible with driver: docker.
+          cache-from: type=registry,ref=${{ env.BASE_IMAGE }}:${{ env.BASE_TAG }}-${{ matrix.suffix }}
+          cache-to: type=inline
 
   # ──────────────────────────────────────────────────────────────────────────
   # Merge per-arch base image digests into a single multi-arch manifest list
@@ -729,9 +730,10 @@ jobs:
             BASE_IMAGE=${{ env.BASE_IMAGE }}
             BASE_TAG=${{ env.BASE_TAG }}
           tags: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}-${{ matrix.suffix }}
-          # Registry cache per arch — survives across GHA cache evictions
-          cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:cache-app-${{ matrix.suffix }}
-          cache-to: type=registry,ref=${{ env.IMAGE_NAME }}:cache-app-${{ matrix.suffix }},mode=max
+          # Inline cache embeds metadata in the pushed image — readable by
+          # cache-from: type=registry on subsequent runs. Compatible with driver: docker.
+          cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:sha-${{ github.sha }}-${{ matrix.suffix }}
+          cache-to: type=inline
 
   # ──────────────────────────────────────────────────────────────────────────
   # Merge per-arch app image digests into a single multi-arch manifest list
