@@ -14,7 +14,7 @@ annotated-types==0.7.0    # via pydantic
 anyio==4.14.1             # via httpx, mcp, py-key-value-aio, sse-starlette, starlette, watchfiles
 arabic-reshaper==3.0.1    # via xhtml2pdf
 archinfo==9.2.213         # via angr, cle
-arpy==1.1.1               # via cle
+arpy==2.3.0               # via cle
 arq==0.28.0               # via reversecore-mcp, reversecore-mcp (pyproject.toml)
 asn1crypto==1.5.1         # via oscrypto, pyhanko, pyhanko-certvalidator
 async-lru==2.3.0          # via reversecore-mcp, reversecore-mcp (pyproject.toml)
