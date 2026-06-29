@@ -179,7 +179,7 @@ jobs:
           echo "✅ YARA baseline rule created"
 
       - name: Cache test binaries
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         id: binaries-cache
         with:
           path: tests/fixtures/workspace/binaries
