@@ -15,7 +15,7 @@ def game_analysis_mode(filename: str = "target_binary") -> str:
 
     Your mission: Perform a comprehensive security analysis of '{filename}'
     to understand its protection mechanisms, identify vulnerabilities, and
-    assess cheat development feasibility.
+    assess cheat development feasibility using the available Radare2 and security tools.
 
     {LANGUAGE_RULE}
 
@@ -31,173 +31,126 @@ def game_analysis_mode(filename: str = "target_binary") -> str:
     ```
     run_file("{filename}")                           # File type & architecture
     parse_binary_with_lief("{filename}")             # PE structure, sections, entropy
-    run_strings("{filename}", min_length=6)          # String artifacts
+    run_strings("{filename}", min_length=6)          # Extract meaningful string artifacts
     ```
 
     [REASONING CHECKPOINT 1]
     Before proceeding, answer these questions internally:
-    Q1: What game engine is this? (Unity=mono.dll, Unreal=UE4*.dll, Custom=?)
-    Q2: Is it packed? (High entropy sections > 7.0?)
+    Q1: What game engine is this? (Unity=mono.dll/UnityPlayer.dll, Unreal=UnrealEngine/CoreUObject, Custom=?)
+    Q2: Is it packed or protected? (High entropy sections > 7.0? detect_packer output?)
     Q3: What's the target platform? (x86/x64/ARM?)
-    Q4: Are there obvious protection signatures in strings?
+    Q4: Are there obvious protection signatures or anti-cheat strings?
 
     ═══════════════════════════════════════════════════════════════════════════
-    ██ PHASE 2: PROTECTION MECHANISM ANALYSIS ██
+    ██ PHASE 2: PROTECTION & ANTI-CHEAT MECHANISM ANALYSIS ██
     ═══════════════════════════════════════════════════════════════════════════
 
-    [STEP 2.1] Anti-Cheat Detection
-    ```
-    find_cheat_points("{filename}", categories=["speed_hack", "god_mode", "teleport", "item_dupe", "wallhack"])
-    ```
-
-    Analyze the `anticheat_detected` field carefully:
-    - GameGuard/nProtect → Korean games, kernel-level protection
-    - BattlEye → European games, user+kernel mode
-    - EasyAntiCheat → Fortnite-style, cloud-based detection
-    - Themida/VMProtect → Code virtualization, hard to analyze
-    - Custom → Look for CRC checks, memory scanning loops
+    [STEP 2.1] Anti-Cheat & Packer Detection
+    Since we don't have dedicated anti-cheat scanning tools, we look for indicators:
+    1. Scan for packers/protectors:
+       ```
+       detect_packer("{filename}")
+       detect_packer_deep("{filename}")
+       ```
+    2. Check for anti-cheat related imports or symbols:
+       ```
+       Radare2_list_imports("{filename}")
+       ```
+       Look for common anti-cheat names: BattlEye, EasyAntiCheat (EAC), GameGuard, Themida, VMProtect, XIGNCODE.
+    3. Look for anti-debug APIs:
+       ```
+       Radare2_run_command("{filename}", "ii ~IsDebuggerPresent")
+       Radare2_run_command("{filename}", "ii ~QueryInformationProcess")
+       ```
 
     [STEP 2.2] Hidden Threat Detection (Backdoors in Game Client)
     ```
     dormant_detector("{filename}")
     ```
-
     Pay special attention to:
-    - Orphan functions with network calls (potential backdoor)
+    - Orphan functions with network calls (potential backdoor/cheat injection handler)
     - Functions with magic value checks (developer backdoors, debug modes)
     - Unreferenced code that accesses sensitive data
 
     [REASONING CHECKPOINT 2]
     Think step-by-step:
-    1. What anti-cheat vendor is protecting this game?
+    1. What anti-cheat vendor or protection is protecting this game?
     2. What's the protection level? (Kernel/User/None)
     3. Are there integrity checks? How frequent?
     4. Can the protection be bypassed? What's the difficulty?
 
     ═══════════════════════════════════════════════════════════════════════════
-    ██ PHASE 3: CHEAT VECTOR ANALYSIS ██
+    ██ PHASE 3: CHEAT VECTOR & VULNERABILITY ANALYSIS ██
     ═══════════════════════════════════════════════════════════════════════════
 
-    [STEP 3.1] Speed Hack Feasibility
-    For each finding in `cheat_points.speed_hack`:
-    ```
-    analyze_xrefs("{filename}", "<target_address>")
-    ```
+    Analyze game logic functions to find pointers/functions for potential cheats.
 
-    Chain-of-Thought for Speed Hack:
-    - Does the game use GetTickCount/QueryPerformanceCounter?
-    - Is there a central timing function we can hook?
-    - Is time validation server-side or client-side only?
-    - Can we manipulate delta-time without detection?
+    [STEP 3.1] Speed Hack Feasibility
+    Find timing APIs:
+    - Look for Sleep, GetTickCount, QueryPerformanceCounter, timeGetTime.
+    - Check calling locations:
+      ```
+      Radare2_xrefs_to("{filename}", "QueryPerformanceCounter")
+      ```
+    - Does the game validate delta-time server-side?
 
     [STEP 3.2] God Mode / Damage Hack Analysis
-    For each finding in `cheat_points.god_mode`:
-    ```
-    smart_decompile("{filename}", "<damage_function_address>")
-    ```
-
-    Reasoning Path:
-    - Where is damage calculated? (Client → Server validation?)
-    - Is there a SetHealth function we can call directly?
-    - Can we NOP the damage application?
-    - Is damage logged/verified by anti-cheat?
+    Locate damage processing logic (e.g., TakeDamage, SetHealth, ApplyDamage):
+    1. Find candidate functions:
+       ```
+       Radare2_list_symbols("{filename}")
+       ```
+    2. Decompile the damage function:
+       ```
+       r2_decompile("{filename}", "<damage_function_name_or_address>")
+       ```
+    3. Check if damage calculations are client-authoritative and if we can bypass it.
 
     [STEP 3.3] Teleport / Position Hack
-    For each finding in `cheat_points.teleport`:
-    ```
-    recover_structures("{filename}", "<position_function>")
-    ```
-
-    Think through:
-    - What's the coordinate system? (float/double, world/local)
-    - Is position validated server-side?
-    - What's the maximum teleport distance before detection?
-    - Are there no-clip/fly mode checks?
-
-    [STEP 3.4] Item Duplication / Economy Hack
-    For `cheat_points.item_dupe`:
-    - Identify AddItem/SetGold functions
-    - Check if quantities are server-authoritative
-    - Look for race conditions in transaction handling
+    Locate coordinate/movement update logic (e.g., UpdatePosition, MoveTo):
+    1. Recover structures related to player class/structs:
+       ```
+       r2_recover_structures("{filename}", "<position_update_function>")
+       ```
+    2. Determine coordinate fields (X, Y, Z coordinates are usually floats near each other).
+    3. Is position validated server-side, or can we warp coordinates instantly?
 
     ═══════════════════════════════════════════════════════════════════════════
     ██ PHASE 4: NETWORK PROTOCOL REVERSE ENGINEERING ██
     ═══════════════════════════════════════════════════════════════════════════
 
     [STEP 4.1] Protocol Structure Discovery
-    ```
-    analyze_game_protocol("{filename}")
-    ```
+    Find network functions: send, recv, sendto, recvfrom, WSASend, WSARecv.
+    1. Find calls to network APIs:
+       ```
+       Radare2_xrefs_to("{filename}", "send")
+       ```
+    2. Decompile the sending/receiving wrapper functions:
+       ```
+       r2_decompile("{filename}", "<send_wrapper_address>")
+       ```
 
-    Map the packet ecosystem:
-    - Identify packet prefix patterns (Pd*, Pu*, CS_*, SC_*)
-    - Categorize by function (movement, combat, inventory, social)
-    - Find the packet dispatcher/handler table
-
-    [STEP 4.2] Encryption Analysis
-    ```
-    analyze_xrefs("{filename}", "send")
-    analyze_xrefs("{filename}", "recv")
-    ```
-
-    For each send() caller:
-    - What function prepares the packet before sending?
-    - Is there encryption? What algorithm?
-    - Where is the encryption key stored/generated?
-
-    For each recv() caller:
-    - Where is the packet parsed?
-    - How are packet handlers dispatched?
-    - Can we inject fake packets?
-
-    [STEP 4.3] Deep Protocol Analysis (if needed)
-    ```
-    smart_decompile("{filename}", "<packet_handler_address>")
-    ```
-
-    Questions to answer:
-    - What's the packet header format? (size, opcode, checksum?)
-    - Is there packet sequence validation?
-    - Can we replay packets?
-    - What happens if we send malformed packets?
-
-    [REASONING CHECKPOINT 3]
-    Build a mental model of the network layer:
-    1. Client ←→ Server communication flow
-    2. Encryption/Decryption points
-    3. Packet validation mechanisms
-    4. Potential injection/interception points
+    [STEP 4.2] Encryption & Packet Dispatcher Analysis
+    Look for crypto functions called before socket transmission:
+    - Check if standard crypto libs (OpenSSL, CryptEncrypt) are linked:
+      ```
+      match_libraries("{filename}")
+      ```
+    - Trace the packet handler/dispatcher loop. Packet dispatchers often look like a large switch-case statement based on a packet ID.
 
     ═══════════════════════════════════════════════════════════════════════════
-    ██ PHASE 5: ADVANCED ANALYSIS (IF PROTECTION IS STRONG) ██
+    ██ PHASE 5: ADVANCED ATTACK SURFACE ANALYSIS (SYMBOLIC & FUZZING) ██
     ═══════════════════════════════════════════════════════════════════════════
 
-    [STEP 5.1] Anti-Cheat Bypass Strategy
-    If anti-cheat is detected, analyze its weaknesses:
-
-    ```
-    trace_execution_path("{filename}", "IsDebuggerPresent", max_depth=3)
-    trace_execution_path("{filename}", "NtQueryInformationProcess", max_depth=3)
-    ```
-
-    Bypass categories to consider:
-    1. **Timing Window**: Anti-cheat initializes after main() - hook early
-    2. **Driver Level**: Is kernel protection present? Need driver?
-    3. **Signature Evasion**: What signatures does it scan for?
-    4. **Process Isolation**: Can we inject from external process?
-
-    [STEP 5.2] Obfuscation Handling
-    If code is virtualized (Themida/VMProtect):
-
-    ```
-    dormant_detector("{filename}", focus_function="<virtualized_function>")
-    ```
-
-    Strategy:
-    - Don't try to devirtualize - too time-consuming
-    - Focus on INPUT and OUTPUT of virtualized functions
-    - Hook at the boundary, not inside the VM
-    - Look for unprotected helper functions
+    To find exploitable vulnerabilities in packet parsing or file parsing logic:
+    1. Run Taint Analysis to see if packet inputs reach memory copies (strcpy, memcpy):
+       ```
+       taint_trace("{filename}", verify_with_angr=True)
+       ```
+    2. Run dynamic fuzzing on parsing functions to discover crashes:
+       ```
+       run_fuzzing_campaign("{filename}", timeout_seconds=300)
+       ```
 
     ═══════════════════════════════════════════════════════════════════════════
     ██ PHASE 6: SYNTHESIS & EXPERT REPORT ██
@@ -227,7 +180,7 @@ def game_analysis_mode(filename: str = "target_binary") -> str:
     ### Speed Hack
     - **Feasibility**: [Possible/Impossible]
     - **Target Function**: [address + name]
-    - **Method**: [Hook description]
+    - **Method**: [Hook timing API description]
     - **Detection Risk**: [Low/Medium/High]
 
     ### God Mode
@@ -236,45 +189,10 @@ def game_analysis_mode(filename: str = "target_binary") -> str:
     ### Teleport
     [Same structure]
 
-    ### Item Duplication
-    [Same structure]
-
-    ## Network Protocol Summary
-    - **Packet Count**: [N packets identified]
+    ## Network Protocol & Evasion Summary
     - **Encryption**: [Algorithm or None]
-    - **Key Location**: [address if found]
-    - **Packet Categories**:
-      - Movement: [list]
-      - Combat: [list]
-      - Inventory: [list]
-
-    ## Key Offsets & Structures
-    | Name | Address | Size | Purpose |
-    |------|---------|------|---------|
-    | Player Base | 0x... | ... | ... |
-    | Health | 0x... | float | ... |
-    | Position | 0x... | vec3 | ... |
-
-    ## Recommended Attack Vectors (Priority Order)
-    1. **[Highest Priority]**: [Description + specific steps]
-    2. **[Second Priority]**: ...
-    3. **[Third Priority]**: ...
-
-    ## Defense Recommendations (For Game Developers)
-    1. [Specific vulnerability fix]
-    2. [Architecture improvement]
-    3. [Additional protection suggestion]
+    - **Bypass Priority**: [1st priority target, e.g. disabling integrity check hook]
     ```
 
-    ═══════════════════════════════════════════════════════════════════════════
-    ██ EXECUTION INSTRUCTION ██
-    ═══════════════════════════════════════════════════════════════════════════
-
     BEGIN ANALYSIS NOW.
-
-    Execute Phase 1 tools first, then reason through each checkpoint before
-    proceeding to the next phase. Show your reasoning at each checkpoint.
-
-    Remember: You are not just running tools - you are THINKING like an expert
-    game hacker. Each tool output should trigger deeper questions and hypotheses.
     """

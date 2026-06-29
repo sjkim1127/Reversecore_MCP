@@ -118,18 +118,28 @@ def patch_analysis_mode(
     {DOCKER_PATH_RULE}
 
     [Analysis SOP]
-    1. Binary Diffing:
+    0. Automated Pattern Inference (run FIRST — recommended):
+       - Run `analyze_patch_diff_auto("{original_binary}", "{patched_binary}")` for
+         automated vulnerability class detection (bounds check, safe API migration,
+         command injection fix, format string fix, integer overflow, UAF, heap overflow).
+       - The tool returns: similarity score, patch_verdict, vulnerability_candidates,
+         top_vuln (with CWE, severity, exploitation_hint), and dangerous_api_changes.
+
+    1. Binary Diffing (manual deep-dive if needed):
        - Run `diff_binaries("{original_binary}", "{patched_binary}")` to find changed functions.
        - Focus on functions with 'unsafe' or 'security' related changes.
 
     2. Change Analysis:
        - For each changed function:
-         A. Decompile both versions using `smart_decompile` or `smart_decompile`.
+         A. Decompile both versions using `r2_decompile`.
          B. Compare the logic to identify added checks (bounds check, integer overflow check, input validation).
+         C. Use `explain_patch("{original_binary}", "{patched_binary}", function_name)` for
+            semantic natural-language diff explanation.
 
     3. Vulnerability Reconstruction:
        - Based on the added check, infer the original vulnerability (Buffer Overflow, UAF, Integer Overflow).
        - Determine if the patch is complete or if it can be bypassed.
+       - Run `taint_trace("{original_binary}")` to confirm source→sink data flow.
 
     4. Reporting:
        - Summarize the vulnerability (CVE style).
@@ -188,19 +198,20 @@ def autonomous_vuln_hunt_mode(filename: str = "target_binary") -> str:
     {DOCKER_PATH_RULE}
 
     ═══════════════════════════════════════════════════════════════════════════
-    ██  PIPELINE OVERVIEW  ██
+    ██  PIPELINE OVERVIEW (6 PHASES)  ██
     ═══════════════════════════════════════════════════════════════════════════
 
-    STAGE 1 ─ DISCOVER
-    STAGE 2 ─ PROVE  (symbolic execution + GDB triage)
-    STAGE 3 ─ EXPLOIT (POC generation + ROP chain)
-    STAGE 4 ─ REPORT  (CVE-style structured output)
+    PHASE 1   ─ ENUMERATE  (radare2 function list)
+    PHASE 1.5 ─ TAINT      (angr source→sink path discovery)
+    PHASE 2   ─ HUNT       (static taint + angr + GDB triage)
+    PHASE 2.5 ─ FUZZ       (AFL++ crash discovery, optional)
+    PHASE 3   ─ EXPLOIT    (POC generation + ROP chain)
+    PHASE 4   ─ REPORT     (CVE-style structured output)
 
     ═══════════════════════════════════════════════════════════════════════════
-    ██  STAGE 1: DISCOVER  ██
+    ██  OPTION A: ONE-SHOT FULL AUTOMATION (recommended)  ██
     ═══════════════════════════════════════════════════════════════════════════
 
-    [Option A — One-shot autonomous pipeline (recommended)]
     Call the master orchestrator tool:
 
         autonomous_vuln_hunt(
@@ -209,14 +220,21 @@ def autonomous_vuln_hunt_mode(filename: str = "target_binary") -> str:
             timeout_per_function=90,     # seconds per function for angr
             auto_poc=True,               # generate pwntools PoC automatically
             auto_rop=True,               # build ROP chain for buffer overflows
+            enable_taint=True,           # Phase 1.5: taint_trace (angr-verified paths)
+            enable_fuzzing=False,        # Phase 2.5: AFL++ (True if afl-fuzz available)
+            fuzzing_timeout=300,         # seconds for AFL++ campaign
             severity_filter="high",      # "critical" | "high" | "medium" | "all"
         )
 
-    This single call executes all four stages and returns:
-    - summary: statistics
-    - vulnerabilities: confirmed list with CVSS-ready metadata
-    - poc_scripts: ready-to-run Python exploits
+    This single call executes all phases and returns:
+    - summary: per-phase statistics including taint_paths_found, fuzzing_crashes
+    - vulnerabilities: confirmed list with CWE, CVSS-ready metadata, source_phase
+    - taint_paths: Phase 1.5 source→sink paths with concrete angr inputs
+    - fuzzing_results: Phase 2.5 AFL++ campaign results (if enabled)
+    - poc_scripts: ready-to-run Python pwntools exploits
     - rop_chains: ROP chain bytes + pwntools snippet
+    - yara_rules: detection signatures for found patterns
+    - pipeline_diagnostics: per-phase status (ok/skipped/error) for debugging
     - next_steps: researcher action items
 
     [Option B — Manual staged approach]
@@ -224,7 +242,24 @@ def autonomous_vuln_hunt_mode(filename: str = "target_binary") -> str:
     (see STAGE 2–4 below).
 
     ═══════════════════════════════════════════════════════════════════════════
-    ██  STAGE 2: PROVE  ██
+    ██  PHASE 1.5: TAINT ANALYSIS  ██
+    ═══════════════════════════════════════════════════════════════════════════
+
+    Find source→sink data-flow paths automatically:
+
+        taint_trace(
+            file_path="{filename}",
+            verify_with_angr=True,  # proves reachability + gets concrete input
+            max_paths=10,
+        )
+
+    Key outputs:
+    - verified_paths: Paths proven by angr → concrete_input ready for POC
+    - static_paths: Candidate paths for manual analysis
+    - top_path: Highest-severity finding
+
+    ═══════════════════════════════════════════════════════════════════════════
+    ██  PHASE 2: HUNT  ██
     ═══════════════════════════════════════════════════════════════════════════
 
     Run the vulnerability hunter with symbolic execution and GDB triage:
@@ -237,18 +272,33 @@ def autonomous_vuln_hunt_mode(filename: str = "target_binary") -> str:
             timeout=300,
         )
 
-    Decision logic after STAGE 2:
+    Decision logic after PHASE 2:
     ┌──────────────────────────────────────────────────────────────────────┐
     │ IF is_exploitable == True AND path_verified_by_angr == True         │
-    │   → severity = CONFIRMED → proceed to STAGE 3                       │
+    │   → severity = CONFIRMED → proceed to PHASE 3                       │
     │ IF is_exploitable == "needs_verification"                           │
-    │   → severity = LIKELY   → proceed to STAGE 3 (lower confidence)    │
+    │   → severity = LIKELY   → proceed to PHASE 3 (lower confidence)    │
     │ IF is_exploitable == False (dead code)                              │
     │   → discard, continue to next vulnerability                         │
     └──────────────────────────────────────────────────────────────────────┘
 
     ═══════════════════════════════════════════════════════════════════════════
-    ██  STAGE 3: EXPLOIT  ██
+    ██  PHASE 2.5: FUZZING (optional)  ██
+    ═══════════════════════════════════════════════════════════════════════════
+
+    Discover crashes static analysis may miss:
+
+        run_fuzzing_campaign(
+            file_path="{filename}",
+            timeout_seconds=600,
+            use_stdin=True,
+            max_crashes_to_triage=20,
+        )
+
+    Heap crashes → analyze_heap_exploit(); Stack crashes → generate_poc_exploit()
+
+    ═══════════════════════════════════════════════════════════════════════════
+    ██  PHASE 3: EXPLOIT  ██
     ═══════════════════════════════════════════════════════════════════════════
 
     For each CONFIRMED or LIKELY vulnerability:
@@ -257,7 +307,7 @@ def autonomous_vuln_hunt_mode(filename: str = "target_binary") -> str:
         generate_poc_exploit(
             file_path="{filename}",
             vulnerability_class="buffer_overflow",   # or format_string, command_injection
-            concrete_input="<value from vulnerability_hunter.concrete_input>",
+            concrete_input="<value from taint_trace or vulnerability_hunter>",
             crash_offset=<value from dynamic_verification.offset or 0>,
         )
 
@@ -268,7 +318,14 @@ def autonomous_vuln_hunt_mode(filename: str = "target_binary") -> str:
             offset=<crash_offset>,
         )
 
-    Decision logic after STAGE 3:
+    [3c] If heap crash:
+        analyze_heap_exploit(
+            file_path="{filename}",
+            overflow_size=<estimated overflow bytes>,
+            has_double_free=<True/False>,
+        )
+
+    Decision logic after PHASE 3:
     ┌──────────────────────────────────────────────────────────────────────┐
     │ POC exploitability == CONFIRMED → zero-day grade evidence           │
     │ POC exploitability == LIKELY    → strong evidence, needs manual PoC │
@@ -277,17 +334,20 @@ def autonomous_vuln_hunt_mode(filename: str = "target_binary") -> str:
     └──────────────────────────────────────────────────────────────────────┘
 
     ═══════════════════════════════════════════════════════════════════════════
-    ██  STAGE 4: REPORT  ██
+    ██  PHASE 4: REPORT  ██
     ═══════════════════════════════════════════════════════════════════════════
 
     Generate a CVE-style structured report:
 
-        create_analysis_session(file_path="{filename}")
-        add_session_note("[CONFIRMED] Buffer overflow in <func> reaches strcpy with user input", category="finding")
-        add_session_ioc("hashes", "<SHA256>")
-        add_session_mitre("T1203", "Exploitation for Client Execution", "Execution")
-        set_session_severity("critical")
-        end_analysis_session(summary="<one-line summary>")
+        start_report_session(binary_name="{filename}")
+        add_ioc(ioc_type="hash", value="<SHA256>", confidence="high")
+        add_mitre_technique("T1203", "Exploitation for Client Execution", "Execution")
+        set_severity("critical")
+        add_analysis_note(
+            "[CONFIRMED] <vuln_type> in <func> reaches <sink> with user input. "
+            "CWE-<N>. Concrete input: <input>.",
+            category="finding"
+        )
         create_analysis_report(template_type="full_analysis", classification="TLP:RED")
 
     Required report fields:
@@ -309,7 +369,9 @@ def autonomous_vuln_hunt_mode(filename: str = "target_binary") -> str:
     🔴 CONFIRMED  — angr verified path + GDB crash + PC control demonstrated
     🟠 LIKELY     — symbolic execution satisfied + taint confirmed, no live crash
     🟡 POSSIBLE   — static taint only, no symbolic/dynamic verification
+    🔵 TAINT ONLY — taint_trace path found, exploitability unconfirmed
+    💥 FUZZ CRASH — AFL++ crash found, needs triage
     ⬜ FALSE POSITIVE — angr proved path unsatisfiable (dead code) → discard
 
-    Begin execution now. Call autonomous_vuln_hunt() first for the fastest path.
+    Begin execution: call autonomous_vuln_hunt(enable_taint=True) for fastest path.
     """

@@ -42,7 +42,9 @@ class AnalysisToolsPlugin(Plugin):
         )
         from reversecore_mcp.tools.analysis.emulation_tools import emulate_binary
         from reversecore_mcp.tools.analysis.fuzz_tools import generate_fuzzing_harness
+        from reversecore_mcp.tools.analysis.fuzzing_campaign import run_fuzzing_campaign
         from reversecore_mcp.tools.analysis.lief_tools import parse_binary_with_lief
+        from reversecore_mcp.tools.analysis.patch_vuln_inference import analyze_patch_diff_auto
         from reversecore_mcp.tools.analysis.signature_tools import (
             generate_signature,
             generate_yara_rule,
@@ -57,6 +59,7 @@ class AnalysisToolsPlugin(Plugin):
         from reversecore_mcp.tools.analysis.symbolic_analysis import (
             verify_path_and_get_args_tool,
         )
+        from reversecore_mcp.tools.analysis.taint_analysis import taint_trace
 
         # Register all tools
         mcp_server.tool(diff_binaries)
@@ -77,10 +80,13 @@ class AnalysisToolsPlugin(Plugin):
         mcp_server.tool(run_capa_quick)
         mcp_server.tool(emulate_binary)
         mcp_server.tool(generate_fuzzing_harness)
+        mcp_server.tool(run_fuzzing_campaign)
         mcp_server.tool(triage_crash)
         mcp_server.tool(name="verify_path_and_get_args")(verify_path_and_get_args_tool)
+        mcp_server.tool(analyze_patch_diff_auto)
+        mcp_server.tool(taint_trace)
 
-        logger.info(f"Registered {self.name} plugin with 20 analysis tools (unified)")
+        logger.info(f"Registered {self.name} plugin with 25 analysis tools (unified)")
 
 
 __all__ = ["AnalysisToolsPlugin"]

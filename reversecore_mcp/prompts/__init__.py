@@ -2,6 +2,13 @@
 
 from fastmcp import FastMCP
 
+from reversecore_mcp.prompts.cve_research import (
+    cve_discovery_pipeline_mode,
+    fuzzing_mode,
+    heap_exploit_mode,
+    patch_diff_auto_mode,
+    taint_analysis_mode,
+)
 from reversecore_mcp.prompts.game import game_analysis_mode
 from reversecore_mcp.prompts.malware import (
     apt_hunting_mode,
@@ -10,9 +17,9 @@ from reversecore_mcp.prompts.malware import (
     code_similarity_mode,
     full_analysis_mode,
     malware_analysis_mode,
+    malware_defense_mode,
     ransomware_triage_mode,
     unpacking_mode,
-    vulnerability_hunter_mode,
 )
 from reversecore_mcp.prompts.report import report_generation_mode
 from reversecore_mcp.prompts.security import (
@@ -40,7 +47,7 @@ def register_prompts(mcp: FastMCP):
     mcp.prompt("malware_analysis_mode")(malware_analysis_mode)
     mcp.prompt("basic_analysis_mode")(basic_analysis_mode)
     mcp.prompt("apt_hunting_mode")(apt_hunting_mode)
-    mcp.prompt("vulnerability_hunter_mode")(vulnerability_hunter_mode)
+    mcp.prompt("malware_defense_mode")(malware_defense_mode)
 
     # NEW: Specialized Malware Prompts
     mcp.prompt("unpacking_mode")(unpacking_mode)
@@ -54,6 +61,13 @@ def register_prompts(mcp: FastMCP):
     mcp.prompt("firmware_analysis_mode")(firmware_analysis_mode)
     mcp.prompt("vulnerability_research_mode")(vulnerability_research_mode)
     mcp.prompt("autonomous_vuln_hunt_mode")(autonomous_vuln_hunt_mode)
+
+    # CVE Research & Exploit Development Prompts
+    mcp.prompt("taint_analysis_mode")(taint_analysis_mode)
+    mcp.prompt("heap_exploit_mode")(heap_exploit_mode)
+    mcp.prompt("fuzzing_mode")(fuzzing_mode)
+    mcp.prompt("patch_diff_auto_mode")(patch_diff_auto_mode)
+    mcp.prompt("cve_discovery_pipeline_mode")(cve_discovery_pipeline_mode)
 
     # Game Analysis Prompts
     mcp.prompt("game_analysis_mode")(game_analysis_mode)
