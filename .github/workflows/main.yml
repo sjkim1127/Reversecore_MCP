@@ -540,7 +540,7 @@ jobs:
 
       - name: Build and Push base image (${{ matrix.platform }})
         if: steps.base-exists.outputs.exists == 'false'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./Dockerfile.base
@@ -743,7 +743,7 @@ jobs:
           driver: docker  # Uses bundled BuildKit — no Docker Hub pull needed
 
       - name: Build app image for smoke test
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./Dockerfile
@@ -840,7 +840,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and Push app image (${{ matrix.platform }})
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./Dockerfile
