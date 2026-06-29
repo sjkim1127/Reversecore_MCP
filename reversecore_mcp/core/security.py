@@ -61,6 +61,11 @@ def get_workspace_config() -> WorkspaceConfig:
     return _WORKSPACE_CONFIG
 
 
+def invalidate_path_cache() -> None:
+    """Clear the LRU cache for path resolution."""
+    _resolve_path_cached.cache_clear()
+
+
 def refresh_workspace_config() -> WorkspaceConfig:
     """Recompute the default workspace configuration (mainly for tests)."""
     global _WORKSPACE_CONFIG

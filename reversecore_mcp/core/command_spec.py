@@ -15,6 +15,8 @@ from reversecore_mcp.core.exceptions import ValidationError
 CommandType = Literal["read", "write", "analyze", "system"]
 ValidatedR2Command = NewType("ValidatedR2Command", str)
 
+ALLOWED_R2_COMMANDS: set[str] = set()
+
 
 @dataclass
 class CommandSpec:
@@ -46,37 +48,40 @@ class CommandSpec:
         return self.regex.match(cmd.strip()) is not None
 
 
+_ADDR = r"[a-zA-Z0-9_:.<>~*&\[\]()\-,@\+]+"
+
+
 # Radare2 command specifications with strict regex patterns
 R2_COMMAND_SPECS: list[CommandSpec] = [
     # Disassembly commands
     CommandSpec(
         name="pdf",
         type="read",
-        regex=re.compile(r"^pdf(\s+@\s+[a-zA-Z0-9_.]+)?(\s*~.+)?$"),
+        regex=re.compile(rf"^pdf(\s+@\s+{_ADDR})?(\s*~.+)?$"),
         description="Print disassembly function",
     ),
     CommandSpec(
         name="pd",
         type="read",
-        regex=re.compile(r"^pd(\s+\d+)?(\s+@\s+[a-zA-Z0-9_.]+)?(\s*~.+)?$"),
+        regex=re.compile(rf"^pd(\s+\d+)?(\s+@\s+{_ADDR})?(\s*~.+)?$"),
         description="Print disassembly",
     ),
     CommandSpec(
         name="pdfj",
         type="read",
-        regex=re.compile(r"^pdfj(\s+@\s+[a-zA-Z0-9_.]+)?(\s*~.+)?$"),
+        regex=re.compile(rf"^pdfj(\s+@\s+{_ADDR})?(\s*~.+)?$"),
         description="Print disassembly function (JSON)",
     ),
     CommandSpec(
         name="pdj",
         type="read",
-        regex=re.compile(r"^pdj(\s+\d+)?(\s+@\s+[a-zA-Z0-9_.]+)?(\s*~.+)?$"),
+        regex=re.compile(rf"^pdj(\s+\d+)?(\s+@\s+{_ADDR})?(\s*~.+)?$"),
         description="Print disassembly (JSON)",
     ),
     CommandSpec(
         name="pdc",
         type="read",
-        regex=re.compile(r"^pdc(\s+@\s+[a-zA-Z0-9_.]+)?(\s*~.+)?$"),
+        regex=re.compile(rf"^pdc(\s+@\s+{_ADDR})?(\s*~.+)?$"),
         description="Print C-like pseudo code",
     ),
     # Analysis commands
@@ -107,26 +112,26 @@ R2_COMMAND_SPECS: list[CommandSpec] = [
     CommandSpec(
         name="af",
         type="analyze",
-        regex=re.compile(r"^af(\s+@\s+[a-zA-Z0-9_.]+)?$"),
+        regex=re.compile(rf"^af(\s+@\s+{_ADDR})?$"),
         description="Analyze function",
     ),
     CommandSpec(
         name="afi",
         type="read",
-        regex=re.compile(r"^afi(\s+@\s+[a-zA-Z0-9_.]+)?(\s*~.+)?$"),
+        regex=re.compile(rf"^afi(\s+@\s+{_ADDR})?(\s*~.+)?$"),
         description="Analyze function info",
     ),
     CommandSpec(
         name="afv",
         type="read",
-        regex=re.compile(r"^afv[j]?(\s+@\s+[a-zA-Z0-9_.]+)?(\s*~.+)?$"),
+        regex=re.compile(rf"^afv[j]?(\s+@\s+{_ADDR})?(\s*~.+)?$"),
         description="Analyze function variables",
     ),
     # Graph commands
     CommandSpec(
         name="agfj",
         type="read",
-        regex=re.compile(r"^agfj(\s+@\s+[a-zA-Z0-9_.]+)?$"),
+        regex=re.compile(rf"^agfj(\s+@\s+{_ADDR})?$"),
         description="Print function graph in JSON format",
     ),
     # ESIL emulation commands
@@ -163,7 +168,7 @@ R2_COMMAND_SPECS: list[CommandSpec] = [
     CommandSpec(
         name="s",
         type="analyze",
-        regex=re.compile(r"^s(\s+[a-zA-Z0-9_.]+)?$"),
+        regex=re.compile(rf"^s(\s+{_ADDR})?$"),
         description="Seek to address",
     ),
     # Information commands
@@ -219,45 +224,45 @@ R2_COMMAND_SPECS: list[CommandSpec] = [
     CommandSpec(
         name="px",
         type="read",
-        regex=re.compile(r"^px[wqd]?(\s+\d+)?(\s+@\s+[a-zA-Z0-9_.]+)?(\s*~.+)?$"),
+        regex=re.compile(rf"^px[wqd]?(\s+\d+)?(\s+@\s+{_ADDR})?(\s*~.+)?$"),
         description="Print hexdump",
     ),
     CommandSpec(
         name="pxw",
         type="read",
-        regex=re.compile(r"^pxw(\s+\d+)?(\s+@\s+[a-zA-Z0-9_.]+)?(\s*~.+)?$"),
+        regex=re.compile(rf"^pxw(\s+\d+)?(\s+@\s+{_ADDR})?(\s*~.+)?$"),
         description="Print hexdump (words)",
     ),
     CommandSpec(
         name="pxq",
         type="read",
-        regex=re.compile(r"^pxq(\s+\d+)?(\s+@\s+[a-zA-Z0-9_.]+)?(\s*~.+)?$"),
+        regex=re.compile(rf"^pxq(\s+\d+)?(\s+@\s+{_ADDR})?(\s*~.+)?$"),
         description="Print hexdump (qwords)",
     ),
     CommandSpec(
         name="p8",
         type="read",
-        regex=re.compile(r"^p8(\s+\d+)?(\s+@\s+[a-zA-Z0-9_.]+)?(\s*~.+)?$"),
+        regex=re.compile(rf"^p8(\s+\d+)?(\s+@\s+{_ADDR})?(\s*~.+)?$"),
         description="Print raw bytes in hexadecimal",
     ),
     # Seek commands (read-only navigation)
     CommandSpec(
         name="s",
         type="read",
-        regex=re.compile(r"^s(\s+[a-zA-Z0-9_.+\-]+)?(\s*~.+)?$"),
+        regex=re.compile(rf"^s(\s+{_ADDR})?(\s*~.+)?$"),
         description="Seek to address",
     ),
     # Flag commands (read-only)
     CommandSpec(
         name="f",
         type="read",
-        regex=re.compile(r"^f[sj]?(\s+[a-zA-Z0-9_.]+)?(\s*~.+)?$"),
+        regex=re.compile(rf"^f[sj]?(\s+{_ADDR})?(\s*~.+)?$"),
         description="Flags",
     ),
     CommandSpec(
         name="fs",
         type="read",
-        regex=re.compile(r"^fs(\s+[a-zA-Z0-9_.]+)?(\s*~.+)?$"),
+        regex=re.compile(rf"^fs(\s+{_ADDR})?(\s*~.+)?$"),
         description="Flag spaces",
     ),
 ]
@@ -328,6 +333,11 @@ def validate_r2_command(cmd: str, allow_write: bool = False) -> ValidatedR2Comma
                     details={"command": cmd_stripped, "command_type": spec.type},
                 )
             return ValidatedR2Command(cmd_stripped)
+
+    # Check against dynamic ALLOWED_R2_COMMANDS
+    cmd_base = cmd_stripped.split()[0] if cmd_stripped else ""
+    if cmd_base in ALLOWED_R2_COMMANDS:
+        return ValidatedR2Command(cmd_stripped)
 
     # No match found
     raise ValidationError(

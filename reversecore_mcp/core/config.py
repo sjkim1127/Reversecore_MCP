@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import logging
 import tempfile
+import threading
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -573,13 +574,16 @@ class Config:
 # =============================================================================
 
 _CONFIG: Config | None = None
+_CONFIG_LOCK = threading.Lock()
 
 
 def get_config() -> Config:
     """Return the cached Config instance, loading it on first access."""
     global _CONFIG
     if _CONFIG is None:
-        _CONFIG = Config.from_env()
+        with _CONFIG_LOCK:
+            if _CONFIG is None:
+                _CONFIG = Config.from_env()
     return _CONFIG
 
 

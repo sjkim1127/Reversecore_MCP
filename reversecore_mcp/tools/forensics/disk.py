@@ -5,6 +5,7 @@ system packages in the Docker base image) to avoid Python 3.14 pytsk3
 compilation issues. All tools gracefully degrade if Sleuth Kit is absent.
 """
 
+import asyncio
 import hashlib
 import shutil
 import subprocess  # nosec B404
@@ -37,16 +38,20 @@ def _check_tsk_available() -> bool:
     return shutil.which("fls") is not None
 
 
-def _run_tsk(cmd: list[str], timeout: int = 120) -> tuple[str, str, int]:
+async def _run_tsk(cmd: list[str], timeout: int = 120) -> tuple[str, str, int]:
     """Run a Sleuth Kit command and return (stdout, stderr, returncode)."""
     if not cmd:
         return "", "Empty command", -1
     resolved_exe = shutil.which(cmd[0])
     if not resolved_exe:
         return "", f"Executable {cmd[0]} not found in PATH", -1
-    result = subprocess.run(
-        [resolved_exe] + cmd[1:], capture_output=True, text=True, timeout=timeout
-    )  # nosec B603
+
+    def run():
+        return subprocess.run(
+            [resolved_exe] + cmd[1:], capture_output=True, text=True, timeout=timeout
+        )  # nosec B603
+
+    result = await asyncio.to_thread(run)
     return result.stdout, result.stderr, result.returncode
 
 
@@ -76,7 +81,7 @@ async def disk_list_partition(image_path: str) -> ToolResult:
             hint="Install with: apt-get install sleuthkit",
         )
 
-    stdout, stderr, rc = _run_tsk(["mmls", str(validated)])
+    stdout, stderr, rc = await _run_tsk(["mmls", str(validated)])
 
     if rc != 0 and not stdout:
         return failure(
@@ -165,7 +170,7 @@ async def disk_list_files(
         # fls takes inode number for subdirs — skip if path provided
         cmd.append(directory)
 
-    stdout, stderr, rc = _run_tsk(cmd, timeout=180)
+    stdout, stderr, rc = await _run_tsk(cmd, timeout=180)
 
     if rc != 0 and not stdout:
         return failure(
@@ -328,7 +333,7 @@ async def disk_analyze_mft(
         cmd.extend(["-o", str(offset)])
     cmd.append(str(validated))
 
-    stdout, stderr, rc = _run_tsk(cmd, timeout=300)
+    stdout, stderr, rc = await _run_tsk(cmd, timeout=300)
 
     if rc != 0 and not stdout:
         return failure(

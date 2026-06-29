@@ -126,7 +126,11 @@ def _analyze_binary_with_lief(file_path: Path) -> dict:
             entropy = section.entropy
             if entropy > 7.0:
                 result["high_entropy_sections"].append(
-                    {"name": section.name, "entropy": round(entropy, 2), "size": section.size}
+                    {
+                        "name": section.name,
+                        "entropy": round(entropy, 2),
+                        "size": section.size,
+                    }
                 )
 
             # Check for suspicious section names

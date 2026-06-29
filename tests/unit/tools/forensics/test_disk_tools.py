@@ -353,7 +353,8 @@ def test_disk_check_tsk_available_real():
 
 
 @pytest.mark.unit
-def test_disk_run_tsk_real():
+@pytest.mark.asyncio
+async def test_disk_run_tsk_real():
     """Test _run_tsk directly runs subprocess and returns output."""
     from reversecore_mcp.tools.forensics.disk import _run_tsk
 
@@ -362,25 +363,26 @@ def test_disk_run_tsk_real():
     mock_res.stderr = "err"
     mock_res.returncode = 0
     with patch("subprocess.run", return_value=mock_res):
-        stdout, stderr, rc = _run_tsk(["fls"])
+        stdout, stderr, rc = await _run_tsk(["fls"])
         assert stdout == "out"
         assert stderr == "err"
         assert rc == 0
 
 
 @pytest.mark.unit
-def test_disk_run_tsk_uncovered():
+@pytest.mark.asyncio
+async def test_disk_run_tsk_uncovered():
     """Test _run_tsk with empty command or missing executable."""
     from reversecore_mcp.tools.forensics.disk import _run_tsk
 
     # 1. empty cmd
-    out, err, code = _run_tsk([])
+    out, err, code = await _run_tsk([])
     assert code == -1
     assert "Empty command" in err
 
     # 2. missing exe
     with patch("shutil.which", return_value=None):
-        out, err, code = _run_tsk(["fls"])
+        out, err, code = await _run_tsk(["fls"])
         assert code == -1
         assert "not found in PATH" in err
 

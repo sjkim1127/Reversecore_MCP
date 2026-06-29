@@ -139,8 +139,17 @@ class R2ConnectionPool:
 
     def _get_async_semaphore(self) -> asyncio.Semaphore:
         """Get or create an async semaphore for rate limiting."""
-        if self._async_semaphore is None:
-            self._async_semaphore = asyncio.Semaphore(self.max_connections)
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if self._async_semaphore is not None:
+            if getattr(self, "_semaphore_loop", None) == loop:
+                return self._async_semaphore
+
+        self._async_semaphore = asyncio.Semaphore(self.max_connections)
+        self._semaphore_loop = loop
         return self._async_semaphore
 
     def _get_async_lock(self) -> asyncio.Lock:
@@ -149,12 +158,18 @@ class R2ConnectionPool:
         The lock is lazily initialized to ensure it's created in the correct
         event loop context. Uses double-checked locking pattern for thread-safety.
         """
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
         if self._async_lock is not None:
-            return self._async_lock
+            if getattr(self, "_lock_loop", None) == loop:
+                return self._async_lock
 
         with self._async_lock_init_lock:
-            if self._async_lock is None:
-                self._async_lock = asyncio.Lock()
+            self._async_lock = asyncio.Lock()
+            self._lock_loop = loop
             return self._async_lock
 
     def _is_connection_healthy(self, file_path: str, r2: Any) -> bool:

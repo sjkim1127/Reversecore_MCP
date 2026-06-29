@@ -27,6 +27,7 @@ from reversecore_mcp.core.audit import AuditAction, audit_logger
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.logging_config import get_logger, setup_logging
 from reversecore_mcp.core.resource_manager import resource_manager
+from reversecore_mcp.core.security import invalidate_path_cache
 
 # Setup logging
 setup_logging()
@@ -300,6 +301,7 @@ async def _cleanup_old_files():
 
                             try:
                                 p.unlink()
+                                invalidate_path_cache()
                                 count += 1
                             except Exception:
                                 pass
@@ -878,6 +880,7 @@ def main():
                         if total_size > max_size:
                             # Clean up partial
                             file_path.unlink(missing_ok=True)
+                            invalidate_path_cache()
                             return JSONResponse(
                                 status_code=413,
                                 content={
@@ -900,8 +903,8 @@ def main():
                     # Cleanup malicious file
                     try:
                         file_path.unlink()
-                    except Exception:
-                        pass
+                    finally:
+                        invalidate_path_cache()
                     raise
 
                 audit_logger.log_event(
@@ -910,6 +913,7 @@ def main():
                     "SUCCESS",
                     details={"path": str(file_path)},
                 )
+                invalidate_path_cache()
 
                 logger.info(f"File uploaded successfully: {safe_filename} ({file_path})")
                 return JSONResponse(
@@ -945,7 +949,8 @@ def main():
                     self.app = app_arg
 
                 async def __call__(self, scope, receive, send):
-                    if scope["type"] == "http" and scope.get("path", "").startswith("/mcp"):
+                    path = scope.get("path", "")
+                    if scope["type"] == "http" and (path == "/mcp/sse" or path == "/mcp/sse/"):
                         await self.app(scope, receive, send)
                     else:
                         await self.slowapi_middleware(scope, receive, send)

@@ -14,6 +14,7 @@ import hashlib
 import logging
 import os
 import platform
+import threading
 import uuid
 from datetime import datetime, timedelta, timezone
 from email import encoders
@@ -1024,6 +1025,7 @@ class ReportTools:
 
 # 싱글톤 인스턴스 (기본 경로)
 _default_report_tools: ReportTools | None = None
+_default_report_tools_lock = threading.Lock()
 
 
 def get_report_tools(
@@ -1049,19 +1051,21 @@ def get_report_tools(
     global _default_report_tools
 
     if _default_report_tools is None:
-        # 환경변수에서 설정 로드
-        env_timezone = os.getenv("REPORT_DEFAULT_TIMEZONE", "Asia/Seoul")
+        with _default_report_tools_lock:
+            if _default_report_tools is None:
+                # 환경변수에서 설정 로드
+                env_timezone = os.getenv("REPORT_DEFAULT_TIMEZONE", "Asia/Seoul")
 
-        # 이메일 설정 로드
-        email_config = EmailConfig.from_env()
+                # 이메일 설정 로드
+                email_config = EmailConfig.from_env()
 
-        # ReportTools 인스턴스 생성
-        _default_report_tools = ReportTools(
-            template_dir=template_dir or Path("templates/reports"),
-            output_dir=output_dir or Path("reports"),
-            default_timezone=default_timezone or env_timezone,
-            email_config=email_config,
-        )
+                # ReportTools 인스턴스 생성
+                _default_report_tools = ReportTools(
+                    template_dir=template_dir or Path("templates/reports"),
+                    output_dir=output_dir or Path("reports"),
+                    default_timezone=default_timezone or env_timezone,
+                    email_config=email_config,
+                )
 
         # 환경변수에서 빠른 연락처 로드
         env_contacts = load_quick_contacts_from_env()

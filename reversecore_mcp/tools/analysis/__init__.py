@@ -54,6 +54,9 @@ class AnalysisToolsPlugin(Plugin):
             run_strings,
             scan_for_versions,
         )
+        from reversecore_mcp.tools.analysis.symbolic_analysis import (
+            verify_path_and_get_args_tool,
+        )
 
         # Register all tools
         mcp_server.tool(diff_binaries)
@@ -75,8 +78,9 @@ class AnalysisToolsPlugin(Plugin):
         mcp_server.tool(emulate_binary)
         mcp_server.tool(generate_fuzzing_harness)
         mcp_server.tool(triage_crash)
+        mcp_server.tool(name="verify_path_and_get_args")(verify_path_and_get_args_tool)
 
-        logger.info(f"Registered {self.name} plugin with 19 analysis tools (unified)")
+        logger.info(f"Registered {self.name} plugin with 20 analysis tools (unified)")
 
 
 __all__ = ["AnalysisToolsPlugin"]

@@ -7,6 +7,7 @@ for radare2 analysis tools.
 
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 import uuid
@@ -192,9 +193,8 @@ class R2Session:
         self.last_error = None
         self.retry_count = 0
         # Async lock for safe concurrent command execution
-        import asyncio
-
-        self._command_lock = asyncio.Lock()
+        self._command_lock_obj = None
+        self._command_lock_loop = None
 
     def open(self, file_path: str) -> bool:
         """Open a binary file with radare2."""
@@ -257,6 +257,24 @@ class R2Session:
             logger.error(f"R2 JSON command failed: {e}")
             return None
 
+    @property
+    def command_lock(self) -> asyncio.Lock:
+        """Get or create the async command lock, ensuring loop safety."""
+        import asyncio
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if getattr(self, "_command_lock_obj", None) is None:
+            self._command_lock_obj = asyncio.Lock()
+            self._command_lock_loop = loop
+        elif getattr(self, "_command_lock_loop", None) != loop:
+            self._command_lock_obj = asyncio.Lock()
+            self._command_lock_loop = loop
+        return self._command_lock_obj
+
     async def safe_cmd(self, command: str) -> str:
         """
         Execute a radare2 command with session-level locking.
@@ -266,7 +284,7 @@ class R2Session:
         """
         import asyncio
 
-        async with self._command_lock:
+        async with self.command_lock:
             return await asyncio.to_thread(self.cmd, command)
 
     async def safe_cmdj(self, command: str) -> Any:
@@ -277,7 +295,7 @@ class R2Session:
         """
         import asyncio
 
-        async with self._command_lock:
+        async with self.command_lock:
             return await asyncio.to_thread(self.cmdj, command)
 
     def analyze(self, level: int = 2) -> str:

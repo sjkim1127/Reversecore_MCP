@@ -129,12 +129,16 @@ async def memory_list_symbols(dump_path: str) -> ToolResult:
         resolved_exe = shutil.which("vol")
         if not resolved_exe:
             raise FileNotFoundError()
-        result = subprocess.run(  # nosec B603
-            [resolved_exe, "--info"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
+
+        def run_info():
+            return subprocess.run(  # nosec B603
+                [resolved_exe, "--info"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+
+        result = await asyncio.to_thread(run_info)
         output = result.stdout + result.stderr
     except FileNotFoundError:
         return failure(
@@ -430,12 +434,16 @@ async def memory_extract_strings(
         resolved_exe = shutil.which("strings")
         if not resolved_exe:
             raise FileNotFoundError()
-        result = subprocess.run(  # nosec B603
-            [resolved_exe, f"-n{min_length}", str(validated)],
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
+
+        def run_strings():
+            return subprocess.run(  # nosec B603
+                [resolved_exe, f"-n{min_length}", str(validated)],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+
+        result = await asyncio.to_thread(run_strings)
         all_strings = result.stdout.splitlines()
     except FileNotFoundError:
         # Fallback: pure Python extraction

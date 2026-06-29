@@ -4,6 +4,7 @@ Pure Python implementation using Scapy — no external CLI dependencies,
 fully container-friendly. Gracefully degrades if Scapy is not installed.
 """
 
+import asyncio
 import collections
 import re
 from typing import Any
@@ -100,7 +101,7 @@ async def pcap_analyze(
         )
 
     try:
-        packets = scapy.rdpcap(str(validated), count=max_packets)
+        packets = await asyncio.to_thread(scapy.rdpcap, str(validated), count=max_packets)
     except Exception as exc:
         return failure(
             "PCAP_PARSE_ERROR",
@@ -213,7 +214,7 @@ async def pcap_list_connections(
         )
 
     try:
-        packets = scapy.rdpcap(str(validated), count=max_packets)
+        packets = await asyncio.to_thread(scapy.rdpcap, str(validated), count=max_packets)
     except Exception as exc:
         return failure("PCAP_PARSE_ERROR", f"Failed to parse PCAP: {exc}")
 
@@ -294,7 +295,7 @@ async def pcap_extract_dns(
         )
 
     try:
-        packets = scapy.rdpcap(str(validated), count=max_packets)
+        packets = await asyncio.to_thread(scapy.rdpcap, str(validated), count=max_packets)
     except Exception as exc:
         return failure("PCAP_PARSE_ERROR", f"Failed to parse PCAP: {exc}")
 
@@ -414,7 +415,7 @@ async def pcap_extract_c2(
         )
 
     try:
-        packets = scapy.rdpcap(str(validated), count=max_packets)
+        packets = await asyncio.to_thread(scapy.rdpcap, str(validated), count=max_packets)
     except Exception as exc:
         return failure("PCAP_PARSE_ERROR", f"Failed to parse PCAP: {exc}")
 
@@ -543,7 +544,7 @@ async def pcap_reconstruct_stream(
         )
 
     try:
-        packets = scapy.rdpcap(str(validated), count=max_packets)
+        packets = await asyncio.to_thread(scapy.rdpcap, str(validated), count=max_packets)
     except Exception as exc:
         return failure("PCAP_PARSE_ERROR", f"Failed to parse PCAP: {exc}")
 

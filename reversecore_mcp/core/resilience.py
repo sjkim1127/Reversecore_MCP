@@ -97,12 +97,15 @@ class CircuitBreaker:
 
 # Global registry of circuit breakers
 _breakers: dict[str, CircuitBreaker] = {}
+_breakers_lock = threading.Lock()
 
 
 def get_circuit_breaker(name: str, **kwargs) -> CircuitBreaker:
     """Get or create a circuit breaker for the given name."""
     if name not in _breakers:
-        _breakers[name] = CircuitBreaker(name, **kwargs)
+        with _breakers_lock:
+            if name not in _breakers:
+                _breakers[name] = CircuitBreaker(name, **kwargs)
     return _breakers[name]
 
 

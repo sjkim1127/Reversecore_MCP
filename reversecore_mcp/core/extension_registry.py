@@ -46,6 +46,7 @@ import importlib
 import importlib.util
 import inspect
 import os
+import threading
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -458,6 +459,7 @@ class ExtensionRegistry:
 # =============================================================================
 
 _registry: ExtensionRegistry | None = None
+_registry_lock = threading.Lock()
 
 
 def get_extension_registry() -> ExtensionRegistry:
@@ -468,7 +470,9 @@ def get_extension_registry() -> ExtensionRegistry:
     """
     global _registry
     if _registry is None:
-        _registry = ExtensionRegistry()
+        with _registry_lock:
+            if _registry is None:
+                _registry = ExtensionRegistry()
     return _registry
 
 

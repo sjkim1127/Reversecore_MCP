@@ -23,6 +23,7 @@ logger = get_logger(__name__)
 # Global ARQ Redis connection pool
 _arq_pool: Any = None
 _queue_enabled: bool = True
+_pool_init_lock = asyncio.Lock()
 
 
 async def get_arq_pool() -> Any:
@@ -32,17 +33,19 @@ async def get_arq_pool() -> Any:
         return None
 
     if _arq_pool is None:
-        try:
-            config = get_config()
-            redis_settings = RedisSettings.from_dsn(config.redis_url)
-            _arq_pool = await create_pool(redis_settings)
-            logger.info("Initialized ARQ Redis task queue pool client.")
-        except Exception as e:
-            logger.warning(
-                f"Failed to initialize ARQ task queue pool: {e}. Queue is disabled (falling back to direct execution)."
-            )
-            _queue_enabled = False
-            return None
+        async with _pool_init_lock:
+            if _arq_pool is None:
+                try:
+                    config = get_config()
+                    redis_settings = RedisSettings.from_dsn(config.redis_url)
+                    _arq_pool = await create_pool(redis_settings)
+                    logger.info("Initialized ARQ Redis task queue pool client.")
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to initialize ARQ task queue pool: {e}. Queue is disabled (falling back to direct execution)."
+                    )
+                    _queue_enabled = False
+                    return None
 
     return _arq_pool
 
