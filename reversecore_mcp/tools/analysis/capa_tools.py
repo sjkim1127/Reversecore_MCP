@@ -154,6 +154,26 @@ async def run_capa(file_path: str, output_format: str = "summary"):
         if result["mitre_attack"]:
             message += f", {len(result['mitre_attack'])} MITRE ATT&CK techniques"
 
+        # ------------------------------------------------------------------
+        # scan_diagnostics: lets callers distinguish 'no capabilities'
+        # (genuine clean binary) from 'tool error' or 'format unsupported'
+        # ------------------------------------------------------------------
+        result["scan_diagnostics"] = {
+            "capabilities_found": len(capabilities),
+            "high_risk_count": high_risk_count,
+            "mitre_techniques_found": len(result["mitre_attack"]),
+            "mbc_behaviors_found": len(result.get("mbc", [])),
+            "empty_reason": (
+                "CAPA found no capabilities. Possible causes: "
+                "(1) binary is genuinely simple/benign, "
+                "(2) binary is packed/obfuscated (unpack first), "
+                "(3) CAPA rules do not cover this binary's framework/language, "
+                "(4) binary type not fully supported by CAPA (e.g. Go, Rust binaries)."
+                if not capabilities
+                else None
+            ),
+        }
+
         return success(
             data=result,
             message=message,

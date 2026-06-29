@@ -762,3 +762,68 @@ class TestRunLiefInProcess:
                 )
 
         assert "Unsupported binary format" in str(exc_info.value)
+
+
+class TestLiefToolsExtraCoverage:
+    """Extra tests to cover exception handlers and achieve 100% statement coverage."""
+
+    def test_extract_mitigations_pe_load_config_v1_exception(self):
+        from reversecore_mcp.tools.analysis.lief_tools import _extract_mitigations
+
+        # Mock lief.PE
+        class BadPE:
+            class Binary:
+                pass
+
+            class DLL_CHARACTERISTICS:
+                pass
+
+            LoadConfiguration = "exists"
+
+            def __setattr__(self, name, value):
+                if name == "LoadConfigurationV1":
+                    raise RuntimeError("Cannot assign LoadConfigurationV1")
+                self.__dict__[name] = value
+
+        mock_lief_pe = BadPE()
+        binary = MagicMock(spec=lief.PE.Binary)
+        binary.optional_header.dll_characteristics = 0
+
+        # Patch sys.modules['lief']
+        mock_lief = MagicMock()
+        mock_lief.PE = mock_lief_pe
+        mock_lief.ELF = lief.ELF  # keep ELF
+
+        with patch.dict("sys.modules", {"lief": mock_lief}):
+            mitigations = _extract_mitigations(binary)
+
+        # Should fall back gracefully and succeed
+        assert mitigations is not None
+
+    def test_concurrent_futures_timeout_terminate_fails(self, tmp_path):
+        from reversecore_mcp.tools.analysis.lief_tools import parse_binary_with_lief
+
+        test_file = tmp_path / "test.exe"
+        test_file.write_bytes(b"MZ" + b"\x00" * 100)
+
+        mock_future = MagicMock()
+        mock_future.result.side_effect = concurrent.futures.TimeoutError("Timeout")
+
+        # mock a process whose terminate() raises Exception
+        mock_process = MagicMock()
+        mock_process.terminate.side_effect = Exception("Failed to terminate process")
+        mock_executor = MagicMock()
+        mock_executor.submit.return_value = mock_future
+        mock_executor._processes = {1234: mock_process}
+
+        with patch(
+            "reversecore_mcp.tools.analysis.lief_tools.validate_file_path",
+            return_value=test_file,
+        ):
+            with patch("concurrent.futures.ProcessPoolExecutor", return_value=mock_executor):
+                result = parse_binary_with_lief(str(test_file))
+
+        assert result.status == "error"
+        assert result.error_code == "TIMEOUT"
+        mock_process.terminate.assert_called_once()
+        mock_executor.shutdown.assert_called_once_with(wait=False, cancel_futures=True)

@@ -353,6 +353,43 @@ def parse_binary_with_lief(file_path: str, format: str = "json") -> ToolResult:
     if extraction_warning:
         result_data["_warning"] = extraction_warning
 
+    # ------------------------------------------------------------------
+    # _diagnostics: helps callers understand empty-looking results
+    # e.g. 0 sections = packer/firmware, not a parse error
+    # ------------------------------------------------------------------
+    sections_list = result_data.get("sections", [])
+    imports_list = result_data.get("imports", result_data.get("imported_functions", []))
+    exports_list = result_data.get("exports", result_data.get("exported_functions", []))
+    result_data["_diagnostics"] = {
+        "format_detected": result_data.get("format", "unknown"),
+        "file_size_mb": round(file_size_mb, 1),
+        "parse_mode": (
+            "headers_only (file > 500MB)"
+            if file_size_mb > 500
+            else (
+                "reduced_detail (file > 100MB, some fields truncated)"
+                if file_size_mb > LIEF_WARN_SIZE_MB
+                else "full_detail"
+            )
+        ),
+        "sections_found": len(sections_list),
+        "imports_found": len(imports_list),
+        "exports_found": len(exports_list),
+        "empty_sections_note": (
+            "No sections found in the section table. "
+            "The binary may be: raw shellcode, a firmware blob, a DOS stub, "
+            "or a packer that moves sections at runtime."
+            if not sections_list
+            else None
+        ),
+        "empty_imports_note": (
+            "No imports found. "
+            "The binary may be statically linked, obfuscated, or a position-independent shellcode blob."
+            if not imports_list
+            else None
+        ),
+    }
+
     if format.lower() == "json":
         return success(result_data)
 
