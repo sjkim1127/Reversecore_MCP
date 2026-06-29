@@ -58,7 +58,7 @@ jaraco-classes==3.4.0     # via keyring
 jaraco-context==6.1.2     # via keyring
 jaraco-functools==4.5.0   # via keyring
 jinja2==3.1.6             # via mkdocs, mkdocs-material, mkdocstrings, reversecore-mcp (pyproject.toml)
-joserfc==1.7.1            # via authlib, fastmcp-slim
+joserfc==1.7.2            # via authlib, fastmcp-slim
 jsonref==1.1.0            # via fastmcp-slim
 jsonschema==4.26.0        # via mcp
 jsonschema-path==0.5.0    # via fastmcp-slim
