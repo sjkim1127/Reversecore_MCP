@@ -67,6 +67,22 @@ void track_set_index(Track *track, int i, long ind)
     findings = result.metadata.get("static_findings", {})
     assert "Bounds Check" in findings
     assert any("RCMCP-SAST-C-012" in f and "i" in f for f in findings["Bounds Check"])
+    structured_findings = result.metadata.get("structured_findings", [])
+    bounds_finding = next(
+        finding for finding in structured_findings if finding["rule_id"] == "RCMCP-SAST-C-012"
+    )
+    assert bounds_finding["source"] == "audit_source_code"
+    assert bounds_finding["evidence_type"] == "static"
+    assert bounds_finding["function"] == "track_set_index"
+    assert bounds_finding["sink"] == "track->index"
+    assert bounds_finding["index"] == "i"
+    assert bounds_finding["vulnerability_class"] == "out_of_bounds_access"
+    assert bounds_finding["confidence"] == "high"
+    assert bounds_finding["verification_status"] == "candidate"
+    assert bounds_finding["guard_status"] == {
+        "has_lower_bound": False,
+        "has_upper_bound": True,
+    }
 
 
 @pytest.mark.asyncio
@@ -99,6 +115,10 @@ void track_set_index(Track *track, int i, long ind)
     assert result.status == "success"
     findings = result.metadata.get("static_findings", {})
     assert "Bounds Check" not in findings
+    assert not any(
+        finding["rule_id"] == "RCMCP-SAST-C-012"
+        for finding in result.metadata.get("structured_findings", [])
+    )
 
 
 @pytest.mark.asyncio

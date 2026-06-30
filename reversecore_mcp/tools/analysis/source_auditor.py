@@ -124,6 +124,8 @@ async def audit_source_code(
             static_findings[cat] = []
         static_findings[cat].append(finding_str)
 
+    structured_findings = _build_structured_findings(scan_findings, str(validated_path), language)
+
     # 6. Prepare output (truncate if too long for context window, but keep findings)
     max_lines = 2000
     lines = source_code.split("\n")
@@ -141,6 +143,7 @@ async def audit_source_code(
         format="source_code",
         language=language,
         static_findings=static_findings,
+        structured_findings=structured_findings,
         is_truncated=is_truncated,
         description=f"Source code loaded for auditing. {sum(len(v) for v in static_findings.values())} risky patterns identified.",
     )
@@ -176,6 +179,7 @@ def _scan_c_index_bounds(source_code: str) -> list[dict[str, Any]]:
                             "category": "Bounds Check",
                             "severity": "high",
                             "rule_id": "RCMCP-SAST-C-012",
+                            "function": function["name"],
                             "message": (
                                 f"Array index '{index}' is used after an upper-bound check, "
                                 "but no lower-bound check was found in the same function. "
@@ -184,6 +188,21 @@ def _scan_c_index_bounds(source_code: str) -> list[dict[str, Any]]:
                             ),
                             "line": line_number,
                             "code": code.strip(),
+                            "evidence_type": "static",
+                            "vulnerability_class": "out_of_bounds_access",
+                            "sink": access["array"],
+                            "index": index,
+                            "guard_status": {
+                                "has_lower_bound": guards["lower"],
+                                "has_upper_bound": guards["upper"],
+                            },
+                            "confidence": "high",
+                            "verification_status": "candidate",
+                            "next_validation_steps": [
+                                "Trace whether the index is attacker-controlled.",
+                                "Compare patched code for an added lower-bound check.",
+                                "Run sanitizer build with boundary and wrapped numeric inputs.",
+                            ],
                         }
                     )
                 elif not guards["upper"] and not guards["lower"]:
@@ -192,12 +211,27 @@ def _scan_c_index_bounds(source_code: str) -> list[dict[str, Any]]:
                             "category": "Bounds Check",
                             "severity": "medium",
                             "rule_id": "RCMCP-SAST-C-013",
+                            "function": function["name"],
                             "message": (
                                 f"Array index '{index}' is used without an obvious same-function "
                                 "bounds check."
                             ),
                             "line": line_number,
                             "code": code.strip(),
+                            "evidence_type": "static",
+                            "vulnerability_class": "out_of_bounds_access",
+                            "sink": access["array"],
+                            "index": index,
+                            "guard_status": {
+                                "has_lower_bound": guards["lower"],
+                                "has_upper_bound": guards["upper"],
+                            },
+                            "confidence": "medium",
+                            "verification_status": "needs_triage",
+                            "next_validation_steps": [
+                                "Check whether bounds are guaranteed by caller or loop structure.",
+                                "Trace whether the index is attacker-controlled.",
+                            ],
                         }
                     )
 
@@ -226,17 +260,18 @@ def _iter_c_functions(lines: list[str]) -> list[dict[str, Any]]:
             in_function = True
             start_line = line_number
             brace_depth = stripped.count("{") - stripped.count("}")
+            name = _extract_c_function_name(signature)
             body = [line]
             signature = ""
             if brace_depth <= 0:
-                functions.append({"start_line": start_line, "lines": body})
+                functions.append({"start_line": start_line, "name": name, "lines": body})
                 in_function = False
             continue
 
         body.append(line)
         brace_depth += stripped.count("{") - stripped.count("}")
         if brace_depth <= 0:
-            functions.append({"start_line": start_line, "lines": body})
+            functions.append({"start_line": start_line, "name": name, "lines": body})
             in_function = False
             body = []
 
@@ -249,6 +284,12 @@ def _looks_like_function_signature(signature: str) -> bool:
         return False
     control_prefixes = ("if", "for", "while", "switch", "do", "else")
     return not signature.lstrip().startswith(control_prefixes)
+
+
+def _extract_c_function_name(signature: str) -> str:
+    """Extract a best-effort C function name from a definition signature."""
+    match = re.search(r"([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*\{", signature)
+    return match.group(1) if match else "unknown"
 
 
 def _collect_index_guards(function_lines: list[str]) -> dict[str, dict[str, bool]]:
@@ -312,3 +353,44 @@ def _iter_array_accesses(line: str) -> list[dict[str, str]]:
         {"array": match.group("array"), "index": match.group("index")}
         for match in access_pattern.finditer(line)
     ]
+
+
+def _build_structured_findings(
+    scan_findings: list[dict[str, Any]], file_path: str, language: str
+) -> list[dict[str, Any]]:
+    """Normalize SAST findings for downstream evidence merging."""
+    structured = []
+    for finding in scan_findings:
+        item = {
+            "source": "audit_source_code",
+            "evidence_type": finding.get("evidence_type", "static"),
+            "rule_id": finding.get("rule_id"),
+            "category": finding.get("category"),
+            "severity": finding.get("severity"),
+            "confidence": finding.get(
+                "confidence", _confidence_from_severity(finding.get("severity"))
+            ),
+            "verification_status": finding.get("verification_status", "needs_triage"),
+            "file_path": file_path,
+            "language": language,
+            "line": finding.get("line"),
+            "function": finding.get("function"),
+            "code": finding.get("code"),
+            "message": finding.get("message"),
+            "vulnerability_class": finding.get("vulnerability_class"),
+            "sink": finding.get("sink"),
+            "index": finding.get("index"),
+            "guard_status": finding.get("guard_status"),
+            "next_validation_steps": finding.get("next_validation_steps", []),
+        }
+        structured.append({key: value for key, value in item.items() if value is not None})
+    return structured
+
+
+def _confidence_from_severity(severity: str | None) -> str:
+    """Map legacy SAST severity to evidence confidence."""
+    if severity == "high":
+        return "high"
+    if severity == "medium":
+        return "medium"
+    return "low"
