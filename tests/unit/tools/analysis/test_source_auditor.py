@@ -24,7 +24,8 @@ int main() {
     test_file.write_text(c_code, encoding="utf-8")
 
     with patch(
-        "reversecore_mcp.tools.analysis.source_auditor.validate_file_path", return_value=test_file
+        "reversecore_mcp.tools.analysis.source_auditor.validate_file_path",
+        return_value=test_file,
     ):
         result = await audit_source_code(str(test_file))
 
@@ -33,6 +34,71 @@ int main() {
     findings = result.metadata.get("static_findings", {})
     assert "Buffer Overflow" in findings
     assert any("strcpy" in f for f in findings["Buffer Overflow"])
+
+
+@pytest.mark.asyncio
+async def test_audit_source_code_c_detects_missing_lower_bound_check(tmp_path):
+    """Detect libcue-style upper-only validation before indexed memory access."""
+    c_code = """
+#define MAXINDEX 99
+typedef struct Track {
+    long index[MAXINDEX + 1];
+} Track;
+
+void track_set_index(Track *track, int i, long ind)
+{
+    if (i > MAXINDEX) {
+        return;
+    }
+
+    track->index[i] = ind;
+}
+"""
+    test_file = tmp_path / "bounds.c"
+    test_file.write_text(c_code, encoding="utf-8")
+
+    with patch(
+        "reversecore_mcp.tools.analysis.source_auditor.validate_file_path",
+        return_value=test_file,
+    ):
+        result = await audit_source_code(str(test_file))
+
+    assert result.status == "success"
+    findings = result.metadata.get("static_findings", {})
+    assert "Bounds Check" in findings
+    assert any("RCMCP-SAST-C-012" in f and "i" in f for f in findings["Bounds Check"])
+
+
+@pytest.mark.asyncio
+async def test_audit_source_code_c_accepts_lower_and_upper_bound_check(tmp_path):
+    """Do not flag an index when both lower and upper guards are present."""
+    c_code = """
+#define MAXINDEX 99
+typedef struct Track {
+    long index[MAXINDEX + 1];
+} Track;
+
+void track_set_index(Track *track, int i, long ind)
+{
+    if (i < 0 || i > MAXINDEX) {
+        return;
+    }
+
+    track->index[i] = ind;
+}
+"""
+    test_file = tmp_path / "bounds_ok.c"
+    test_file.write_text(c_code, encoding="utf-8")
+
+    with patch(
+        "reversecore_mcp.tools.analysis.source_auditor.validate_file_path",
+        return_value=test_file,
+    ):
+        result = await audit_source_code(str(test_file))
+
+    assert result.status == "success"
+    findings = result.metadata.get("static_findings", {})
+    assert "Bounds Check" not in findings
 
 
 @pytest.mark.asyncio
@@ -50,7 +116,8 @@ def run_command(cmd):
     test_file.write_text(python_code, encoding="utf-8")
 
     with patch(
-        "reversecore_mcp.tools.analysis.source_auditor.validate_file_path", return_value=test_file
+        "reversecore_mcp.tools.analysis.source_auditor.validate_file_path",
+        return_value=test_file,
     ):
         result = await audit_source_code(str(test_file))
 
@@ -71,7 +138,8 @@ def run_command(cmd)
     test_file.write_text(broken_python_code, encoding="utf-8")
 
     with patch(
-        "reversecore_mcp.tools.analysis.source_auditor.validate_file_path", return_value=test_file
+        "reversecore_mcp.tools.analysis.source_auditor.validate_file_path",
+        return_value=test_file,
     ):
         result = await audit_source_code(str(test_file))
 
@@ -89,7 +157,8 @@ async def test_audit_source_code_file_too_large(tmp_path):
     test_file.write_bytes(b"A" * 6_000_000)  # 6MB, exceeds 5MB limit
 
     with patch(
-        "reversecore_mcp.tools.analysis.source_auditor.validate_file_path", return_value=test_file
+        "reversecore_mcp.tools.analysis.source_auditor.validate_file_path",
+        return_value=test_file,
     ):
         result = await audit_source_code(str(test_file))
 
@@ -104,7 +173,8 @@ async def test_audit_source_code_size_check_os_error(tmp_path):
     test_file.write_text("void main() {}", encoding="utf-8")
 
     with patch(
-        "reversecore_mcp.tools.analysis.source_auditor.validate_file_path", return_value=test_file
+        "reversecore_mcp.tools.analysis.source_auditor.validate_file_path",
+        return_value=test_file,
     ):
         with patch("os.path.getsize", side_effect=OSError("Permission denied")):
             result = await audit_source_code(str(test_file))
@@ -120,7 +190,8 @@ async def test_audit_source_code_read_exception(tmp_path):
     test_file.write_text("void main() {}", encoding="utf-8")
 
     with patch(
-        "reversecore_mcp.tools.analysis.source_auditor.validate_file_path", return_value=test_file
+        "reversecore_mcp.tools.analysis.source_auditor.validate_file_path",
+        return_value=test_file,
     ):
         # mock open to raise exception
         with patch("builtins.open", side_effect=OSError("Read failure")):
@@ -141,7 +212,8 @@ async def test_audit_source_code_truncation(tmp_path):
     test_file.write_text(c_code, encoding="utf-8")
 
     with patch(
-        "reversecore_mcp.tools.analysis.source_auditor.validate_file_path", return_value=test_file
+        "reversecore_mcp.tools.analysis.source_auditor.validate_file_path",
+        return_value=test_file,
     ):
         result = await audit_source_code(str(test_file))
 

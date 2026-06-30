@@ -27,6 +27,27 @@ class TestGenerateExplanation:
         result = _generate_explanation("call foo", "if (x > 0) {\n  call foo\n}")
         assert "Security checks were added" in result["summary"]
 
+    def test_lower_bound_check_added_to_existing_condition(self):
+        from reversecore_mcp.tools.common.patch_explainer import _generate_explanation
+
+        original = """
+        if (99 < param_2) {
+            return;
+        }
+        track->index[param_2] = ind;
+        """
+        patched = """
+        if ((param_2 < 0) || (99 < param_2)) {
+            return;
+        }
+        track->index[param_2] = ind;
+        """
+
+        result = _generate_explanation(original, patched)
+
+        assert result["summary"] == "Security checks were added."
+        assert any("Added Lower-Bound Check" in detail for detail in result["details"])
+
     def test_api_replacement_strcpy(self):
         from reversecore_mcp.tools.common.patch_explainer import _generate_explanation
 

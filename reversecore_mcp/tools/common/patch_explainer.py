@@ -3,6 +3,7 @@ Semantic Patch Explainer: Analyzes differences between binaries to explain secur
 """
 
 import difflib
+import re
 from typing import Any
 
 from fastmcp import Context
@@ -184,15 +185,21 @@ def _generate_explanation(code_a: str, code_b: str) -> dict:
     lines_b = [line.strip() for line in code_b.splitlines() if line.strip()]
 
     # 1. Check for Added Conditions (Security Checks)
-    # Heuristic: More 'if' statements in B than A
+    # Heuristic: More 'if' statements in B than A, or an existing condition
+    # gains a lower-bound check such as `param < 0`.
     if_count_a = sum(1 for line in lines_a if line.startswith("if"))
     if_count_b = sum(1 for line in lines_b if line.startswith("if"))
+    added_lower_bound_checks = _find_added_lower_bound_checks(lines_a, lines_b)
 
-    if if_count_b > if_count_a:
+    if if_count_b > if_count_a or added_lower_bound_checks:
         explanation["details"].append(
             "🛡️ **Added Security Check**: New conditional logic detected (likely bounds check or validation)."
         )
         explanation["summary"] = "Security checks were added."
+        if added_lower_bound_checks:
+            explanation["details"].append(
+                "🧱 **Added Lower-Bound Check**: Patched code rejects negative index/offset values before memory access."
+            )
 
     # 2. Check for API Replacements
     # Common safe replacements
@@ -228,6 +235,27 @@ def _generate_explanation(code_a: str, code_b: str) -> dict:
         explanation["details"].append("ℹ️ Logic modified without obvious security patterns.")
 
     return explanation
+
+
+def _find_added_lower_bound_checks(lines_a: list[str], lines_b: list[str]) -> list[str]:
+    """Find newly added negative lower-bound checks in patched pseudo-C."""
+    lower_bound_pattern = re.compile(
+        r"\b([A-Za-z_][A-Za-z0-9_]*)\s*<\s*0\b|0\s*>\s*([A-Za-z_][A-Za-z0-9_]*)\b"
+    )
+
+    checks_a = {
+        match.group(0)
+        for line in lines_a
+        if line.startswith("if")
+        for match in lower_bound_pattern.finditer(line)
+    }
+    checks_b = {
+        match.group(0)
+        for line in lines_b
+        if line.startswith("if")
+        for match in lower_bound_pattern.finditer(line)
+    }
+    return sorted(checks_b - checks_a)
 
 
 def _generate_diff_snippet(code_a: str, code_b: str, context: int = 3) -> str:
