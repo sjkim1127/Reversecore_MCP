@@ -1385,6 +1385,9 @@ async def emulate_machine_code(
         )
 
 
+Radare2Plugin = Radare2ToolsPlugin
+
+
 def register_radare2_tools(mcp: FastMCP) -> None:
     """
     Register Radare2 tools with an MCP server instance.

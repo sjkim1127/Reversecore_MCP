@@ -162,6 +162,7 @@ async def explain_patch(
             {
                 "function": func,
                 "explanation": explanation,
+                "structured_signals": _build_structured_patch_signals(explanation, str(func)),
                 "diff_snippet": _generate_diff_snippet(code_a, code_b),
             }
         )
@@ -200,6 +201,7 @@ def _generate_explanation(code_a: str, code_b: str) -> dict:
             explanation["details"].append(
                 "🧱 **Added Lower-Bound Check**: Patched code rejects negative index/offset values before memory access."
             )
+            explanation["added_lower_bound_checks"] = added_lower_bound_checks
 
     # 2. Check for API Replacements
     # Common safe replacements
@@ -235,6 +237,29 @@ def _generate_explanation(code_a: str, code_b: str) -> dict:
         explanation["details"].append("ℹ️ Logic modified without obvious security patterns.")
 
     return explanation
+
+
+def _build_structured_patch_signals(
+    explanation: dict[str, Any], function: str | None = None
+) -> list[dict[str, Any]]:
+    """Convert patch explanations into mergeable security signals."""
+    signals: list[dict[str, Any]] = []
+    added_checks = explanation.get("added_lower_bound_checks", [])
+    if added_checks:
+        signals.append(
+            {
+                "source": "explain_patch",
+                "evidence_type": "patch",
+                "signal_id": "RCMCP-PATCH-LOWER-BOUND-ADDED",
+                "vulnerability_class": "out_of_bounds_access",
+                "patch_security_signal": "lower_bound_check_added",
+                "function": function,
+                "added_checks": added_checks,
+                "confidence": "high",
+                "verification_status": "patch_confirmed",
+            }
+        )
+    return signals
 
 
 def _find_added_lower_bound_checks(lines_a: list[str], lines_b: list[str]) -> list[str]:

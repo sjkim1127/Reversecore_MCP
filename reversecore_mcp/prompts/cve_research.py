@@ -329,8 +329,16 @@ def patch_diff_auto_mode(
         r2_decompile("{patched_binary}", function_name)
     B) Semantic diff:
         explain_patch("{original_binary}", "{patched_binary}", function_name)
+       - Prefer `structured_signals` over prose when present.
+       - Treat `RCMCP-PATCH-LOWER-BOUND-ADDED` as high-confidence
+         `out_of_bounds_access` evidence with `verification_status=patch_confirmed`.
     C) Confirm with taint analysis:
         taint_trace("{original_binary}")
+    D) If source is available, run `audit_source_code()` and merge matching
+       `structured_findings` with patch `structured_signals` by
+       `function` + `vulnerability_class`. For example, merge
+       `RCMCP-SAST-C-012` with `RCMCP-PATCH-LOWER-BOUND-ADDED` instead of
+       reporting two separate issues.
 
     STEP 5 — EXPLOIT THE ORIGINAL (1-day):
 

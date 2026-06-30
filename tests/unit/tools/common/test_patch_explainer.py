@@ -28,7 +28,10 @@ class TestGenerateExplanation:
         assert "Security checks were added" in result["summary"]
 
     def test_lower_bound_check_added_to_existing_condition(self):
-        from reversecore_mcp.tools.common.patch_explainer import _generate_explanation
+        from reversecore_mcp.tools.common.patch_explainer import (
+            _build_structured_patch_signals,
+            _generate_explanation,
+        )
 
         original = """
         if (99 < param_2) {
@@ -47,6 +50,14 @@ class TestGenerateExplanation:
 
         assert result["summary"] == "Security checks were added."
         assert any("Added Lower-Bound Check" in detail for detail in result["details"])
+        signals = _build_structured_patch_signals(result, "track_set_index")
+        assert signals[0]["signal_id"] == "RCMCP-PATCH-LOWER-BOUND-ADDED"
+        assert signals[0]["patch_security_signal"] == "lower_bound_check_added"
+        assert signals[0]["vulnerability_class"] == "out_of_bounds_access"
+        assert signals[0]["function"] == "track_set_index"
+        assert signals[0]["added_checks"] == ["param_2 < 0"]
+        assert signals[0]["confidence"] == "high"
+        assert signals[0]["verification_status"] == "patch_confirmed"
 
     def test_api_replacement_strcpy(self):
         from reversecore_mcp.tools.common.patch_explainer import _generate_explanation

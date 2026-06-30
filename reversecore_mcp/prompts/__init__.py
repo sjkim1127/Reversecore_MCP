@@ -60,6 +60,7 @@ def register_prompts(mcp: FastMCP):
     mcp.prompt("crypto_analysis_mode")(crypto_analysis_mode)
     mcp.prompt("firmware_analysis_mode")(firmware_analysis_mode)
     mcp.prompt("vulnerability_research_mode")(vulnerability_research_mode)
+    mcp.prompt("vulnerability_hunter_mode")(vulnerability_research_mode)
     mcp.prompt("autonomous_vuln_hunt_mode")(autonomous_vuln_hunt_mode)
 
     # CVE Research & Exploit Development Prompts

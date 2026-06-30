@@ -135,9 +135,16 @@ def patch_analysis_mode(
          B. Compare the logic to identify added checks (bounds check, integer overflow check, input validation).
          C. Use `explain_patch("{original_binary}", "{patched_binary}", function_name)` for
             semantic natural-language diff explanation.
+         D. Prefer `structured_signals` over prose when present. Treat
+            `RCMCP-PATCH-LOWER-BOUND-ADDED` as patch-confirmed evidence for
+            `out_of_bounds_access` and record its `function`, `added_checks`,
+            `confidence`, and `verification_status`.
 
     3. Vulnerability Reconstruction:
        - Based on the added check, infer the original vulnerability (Buffer Overflow, UAF, Integer Overflow).
+       - If `structured_signals[].vulnerability_class` matches a SAST
+         `structured_findings[].vulnerability_class`, merge them into the same
+         candidate instead of reporting duplicates.
        - Determine if the patch is complete or if it can be bypassed.
        - Run `taint_trace("{original_binary}")` to confirm source→sink data flow.
 
@@ -164,6 +171,10 @@ def source_code_audit_mode() -> str:
     2. Memory Safety (C/C++ specific):
        - Look for Buffer Overflows, Use-After-Free (UAF), Double Free.
        - Verify bounds checking on loops and array accesses.
+       - When `audit_source_code()` returns `structured_findings`, use them as
+         the primary evidence. Treat `RCMCP-SAST-C-012` as an upper-only bounds
+         guard candidate: report `function`, `sink`, `index`, `guard_status`,
+         `confidence`, and `verification_status`.
 
     3. Business Logic & Authentication:
        - Check for authorization bypasses (e.g., missing permission checks).
@@ -178,6 +189,7 @@ def source_code_audit_mode() -> str:
     For each identified vulnerability, provide:
     - **Severity**: Critical / High / Medium / Low
     - **Vulnerability Type**: e.g., Buffer Overflow, Command Injection
+    - **Structured Evidence**: rule_id/signal_id, confidence, verification_status
     - **Code Snippet**: The vulnerable code block
     - **Impact**: What an attacker could achieve
     - **Remediation**: Specific code changes to fix the issue
