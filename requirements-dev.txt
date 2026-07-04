@@ -124,7 +124,7 @@ pyyaml==6.0.3             # via fastmcp-slim, jsonschema-path, mkdocs, mkdocs-ge
 pyyaml-env-tag==1.1       # via mkdocs
 redis[hiredis]==5.3.1     # via arq, reversecore-mcp (pyproject.toml)
 referencing==0.37.0       # via jsonschema, jsonschema-path, jsonschema-specifications
-reportlab==4.5.1          # via svglib, xhtml2pdf
+reportlab==5.0.0          # via svglib, xhtml2pdf
 requests==2.34.2          # via mkdocs-material, pyhanko, pyhanko-certvalidator
 rich==15.0.0              # via cyclopts, fastmcp-slim, rich-rst, typer
 rich-rst==2.0.2           # via cyclopts

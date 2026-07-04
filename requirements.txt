@@ -146,7 +146,7 @@ questionary==2.1.1        # via ida-hcli
 r2pipe==1.9.8             # via reversecore-mcp
 redis==5.3.1     # via arq, reversecore-mcp, reversecore-mcp (pyproject.toml)
 referencing==0.37.0       # via jsonschema, jsonschema-path, jsonschema-specifications
-reportlab==4.5.1          # via svglib, xhtml2pdf
+reportlab==5.0.0          # via svglib, xhtml2pdf
 requests==2.34.2          # via pyhanko, pyhanko-certvalidator, reversecore-mcp
 rich==15.0.0              # via angr, cyclopts, fastmcp-slim, flare-capa, ida-hcli, reversecore-mcp, rich-click, rich-rst, typer
 rich-click==1.9.8         # via ida-hcli
