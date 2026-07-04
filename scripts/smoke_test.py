@@ -836,7 +836,7 @@ def _tool_radare2_analyze() -> tuple[bool, str]:
     _patch_workspace()
     from reversecore_mcp.tools.radare2 import radare2_mcp_tools
 
-    radare2_mcp_tools.Radare2Plugin()
+    radare2_mcp_tools.Radare2ToolsPlugin()
     # It returns a dict directly, but wait - the actual mcp tool is a closure.
     # The functions we grepped are closures inside register().
     # So we should test them over the wire in a real E2E or via the plugin's methods.
@@ -853,7 +853,65 @@ def _tool_r2_decompile() -> tuple[bool, str]:
     return True, "r2_decompile OK"
 
 
+def _tool_generate_poc_exploit() -> tuple[bool, str]:
+    _patch_workspace()
+    from reversecore_mcp.tools.malware.poc_generator import generate_poc_exploit
+
+    res = asyncio.run(
+        generate_poc_exploit(str(FIXTURE_DEST), vulnerability_class="buffer_overflow")
+    )
+    if res.status != "success":
+        if "pwntools is not installed" in res.message:
+            return True, "generate_poc_exploit handled pwntools absence gracefully"
+        return False, f"generate_poc_exploit failed: {res.message}"
+    return True, "generate_poc_exploit OK"
+
+
+def _tool_build_rop_chain() -> tuple[bool, str]:
+    _patch_workspace()
+    from reversecore_mcp.tools.malware.rop_builder import build_rop_chain
+
+    # Note: ROP chain generation may return error on tiny files due to no gadgets found,
+    # but we ensure it executes gracefully without raising exceptions.
+    _ = asyncio.run(build_rop_chain(str(FIXTURE_DEST), objective="shell"))
+    return True, "build_rop_chain OK"
+
+
+def _tool_autonomous_vuln_hunt() -> tuple[bool, str]:
+    _patch_workspace()
+    from reversecore_mcp.tools.malware.autonomous_hunter import autonomous_vuln_hunt
+
+    _ = asyncio.run(autonomous_vuln_hunt(str(FIXTURE_DEST), max_functions=1))
+    return True, "autonomous_vuln_hunt OK"
+
+
+def _tool_pcap_list_connections() -> tuple[bool, str]:
+    _patch_workspace()
+    from reversecore_mcp.tools.forensics import network
+
+    _ = asyncio.run(network.pcap_list_connections(str(FIXTURE_DEST)))
+    return True, "pcap_list_connections OK"
+
+
+def _tool_pcap_extract_dns() -> tuple[bool, str]:
+    _patch_workspace()
+    from reversecore_mcp.tools.forensics import network
+
+    _ = asyncio.run(network.pcap_extract_dns(str(FIXTURE_DEST)))
+    return True, "pcap_extract_dns OK"
+
+
+def _tool_pcap_extract_c2() -> tuple[bool, str]:
+    _patch_workspace()
+    from reversecore_mcp.tools.forensics import network
+
+    _ = asyncio.run(network.pcap_extract_c2(str(FIXTURE_DEST)))
+    return True, "pcap_extract_c2 OK"
+
+
 # ══════════════════════════════════════════════════════════════════════════════
+
+
 # LAYER 17 — Radare2 Plugin System Verification
 # ══════════════════════════════════════════════════════════════════════════════
 def _layer17_radare2_plugin_e2e() -> tuple[bool, str]:
@@ -2670,30 +2728,37 @@ def main() -> int:
     _run("tool: generate_yara_rule", _tool_generate_yara_rule, layer=4)
     _run("tool: get_server_health", _tool_get_server_health, layer=4)
     _run("tool: get_system_time", _tool_get_system_time, layer=4)
-    _run("tool: assemble_instructions", _tool_assemble_instructions, layer=4, req=False)
-    _run("tool: copy_to_workspace", _tool_copy_to_workspace, layer=4, req=False)
+    _run("tool: assemble_instructions", _tool_assemble_instructions, layer=4)
+    _run("tool: copy_to_workspace", _tool_copy_to_workspace, layer=4)
     _run("tool: scan_workspace", _tool_scan_workspace, layer=4, req=False)
-    _run("tool: get_tool_metrics", _tool_get_tool_metrics, layer=4, req=False)
-    _run("tool: run_capa", _tool_run_capa, layer=4, req=False)
-    _run("tool: detect_packer_deep", _tool_detect_packer_deep, layer=4, req=False)
-    _run("tool: diff_binaries", _tool_diff_binaries, layer=4, req=False)
-    _run("tool: match_libraries", _tool_match_libraries, layer=4, req=False)
-    _run("tool: scan_for_versions", _tool_scan_for_versions, layer=4, req=False)
-    _run("tool: dormant_detector", _tool_dormant_detector, layer=4, req=False)
-    _run("tool: adaptive_vaccine", _tool_adaptive_vaccine, layer=4, req=False)
-    _run("tool: vulnerability_hunter", _tool_vulnerability_hunter, layer=4, req=False)
-    _run("tool: memory_analyze", _tool_memory_analyze, layer=4, req=False)
-    _run("tool: memory_list_processes", _tool_memory_list_processes, layer=4, req=False)
-    _run("tool: disk_list_partition", _tool_disk_list_partition, layer=4, req=False)
-    _run("tool: pcap_analyze", _tool_pcap_analyze, layer=4, req=False)
-    _run("tool: artifact_collect", _tool_artifact_collect, layer=4, req=False)
-    _run("tool: start_report_session", _tool_start_report_session, layer=4, req=False)
-    _run("tool: end_report_session", _tool_end_report_session, layer=4, req=False)
-    _run("tool: create_analysis_report", _tool_create_analysis_report, layer=4, req=False)
-    _run("tool: add_ioc", _tool_add_ioc, layer=4, req=False)
-    _run("tool: emulate_binary", _tool_emulate_binary, layer=4, req=False)
-    _run("tool: radare2_analyze", _tool_radare2_analyze, layer=4, req=False)
-    _run("tool: r2_decompile", _tool_r2_decompile, layer=4, req=False)
+    _run("tool: get_tool_metrics", _tool_get_tool_metrics, layer=4)
+
+    _run("tool: run_capa", _tool_run_capa, layer=4)
+    _run("tool: detect_packer_deep", _tool_detect_packer_deep, layer=4)
+    _run("tool: diff_binaries", _tool_diff_binaries, layer=4)
+    _run("tool: match_libraries", _tool_match_libraries, layer=4)
+    _run("tool: scan_for_versions", _tool_scan_for_versions, layer=4)
+    _run("tool: dormant_detector", _tool_dormant_detector, layer=4)
+    _run("tool: adaptive_vaccine", _tool_adaptive_vaccine, layer=4)
+    _run("tool: vulnerability_hunter", _tool_vulnerability_hunter, layer=4)
+    _run("tool: memory_analyze", _tool_memory_analyze, layer=4)
+    _run("tool: memory_list_processes", _tool_memory_list_processes, layer=4)
+    _run("tool: disk_list_partition", _tool_disk_list_partition, layer=4)
+    _run("tool: pcap_analyze", _tool_pcap_analyze, layer=4)
+    _run("tool: artifact_collect", _tool_artifact_collect, layer=4)
+    _run("tool: start_report_session", _tool_start_report_session, layer=4)
+    _run("tool: end_report_session", _tool_end_report_session, layer=4)
+    _run("tool: create_analysis_report", _tool_create_analysis_report, layer=4)
+    _run("tool: add_ioc", _tool_add_ioc, layer=4)
+    _run("tool: emulate_binary", _tool_emulate_binary, layer=4)
+    _run("tool: radare2_analyze", _tool_radare2_analyze, layer=4)
+    _run("tool: r2_decompile", _tool_r2_decompile, layer=4)
+    _run("tool: generate_poc_exploit", _tool_generate_poc_exploit, layer=4)
+    _run("tool: build_rop_chain", _tool_build_rop_chain, layer=4)
+    _run("tool: autonomous_vuln_hunt", _tool_autonomous_vuln_hunt, layer=4)
+    _run("tool: pcap_list_connections", _tool_pcap_list_connections, layer=4)
+    _run("tool: pcap_extract_dns", _tool_pcap_extract_dns, layer=4)
+    _run("tool: pcap_extract_c2", _tool_pcap_extract_c2, layer=4)
 
     # ── L5: Named tool existence ──────────────────────────────────────────────
     _section(f"Layer 5 · Named Tool Existence ({len(REQUIRED_TOOL_NAMES)} required)")
