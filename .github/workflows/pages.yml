@@ -1,0 +1,62 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-pages:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Install system dependencies (Radare2 & YARA)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yara
+          git clone https://github.com/radareorg/radare2.git /tmp/radare2
+          cd /tmp/radare2 && sys/install.sh
+
+      - name: Run Tests with Coverage and HTML Report
+        run: |
+          # Create test-results directory in docs so MkDocs includes them
+          mkdir -p docs/test-results/coverage
+          # Run tests and generate reports
+          # Using --self-contained-html so the HTML is one large file with inline CSS
+          pytest --html=docs/test-results/report.html --self-contained-html \
+                 --cov=reversecore_mcp --cov-report=html:docs/test-results/coverage || true
+          # We use || true so that even if tests fail, the pages are deployed.
+
+      - name: Build MkDocs
+        run: |
+          mkdocs build
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

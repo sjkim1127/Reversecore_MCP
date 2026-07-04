@@ -694,6 +694,23 @@ jobs:
         run: |
           pytest tests/security/ -m security -v --tb=short
 
+      - name: "🌪️ Run Quick Fuzzing (DAST) on core parsers"
+        env:
+          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
+          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
+          LOG_LEVEL: WARNING
+          HYPOTHESIS_PROFILE: ci
+        run: |
+          pytest tests/security/test_fuzzing_hypothesis.py -v --tb=short
+
+      - name: "⏱️ Run Performance Regression (SLA Benchmark)"
+        env:
+          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
+          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
+          LOG_LEVEL: WARNING
+        run: |
+          pytest tests/performance/test_performance_regression.py -v --tb=short --benchmark-warmup=on
+
       - name: "🚧 Verify workspace isolation under network restriction (Docker)"
         run: |
           docker run --rm \

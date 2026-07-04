@@ -1,0 +1,52 @@
+name: Nightly Deep Fuzzing
+
+on:
+  schedule:
+    # Run every day at midnight UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  deep-fuzz:
+    name: Hypothesis Deep Fuzz (DAST)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install system dependencies
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/azure-cli.sources /etc/apt/sources.list.d/azure-cli.list /etc/apt/sources.list.d/microsoft-prod.list
+          sudo apt-get update
+          sudo apt-get install -y radare2 yara libyara-dev binutils nasm
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Create isolated test workspace
+        run: |
+          mkdir -p tests/fixtures/workspace
+          mkdir -p tests/fixtures/rules
+
+      - name: "🌪️ Run Deep Fuzzing (DAST) on core parsers"
+        env:
+          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
+          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
+          LOG_LEVEL: WARNING
+          HYPOTHESIS_PROFILE: nightly
+        run: |
+          echo "Starting long-running Deep Fuzz via Hypothesis..."
+          pytest tests/security/test_fuzzing_hypothesis.py -v --tb=short

@@ -103,6 +103,9 @@ nav:
       - Tool Testing: CI_CD_TOOL_TESTING.md
       - Enhanced CI/CD: ENHANCED_CI_CD.md
       - Extended Tools: EXTENDED_TOOLS_ANALYSIS.md
+  - Test Results:
+      - Pytest Report: test-results/report.html
+      - Coverage Report: test-results/coverage/index.html
 
 extra:
   social:
