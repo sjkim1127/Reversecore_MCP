@@ -2,7 +2,7 @@
 """
 Reversecore MCP — Conservative In-Container Smoke Test (v5)
 =============================================================
-24-Layer verification. CI pass = ALL layers pass = image is safe to deploy.
+26-Layer verification. CI pass = ALL layers pass = image is safe to deploy.
 
 Layer 1   Module import sweep         — every .py under reversecore_mcp/tools/ imports clean
 Layer 2   CLI binary checks           — real output + sane content validated
@@ -29,8 +29,11 @@ Layer 21  Timeout resilience          — 5 core tools complete within 35 s (no 
 Layer 22  MCP resource exposure       — list_resources() exposes health/config >= 3 resources
 Layer 23  Prompt document integrity   — all prompts renderable with non-empty messages
 Layer 24  Analysis determinism        — same binary twice => identical arch/section count
+Layer 25  Exploit Pipeline Safety     — generate_poc_exploit/build_rop_chain workspace boundary & bandit checks
+Layer 26  Malformed Input Resilience  — zero-byte file, corrupt ELF/PE magic headers, large 100MB dummy processing
 
 Exit codes: 0 = all required checks passed | 1 = any required check failed
+
 """
 
 from __future__ import annotations
@@ -1446,7 +1449,91 @@ def _l25_pwntools_missing_graceful() -> tuple[bool, str]:
     return True, "generate_poc_exploit returns graceful error when pwntools not installed"
 
 
+def _l26_malformed_elf_header() -> tuple[bool, str]:
+    """Malformed ELF (only magic bytes, corrupt header) must return ToolResult(error) or handle gracefully."""
+    _patch_workspace()
+    import asyncio
+
+    from reversecore_mcp.tools.analysis.lief_tools import parse_binary_with_lief
+    from reversecore_mcp.tools.common.file_operations import run_file
+
+    bad_elf = WORKSPACE / "corrupt.elf"
+    bad_elf.write_bytes(b"\x7fELF\x02\x01\x01\x00\x99\x99\x99\x99\x99\x99\x99\x99")
+    try:
+        # run_file is async
+        asyncio.run(run_file(str(bad_elf)))
+        # parse_binary_with_lief is synchronous
+        res_lief = parse_binary_with_lief(str(bad_elf))
+        if res_lief.status == "error":
+            detail = f"LIEF returned error gracefully: {res_lief.error_code}"
+        else:
+            detail = "LIEF parsed minimal headers gracefully without exception"
+        return True, f"Malformed ELF handled: {detail}"
+    finally:
+        bad_elf.unlink(missing_ok=True)
+
+
+def _l26_zero_byte_file() -> tuple[bool, str]:
+    """Zero-byte file must be handled gracefully across all tools without crashing."""
+    _patch_workspace()
+    import asyncio
+
+    from reversecore_mcp.tools.analysis.lief_tools import parse_binary_with_lief
+    from reversecore_mcp.tools.analysis.static_analysis import run_strings
+    from reversecore_mcp.tools.common.file_operations import run_file
+
+    zero_file = WORKSPACE / "zero.bin"
+    zero_file.write_bytes(b"")
+    try:
+        asyncio.run(run_file(str(zero_file)))
+        asyncio.run(run_strings(str(zero_file)))
+        parse_binary_with_lief(str(zero_file))
+        return True, "Zero-byte file handled gracefully across all tools"
+    finally:
+        zero_file.unlink(missing_ok=True)
+
+
+def _l26_invalid_pe_magic() -> tuple[bool, str]:
+    """Corrupt PE file (MZ magic only) must be parsed safely or return error."""
+    _patch_workspace()
+    import asyncio
+
+    from reversecore_mcp.tools.analysis.die_tools import detect_packer_deep
+    from reversecore_mcp.tools.analysis.lief_tools import parse_binary_with_lief
+
+    bad_pe = WORKSPACE / "corrupt.exe"
+    bad_pe.write_bytes(b"MZ\x90\x00\x03\x00\x00\x00\x04\x00\x00\x00\xff\xff\x00\x00")
+    try:
+        parse_binary_with_lief(str(bad_pe))
+        asyncio.run(detect_packer_deep(str(bad_pe)))
+        return True, "Corrupt PE file handled gracefully by LIEF and packer scan"
+    finally:
+        bad_pe.unlink(missing_ok=True)
+
+
+def _l26_large_file_timeout() -> tuple[bool, str]:
+    """Large file (100MB dummy) must time out gracefully or return result within timeout limits without crash."""
+    _patch_workspace()
+    import asyncio
+    import time
+
+    from reversecore_mcp.tools.analysis.static_analysis import run_strings
+
+    large_file = WORKSPACE / "large_dummy.bin"
+    try:
+        with open(large_file, "wb") as f:
+            f.truncate(100 * 1024 * 1024)  # 100 MB
+        t0 = time.perf_counter()
+        res = asyncio.run(run_strings(str(large_file), min_length=4))
+        elapsed = time.perf_counter() - t0
+        return True, f"100MB dummy file handled in {elapsed:.2f}s (status={res.status})"
+    finally:
+        large_file.unlink(missing_ok=True)
+
+
 # ══════════════════════════════════════════════════════════════════════════════
+
+
 def _layer5_named_tools() -> tuple[bool, str]:
     _patch_workspace()
     from fastmcp import FastMCP
@@ -2769,6 +2856,13 @@ def main() -> int:
         layer=25,
         t=10,
     )
+
+    # ── L26: Malformed Input Resilience ────────────────────────────────────────
+    _section("Layer 26 · Malformed Input Resilience")
+    _run("resilience: malformed ELF header", _l26_malformed_elf_header, layer=26, t=30)
+    _run("resilience: zero-byte file", _l26_zero_byte_file, layer=26, t=30)
+    _run("resilience: invalid PE magic stub", _l26_invalid_pe_magic, layer=26, t=30)
+    _run("resilience: large 100MB file processing", _l26_large_file_timeout, layer=26, t=45)
 
     # ── Final report ──────────────────────────────────────────────────────────
     report.print_summary()
