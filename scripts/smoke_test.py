@@ -402,12 +402,20 @@ def setup_fixture() -> bool:
     return True
 
 
-def _patch_workspace() -> None:
+def _patch_workspace(path: Path | None = None) -> None:
     sys.path.insert(0, str(APP_DIR))
     from reversecore_mcp.core.config import get_config
 
+    try:
+        from reversecore_mcp.core.security import refresh_workspace_config
+    except ImportError:
+
+        def refresh_workspace_config():
+            pass
+
     cfg = get_config()
-    cfg.workspace = str(WORKSPACE)
+    cfg.workspace = str(path) if path else str(WORKSPACE)
+    refresh_workspace_config()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1592,84 +1600,92 @@ def _l25_pwntools_missing_graceful() -> tuple[bool, str]:
 
 def _l26_malformed_elf_header() -> tuple[bool, str]:
     """Malformed ELF (only magic bytes, corrupt header) must return ToolResult(error) or handle gracefully."""
-    _patch_workspace()
     import asyncio
+    import tempfile
 
     from reversecore_mcp.tools.analysis.lief_tools import parse_binary_with_lief
     from reversecore_mcp.tools.common.file_operations import run_file
 
-    bad_elf = WORKSPACE / "corrupt.elf"
-    bad_elf.write_bytes(b"\x7fELF\x02\x01\x01\x00\x99\x99\x99\x99\x99\x99\x99\x99")
-    try:
-        # run_file is async
-        asyncio.run(run_file(str(bad_elf)))
-        # parse_binary_with_lief is synchronous
-        res_lief = parse_binary_with_lief(str(bad_elf))
-        if res_lief.status == "error":
-            detail = f"LIEF returned error gracefully: {res_lief.error_code}"
-        else:
-            detail = "LIEF parsed minimal headers gracefully without exception"
-        return True, f"Malformed ELF handled: {detail}"
-    finally:
-        bad_elf.unlink(missing_ok=True)
+    with tempfile.TemporaryDirectory() as tmp_ws:
+        _patch_workspace(Path(tmp_ws))
+        try:
+            bad_elf = Path(tmp_ws) / "corrupt.elf"
+            bad_elf.write_bytes(b"\x7fELF\x02\x01\x01\x00\x99\x99\x99\x99\x99\x99\x99\x99")
+            # run_file is async
+            asyncio.run(run_file(str(bad_elf)))
+            # parse_binary_with_lief is synchronous
+            res_lief = parse_binary_with_lief(str(bad_elf))
+            if res_lief.status == "error":
+                detail = f"LIEF returned error gracefully: {res_lief.error_code}"
+            else:
+                detail = "LIEF parsed minimal headers gracefully without exception"
+            return True, f"Malformed ELF handled: {detail}"
+        finally:
+            _patch_workspace()
 
 
 def _l26_zero_byte_file() -> tuple[bool, str]:
     """Zero-byte file must be handled gracefully across all tools without crashing."""
-    _patch_workspace()
     import asyncio
+    import tempfile
 
     from reversecore_mcp.tools.analysis.lief_tools import parse_binary_with_lief
     from reversecore_mcp.tools.analysis.static_analysis import run_strings
     from reversecore_mcp.tools.common.file_operations import run_file
 
-    zero_file = WORKSPACE / "zero.bin"
-    zero_file.write_bytes(b"")
-    try:
-        asyncio.run(run_file(str(zero_file)))
-        asyncio.run(run_strings(str(zero_file)))
-        parse_binary_with_lief(str(zero_file))
-        return True, "Zero-byte file handled gracefully across all tools"
-    finally:
-        zero_file.unlink(missing_ok=True)
+    with tempfile.TemporaryDirectory() as tmp_ws:
+        _patch_workspace(Path(tmp_ws))
+        try:
+            zero_file = Path(tmp_ws) / "zero.bin"
+            zero_file.write_bytes(b"")
+            asyncio.run(run_file(str(zero_file)))
+            asyncio.run(run_strings(str(zero_file)))
+            parse_binary_with_lief(str(zero_file))
+            return True, "Zero-byte file handled gracefully across all tools"
+        finally:
+            _patch_workspace()
 
 
 def _l26_invalid_pe_magic() -> tuple[bool, str]:
     """Corrupt PE file (MZ magic only) must be parsed safely or return error."""
-    _patch_workspace()
     import asyncio
+    import tempfile
 
     from reversecore_mcp.tools.analysis.die_tools import detect_packer_deep
     from reversecore_mcp.tools.analysis.lief_tools import parse_binary_with_lief
 
-    bad_pe = WORKSPACE / "corrupt.exe"
-    bad_pe.write_bytes(b"MZ\x90\x00\x03\x00\x00\x00\x04\x00\x00\x00\xff\xff\x00\x00")
-    try:
-        parse_binary_with_lief(str(bad_pe))
-        asyncio.run(detect_packer_deep(str(bad_pe)))
-        return True, "Corrupt PE file handled gracefully by LIEF and packer scan"
-    finally:
-        bad_pe.unlink(missing_ok=True)
+    with tempfile.TemporaryDirectory() as tmp_ws:
+        _patch_workspace(Path(tmp_ws))
+        try:
+            bad_pe = Path(tmp_ws) / "corrupt.exe"
+            bad_pe.write_bytes(b"MZ\x90\x00\x03\x00\x00\x00\x04\x00\x00\x00\xff\xff\x00\x00")
+            parse_binary_with_lief(str(bad_pe))
+            asyncio.run(detect_packer_deep(str(bad_pe)))
+            return True, "Corrupt PE file handled gracefully by LIEF and packer scan"
+        finally:
+            _patch_workspace()
 
 
 def _l26_large_file_timeout() -> tuple[bool, str]:
     """Large file (100MB dummy) must time out gracefully or return result within timeout limits without crash."""
-    _patch_workspace()
     import asyncio
+    import tempfile
     import time
 
     from reversecore_mcp.tools.analysis.static_analysis import run_strings
 
-    large_file = WORKSPACE / "large_dummy.bin"
-    try:
-        with open(large_file, "wb") as f:
-            f.truncate(100 * 1024 * 1024)  # 100 MB
-        t0 = time.perf_counter()
-        res = asyncio.run(run_strings(str(large_file), min_length=4))
-        elapsed = time.perf_counter() - t0
-        return True, f"100MB dummy file handled in {elapsed:.2f}s (status={res.status})"
-    finally:
-        large_file.unlink(missing_ok=True)
+    with tempfile.TemporaryDirectory() as tmp_ws:
+        _patch_workspace(Path(tmp_ws))
+        try:
+            large_file = Path(tmp_ws) / "large_dummy.bin"
+            with open(large_file, "wb") as f:
+                f.truncate(100 * 1024 * 1024)  # 100 MB
+            t0 = time.perf_counter()
+            res = asyncio.run(run_strings(str(large_file), min_length=4))
+            elapsed = time.perf_counter() - t0
+            return True, f"100MB dummy file handled in {elapsed:.2f}s (status={res.status})"
+        finally:
+            _patch_workspace()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
