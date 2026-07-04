@@ -58,7 +58,7 @@ jaraco-classes==3.4.0     # via keyring
 jaraco-context==6.1.2     # via keyring
 jaraco-functools==4.5.0   # via keyring
 jinja2==3.1.6             # via mkdocs, mkdocs-material, mkdocstrings, reversecore-mcp (pyproject.toml)
-joserfc==1.7.2            # via authlib, fastmcp-slim
+joserfc==1.7.1            # via authlib, fastmcp-slim
 jsonref==1.1.0            # via fastmcp-slim
 jsonschema==4.26.0        # via mcp
 jsonschema-path==0.5.0    # via fastmcp-slim
@@ -122,9 +122,9 @@ pyxbe==1.0.3              # via reversecore-mcp (pyproject.toml)
 pyxdia==0.1.0             # via reversecore-mcp (pyproject.toml)
 pyyaml==6.0.3             # via fastmcp-slim, jsonschema-path, mkdocs, mkdocs-get-deps, pyhanko, pymdown-extensions, pyyaml-env-tag
 pyyaml-env-tag==1.1       # via mkdocs
-redis[hiredis]==8.0.1     # via arq, reversecore-mcp (pyproject.toml)
+redis[hiredis]==5.3.1     # via arq, reversecore-mcp (pyproject.toml)
 referencing==0.37.0       # via jsonschema, jsonschema-path, jsonschema-specifications
-reportlab==5.0.0          # via svglib, xhtml2pdf
+reportlab==4.5.1          # via svglib, xhtml2pdf
 requests==2.34.2          # via mkdocs-material, pyhanko, pyhanko-certvalidator
 rich==15.0.0              # via cyclopts, fastmcp-slim, rich-rst, typer
 rich-rst==2.0.2           # via cyclopts
@@ -141,7 +141,7 @@ typer==0.26.8             # via mcp
 types-requests==2.33.0.20260518  # via reversecore-mcp (pyproject.toml)
 typing-extensions==4.15.0  # via anyio, exceptiongroup, fastapi, fastmcp-slim, mcp, mypy, opentelemetry-api, py-key-value-aio, pydantic, pydantic-core, pytest-asyncio, referencing, starlette, typing-inspection
 typing-inspection==0.4.2  # via fastapi, mcp, pydantic, pydantic-settings
-tzlocal==5.4.4            # via pyhanko
+tzlocal==5.4.3            # via pyhanko
 uncalled-for==0.3.2       # via fastmcp-slim
 uritools==6.1.2           # via pyhanko-certvalidator
 urllib3==2.7.0            # via requests, types-requests
