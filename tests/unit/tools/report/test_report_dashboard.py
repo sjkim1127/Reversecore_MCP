@@ -24,7 +24,15 @@ class TestReportConverter:
         assert "<strong>Report ID:</strong> MAR-TEST" in html
         assert "<h2>Summary</h2>" in html
 
-    def test_html_to_pdf(self, tmp_path):
+    @patch("reversecore_mcp.tools.report.converter.pisa.CreatePDF")
+    def test_html_to_pdf(self, mock_create_pdf, tmp_path):
+        # Simulate pisa creating a PDF by writing to the dest file
+        def fake_create(src, dest, **kwargs):
+            dest.write(b"%PDF-1.4\n...")
+            return MagicMock(err=0)
+
+        mock_create_pdf.side_effect = fake_create
+
         html = "<html><body><h1>Test</h1></body></html>"
         pdf_path = tmp_path / "test.pdf"
         success = html_to_pdf(html, pdf_path)
@@ -65,7 +73,15 @@ class TestReportConverter:
         assert techniques[0]["id"] == "T1055"
         assert techniques[0]["name"] == "Process Injection"
 
-    def test_convert_report(self, tmp_path):
+    @patch("reversecore_mcp.tools.report.converter.pisa.CreatePDF")
+    def test_convert_report(self, mock_create_pdf, tmp_path):
+        # Simulate pisa creating a PDF by writing to the dest file
+        def fake_create(src, dest, **kwargs):
+            dest.write(b"%PDF-1.4\n...")
+            return MagicMock(err=0)
+
+        mock_create_pdf.side_effect = fake_create
+
         # Create a mock report source markdown
         report_dir = tmp_path / "reports"
         report_dir.mkdir()
