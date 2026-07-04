@@ -216,7 +216,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
         with:
           driver: docker  # Uses bundled BuildKit — no Docker Hub pull needed
 
@@ -528,7 +528,7 @@ jobs:
           echo "BASE_IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/base" >> ${GITHUB_ENV}
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
         with:
           driver: docker  # Uses bundled BuildKit — no Docker Hub pull needed
 
@@ -598,7 +598,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
         with:
           driver: docker
 
@@ -750,7 +750,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
         with:
           driver: docker  # Uses bundled BuildKit — no Docker Hub pull needed
 
@@ -840,7 +840,7 @@ jobs:
           echo "BASE_IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/base" >> ${GITHUB_ENV}
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
         with:
           driver: docker  # Uses bundled BuildKit — no Docker Hub pull needed
 
@@ -892,7 +892,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
         with:
           driver: docker
 
