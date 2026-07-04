@@ -31,6 +31,7 @@ from reversecore_mcp.core.r2_helpers import execute_r2_command as _execute_r2_co
 from reversecore_mcp.core.r2_helpers import parse_json_output as _parse_json_output
 from reversecore_mcp.core.result import ToolResult, failure, success
 from reversecore_mcp.core.security import validate_file_path
+from reversecore_mcp.tools.common.patch_explainer import explain_patch
 
 logger = get_logger(__name__)
 DEFAULT_TIMEOUT = get_config().default_tool_timeout
@@ -636,6 +637,21 @@ async def analyze_patch_diff_auto(
             # Also include the raw radiff2 -C output for this function
             combined_diff = diff_out + "\n" + disasm_diff
 
+            # Call semantic explain_patch for human-readable insights
+            semantic_explanation = None
+            diff_snippet = None
+            try:
+                explain_res = await explain_patch(
+                    str(validated_old), str(validated_new), function_name=func_name, ctx=None
+                )
+                if explain_res.status == "success" and isinstance(explain_res.data, dict):
+                    explanations = explain_res.data.get("explanations", [])
+                    if explanations:
+                        semantic_explanation = explanations[0].get("explanation")
+                        diff_snippet = explanations[0].get("diff_snippet")
+            except Exception as exc:
+                logger.debug("explain_patch failed for %s: %s", func_name, exc)
+
             # Match security patterns
             pattern_matches = _match_patterns(combined_diff, func_name, size_delta, block_delta)
 
@@ -652,6 +668,8 @@ async def analyze_patch_diff_auto(
                 "block_delta": block_delta,
                 "pattern_matches": pattern_matches,
                 "top_pattern": pattern_matches[0] if pattern_matches else None,
+                "semantic_explanation": semantic_explanation,
+                "diff_snippet": diff_snippet,
             }
             analyzed_functions.append(func_analysis)
             all_candidates.extend(pattern_matches)

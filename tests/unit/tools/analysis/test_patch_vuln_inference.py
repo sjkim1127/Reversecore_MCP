@@ -140,9 +140,12 @@ class TestAnalyzePatchDiffAuto:
     """Tests for analyze_patch_diff_auto MCP tool."""
 
     @pytest.mark.asyncio
+    @patch("reversecore_mcp.tools.analysis.patch_vuln_inference.explain_patch")
     @patch("reversecore_mcp.tools.analysis.patch_vuln_inference.validate_file_path")
     @patch("reversecore_mcp.tools.analysis.patch_vuln_inference.execute_subprocess_async")
-    async def test_identical_binaries_returns_identical(self, mock_exec, mock_validate, tmp_path):
+    async def test_identical_binaries_returns_identical(
+        self, mock_exec, mock_validate, mock_explain, tmp_path
+    ):
         """When similarity is ~1.0, should return IDENTICAL verdict."""
         old = tmp_path / "old.bin"
         old.write_bytes(b"MZ" + b"\x00" * 100)
@@ -158,9 +161,10 @@ class TestAnalyzePatchDiffAuto:
         assert result.data["patch_verdict"] == "IDENTICAL"
 
     @pytest.mark.asyncio
+    @patch("reversecore_mcp.tools.analysis.patch_vuln_inference.explain_patch")
     @patch("reversecore_mcp.tools.analysis.patch_vuln_inference.validate_file_path")
     @patch("reversecore_mcp.tools.analysis.patch_vuln_inference.execute_subprocess_async")
-    async def test_security_patch_detected(self, mock_exec, mock_validate, tmp_path):
+    async def test_security_patch_detected(self, mock_exec, mock_validate, mock_explain, tmp_path):
         """When dangerous APIs are removed, verdict should be SECURITY_PATCH."""
         old = tmp_path / "old.bin"
         old.write_bytes(b"MZ" + b"\x00" * 100)
@@ -193,9 +197,10 @@ class TestAnalyzePatchDiffAuto:
         assert result.data["similarity"] == pytest.approx(0.95, abs=0.01)
 
     @pytest.mark.asyncio
+    @patch("reversecore_mcp.tools.analysis.patch_vuln_inference.explain_patch")
     @patch("reversecore_mcp.tools.analysis.patch_vuln_inference.validate_file_path")
     @patch("reversecore_mcp.tools.analysis.patch_vuln_inference.execute_subprocess_async")
-    async def test_result_has_required_keys(self, mock_exec, mock_validate, tmp_path):
+    async def test_result_has_required_keys(self, mock_exec, mock_validate, mock_explain, tmp_path):
         """Result must always have required output keys."""
         old = tmp_path / "old.bin"
         old.write_bytes(b"MZ" + b"\x00" * 100)
