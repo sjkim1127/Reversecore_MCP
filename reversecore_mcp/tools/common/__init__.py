@@ -28,6 +28,7 @@ class CommonToolsPlugin(Plugin):
         from reversecore_mcp.tools.common.assembler import assemble_instructions
         from reversecore_mcp.tools.common.file_operations import (
             copy_to_workspace,
+            create_directory,
             list_workspace,
             run_file,
             scan_workspace,
@@ -47,6 +48,7 @@ class CommonToolsPlugin(Plugin):
         # File operation tools
         mcp_server.tool(run_file)
         mcp_server.tool(copy_to_workspace)
+        mcp_server.tool(create_directory)
         mcp_server.tool(list_workspace)
         mcp_server.tool(scan_workspace)
 

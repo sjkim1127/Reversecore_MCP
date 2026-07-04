@@ -98,7 +98,7 @@ class TestCopyToWorkspace:
 
         assert result.status == "error"
         assert result.error_code == "VALIDATION_ERROR"
-        assert "Invalid destination name" in result.message
+        assert "Destination path traverses outside workspace" in result.message
 
     def test_copy_to_workspace_large_file(self, tmp_path, patched_config):
         """Test error when file exceeds size limit."""
@@ -197,7 +197,7 @@ class TestListWorkspace:
         assert result.data["files"][0]["name"] == "file.bin"
 
     def test_list_workspace_with_subdirectory_files(self, workspace_dir, patched_config):
-        """Test that files in subdirectories are not listed (only top-level files)."""
+        """Test that files in subdirectories are now listed (recursive)."""
         # Create top-level file
         file1 = workspace_dir / "file1.bin"
         file1.write_bytes(b"content1")
@@ -211,5 +211,8 @@ class TestListWorkspace:
         result = file_operations.list_workspace()
 
         assert result.status == "success"
-        assert result.metadata["file_count"] == 1
-        assert result.data["files"][0]["name"] == "file1.bin"
+        assert result.metadata["file_count"] == 2
+
+        file_names = {f["name"] for f in result.data["files"]}
+        assert "file1.bin" in file_names
+        assert "file2.bin" in file_names

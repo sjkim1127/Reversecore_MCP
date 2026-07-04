@@ -141,21 +141,43 @@ def copy_to_workspace(
         )
 
     # Determine destination filename
-    if destination_name:
-        # Sanitize destination name (remove path separators and dangerous chars)
-        dest_name = Path(destination_name).name
-        # Additional sanitization for security - check if sanitization changed the name
-        if dest_name != destination_name or not dest_name:
-            raise ValidationError(
-                f"Invalid destination name: {destination_name}",
-                details={"destination_name": destination_name},
-            )
-    else:
-        dest_name = source.name
-
-    # Build destination path in workspace
     config = get_config()
-    destination = config.workspace / dest_name
+    if destination_name:
+        # Allow nested paths within the workspace but block traversal
+        dest_path = Path(destination_name)
+        if dest_path.is_absolute():
+            # If absolute, verify it's inside the workspace
+            try:
+                dest_path.relative_to(config.workspace)
+                destination = dest_path
+            except ValueError:
+                raise ValidationError(
+                    f"Absolute destination path must be within the workspace: {destination_name}",
+                    details={"destination_name": destination_name},
+                )
+        else:
+            destination = (config.workspace / dest_path).resolve()
+            # Verify no path traversal (e.g. ../../etc/passwd)
+            try:
+                destination.relative_to(config.workspace)
+            except ValueError:
+                raise ValidationError(
+                    f"Destination path traverses outside workspace: {destination_name}",
+                    details={"destination_name": destination_name},
+                )
+    else:
+        destination = config.workspace / source.name
+
+    dest_name = destination.name
+
+    # Create parent directories if they don't exist
+    try:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        raise ValidationError(
+            f"Failed to create parent directories for destination: {e}",
+            details={"destination": str(destination)},
+        )
 
     # Copy file to workspace using atomic exclusive creation
     # This prevents TOCTOU race condition where another process could create
@@ -222,11 +244,72 @@ def list_workspace() -> ToolResult:
         )
 
     files = []
-    for item in workspace.iterdir():
+    # Using rglob to list all files in subdirectories as well
+    for item in workspace.rglob("*"):
         if item.is_file():
-            files.append({"name": item.name, "size": item.stat().st_size, "path": str(item)})
+            # Store relative path to make it easier to read
+            try:
+                rel_path = str(item.relative_to(workspace))
+            except ValueError:
+                rel_path = str(item)
+            files.append(
+                {
+                    "name": item.name,
+                    "size": item.stat().st_size,
+                    "path": str(item),
+                    "relative_path": rel_path,
+                }
+            )
 
     return success({"files": files}, file_count=len(files), workspace_path=str(workspace))
+
+
+@log_execution(tool_name="create_directory")
+@track_metrics("create_directory")
+@handle_tool_errors
+def create_directory(directory_path: str) -> ToolResult:
+    """
+    Create a new sub-directory within the workspace.
+
+    This tool allows AI agents to dynamically create isolated sub-workspaces
+    for different tasks or sessions.
+
+    Args:
+        directory_path: Relative or absolute path of the directory to create.
+                       Must be within the workspace boundary.
+
+    Returns:
+        ToolResult with the newly created directory path
+    """
+    config = get_config()
+    path = Path(directory_path)
+
+    if path.is_absolute():
+        try:
+            path.relative_to(config.workspace)
+            target = path
+        except ValueError:
+            raise ValidationError(
+                f"Absolute directory path must be within the workspace: {directory_path}"
+            )
+    else:
+        target = (config.workspace / path).resolve()
+        try:
+            target.relative_to(config.workspace)
+        except ValueError:
+            raise ValidationError(f"Directory path traverses outside workspace: {directory_path}")
+
+    try:
+        target.mkdir(parents=True, exist_ok=True)
+        return success(
+            str(target),
+            workspace_path=str(config.workspace),
+            message=f"Directory created successfully: {target.relative_to(config.workspace)}",
+        )
+    except PermissionError as e:
+        raise ValidationError(f"Permission denied when creating directory: {e}")
+    except Exception as e:
+        raise ValidationError(f"Failed to create directory: {e}")
 
 
 @log_execution(tool_name="scan_workspace")

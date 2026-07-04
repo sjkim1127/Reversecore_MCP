@@ -93,6 +93,44 @@ class TestCopyToWorkspace:
         assert result.status == "success"
         assert (workspace / "dest.txt").exists()
 
+    def test_destination_nested(self, tmp_path):
+        """Copy to a nested destination path."""
+        from reversecore_mcp.tools.common.file_operations import copy_to_workspace
+
+        source = tmp_path / "source.txt"
+        source.write_text("hello")
+
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+
+        with patch("reversecore_mcp.tools.common.file_operations.get_config") as mock_get_config:
+            mock_config = MagicMock()
+            mock_config.workspace = workspace
+            mock_get_config.return_value = mock_config
+            result = copy_to_workspace(str(source), destination_name="session_A/dest.txt")
+
+        assert result.status == "success"
+        assert (workspace / "session_A" / "dest.txt").exists()
+
+    def test_destination_traversal_blocked(self, tmp_path):
+        """Copy to a traversal path should be blocked."""
+        from reversecore_mcp.tools.common.file_operations import copy_to_workspace
+
+        source = tmp_path / "source.txt"
+        source.write_text("hello")
+
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+
+        with patch("reversecore_mcp.tools.common.file_operations.get_config") as mock_get_config:
+            mock_config = MagicMock()
+            mock_config.workspace = workspace
+            mock_get_config.return_value = mock_config
+            result = copy_to_workspace(str(source), destination_name="../outside.txt")
+
+        assert result.status == "error"
+        assert "traverses outside workspace" in result.message
+
     def test_nonexistent_source(self):
         """Raise ValidationError for nonexistent source."""
         from reversecore_mcp.tools.common.file_operations import copy_to_workspace
@@ -204,3 +242,52 @@ class TestScanWorkspace:
                     result = await scan_workspace()
 
         assert result.status in ("success", "error")
+
+
+class TestCreateDirectory:
+    """Tests for create_directory function."""
+
+    def test_success_relative(self, tmp_path):
+        from reversecore_mcp.tools.common.file_operations import create_directory
+
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+
+        with patch("reversecore_mcp.tools.common.file_operations.get_config") as mock_get_config:
+            mock_config = MagicMock()
+            mock_config.workspace = workspace
+            mock_get_config.return_value = mock_config
+            result = create_directory("session_B/nested")
+
+        assert result.status == "success"
+        assert (workspace / "session_B" / "nested").is_dir()
+
+    def test_success_absolute(self, tmp_path):
+        from reversecore_mcp.tools.common.file_operations import create_directory
+
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+
+        with patch("reversecore_mcp.tools.common.file_operations.get_config") as mock_get_config:
+            mock_config = MagicMock()
+            mock_config.workspace = workspace
+            mock_get_config.return_value = mock_config
+            result = create_directory(str(workspace / "session_C"))
+
+        assert result.status == "success"
+        assert (workspace / "session_C").is_dir()
+
+    def test_traversal_blocked(self, tmp_path):
+        from reversecore_mcp.tools.common.file_operations import create_directory
+
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+
+        with patch("reversecore_mcp.tools.common.file_operations.get_config") as mock_get_config:
+            mock_config = MagicMock()
+            mock_config.workspace = workspace
+            mock_get_config.return_value = mock_config
+            result = create_directory("../../outside_dir")
+
+        assert result.status == "error"
+        assert "traverses outside workspace" in result.message
