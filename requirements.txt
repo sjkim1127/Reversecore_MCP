@@ -187,7 +187,7 @@ wrapt==2.2.2              # via deprecated
 xhtml2pdf==0.2.17         # via reversecore-mcp, reversecore-mcp (pyproject.toml)
 xmltodict==1.0.4          # via flare-capa
 yara-python==4.5.4        # via reversecore-mcp
-z3-solver==4.13.0.0       # via claripy
+z3-solver==4.16.0.0       # via claripy
 
 # The following packages are considered to be unsafe in a requirements file:
 # pip
