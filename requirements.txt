@@ -144,7 +144,7 @@ pyxdia==0.1.0             # via cle, reversecore-mcp, reversecore-mcp (pyproject
 pyyaml==6.0.3             # via fastmcp-slim, flare-capa, jsonschema-path, pyhanko
 questionary==2.1.1        # via ida-hcli
 r2pipe==1.9.8             # via reversecore-mcp
-redis==5.3.1     # via arq, reversecore-mcp, reversecore-mcp (pyproject.toml)
+redis==8.0.1     # via arq, reversecore-mcp, reversecore-mcp (pyproject.toml)
 referencing==0.37.0       # via jsonschema, jsonschema-path, jsonschema-specifications
 reportlab==5.0.0          # via svglib, xhtml2pdf
 requests==2.34.2          # via pyhanko, pyhanko-certvalidator, reversecore-mcp

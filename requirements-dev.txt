@@ -122,7 +122,7 @@ pyxbe==1.0.3              # via reversecore-mcp (pyproject.toml)
 pyxdia==0.1.0             # via reversecore-mcp (pyproject.toml)
 pyyaml==6.0.3             # via fastmcp-slim, jsonschema-path, mkdocs, mkdocs-get-deps, pyhanko, pymdown-extensions, pyyaml-env-tag
 pyyaml-env-tag==1.1       # via mkdocs
-redis[hiredis]==5.3.1     # via arq, reversecore-mcp (pyproject.toml)
+redis[hiredis]==8.0.1     # via arq, reversecore-mcp (pyproject.toml)
 referencing==0.37.0       # via jsonschema, jsonschema-path, jsonschema-specifications
 reportlab==5.0.0          # via svglib, xhtml2pdf
 requests==2.34.2          # via mkdocs-material, pyhanko, pyhanko-certvalidator
