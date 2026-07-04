@@ -131,21 +131,39 @@ async def _run_afl(
     Returns:
         Tuple of (return_code, stderr_output).
     """
-    cmd = [
-        "afl-fuzz",
-        "-i",
-        str(seed_dir),
-        "-o",
-        str(output_dir),
-        "-m",
-        "none",  # No memory limit
-        "-t",
-        "5000",  # Per-run timeout: 5s
-        *extra_args,
-        "--",
-        str(binary_path),
-        "@@",  # AFL++ file input placeholder
-    ]
+    if binary_path.name.endswith(".py"):
+        cmd = [
+            "afl-fuzz",
+            "-i",
+            str(seed_dir),
+            "-o",
+            str(output_dir),
+            "-m",
+            "none",  # No memory limit
+            "-t",
+            "5000",  # Per-run timeout: 5s
+            *extra_args,
+            "--",
+            "python3",
+            str(binary_path),
+            "@@",  # AFL++ file input placeholder
+        ]
+    else:
+        cmd = [
+            "afl-fuzz",
+            "-i",
+            str(seed_dir),
+            "-o",
+            str(output_dir),
+            "-m",
+            "none",  # No memory limit
+            "-t",
+            "5000",  # Per-run timeout: 5s
+            *extra_args,
+            "--",
+            str(binary_path),
+            "@@",  # AFL++ file input placeholder
+        ]
 
     logger.info("Starting AFL++ campaign: %s", " ".join(cmd))
 
@@ -274,6 +292,8 @@ async def run_fuzzing_campaign(
     use_stdin: bool = True,
     max_crashes_to_triage: int = 20,
     afl_extra_args: str = "",
+    target_function_or_addr: str | None = None,
+    fuzzer_type: str = "qiling",
     ctx: Context | None = None,
 ) -> ToolResult:
     """Run a real AFL++ fuzzing campaign and automatically triage all crashes.
@@ -308,6 +328,9 @@ async def run_fuzzing_campaign(
             Higher values give more coverage but take longer. Default: 20.
         afl_extra_args: Space-separated extra arguments for afl-fuzz (e.g.,
             ``"-D"`` for deterministic mode, ``"-p exploit"`` for exploit schedule).
+        target_function_or_addr: If provided, automatically generates a fuzzing harness
+            for this target function or address before fuzzing.
+        fuzzer_type: The type of harness to generate (default: "qiling").
         ctx: Optional FastMCP context for streaming progress messages.
 
     Returns:
@@ -341,7 +364,28 @@ async def run_fuzzing_campaign(
 
     validated_path = validate_file_path(file_path)
 
-    if not os.access(validated_path, os.X_OK):
+    # Automatically generate harness if target is provided
+    harness_path = None
+    if target_function_or_addr:
+        from reversecore_mcp.tools.analysis.fuzz_tools import generate_fuzzing_harness
+
+        if ctx:
+            await ctx.info(f"⚙️ Generating {fuzzer_type} harness for {target_function_or_addr}...")
+            await ctx.report_progress(1, 100)
+
+        harness_res = generate_fuzzing_harness(
+            file_path=str(validated_path),
+            target_function_or_addr=target_function_or_addr,
+            fuzzer_type=fuzzer_type,
+            save_to_workspace=True,
+        )
+        if harness_res.status == "error":
+            return harness_res
+
+        harness_path = Path(harness_res.data["saved_path"])
+        validated_path = harness_path
+
+    if not harness_path and not os.access(validated_path, os.X_OK):
         return failure(
             "NOT_EXECUTABLE",
             f"Binary {validated_path.name} is not executable. Run: chmod +x {validated_path}",

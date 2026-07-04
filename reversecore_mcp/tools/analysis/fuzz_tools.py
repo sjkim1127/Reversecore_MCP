@@ -76,7 +76,10 @@ if __name__ == "__main__":
 @track_metrics("generate_fuzzing_harness")
 @handle_tool_errors
 def generate_fuzzing_harness(
-    file_path: str, target_function_or_addr: str, fuzzer_type: str = "qiling"
+    file_path: str,
+    target_function_or_addr: str,
+    fuzzer_type: str = "qiling",
+    save_to_workspace: bool = False,
 ) -> ToolResult:
     """Generate a dynamic fuzzing harness (Qiling + AFL++) for a vulnerable function.
 
@@ -88,6 +91,7 @@ def generate_fuzzing_harness(
         file_path: Path to the vulnerable binary.
         target_function_or_addr: The function name or hex address to fuzz (e.g. 0x401234).
         fuzzer_type: The type of harness to generate (default: "qiling").
+        save_to_workspace: If True, saves the generated harness to the workspace.
 
     Returns:
         ToolResult with the generated Python script content.
@@ -118,23 +122,34 @@ def generate_fuzzing_harness(
     # Default rootfs placeholder (user should adjust based on their setup)
     rootfs_placeholder = "/qiling/examples/rootfs/x8664_linux"
 
+    script_name = f"fuzz_{validated_path.name}.py"
     harness_code = QILING_HARNESS_TEMPLATE.format(
         binary_name=validated_path.name,
         target_addr=target_str,
-        script_name=f"fuzz_{validated_path.name}.py",
+        script_name=script_name,
         binary_path_str=repr(str(validated_path)),
         rootfs_path=rootfs_placeholder,
         target_addr_val=target_addr_val,
     )
 
+    saved_path = None
+    if save_to_workspace:
+        from reversecore_mcp.core.config import get_config
+
+        workspace = get_config().workspace
+        target_file = workspace / script_name
+        target_file.write_text(harness_code)
+        saved_path = str(target_file)
+
     return success(
         {
             "harness_code": harness_code,
-            "instructions": textwrap.dedent("""
-                1. Save the generated code to a Python file.
+            "saved_path": saved_path,
+            "instructions": textwrap.dedent(f"""
+                1. Save the generated code to a Python file{(" (already saved to " + saved_path + ")") if saved_path else ""}.
                 2. Install dependencies: pip install qiling afl
                 3. Update the TODO section in the script to map the fuzzer input to the vulnerable buffer.
-                4. Run AFL++: afl-fuzz -i in/ -o out/ -Q -m none -- python3 harness.py @@
+                4. Run AFL++: afl-fuzz -i in/ -o out/ -Q -m none -- python3 {script_name} @@
                 """).strip(),
         }
     )
