@@ -25,7 +25,7 @@ bitarray==3.8.2           # via bitstring
 bitstring==4.4.0          # via pyvex
 cachetools==7.1.4         # via angr, claripy, py-key-value-aio
 caio==0.9.25              # via aiofile
-capstone==5.0.6           # via angr, reversecore-mcp
+capstone==5.0.9           # via angr, reversecore-mcp
 cart==1.2.3               # via cle
 certifi==2026.6.17        # via httpcore, httpx, requests
 cffi==2.0.0               # via angr, cryptography, pyvex
