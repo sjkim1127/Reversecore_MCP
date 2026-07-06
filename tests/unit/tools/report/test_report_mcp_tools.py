@@ -10,6 +10,7 @@ from reversecore_mcp.tools.report.report_mcp_tools import (
     add_mitre_technique,
     create_analysis_report,
     end_report_session,
+    generate_vex_report,
     get_report_session_status,
     get_system_time,
     get_timezone_info,
@@ -107,6 +108,13 @@ class TestReportMcpTools:
         result = await create_analysis_report(template_type="full_analysis", session_id="s1")
         assert "success" in result
 
+    @pytest.mark.asyncio
+    async def test_generate_vex_report(self):
+        vulns_json = '[{"id": "CVE-TEST", "description": "test"}]'
+        result = await generate_vex_report("App", "1.0", vulns_json)
+        assert "csaf_vex" in result
+        assert "CVE-TEST" in result
+
 
 class TestRegisterReportTools:
     """Tests for register_report_tools."""
@@ -114,4 +122,4 @@ class TestRegisterReportTools:
     def test_register(self):
         mcp = MagicMock()
         register_report_tools(mcp)
-        assert mcp.tool.call_count == 12
+        assert mcp.tool.call_count == 13

@@ -11,6 +11,7 @@ from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.plugin import Plugin
 
 from .report_tools import EmailConfig, ReportTools
+from .vex_generator import generate_csaf_vex
 
 logger = get_logger(__name__)
 
@@ -304,6 +305,49 @@ async def create_analysis_report(
     return json.dumps(result, indent=2, ensure_ascii=False)
 
 
+async def generate_vex_report(
+    product_name: str,
+    product_version: str,
+    vulnerabilities: str,
+    document_title: str = "Reversecore MCP VEX Report",
+) -> str:
+    """Generate a CSAF 2.0 VEX JSON report from vulnerability findings.
+
+    VEX (Vulnerability Exploitability eXchange) is a format for sharing the
+    exploitability status of a software product in a machine-readable way.
+
+    Args:
+        product_name: Name of the analyzed binary or product.
+        product_version: Version, hash, or build identifier of the product.
+        vulnerabilities: JSON string containing a list of vulnerability objects.
+            Each object should have:
+            - id: str (e.g., "CVE-2023-1234")
+            - description: str
+            - confidence: str ("confirmed", "likely", "false_positive", etc.)
+            - evidence_level: str (optional, e.g., "dead_code", "static_sink")
+        document_title: Title of the generated document.
+
+    Returns:
+        JSON string representing the CSAF 2.0 VEX document.
+    """
+    try:
+        vuln_list = json.loads(vulnerabilities)
+        if not isinstance(vuln_list, list):
+            return json.dumps({"status": "error", "message": "vulnerabilities must be a JSON list"})
+    except Exception as e:
+        return json.dumps(
+            {"status": "error", "message": f"Failed to parse vulnerabilities JSON: {e}"}
+        )
+
+    vex_json = generate_csaf_vex(
+        product_name=product_name,
+        product_version=product_version,
+        vulnerabilities=vuln_list,
+        document_title=document_title,
+    )
+    return vex_json
+
+
 # =============================================================================
 # Plugin Class
 # =============================================================================
@@ -336,8 +380,9 @@ class ReportToolsPlugin(Plugin):
         mcp_server.tool(add_mitre_technique)
         mcp_server.tool(set_severity)
         mcp_server.tool(create_analysis_report)
+        mcp_server.tool(generate_vex_report)
 
-        logger.info(f"Registered {self.name} plugin with 12 report tools")
+        logger.info(f"Registered {self.name} plugin with 13 report tools")
 
 
 # Legacy function for backward compatibility
