@@ -155,7 +155,7 @@ class TestPerformanceImprovement:
         # Test that invalid JSON raises error cleanly, not after multiple attempts
         try:
             _parse_json_output("not json")
-            assert False, "Should raise"
+            raise AssertionError("Should raise")
         except json.JSONDecodeError:
             pass  # Expected
 
@@ -163,7 +163,7 @@ class TestPerformanceImprovement:
         """Should provide clear error when JSON parsing fails completely."""
         try:
             _parse_json_output("definitely not json")
-            assert False, "Should have raised JSONDecodeError"
+            raise AssertionError("Should have raised JSONDecodeError")
         except json.JSONDecodeError as e:
             # orjson and stdlib json have different error messages
             # orjson: "unexpected character: line 1 column 1 (char 0)"

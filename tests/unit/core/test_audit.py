@@ -1,8 +1,8 @@
 """Unit tests for AuditLogger."""
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from reversecore_mcp.core.audit import AuditLogger, AuditAction, audit_logger
+from reversecore_mcp.core.audit import AuditAction, AuditLogger
 
 
 class TestAuditLogger:
@@ -58,7 +58,9 @@ class TestAuditLogger:
             AuditLogger._instance = None
             with patch("reversecore_mcp.core.audit.get_config") as get_cfg:
                 get_cfg.return_value = MagicMock(workspace=MagicMock(parent=MagicMock()))
-                get_cfg.return_value.workspace.parent.__truediv__ = lambda self, x: "/tmp/audit.json"
+                get_cfg.return_value.workspace.parent.__truediv__ = (
+                    lambda self, x: "/tmp/audit.json"
+                )
                 with patch("logging.FileHandler", side_effect=OSError("Permission denied")):
                     with patch("logging.getLogger") as get_logger:
                         mock_log = MagicMock()

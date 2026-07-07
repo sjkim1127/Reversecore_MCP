@@ -105,8 +105,8 @@ class TestSessionManagement:
     @pytest.mark.asyncio
     async def test_list_sessions_with_status_filter(self, memory_store):
         """Should filter sessions by status."""
-        s1 = await memory_store.create_session(name="active_1")
-        s2 = await memory_store.create_session(name="active_2")
+        await memory_store.create_session(name="active_1")
+        await memory_store.create_session(name="active_2")
         s3 = await memory_store.create_session(name="done")
 
         await memory_store.update_session(s3, status="completed")

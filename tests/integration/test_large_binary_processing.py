@@ -4,13 +4,11 @@ Large binary processing tests.
 Tests for handling binaries > 100MB, memory efficiency, and timeout handling.
 """
 
-import pytest
-import subprocess
-import tempfile
-from pathlib import Path
-import time
 import shutil
-from typing import Optional
+import subprocess
+import time
+
+import pytest
 
 
 class TestLargeBinaryHandling:
@@ -29,7 +27,9 @@ class TestLargeBinaryHandling:
         with open(binary_path, "wb") as f:
             bytes_written = 0
             while bytes_written < bytes_to_write:
-                chunk = bytes([i % 256 for i in range(min(chunk_size, bytes_to_write - bytes_written))])
+                chunk = bytes(
+                    [i % 256 for i in range(min(chunk_size, bytes_to_write - bytes_written))]
+                )
                 f.write(chunk)
                 bytes_written += len(chunk)
 
@@ -42,10 +42,7 @@ class TestLargeBinaryHandling:
 
         start = time.time()
         result = subprocess.run(
-            ["file", "-b", str(large_binary)],
-            capture_output=True,
-            text=True,
-            timeout=10
+            ["file", "-b", str(large_binary)], capture_output=True, text=True, timeout=10
         )
         elapsed = time.time() - start
 
@@ -61,11 +58,11 @@ class TestLargeBinaryHandling:
 
         start = time.time()
         try:
-            result = subprocess.run(
+            subprocess.run(
                 ["strings", str(large_binary)],
                 capture_output=True,
                 text=True,
-                timeout=30  # 30 second timeout
+                timeout=30,  # 30 second timeout
             )
             elapsed = time.time() - start
             # Should complete or timeout gracefully
@@ -83,10 +80,7 @@ class TestLargeBinaryHandling:
         # objdump may fail on non-ELF, but should handle it gracefully
         try:
             result = subprocess.run(
-                ["objdump", "-h", str(large_binary)],
-                capture_output=True,
-                text=True,
-                timeout=10
+                ["objdump", "-h", str(large_binary)], capture_output=True, text=True, timeout=10
             )
             # Should return quickly even if it fails
             assert result.returncode in (0, 1)
@@ -116,7 +110,8 @@ class TestMemoryEfficientProcessing:
     def memory_monitor(self):
         """Monitor memory usage."""
         try:
-            import psutil
+            import psutil  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -124,7 +119,7 @@ class TestMemoryEfficientProcessing:
     def test_capstone_chunked_disassembly(self, tmp_path):
         """Test Capstone disassembly with streaming."""
         try:
-            from capstone import Cs, CS_ARCH_X86, CS_MODE_64
+            from capstone import CS_ARCH_X86, CS_MODE_64, Cs
         except ImportError:
             pytest.skip("Capstone not installed")
 
@@ -139,7 +134,7 @@ class TestMemoryEfficientProcessing:
 
         start_time = time.time()
         for offset in range(0, len(code), chunk_size):
-            chunk = code[offset:offset + chunk_size]
+            chunk = code[offset : offset + chunk_size]
             instructions = list(md.disasm(chunk, offset))
             total_instructions += len(instructions)
         elapsed = time.time() - start_time
@@ -155,7 +150,7 @@ class TestMemoryEfficientProcessing:
 
         # Create binary
         chunk_size = 1024 * 1024
-        bytes_to_write = size_mb * chunk_size
+        size_mb * chunk_size
 
         with open(binary, "wb") as f:
             for _ in range(size_mb):
@@ -165,7 +160,7 @@ class TestMemoryEfficientProcessing:
         start = time.time()
         with open(binary, "rb") as f:
             data_all = f.read()
-        time_all = time.time() - start
+        time.time() - start
 
         # Pattern 2: Read in chunks
         start = time.time()
@@ -176,7 +171,7 @@ class TestMemoryEfficientProcessing:
                 if not chunk:
                     break
                 chunks.append(chunk)
-        time_chunks = time.time() - start
+        time.time() - start
 
         # Both should succeed
         assert len(data_all) == binary.stat().st_size
@@ -189,7 +184,7 @@ class TestMemoryEfficientProcessing:
         # Create 100MB binary
         with open(binary, "wb") as f:
             # Write ELF header
-            f.write(b'\x7fELF\x02\x01\x01' + b'\x00' * 57)
+            f.write(b"\x7fELF\x02\x01\x01" + b"\x00" * 57)
             # Pad rest
             f.write(bytes([0] * (100 * 1024 * 1024 - 64)))
 
@@ -200,7 +195,7 @@ class TestMemoryEfficientProcessing:
 
         # Should be fast
         assert len(header) == header_size
-        assert header.startswith(b'\x7fELF')
+        assert header.startswith(b"\x7fELF")
 
 
 class TestTimeoutHandling:
@@ -213,11 +208,7 @@ class TestTimeoutHandling:
 
         if shutil.which("file"):
             # Should complete within 1 second
-            result = subprocess.run(
-                ["file", str(binary)],
-                capture_output=True,
-                timeout=1
-            )
+            result = subprocess.run(["file", str(binary)], capture_output=True, timeout=1)
             assert result.returncode == 0
 
     def test_analysis_timeout_recovery(self, tmp_path):
@@ -230,11 +221,8 @@ class TestTimeoutHandling:
 
         for attempt in range(max_retries):
             try:
-                result = subprocess.run(
-                    ["strings", str(binary)],
-                    capture_output=True,
-                    timeout=timeout_value,
-                    text=True
+                subprocess.run(
+                    ["strings", str(binary)], capture_output=True, timeout=timeout_value, text=True
                 )
                 # Success
                 break
@@ -257,11 +245,7 @@ class TestTimeoutHandling:
 
         def analyze_binary(path):
             if shutil.which("file"):
-                result = subprocess.run(
-                    ["file", str(path)],
-                    capture_output=True,
-                    timeout=10
-                )
+                result = subprocess.run(["file", str(path)], capture_output=True, timeout=10)
                 return result.returncode == 0
             return True
 
@@ -282,17 +266,17 @@ class TestPEBinaryProcessing:
         # Minimal PE header for x86
         dos_header = bytearray(64)
         dos_header[0:2] = b"MZ"
-        dos_header[0x3c:0x40] = b'\x40\x00\x00\x00'  # PE offset at 0x40
+        dos_header[0x3C:0x40] = b"\x40\x00\x00\x00"  # PE offset at 0x40
 
         pe_header = b"PE\x00\x00"
         # COFF header
-        pe_header += b'\x4c\x01'  # Machine i386
-        pe_header += b'\x00\x00'  # Number of sections
-        pe_header += b'\x00' * 12  # Timestamps and symbol info
-        pe_header += b'\xe0\x00'  # SizeOfOptionalHeader
-        pe_header += b'\x02\x01'  # Characteristics
+        pe_header += b"\x4c\x01"  # Machine i386
+        pe_header += b"\x00\x00"  # Number of sections
+        pe_header += b"\x00" * 12  # Timestamps and symbol info
+        pe_header += b"\xe0\x00"  # SizeOfOptionalHeader
+        pe_header += b"\x02\x01"  # Characteristics
 
-        binary_data = bytes(dos_header) + bytes(pe_header) + b'\x00' * 1000
+        binary_data = bytes(dos_header) + bytes(pe_header) + b"\x00" * 1000
 
         path = tmp_path / "minimal.exe"
         path.write_bytes(binary_data)
@@ -304,10 +288,7 @@ class TestPEBinaryProcessing:
             pytest.skip("file not available")
 
         result = subprocess.run(
-            ["file", "-b", str(pe_x86_binary)],
-            capture_output=True,
-            text=True,
-            timeout=5
+            ["file", "-b", str(pe_x86_binary)], capture_output=True, text=True, timeout=5
         )
 
         assert result.returncode == 0
@@ -321,10 +302,7 @@ class TestPEBinaryProcessing:
             pytest.skip("strings not available")
 
         result = subprocess.run(
-            ["strings", str(pe_x86_binary)],
-            capture_output=True,
-            text=True,
-            timeout=5
+            ["strings", str(pe_x86_binary)], capture_output=True, text=True, timeout=5
         )
 
         assert result.returncode == 0

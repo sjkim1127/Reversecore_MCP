@@ -122,4 +122,4 @@ class TestRegisterReportTools:
     def test_register(self):
         mcp = MagicMock()
         register_report_tools(mcp)
-        assert mcp.tool.call_count == 13
+        assert mcp.tool.call_count == 14

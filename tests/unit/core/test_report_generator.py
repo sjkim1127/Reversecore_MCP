@@ -2,13 +2,11 @@
 
 from datetime import datetime, timedelta
 
-import pytest
-
 from reversecore_mcp.core.evidence import (
     AnalysisMetadata,
     EvidenceLevel,
-    MITREConfidence,
     Finding,
+    MITREConfidence,
     MITRETechnique,
 )
 from reversecore_mcp.core.report_generator import (
@@ -94,7 +92,12 @@ class TestEvidenceBasedReport:
 
     def test_generate_markdown_family_confidence_bands(self):
         meta = _metadata()
-        for conf, expected in [(0.9, "CONFIRMED"), (0.7, "LIKELY"), (0.5, "POSSIBLE"), (0.2, "UNCERTAIN")]:
+        for conf, expected in [
+            (0.9, "CONFIRMED"),
+            (0.7, "LIKELY"),
+            (0.5, "POSSIBLE"),
+            (0.2, "UNCERTAIN"),
+        ]:
             r = EvidenceBasedReport(metadata=meta, family_confidence=conf)
             md = r.generate_markdown()
             assert expected in md
@@ -125,7 +128,9 @@ class TestEvidenceBasedReport:
 
     def test_generate_markdown_with_mitre(self):
         r = EvidenceBasedReport(metadata=_metadata())
-        r.add_mitre(MITRETechnique("T1055", "Process Injection", "Defense Evasion", MITREConfidence.HIGH))
+        r.add_mitre(
+            MITRETechnique("T1055", "Process Injection", "Defense Evasion", MITREConfidence.HIGH)
+        )
         md = r.generate_markdown()
         assert "MITRE ATT&CK" in md
         assert "T1055" in md
@@ -138,13 +143,17 @@ class TestEvidenceBasedReport:
         assert "10.0.0.1" in md
 
     def test_generate_markdown_with_yara_rule(self):
-        r = EvidenceBasedReport(metadata=_metadata(), yara_rule="rule Test { strings: $a = { 4d 5a } condition: $a }")
+        r = EvidenceBasedReport(
+            metadata=_metadata(), yara_rule="rule Test { strings: $a = { 4d 5a } condition: $a }"
+        )
         md = r.generate_markdown()
         assert "Detection Rule" in md
         assert "rule Test" in md
 
     def test_generate_markdown_with_recommendations(self):
-        r = EvidenceBasedReport(metadata=_metadata(), recommendations=["Isolate host", "Collect memory"])
+        r = EvidenceBasedReport(
+            metadata=_metadata(), recommendations=["Isolate host", "Collect memory"]
+        )
         md = r.generate_markdown()
         assert "Recommendations" in md
         assert "Isolate host" in md

@@ -6,18 +6,17 @@ Analyzes firmware images for embedded files and components.
 """
 
 import json
+import shutil
 import subprocess
 import time
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-from dataclasses import dataclass, asdict
-import tempfile
-import shutil
 
 
 @dataclass
 class BinwalkSignature:
     """Binwalk signature match."""
+
     offset: int
     description: str
     file_type: str
@@ -26,12 +25,13 @@ class BinwalkSignature:
 @dataclass
 class BinwalkResult:
     """Result of binwalk scan."""
+
     binary_path: str
     scan_time: float
     signatures_found: int
-    signatures: List[Dict]
-    extracted_files: List[str] = None
-    error: Optional[str] = None
+    signatures: list[dict]
+    extracted_files: list[str] = None
+    error: str | None = None
 
 
 class BinwalkFirmwareAnalyzer:
@@ -51,7 +51,8 @@ class BinwalkFirmwareAnalyzer:
 
         # Then check if Python library is available
         try:
-            import binwalk
+            import binwalk  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -64,7 +65,7 @@ class BinwalkFirmwareAnalyzer:
                 scan_time=0,
                 signatures_found=0,
                 signatures=[],
-                error="binwalk CLI not available"
+                error="binwalk CLI not available",
             )
 
         if not Path(binary_path).exists():
@@ -73,16 +74,13 @@ class BinwalkFirmwareAnalyzer:
                 scan_time=0,
                 signatures_found=0,
                 signatures=[],
-                error=f"Binary not found: {binary_path}"
+                error=f"Binary not found: {binary_path}",
             )
 
         start_time = time.time()
         try:
             result = subprocess.run(
-                ["binwalk", "-j", binary_path],
-                capture_output=True,
-                text=True,
-                timeout=30
+                ["binwalk", "-j", binary_path], capture_output=True, text=True, timeout=30
             )
             scan_time = time.time() - start_time
 
@@ -93,11 +91,13 @@ class BinwalkFirmwareAnalyzer:
                     results_list = data.get("results", [])
                     if results_list:
                         for entry in results_list[0].get("results", []):
-                            signatures.append({
-                                "offset": hex(entry.get("offset", 0)),
-                                "description": entry.get("description", ""),
-                                "valid": entry.get("valid", False)
-                            })
+                            signatures.append(
+                                {
+                                    "offset": hex(entry.get("offset", 0)),
+                                    "description": entry.get("description", ""),
+                                    "valid": entry.get("valid", False),
+                                }
+                            )
                 except json.JSONDecodeError:
                     pass
 
@@ -106,7 +106,7 @@ class BinwalkFirmwareAnalyzer:
                 scan_time=scan_time,
                 signatures_found=len(signatures),
                 signatures=signatures,
-                error=None
+                error=None,
             )
         except subprocess.TimeoutExpired:
             scan_time = time.time() - start_time
@@ -115,7 +115,7 @@ class BinwalkFirmwareAnalyzer:
                 scan_time=scan_time,
                 signatures_found=0,
                 signatures=[],
-                error="Scan timeout"
+                error="Scan timeout",
             )
         except Exception as e:
             scan_time = time.time() - start_time
@@ -124,7 +124,7 @@ class BinwalkFirmwareAnalyzer:
                 scan_time=scan_time,
                 signatures_found=0,
                 signatures=[],
-                error=str(e)
+                error=str(e),
             )
 
     def scan_binary_library(self, binary_path: str) -> BinwalkResult:
@@ -137,7 +137,7 @@ class BinwalkFirmwareAnalyzer:
                 scan_time=0,
                 signatures_found=0,
                 signatures=[],
-                error="binwalk Python library not available"
+                error="binwalk Python library not available",
             )
 
         if not Path(binary_path).exists():
@@ -146,7 +146,7 @@ class BinwalkFirmwareAnalyzer:
                 scan_time=0,
                 signatures_found=0,
                 signatures=[],
-                error=f"Binary not found: {binary_path}"
+                error=f"Binary not found: {binary_path}",
             )
 
         start_time = time.time()
@@ -156,19 +156,21 @@ class BinwalkFirmwareAnalyzer:
 
             signatures = []
             for module in scan.modules:
-                if hasattr(module, 'results'):
+                if hasattr(module, "results"):
                     for result in module.results:
-                        signatures.append({
-                            "offset": hex(result.offset),
-                            "description": result.description,
-                        })
+                        signatures.append(
+                            {
+                                "offset": hex(result.offset),
+                                "description": result.description,
+                            }
+                        )
 
             return BinwalkResult(
                 binary_path=binary_path,
                 scan_time=scan_time,
                 signatures_found=len(signatures),
                 signatures=signatures,
-                error=None
+                error=None,
             )
         except Exception as e:
             scan_time = time.time() - start_time
@@ -177,7 +179,7 @@ class BinwalkFirmwareAnalyzer:
                 scan_time=scan_time,
                 signatures_found=0,
                 signatures=[],
-                error=str(e)
+                error=str(e),
             )
 
     def scan_binary(self, binary_path: str) -> BinwalkResult:
@@ -188,7 +190,7 @@ class BinwalkFirmwareAnalyzer:
         # Fall back to library
         return self.scan_binary_library(binary_path)
 
-    def extract_firmware(self, binary_path: str) -> Tuple[bool, str, List[str]]:
+    def extract_firmware(self, binary_path: str) -> tuple[bool, str, list[str]]:
         """Extract firmware components."""
         if not shutil.which("binwalk"):
             return False, "binwalk CLI not available", []
@@ -205,7 +207,7 @@ class BinwalkFirmwareAnalyzer:
                 ["binwalk", "-e", "-C", str(extract_dir), binary_path],
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=60,
             )
 
             if result.returncode == 0:
@@ -224,7 +226,7 @@ class BinwalkFirmwareAnalyzer:
         except Exception as e:
             return False, str(e), []
 
-    def generate_report(self, results: List[BinwalkResult], output_file: Path = None) -> Path:
+    def generate_report(self, results: list[BinwalkResult], output_file: Path = None) -> Path:
         """Generate binwalk analysis report."""
         output_file = output_file or self.output_dir / "binwalk_report.json"
         output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -253,7 +255,7 @@ class BinwalkFirmwareAnalyzer:
                 "avg_time": f"{avg_time:.3f}s",
             },
             "signature_types": by_type,
-            "detailed_results": [asdict(r) for r in results if r.signatures_found > 0]
+            "detailed_results": [asdict(r) for r in results if r.signatures_found > 0],
         }
 
         with open(output_file, "w") as f:
@@ -261,7 +263,7 @@ class BinwalkFirmwareAnalyzer:
 
         return output_file
 
-    def print_summary(self, results: List[BinwalkResult]):
+    def print_summary(self, results: list[BinwalkResult]):
         """Print analysis summary."""
         print("\n" + "=" * 70)
         print("BINWALK FIRMWARE ANALYSIS SUMMARY")
@@ -279,7 +281,9 @@ class BinwalkFirmwareAnalyzer:
             print("\n📦 Firmware Components Found:")
             for result in results:
                 if result.signatures_found > 0:
-                    print(f"\n  {Path(result.binary_path).name}: {result.signatures_found} signature(s)")
+                    print(
+                        f"\n  {Path(result.binary_path).name}: {result.signatures_found} signature(s)"
+                    )
                     for sig in result.signatures:
                         offset = sig.get("offset", "unknown")
                         desc = sig.get("description", "unknown")
@@ -301,7 +305,7 @@ def main():
             [sys.executable, "-m", "pip", "install", "binwalk"],
             capture_output=True,
             text=True,
-            timeout=120
+            timeout=120,
         )
         if result.returncode != 0:
             print(f"❌ Failed to install binwalk: {result.stderr}")

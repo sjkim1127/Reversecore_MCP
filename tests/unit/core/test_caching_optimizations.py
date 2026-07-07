@@ -60,12 +60,12 @@ def test_get_r2_project_name_caching(workspace_dir):
     # First call
     start = time.time()
     result1 = _get_r2_project_name(str(test_file))
-    time1 = time.time() - start
+    time.time() - start
 
     # Second call - should be cached
     start = time.time()
     result2 = _get_r2_project_name(str(test_file))
-    time2 = time.time() - start
+    time.time() - start
 
     # Results should be identical
     assert result1 == result2
@@ -125,12 +125,12 @@ def test_sanitize_filename_for_rule_caching(workspace_dir):
     # First call
     start = time.time()
     result1 = _sanitize_filename_for_rule(str(test_file))
-    time1 = time.time() - start
+    time.time() - start
 
     # Second call - should be cached
     start = time.time()
     result2 = _sanitize_filename_for_rule(str(test_file))
-    time2 = time.time() - start
+    time.time() - start
 
     # Results should be identical and sanitized
     assert result1 == result2
@@ -215,13 +215,13 @@ def test_caching_improves_batch_operations(workspace_dir):
     # First pass - all cache misses
     start = time.time()
     results1 = [_extract_library_name(name) for name in function_names]
-    time1 = time.time() - start
+    time.time() - start
 
     # Clear cache and run again
     _extract_library_name.cache_clear()
     start = time.time()
     results2 = [_extract_library_name(name) for name in function_names]
-    time2 = time.time() - start
+    time.time() - start
 
     # Results should be identical
     assert results1 == results2

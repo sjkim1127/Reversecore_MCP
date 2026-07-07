@@ -60,7 +60,7 @@ async def test_trace_execution_path_get_address_batching():
         mock_execute.return_value = (mock_output, 1024)
 
         # Test resolving a symbol name
-        result = await trace_execution_path(
+        await trace_execution_path(
             file_path="/app/workspace/test.exe",
             target_function="main",  # Should trigger get_address helper
             max_depth=5,

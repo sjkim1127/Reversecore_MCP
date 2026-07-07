@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from reversecore_mcp.core.exceptions import ValidationError
 from reversecore_mcp.tools.radare2.r2_session import (
     R2Session,
     _compile_regex_cached,
@@ -34,22 +35,22 @@ class TestValidateIdentifier:
 
     def test_invalid_semicolon(self):
         """Should reject semicolon injection."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             _validate_identifier("main; rm -rf /", "address")
 
     def test_invalid_backtick(self):
         """Should reject backtick injection."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             _validate_identifier("`whoami`", "address")
 
     def test_invalid_dollar(self):
         """Should reject dollar sign."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             _validate_identifier("$HOME", "address")
 
     def test_empty_identifier(self):
         """Should reject empty identifier."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             _validate_identifier("", "name")
 
 
@@ -66,22 +67,22 @@ class TestValidateExpression:
 
     def test_invalid_forbidden_chars(self):
         """Should reject shell characters."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             _validate_expression("1 + ; rm -rf /")
 
     def test_invalid_backtick(self):
         """Should reject backticks."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             _validate_expression("`echo bad`")
 
     def test_empty_expression(self):
         """Should reject empty expression."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             _validate_expression("")
 
     def test_shell_escape(self):
         """Should reject shell escape characters."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             _validate_expression("1 + `whoami`")
 
 
@@ -98,27 +99,27 @@ class TestValidateR2Command:
 
     def test_invalid_backtick(self):
         """Should reject backticks."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             _validate_r2_command("?V `whoami`")
 
     def test_invalid_semicolon(self):
         """Should reject semicolons."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             _validate_r2_command("pdf; !rm -rf /")
 
     def test_invalid_pipe(self):
         """Should reject pipe."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             _validate_r2_command("px | cat /etc/passwd")
 
     def test_empty_command(self):
         """Should reject empty command."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             _validate_r2_command("")
 
     def test_blocked_command(self):
         """Should reject blocked commands."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             _validate_r2_command("!ls")
 
 

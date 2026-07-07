@@ -118,7 +118,7 @@ def test_json_utils_exposes_jsondecodeerror():
 
     try:
         json_utils.loads(invalid_json)
-        assert False, "Should have raised JSONDecodeError"
+        raise AssertionError("Should have raised JSONDecodeError")
     except json_utils.JSONDecodeError:
         # Expected - exception should be caught correctly
         pass
@@ -185,7 +185,7 @@ def test_chain_optimization_correctness():
 
     # Old approach: multiple iterations
     old_result = []
-    for i, pattern in enumerate(patterns):
+    for i, _pattern in enumerate(patterns):
         for f in files_per_pattern[i]:
             old_result.append(f)
 

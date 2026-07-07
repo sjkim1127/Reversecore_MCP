@@ -78,7 +78,7 @@ def test_metrics_collector_concurrent_reset():
 
 def test_track_metrics_sync_function():
     """Test track_metrics decorator with synchronous function."""
-    collector = MetricsCollector()
+    MetricsCollector()
 
     @track_metrics("sync_tool")
     def sync_function():
@@ -187,7 +187,7 @@ def test_metrics_concurrent_get_metrics():
 
 def test_metrics_timing_accuracy():
     """Test that execution times are recorded accurately."""
-    collector = MetricsCollector()
+    MetricsCollector()
 
     @track_metrics("timed_tool")
     def timed_function():

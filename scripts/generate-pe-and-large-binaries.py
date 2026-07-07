@@ -5,13 +5,11 @@ Generate Windows PE binaries for testing.
 Creates minimal PE binaries and compiled PE binaries for analysis testing.
 """
 
-import struct
-import os
-from pathlib import Path
-from typing import Tuple
-import subprocess
-import shutil
 import json
+import shutil
+import struct
+import subprocess
+from pathlib import Path
 
 
 class PEBinaryGenerator:
@@ -23,10 +21,10 @@ class PEBinaryGenerator:
     DOS_STUB_SIZE = 64
 
     # Machine types
-    MACHINE_I386 = 0x014c    # x86
-    MACHINE_AMD64 = 0x8664   # x64
-    MACHINE_ARM = 0x01c0     # ARM
-    MACHINE_ARM64 = 0xaa64   # ARM64
+    MACHINE_I386 = 0x014C  # x86
+    MACHINE_AMD64 = 0x8664  # x64
+    MACHINE_ARM = 0x01C0  # ARM
+    MACHINE_ARM64 = 0xAA64  # ARM64
 
     # Characteristics
     EXECUTABLE_IMAGE = 0x0002
@@ -46,48 +44,48 @@ class PEBinaryGenerator:
         # DOS Header
         dos_header = bytearray(64)
         dos_header[0:2] = self.DOS_SIGNATURE
-        dos_header[0x3c:0x40] = struct.pack("<I", 64)  # PE header offset
+        dos_header[0x3C:0x40] = struct.pack("<I", 64)  # PE header offset
 
         # PE Header
         pe_header = self.PE_SIGNATURE
         # COFF Header
-        pe_header += struct.pack("<H", self.MACHINE_I386)       # Machine
-        pe_header += struct.pack("<H", 0)                        # Number of sections
-        pe_header += struct.pack("<I", 0)                        # TimeDateStamp
-        pe_header += struct.pack("<I", 0)                        # PointerToSymbolTable
-        pe_header += struct.pack("<I", 0)                        # NumberOfSymbols
-        pe_header += struct.pack("<H", 224)                      # SizeOfOptionalHeader
-        pe_header += struct.pack("<H", 
-                                self.EXECUTABLE_IMAGE | 
-                                self.FILE_32BIT_MACHINE)        # Characteristics
+        pe_header += struct.pack("<H", self.MACHINE_I386)  # Machine
+        pe_header += struct.pack("<H", 0)  # Number of sections
+        pe_header += struct.pack("<I", 0)  # TimeDateStamp
+        pe_header += struct.pack("<I", 0)  # PointerToSymbolTable
+        pe_header += struct.pack("<I", 0)  # NumberOfSymbols
+        pe_header += struct.pack("<H", 224)  # SizeOfOptionalHeader
+        pe_header += struct.pack(
+            "<H", self.EXECUTABLE_IMAGE | self.FILE_32BIT_MACHINE
+        )  # Characteristics
 
         # Optional Header (32-bit)
-        opt_header = struct.pack("<H", 0x010b)                   # Magic (32-bit)
-        opt_header += struct.pack("<B", 14)                      # MajorLinkerVersion
-        opt_header += struct.pack("<B", 0)                       # MinorLinkerVersion
-        opt_header += struct.pack("<I", 0x1000)                  # SizeOfCode
-        opt_header += struct.pack("<I", 0)                       # SizeOfInitializedData
-        opt_header += struct.pack("<I", 0)                       # SizeOfUninitializedData
-        opt_header += struct.pack("<I", 0x1000)                  # AddressOfEntryPoint
-        opt_header += struct.pack("<I", 0x1000)                  # BaseOfCode
-        opt_header += struct.pack("<I", 0x2000)                  # BaseOfData
+        opt_header = struct.pack("<H", 0x010B)  # Magic (32-bit)
+        opt_header += struct.pack("<B", 14)  # MajorLinkerVersion
+        opt_header += struct.pack("<B", 0)  # MinorLinkerVersion
+        opt_header += struct.pack("<I", 0x1000)  # SizeOfCode
+        opt_header += struct.pack("<I", 0)  # SizeOfInitializedData
+        opt_header += struct.pack("<I", 0)  # SizeOfUninitializedData
+        opt_header += struct.pack("<I", 0x1000)  # AddressOfEntryPoint
+        opt_header += struct.pack("<I", 0x1000)  # BaseOfCode
+        opt_header += struct.pack("<I", 0x2000)  # BaseOfData
 
         # Windows-specific fields
-        opt_header += struct.pack("<I", 0x400000)                # ImageBase
-        opt_header += struct.pack("<I", 0x1000)                  # SectionAlignment
-        opt_header += struct.pack("<I", 0x200)                   # FileAlignment
-        opt_header += struct.pack("<H", 6)                       # MajorOperatingSystemVersion
-        opt_header += struct.pack("<H", 0)                       # MinorOperatingSystemVersion
-        opt_header += struct.pack("<H", 0)                       # MajorImageVersion
-        opt_header += struct.pack("<H", 0)                       # MinorImageVersion
-        opt_header += struct.pack("<H", 6)                       # MajorSubsystemVersion
-        opt_header += struct.pack("<H", 0)                       # MinorSubsystemVersion
-        opt_header += struct.pack("<I", 0)                       # Win32VersionValue
-        opt_header += struct.pack("<I", 0x2000)                  # SizeOfImage
-        opt_header += struct.pack("<I", 0x200)                   # SizeOfHeaders
-        opt_header += struct.pack("<I", 0)                       # CheckSum
-        opt_header += struct.pack("<H", self.WINDOWS_CUI)        # Subsystem
-        opt_header += struct.pack("<H", 0)                       # DllCharacteristics
+        opt_header += struct.pack("<I", 0x400000)  # ImageBase
+        opt_header += struct.pack("<I", 0x1000)  # SectionAlignment
+        opt_header += struct.pack("<I", 0x200)  # FileAlignment
+        opt_header += struct.pack("<H", 6)  # MajorOperatingSystemVersion
+        opt_header += struct.pack("<H", 0)  # MinorOperatingSystemVersion
+        opt_header += struct.pack("<H", 0)  # MajorImageVersion
+        opt_header += struct.pack("<H", 0)  # MinorImageVersion
+        opt_header += struct.pack("<H", 6)  # MajorSubsystemVersion
+        opt_header += struct.pack("<H", 0)  # MinorSubsystemVersion
+        opt_header += struct.pack("<I", 0)  # Win32VersionValue
+        opt_header += struct.pack("<I", 0x2000)  # SizeOfImage
+        opt_header += struct.pack("<I", 0x200)  # SizeOfHeaders
+        opt_header += struct.pack("<I", 0)  # CheckSum
+        opt_header += struct.pack("<H", self.WINDOWS_CUI)  # Subsystem
+        opt_header += struct.pack("<H", 0)  # DllCharacteristics
 
         return bytes(dos_header) + bytes(pe_header) + bytes(opt_header)
 
@@ -96,47 +94,47 @@ class PEBinaryGenerator:
         # DOS Header
         dos_header = bytearray(64)
         dos_header[0:2] = self.DOS_SIGNATURE
-        dos_header[0x3c:0x40] = struct.pack("<I", 64)
+        dos_header[0x3C:0x40] = struct.pack("<I", 64)
 
         # PE Header
         pe_header = self.PE_SIGNATURE
         # COFF Header
-        pe_header += struct.pack("<H", self.MACHINE_AMD64)       # Machine
-        pe_header += struct.pack("<H", 0)                        # Number of sections
-        pe_header += struct.pack("<I", 0)                        # TimeDateStamp
-        pe_header += struct.pack("<I", 0)                        # PointerToSymbolTable
-        pe_header += struct.pack("<I", 0)                        # NumberOfSymbols
-        pe_header += struct.pack("<H", 240)                      # SizeOfOptionalHeader
-        pe_header += struct.pack("<H", 
-                                self.EXECUTABLE_IMAGE | 
-                                self.FILE_64BIT_MACHINE)        # Characteristics
+        pe_header += struct.pack("<H", self.MACHINE_AMD64)  # Machine
+        pe_header += struct.pack("<H", 0)  # Number of sections
+        pe_header += struct.pack("<I", 0)  # TimeDateStamp
+        pe_header += struct.pack("<I", 0)  # PointerToSymbolTable
+        pe_header += struct.pack("<I", 0)  # NumberOfSymbols
+        pe_header += struct.pack("<H", 240)  # SizeOfOptionalHeader
+        pe_header += struct.pack(
+            "<H", self.EXECUTABLE_IMAGE | self.FILE_64BIT_MACHINE
+        )  # Characteristics
 
         # Optional Header (64-bit)
-        opt_header = struct.pack("<H", 0x020b)                   # Magic (64-bit)
-        opt_header += struct.pack("<B", 14)                      # MajorLinkerVersion
-        opt_header += struct.pack("<B", 0)                       # MinorLinkerVersion
-        opt_header += struct.pack("<I", 0x1000)                  # SizeOfCode
-        opt_header += struct.pack("<I", 0)                       # SizeOfInitializedData
-        opt_header += struct.pack("<I", 0)                       # SizeOfUninitializedData
-        opt_header += struct.pack("<I", 0x1000)                  # AddressOfEntryPoint
-        opt_header += struct.pack("<I", 0x1000)                  # BaseOfCode
+        opt_header = struct.pack("<H", 0x020B)  # Magic (64-bit)
+        opt_header += struct.pack("<B", 14)  # MajorLinkerVersion
+        opt_header += struct.pack("<B", 0)  # MinorLinkerVersion
+        opt_header += struct.pack("<I", 0x1000)  # SizeOfCode
+        opt_header += struct.pack("<I", 0)  # SizeOfInitializedData
+        opt_header += struct.pack("<I", 0)  # SizeOfUninitializedData
+        opt_header += struct.pack("<I", 0x1000)  # AddressOfEntryPoint
+        opt_header += struct.pack("<I", 0x1000)  # BaseOfCode
 
         # Windows-specific fields (64-bit)
-        opt_header += struct.pack("<Q", 0x140000000)             # ImageBase
-        opt_header += struct.pack("<I", 0x1000)                  # SectionAlignment
-        opt_header += struct.pack("<I", 0x200)                   # FileAlignment
-        opt_header += struct.pack("<H", 6)                       # MajorOperatingSystemVersion
-        opt_header += struct.pack("<H", 0)                       # MinorOperatingSystemVersion
-        opt_header += struct.pack("<H", 0)                       # MajorImageVersion
-        opt_header += struct.pack("<H", 0)                       # MinorImageVersion
-        opt_header += struct.pack("<H", 6)                       # MajorSubsystemVersion
-        opt_header += struct.pack("<H", 0)                       # MinorSubsystemVersion
-        opt_header += struct.pack("<I", 0)                       # Win32VersionValue
-        opt_header += struct.pack("<I", 0x2000)                  # SizeOfImage
-        opt_header += struct.pack("<I", 0x200)                   # SizeOfHeaders
-        opt_header += struct.pack("<I", 0)                       # CheckSum
-        opt_header += struct.pack("<H", self.WINDOWS_CUI)        # Subsystem
-        opt_header += struct.pack("<H", 0)                       # DllCharacteristics
+        opt_header += struct.pack("<Q", 0x140000000)  # ImageBase
+        opt_header += struct.pack("<I", 0x1000)  # SectionAlignment
+        opt_header += struct.pack("<I", 0x200)  # FileAlignment
+        opt_header += struct.pack("<H", 6)  # MajorOperatingSystemVersion
+        opt_header += struct.pack("<H", 0)  # MinorOperatingSystemVersion
+        opt_header += struct.pack("<H", 0)  # MajorImageVersion
+        opt_header += struct.pack("<H", 0)  # MinorImageVersion
+        opt_header += struct.pack("<H", 6)  # MajorSubsystemVersion
+        opt_header += struct.pack("<H", 0)  # MinorSubsystemVersion
+        opt_header += struct.pack("<I", 0)  # Win32VersionValue
+        opt_header += struct.pack("<I", 0x2000)  # SizeOfImage
+        opt_header += struct.pack("<I", 0x200)  # SizeOfHeaders
+        opt_header += struct.pack("<I", 0)  # CheckSum
+        opt_header += struct.pack("<H", self.WINDOWS_CUI)  # Subsystem
+        opt_header += struct.pack("<H", 0)  # DllCharacteristics
 
         return bytes(dos_header) + bytes(pe_header) + bytes(opt_header)
 
@@ -201,7 +199,7 @@ int main() {
                     cwd=self.output_dir,
                     capture_output=True,
                     timeout=30,
-                    check=False
+                    check=False,
                 )
                 exe_path = self.output_dir / "test_gui.exe"
                 if exe_path.exists():
@@ -221,12 +219,13 @@ int main() {
                 subprocess.run(
                     [
                         "i686-w64-mingw32-gcc",
-                        "-o", str(self.output_dir / "mingw_x86.exe"),
+                        "-o",
+                        str(self.output_dir / "mingw_x86.exe"),
                         str(c_file),
                     ],
                     capture_output=True,
                     timeout=30,
-                    check=False
+                    check=False,
                 )
                 exe_path = self.output_dir / "mingw_x86.exe"
                 if exe_path.exists():
@@ -307,11 +306,11 @@ int main() {
         binary_path = self.output_dir / name
         if shutil.which("gcc"):
             try:
-                result = subprocess.run(
+                subprocess.run(
                     ["gcc", "-o", str(binary_path), str(c_file)],
                     capture_output=True,
                     timeout=60,
-                    check=False
+                    check=False,
                 )
                 if binary_path.exists():
                     actual_size = binary_path.stat().st_size / (1024 * 1024)
@@ -329,9 +328,9 @@ int main() {
                     ["gcc", "-o", str(binary_path), str(simple_c)],
                     capture_output=True,
                     timeout=10,
-                    check=False
+                    check=False,
                 )
-            except:
+            except Exception:
                 pass
 
         return binary_path
@@ -344,7 +343,7 @@ def main():
     print("=" * 70)
 
     pe_gen = PEBinaryGenerator()
-    pe_results = pe_gen.generate_all_pe_binaries()
+    pe_gen.generate_all_pe_binaries()
 
     print("\n" + "=" * 70)
     print("GENERATING LARGE BINARIES")

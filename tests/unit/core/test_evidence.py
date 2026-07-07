@@ -2,17 +2,15 @@
 
 from datetime import datetime, timedelta
 
-import pytest
-
 from reversecore_mcp.core.evidence import (
-    EvidenceLevel,
-    MITREConfidence,
-    Evidence,
-    Finding,
-    MITRETechnique,
     AnalysisMetadata,
-    observed_finding,
+    Evidence,
+    EvidenceLevel,
+    Finding,
+    MITREConfidence,
+    MITRETechnique,
     inferred_finding,
+    observed_finding,
     possible_finding,
 )
 

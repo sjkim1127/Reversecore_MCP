@@ -6,12 +6,11 @@ Benchmarks all analysis tools and optimizations.
 """
 
 import json
-import time
-from pathlib import Path
-from typing import Dict, List, Any
-from datetime import datetime
 import subprocess
-import sys
+import time
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 
 class ComprehensiveBenchmark:
@@ -23,7 +22,7 @@ class ComprehensiveBenchmark:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.results = {}
 
-    def run_tool_benchmark(self, tool_script: str, timeout: int = 120) -> Dict[str, Any]:
+    def run_tool_benchmark(self, tool_script: str, timeout: int = 120) -> dict[str, Any]:
         """Run individual tool benchmark."""
         print(f"\n📊 Running: {tool_script}")
         print("-" * 70)
@@ -35,7 +34,7 @@ class ComprehensiveBenchmark:
                 capture_output=True,
                 text=True,
                 timeout=timeout,
-                cwd=str(Path(__file__).parent.parent)
+                cwd=str(Path(__file__).parent.parent),
             )
             elapsed = time.time() - start_time
 
@@ -46,8 +45,8 @@ class ComprehensiveBenchmark:
                 "success": success,
                 "execution_time": elapsed,
                 "returncode": result.returncode,
-                "output_lines": len(result.stdout.split('\n')),
-                "error_lines": len(result.stderr.split('\n')) if result.stderr else 0,
+                "output_lines": len(result.stdout.split("\n")),
+                "error_lines": len(result.stderr.split("\n")) if result.stderr else 0,
             }
         except subprocess.TimeoutExpired:
             elapsed = time.time() - start_time
@@ -72,7 +71,7 @@ class ComprehensiveBenchmark:
                 "error": str(e),
             }
 
-    def run_all_benchmarks(self) -> Dict[str, Any]:
+    def run_all_benchmarks(self) -> dict[str, Any]:
         """Run all benchmarks."""
         benchmarks = [
             ("scripts/extended-tool-analysis.py", "Extended Tool Analysis"),
@@ -111,12 +110,14 @@ class ComprehensiveBenchmark:
             "benchmarks": results,
         }
 
-    def generate_report(self, benchmark_results: Dict[str, Any]) -> Path:
+    def generate_report(self, benchmark_results: dict[str, Any]) -> Path:
         """Generate comprehensive benchmark report."""
         output_file = self.output_dir / "comprehensive_benchmark.json"
 
         # Calculate statistics
-        successful = sum(1 for r in benchmark_results["benchmarks"].values() if r.get("success", False))
+        successful = sum(
+            1 for r in benchmark_results["benchmarks"].values() if r.get("success", False)
+        )
         total_benchmarks = len(benchmark_results["benchmarks"])
 
         summary = {
@@ -125,7 +126,9 @@ class ComprehensiveBenchmark:
             "benchmarks_run": total_benchmarks,
             "successful": successful,
             "failed": total_benchmarks - successful,
-            "success_rate": f"{(successful / total_benchmarks * 100):.1f}%" if total_benchmarks > 0 else "N/A",
+            "success_rate": f"{(successful / total_benchmarks * 100):.1f}%"
+            if total_benchmarks > 0
+            else "N/A",
             "details": benchmark_results["benchmarks"],
         }
 
@@ -134,7 +137,7 @@ class ComprehensiveBenchmark:
 
         return output_file
 
-    def load_analysis_reports(self) -> Dict[str, Any]:
+    def load_analysis_reports(self) -> dict[str, Any]:
         """Load analysis reports from artifacts."""
         reports = {}
 
@@ -158,9 +161,7 @@ class ComprehensiveBenchmark:
         return reports
 
     def print_comprehensive_summary(
-        self,
-        benchmark_results: Dict[str, Any],
-        analysis_reports: Dict[str, Any]
+        self, benchmark_results: dict[str, Any], analysis_reports: dict[str, Any]
     ):
         """Print comprehensive summary."""
         print("\n" + "=" * 70)
@@ -171,7 +172,9 @@ class ComprehensiveBenchmark:
         print("\n📊 BENCHMARK RESULTS:")
         print("-" * 70)
         total_benchmarks = len(benchmark_results["benchmarks"])
-        successful = sum(1 for r in benchmark_results["benchmarks"].values() if r.get("success", False))
+        successful = sum(
+            1 for r in benchmark_results["benchmarks"].values() if r.get("success", False)
+        )
 
         print(f"Total Benchmarks: {total_benchmarks}")
         print(f"Successful: {successful}/{total_benchmarks}")

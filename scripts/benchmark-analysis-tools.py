@@ -5,28 +5,27 @@ Performance benchmarking for analysis tools.
 Measures execution time, memory usage, and accuracy for various tools.
 """
 
-import time
 import json
-import subprocess
-import tempfile
-from pathlib import Path
-from dataclasses import dataclass, asdict
-import statistics
-from typing import List, Dict, Optional
 import shutil
+import statistics
+import subprocess
+import time
+from dataclasses import asdict, dataclass
+from pathlib import Path
 
 
 @dataclass
 class BenchmarkResult:
     """Benchmark result for a single tool run."""
+
     tool_name: str
     binary_name: str
     binary_size: int
     execution_time: float
     memory_peak: int
     success: bool
-    error: Optional[str] = None
-    details: Dict = None
+    error: str | None = None
+    details: dict = None
 
     def __post_init__(self):
         if self.details is None:
@@ -39,10 +38,11 @@ class AnalysisToolBenchmark:
     def __init__(self, output_dir: Path = None):
         self.output_dir = output_dir or Path("artifacts/benchmarks")
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.results: List[BenchmarkResult] = []
+        self.results: list[BenchmarkResult] = []
 
-    def benchmark_tool(self, tool: str, binary_path: str, args: List[str] = None, 
-                      timeout: int = 60) -> BenchmarkResult:
+    def benchmark_tool(
+        self, tool: str, binary_path: str, args: list[str] = None, timeout: int = 60
+    ) -> BenchmarkResult:
         """Benchmark a single tool on a binary."""
         if args is None:
             args = []
@@ -52,10 +52,7 @@ class AnalysisToolBenchmark:
         start_time = time.time()
         try:
             result = subprocess.run(
-                [tool] + args + [binary_path],
-                capture_output=True,
-                text=True,
-                timeout=timeout
+                [tool] + args + [binary_path], capture_output=True, text=True, timeout=timeout
             )
             elapsed = time.time() - start_time
 
@@ -70,7 +67,7 @@ class AnalysisToolBenchmark:
                 details={
                     "returncode": result.returncode,
                     "stdout_lines": len(result.stdout.splitlines()),
-                }
+                },
             )
         except subprocess.TimeoutExpired:
             elapsed = time.time() - start_time
@@ -114,7 +111,7 @@ class AnalysisToolBenchmark:
     def benchmark_capstone(self, binary_path: str) -> BenchmarkResult:
         """Benchmark Capstone disassembly."""
         try:
-            from capstone import Cs, CS_ARCH_X86, CS_MODE_64
+            from capstone import CS_ARCH_X86, CS_MODE_64, Cs
         except ImportError:
             return BenchmarkResult(
                 tool_name="capstone",
@@ -123,7 +120,7 @@ class AnalysisToolBenchmark:
                 execution_time=0,
                 memory_peak=0,
                 success=False,
-                error="Capstone not installed"
+                error="Capstone not installed",
             )
 
         binary_size = Path(binary_path).stat().st_size if Path(binary_path).exists() else 0
@@ -144,9 +141,7 @@ class AnalysisToolBenchmark:
                 execution_time=elapsed,
                 memory_peak=0,
                 success=True,
-                details={
-                    "instructions_disassembled": len(instructions)
-                }
+                details={"instructions_disassembled": len(instructions)},
             )
         except Exception as e:
             elapsed = time.time() - start_time
@@ -157,10 +152,10 @@ class AnalysisToolBenchmark:
                 execution_time=elapsed,
                 memory_peak=0,
                 success=False,
-                error=str(e)
+                error=str(e),
             )
 
-    def benchmark_all_tools(self, binary_path: str) -> List[BenchmarkResult]:
+    def benchmark_all_tools(self, binary_path: str) -> list[BenchmarkResult]:
         """Benchmark all available tools."""
         results = []
 

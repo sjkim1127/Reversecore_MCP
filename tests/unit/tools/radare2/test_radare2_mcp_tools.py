@@ -319,7 +319,7 @@ class TestGetOrCreateSession:
                 with patch.object(R2Session, "__init__", side_effect=mock_init, autospec=True):
                     with patch.object(R2Session, "open", return_value=True):
                         with patch("asyncio.to_thread", side_effect=lambda f, *a, **k: f(*a, **k)):
-                            result = await plugin._get_or_create_session("/app/test.bin")
+                            await plugin._get_or_create_session("/app/test.bin")
         assert "sid-1" not in plugin._sessions
 
     @pytest.mark.asyncio

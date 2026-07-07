@@ -5,29 +5,30 @@ Extended tool analysis and comparison framework.
 Comprehensive analysis of all available binary analysis tools.
 """
 
-import subprocess
 import json
-import time
-from pathlib import Path
-from dataclasses import dataclass, asdict
-from typing import Dict, List, Optional
 import shutil
+import subprocess
+import time
+from dataclasses import asdict, dataclass
 from datetime import datetime
+from pathlib import Path
 
 
 @dataclass
 class ToolAnalysisResult:
     """Result of tool analysis."""
+
     tool_name: str
     available: bool
-    executable_path: Optional[str] = None
-    version: Optional[str] = None
-    error: Optional[str] = None
+    executable_path: str | None = None
+    version: str | None = None
+    error: str | None = None
 
 
 @dataclass
 class ToolComparison:
     """Comparison result for tool analysis."""
+
     tool_name: str
     binary_name: str
     analysis_type: str
@@ -35,7 +36,7 @@ class ToolComparison:
     execution_time: float
     output_lines: int
     output_size: int
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class ExtendedToolAnalyzer:
@@ -48,18 +49,14 @@ class ExtendedToolAnalyzer:
         "strings": {"args": [], "type": "string_extraction"},
         "objdump": {"args": ["-d", "--all-headers"], "type": "disassembly"},
         "nm": {"args": ["-a"], "type": "symbol_analysis"},
-
         # macOS tools
         "otool": {"args": ["-h"], "type": "header_analysis"},
-
         # Linux tools
         "readelf": {"args": ["-h"], "type": "header_analysis"},
         "ldd": {"args": [], "type": "dependency_analysis"},
-
         # Binary tracing tools
         "strace": {"args": ["-e", "trace=exit"], "type": "system_trace"},
         "ltrace": {"args": ["-e", "exit"], "type": "library_trace"},
-
         # Pattern matching tools
         "radare2": {"args": ["-q", "-c", "afl;q"], "type": "advanced_analysis"},
     }
@@ -67,10 +64,10 @@ class ExtendedToolAnalyzer:
     def __init__(self, output_dir: Path = None):
         self.output_dir = output_dir or Path("artifacts/extended_analysis")
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.results: List[ToolAnalysisResult] = []
-        self.comparisons: List[ToolComparison] = []
+        self.results: list[ToolAnalysisResult] = []
+        self.comparisons: list[ToolComparison] = []
 
-    def check_tool_availability(self) -> Dict[str, ToolAnalysisResult]:
+    def check_tool_availability(self) -> dict[str, ToolAnalysisResult]:
         """Check availability of all tools."""
         print("\n" + "=" * 70)
         print("CHECKING TOOL AVAILABILITY")
@@ -91,14 +88,11 @@ class ExtendedToolAnalyzer:
                 # Try to get version
                 try:
                     version_result = subprocess.run(
-                        [tool_name, "--version"],
-                        capture_output=True,
-                        text=True,
-                        timeout=5
+                        [tool_name, "--version"], capture_output=True, text=True, timeout=5
                     )
                     if version_result.returncode == 0:
-                        result.version = version_result.stdout.split('\n')[0]
-                except:
+                        result.version = version_result.stdout.split("\n")[0]
+                except Exception:
                     pass
 
                 status = "✅"
@@ -115,11 +109,7 @@ class ExtendedToolAnalyzer:
         return results
 
     def analyze_binary_with_tool(
-        self,
-        tool_name: str,
-        binary_path: str,
-        args: List[str] = None,
-        timeout: int = 30
+        self, tool_name: str, binary_path: str, args: list[str] = None, timeout: int = 30
     ) -> ToolComparison:
         """Analyze binary with specific tool."""
         if args is None:
@@ -128,16 +118,13 @@ class ExtendedToolAnalyzer:
         start_time = time.time()
         try:
             result = subprocess.run(
-                [tool_name] + args + [binary_path],
-                capture_output=True,
-                text=True,
-                timeout=timeout
+                [tool_name] + args + [binary_path], capture_output=True, text=True, timeout=timeout
             )
             elapsed = time.time() - start_time
 
             output = result.stdout + result.stderr
-            output_lines = len(output.split('\n'))
-            output_size = len(output.encode('utf-8'))
+            output_lines = len(output.split("\n"))
+            output_size = len(output.encode("utf-8"))
 
             return ToolComparison(
                 tool_name=tool_name,
@@ -174,7 +161,7 @@ class ExtendedToolAnalyzer:
                 error=str(e),
             )
 
-    def analyze_binary(self, binary_path: str) -> List[ToolComparison]:
+    def analyze_binary(self, binary_path: str) -> list[ToolComparison]:
         """Analyze binary with all available tools."""
         results = []
 
@@ -186,15 +173,14 @@ class ExtendedToolAnalyzer:
                 continue
 
             comparison = self.analyze_binary_with_tool(
-                tool_name,
-                binary_path,
-                args=tool_config["args"],
-                timeout=30
+                tool_name, binary_path, args=tool_config["args"], timeout=30
             )
 
             status = "✅" if comparison.success else "❌"
-            print(f"{status} {tool_name:12} {comparison.execution_time:.3f}s "
-                  f"({comparison.output_lines} lines, {comparison.output_size} bytes)")
+            print(
+                f"{status} {tool_name:12} {comparison.execution_time:.3f}s "
+                f"({comparison.output_lines} lines, {comparison.output_size} bytes)"
+            )
 
             self.comparisons.append(comparison)
             results.append(comparison)
@@ -266,7 +252,7 @@ class ExtendedToolAnalyzer:
         print("-" * 70)
         for tool_name, stats in sorted(by_tool.items()):
             success_rate = f"{stats['success']}/{stats['total']}"
-            avg_time = sum(stats['times']) / len(stats['times']) if stats['times'] else 0
+            avg_time = sum(stats["times"]) / len(stats["times"]) if stats["times"] else 0
             print(f"{tool_name:12} {success_rate:6} {avg_time:.3f}s avg")
 
         print("\n" + "=" * 70)
@@ -296,7 +282,7 @@ def main():
 
     print("\n1. Checking Tool Availability")
     print("=" * 70)
-    availability = analyzer.check_tool_availability()
+    analyzer.check_tool_availability()
 
     print("\n2. Running Analysis on Binaries")
     print("=" * 70)
