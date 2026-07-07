@@ -195,14 +195,13 @@ jobs:
         id: binaries-cache
         with:
           path: tests/fixtures/workspace/binaries
-          key: test-binaries-${{ runner.os }}-${{ hashFiles('scripts/generate-test-binaries.sh') }}
+          key: test-binaries-${{ runner.os }}-${{ hashFiles('scripts/fetch_test_binaries.py') }}
           restore-keys: test-binaries-${{ runner.os }}-
 
       - name: Generate test binaries
         if: steps.binaries-cache.outputs.cache-hit != 'true'
         run: |
-          chmod +x scripts/generate-test-binaries.sh
-          scripts/generate-test-binaries.sh || echo "⚠️  Some binaries could not be generated"
+          python3 scripts/fetch_test_binaries.py
 
       - name: Generate PE and large binaries
         run: |

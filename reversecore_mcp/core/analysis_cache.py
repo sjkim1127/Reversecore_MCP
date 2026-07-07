@@ -332,3 +332,98 @@ async def set_cached_decompile(
             )
         except Exception as e:
             logger.warning(f"Failed to cache decompile result in Redis: {e}")
+
+
+async def export_cache_by_hash(file_hash: str) -> dict:
+    """Export decompilation cache for a given binary hash.
+
+    Reads from SQLite (as it is the persistent source of truth).
+    Returns a dictionary of cache data that can be serialized to JSON.
+    """
+    exported_data = {"file_hash": file_hash, "format": "rcpack", "version": "1.0", "entries": []}
+    try:
+        db_path = _init_sqlite_db()
+
+        def _read_all():
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT function_address, decompiler, status, data FROM decompilation_cache WHERE file_hash = ?",
+                (file_hash,),
+            )
+            return cursor.fetchall()
+
+        rows = await asyncio.to_thread(_read_all)
+        for row in rows:
+            func_addr, decompiler, status, data = row
+            exported_data["entries"].append(
+                {
+                    "function_address": func_addr,
+                    "decompiler": decompiler,
+                    "status": status,
+                    "data": data,
+                }
+            )
+    except Exception as e:
+        logger.error(f"Failed to export SQLite cache: {e}")
+
+    return exported_data
+
+
+async def import_cache_data(cache_data: dict) -> int:
+    """Import cache data exported via export_cache_by_hash.
+
+    Restores data to SQLite and Redis (if enabled).
+    Returns the number of imported entries.
+    """
+    if cache_data.get("format") != "rcpack":
+        raise ValueError("Invalid cache data format")
+
+    file_hash = cache_data.get("file_hash")
+    entries = cache_data.get("entries", [])
+    if not file_hash or not entries:
+        return 0
+
+    imported_count = 0
+    client = get_redis_client()
+
+    try:
+        db_path = _init_sqlite_db()
+
+        def _write_all():
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            for entry in entries:
+                func_addr = entry["function_address"]
+                decompiler = entry["decompiler"]
+                status = entry["status"]
+                data = entry["data"]
+
+                cursor.execute(
+                    """
+                    INSERT OR REPLACE INTO decompilation_cache (file_hash, function_address, decompiler, status, data, created_at)
+                    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    """,
+                    (file_hash, func_addr, decompiler, status, data),
+                )
+            conn.commit()
+            conn.close()
+
+        await asyncio.to_thread(_write_all)
+
+        for entry in entries:
+            func_addr = entry["function_address"]
+            decompiler = entry["decompiler"]
+            data = entry["data"]
+
+            # 2. Import to Redis
+            if client is not None:
+                cache_key = f"ghidra:decompile:{file_hash}:{func_addr}:{decompiler}"
+                await client.setex(cache_key, 3600, data)
+
+            imported_count += 1
+
+    except Exception as e:
+        logger.error(f"Failed to import cache data: {e}")
+
+    return imported_count

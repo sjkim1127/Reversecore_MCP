@@ -11,6 +11,7 @@ from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.plugin import Plugin
 
 from .report_tools import EmailConfig, ReportTools
+from .sigma_generator import generate_sigma_rule
 from .vex_generator import generate_csaf_vex
 
 logger = get_logger(__name__)
@@ -381,8 +382,9 @@ class ReportToolsPlugin(Plugin):
         mcp_server.tool(set_severity)
         mcp_server.tool(create_analysis_report)
         mcp_server.tool(generate_vex_report)
+        mcp_server.tool(generate_sigma_rule)
 
-        logger.info(f"Registered {self.name} plugin with 13 report tools")
+        logger.info(f"Registered {self.name} plugin with 14 report tools")
 
 
 # Legacy function for backward compatibility

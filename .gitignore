@@ -55,3 +55,4 @@ vendor/
 # MkDocs build output (generated, never commit)
 site/
 docs/test-results/
+/workspace/

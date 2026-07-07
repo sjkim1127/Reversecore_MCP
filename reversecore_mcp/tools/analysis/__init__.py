@@ -25,6 +25,9 @@ class AnalysisToolsPlugin(Plugin):
     def register(self, mcp_server: Any) -> None:
         """Register all analysis tools."""
         # Import tool functions from submodules
+        from reversecore_mcp.tools.analysis.advanced_yara import (
+            generate_advanced_yara_rule,
+        )
         from reversecore_mcp.tools.analysis.capa_tools import (
             run_capa,
             run_capa_quick,
@@ -62,6 +65,7 @@ class AnalysisToolsPlugin(Plugin):
         from reversecore_mcp.tools.analysis.taint_analysis import taint_trace
 
         # Register all tools
+        mcp_server.tool(generate_advanced_yara_rule)
         mcp_server.tool(diff_binaries)
         mcp_server.tool(analyze_variant_changes)
         mcp_server.tool(match_libraries)
@@ -86,7 +90,7 @@ class AnalysisToolsPlugin(Plugin):
         mcp_server.tool(analyze_patch_diff_auto)
         mcp_server.tool(taint_trace)
 
-        logger.info(f"Registered {self.name} plugin with 25 analysis tools (unified)")
+        logger.info(f"Registered {self.name} plugin with 26 analysis tools (unified)")
 
 
 __all__ = ["AnalysisToolsPlugin"]

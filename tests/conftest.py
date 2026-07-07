@@ -21,6 +21,8 @@ os.environ["GHIDRA_PATH"] = _test_ghidra
 os.environ["GHIDRA_PROJECT_PATH"] = _test_ghidra_project
 
 # These imports must come after env vars are set due to module-level config loading
+import subprocess  # noqa: E402
+
 import pytest  # noqa: E402
 
 from reversecore_mcp.core import security  # noqa: E402
@@ -96,6 +98,17 @@ def config(workspace_dirs, tmp_path) -> Config:
         mcp_transport="stdio",
         default_tool_timeout=60,
     )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def ensure_test_binaries():
+    """Ensure test binaries are downloaded or generated before any tests run."""
+    fetch_script = os.path.join(
+        os.path.dirname(__file__), "..", "scripts", "fetch_test_binaries.py"
+    )
+    if os.path.exists(fetch_script):
+        print("\nEnsuring test binaries are present...")
+        subprocess.run(["python3", fetch_script], check=False)
 
 
 @pytest.fixture
