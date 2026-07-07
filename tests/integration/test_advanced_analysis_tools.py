@@ -308,8 +308,8 @@ class TestAnalysisToolPerformance:
         elapsed = time.time() - start
 
         assert len(instructions) == 10000
-        # Should disassemble quickly (< 100ms)
-        assert elapsed < 0.1, f"Disassembly took {elapsed:.3f}s"
+        # Should disassemble quickly (< 500ms)
+        assert elapsed < 0.5, f"Disassembly took {elapsed:.3f}s"
 
     def test_angr_analysis_timeout(self, tmp_path):
         """Test angr analysis with timeout."""

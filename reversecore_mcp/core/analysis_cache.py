@@ -10,6 +10,7 @@ import asyncio
 import hashlib
 import sqlite3
 from pathlib import Path
+from typing import Any
 
 import redis.asyncio as aioredis
 
@@ -340,7 +341,12 @@ async def export_cache_by_hash(file_hash: str) -> dict:
     Reads from SQLite (as it is the persistent source of truth).
     Returns a dictionary of cache data that can be serialized to JSON.
     """
-    exported_data = {"file_hash": file_hash, "format": "rcpack", "version": "1.0", "entries": []}
+    exported_data: dict[str, Any] = {
+        "file_hash": file_hash,
+        "format": "rcpack",
+        "version": "1.0",
+        "entries": [],
+    }
     try:
         db_path = _init_sqlite_db()
 

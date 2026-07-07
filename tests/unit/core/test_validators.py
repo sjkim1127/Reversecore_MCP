@@ -384,17 +384,20 @@ class TestValidateAddressFormat:
     def test_valid_hex_address(self):
         """Should accept valid hex address."""
         from reversecore_mcp.core.validators import validate_address_format
+
         validate_address_format("0x401000", "address")
 
     def test_valid_symbol_name(self):
         """Should accept valid symbol name."""
         from reversecore_mcp.core.validators import validate_address_format
+
         validate_address_format("main", "address")
         validate_address_format("std::string::c_str", "address")
 
     def test_invalid_characters(self):
         """Should reject addresses with invalid characters."""
         from reversecore_mcp.core.validators import validate_address_format
+
         with pytest.raises(ValidationError, match="must contain only safe characters"):
             validate_address_format("main; rm -rf /", "address")
 
@@ -405,12 +408,14 @@ class TestValidateDecompileParams:
     def test_valid_params(self):
         """Valid parameters do not raise."""
         from reversecore_mcp.core.validators import _validate_decompile_params
+
         _validate_decompile_params({})
         _validate_decompile_params({"function_address": "0x401000"})
 
     def test_invalid_function_address_type(self):
         """function_address must be a string."""
         from reversecore_mcp.core.validators import _validate_decompile_params
+
         with pytest.raises(ValidationError, match="function_address must be a string"):
             _validate_decompile_params({"function_address": 12345})
 
@@ -421,35 +426,43 @@ class TestValidateYaraGenerationParams:
     def test_valid_params(self):
         """Valid parameters do not raise."""
         from reversecore_mcp.core.validators import _validate_yara_generation_params
+
         _validate_yara_generation_params({})
-        _validate_yara_generation_params({"function_address": "0x401000", "byte_length": 64, "rule_name": "test_rule"})
+        _validate_yara_generation_params(
+            {"function_address": "0x401000", "byte_length": 64, "rule_name": "test_rule"}
+        )
 
     def test_invalid_function_address_type(self):
         """function_address must be a string."""
         from reversecore_mcp.core.validators import _validate_yara_generation_params
+
         with pytest.raises(ValidationError, match="function_address must be a string"):
             _validate_yara_generation_params({"function_address": 12345})
 
     def test_invalid_byte_length_type(self):
         """byte_length must be an integer."""
         from reversecore_mcp.core.validators import _validate_yara_generation_params
+
         with pytest.raises(ValidationError, match="byte_length must be a positive integer"):
             _validate_yara_generation_params({"byte_length": "large"})
 
     def test_invalid_byte_length_zero(self):
         """byte_length must be positive."""
         from reversecore_mcp.core.validators import _validate_yara_generation_params
+
         with pytest.raises(ValidationError, match="byte_length must be a positive integer"):
             _validate_yara_generation_params({"byte_length": 0})
 
     def test_invalid_byte_length_too_large(self):
         """byte_length cannot exceed 1024."""
         from reversecore_mcp.core.validators import _validate_yara_generation_params
+
         with pytest.raises(ValidationError, match="byte_length cannot exceed 1024"):
             _validate_yara_generation_params({"byte_length": 2048})
 
     def test_invalid_rule_name_type(self):
         """rule_name must be a string."""
         from reversecore_mcp.core.validators import _validate_yara_generation_params
+
         with pytest.raises(ValidationError, match="rule_name must be a string"):
             _validate_yara_generation_params({"rule_name": 123})

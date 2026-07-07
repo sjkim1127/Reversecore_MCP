@@ -67,7 +67,7 @@ def is_in_container() -> bool:
             content = f.read()
             if "docker" in content or "kubepods" in content or "containerd" in content:
                 return True
-    except Exception:
+    except Exception:  # nosec B110
         pass
     return False
 
@@ -245,7 +245,7 @@ async def execute_subprocess_async(
             chunk_size = 8192  # 8KB chunks
 
             # Assert stdout is not None for mypy
-            assert process.stdout is not None
+            assert process.stdout is not None  # nosec B101
             while True:
                 chunk = await process.stdout.read(chunk_size)
                 if not chunk:
@@ -282,7 +282,7 @@ async def execute_subprocess_async(
                     logger.error(f"Failed to kill process {process.pid}: {e}")
 
         # Read any remaining stderr
-        assert process.stderr is not None
+        assert process.stderr is not None  # nosec B101
         stderr_data = await process.stderr.read()
         if stderr_data:
             stderr_chunks.append(stderr_data.decode(encoding, errors=errors))

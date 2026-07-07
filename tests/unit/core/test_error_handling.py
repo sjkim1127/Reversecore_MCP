@@ -172,6 +172,7 @@ class TestHandleToolErrors:
 
     def test_sync_retry_then_fail_returns_handle_exception(self):
         """With max_retries, sync function that always fails returns _handle_exception result."""
+
         @handle_tool_errors(max_retries=1, backoff=0.01)
         def failing_tool():
             raise ValueError("fail")
@@ -183,6 +184,7 @@ class TestHandleToolErrors:
     @pytest.mark.asyncio
     async def test_async_retry_then_fail_returns_handle_exception(self):
         """With max_retries, async function that always fails returns _handle_exception result."""
+
         @handle_tool_errors(max_retries=1, backoff=0.01)
         async def failing_tool():
             raise ValueError("async fail")

@@ -52,7 +52,7 @@ async def triage_crash(
         # We might need to ensure it's executable for GDB to run it
         try:
             os.chmod(valid_bin, 0o755)  # nosec B103
-        except Exception:
+        except Exception:  # nosec B110
             pass
 
     # Create a GDB script to run and extract info

@@ -63,7 +63,7 @@ def _extract_mitigations(binary: Any) -> dict[str, Any]:
         if not hasattr(lief.PE, "LoadConfigurationV1") and hasattr(lief.PE, "LoadConfiguration"):
             try:
                 lief.PE.LoadConfigurationV1 = lief.PE.LoadConfiguration
-            except Exception:
+            except Exception:  # nosec B110
                 pass
 
         if isinstance(binary, lief.ELF.Binary):
@@ -328,7 +328,7 @@ def parse_binary_with_lief(file_path: str, format: str = "json") -> ToolResult:
                 for p in list(executor._processes.values()):
                     p.terminate()
                     p.join(timeout=1.0)
-            except Exception:
+            except Exception:  # nosec B110
                 pass
             executor.shutdown(wait=False, cancel_futures=True)
             return failure(
