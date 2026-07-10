@@ -8,7 +8,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from reversecore_mcp.tools.analysis.emulation_tools import _detect_binary_type, emulate_binary
+from reversecore_mcp.tools.analysis.emulation_tools import (
+    _detect_binary_type,
+    emulate_binary,
+)
 
 
 class TestDetectBinaryType:
@@ -110,7 +113,8 @@ class TestEmulateBinary:
 
         # Patch sys.modules to mock imports of qiling
         with patch.dict(
-            sys.modules, {"qiling": mock_qiling_module, "qiling.const": mock_qiling_const_module}
+            sys.modules,
+            {"qiling": mock_qiling_module, "qiling.const": mock_qiling_const_module},
         ):
             result = await emulate_binary(
                 "sample.elf",

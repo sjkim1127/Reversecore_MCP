@@ -102,7 +102,11 @@ def run_symbolic_execution(
             }
 
     except Exception as e:
-        return {"satisfiable": False, "error": str(e), "target_address": hex(target_addr)}
+        return {
+            "satisfiable": False,
+            "error": str(e),
+            "target_address": hex(target_addr),
+        }
 
 
 def main():

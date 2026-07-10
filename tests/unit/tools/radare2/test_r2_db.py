@@ -57,7 +57,10 @@ class TestR2ListStructures:
     @pytest.mark.asyncio
     async def test_returns_created_structure(self, mock_validate_file_path, patch_db_path):
         """r2_list_structures returns a struct after r2_create_structure."""
-        from reversecore_mcp.tools.radare2.r2_db import r2_create_structure, r2_list_structures
+        from reversecore_mcp.tools.radare2.r2_db import (
+            r2_create_structure,
+            r2_list_structures,
+        )
 
         fields = [{"name": "health", "type": "int", "offset": "0x0", "size": 4}]
         await r2_create_structure("/workspace/test.elf", "Player", fields)
@@ -90,7 +93,10 @@ class TestR2GetStructure:
     @pytest.mark.asyncio
     async def test_returns_correct_struct(self, mock_validate_file_path, patch_db_path):
         """r2_get_structure returns the correct struct definition."""
-        from reversecore_mcp.tools.radare2.r2_db import r2_create_structure, r2_get_structure
+        from reversecore_mcp.tools.radare2.r2_db import (
+            r2_create_structure,
+            r2_get_structure,
+        )
 
         fields = [
             {"name": "x", "type": "float", "offset": "0x0", "size": 4},
@@ -140,7 +146,10 @@ class TestR2CreateStructure:
     @pytest.mark.asyncio
     async def test_upsert_replaces_existing(self, mock_validate_file_path, patch_db_path):
         """r2_create_structure updates an existing struct (upsert)."""
-        from reversecore_mcp.tools.radare2.r2_db import r2_create_structure, r2_get_structure
+        from reversecore_mcp.tools.radare2.r2_db import (
+            r2_create_structure,
+            r2_get_structure,
+        )
 
         await r2_create_structure(
             "/workspace/test.elf", "Config", [{"name": "flag", "type": "bool"}]
@@ -179,7 +188,10 @@ class TestR2Bookmarks:
     @pytest.mark.asyncio
     async def test_add_and_list_bookmark(self, mock_validate_file_path, patch_db_path):
         """r2_add_bookmark persists and r2_list_bookmarks retrieves it."""
-        from reversecore_mcp.tools.radare2.r2_db import r2_add_bookmark, r2_list_bookmarks
+        from reversecore_mcp.tools.radare2.r2_db import (
+            r2_add_bookmark,
+            r2_list_bookmarks,
+        )
 
         await r2_add_bookmark("/workspace/test.elf", "0x401020", "Suspicious XOR", "bug")
 
@@ -195,7 +207,10 @@ class TestR2Bookmarks:
     @pytest.mark.asyncio
     async def test_filter_by_category(self, mock_validate_file_path, patch_db_path):
         """r2_list_bookmarks filters by category."""
-        from reversecore_mcp.tools.radare2.r2_db import r2_add_bookmark, r2_list_bookmarks
+        from reversecore_mcp.tools.radare2.r2_db import (
+            r2_add_bookmark,
+            r2_list_bookmarks,
+        )
 
         await r2_add_bookmark("/workspace/test.elf", "0x401020", "Note 1", "note")
         await r2_add_bookmark("/workspace/test.elf", "0x401030", "Bug 1", "bug")

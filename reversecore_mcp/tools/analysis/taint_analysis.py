@@ -252,9 +252,9 @@ async def _find_sink_calls(binary_path: str, timeout: int) -> list[dict[str, Any
                         sink_calls.append(
                             {
                                 "sink_api": sink_name,
-                                "call_address": hex(from_addr)
-                                if isinstance(from_addr, int)
-                                else str(from_addr),
+                                "call_address": (
+                                    hex(from_addr) if isinstance(from_addr, int) else str(from_addr)
+                                ),
                                 "cwe": sink_info["cwe"],
                                 "severity": sink_info["severity"],
                                 "category": sink_info["category"],

@@ -208,7 +208,9 @@ class TestVulnerabilityHunterFinal:
     @pytest.mark.asyncio
     async def test_vulnerability_hunter_basic(self, patched_workspace_config, workspace_dir):
         """Test vulnerability_hunter basic call."""
-        from reversecore_mcp.tools.malware.vulnerability_hunter import vulnerability_hunter
+        from reversecore_mcp.tools.malware.vulnerability_hunter import (
+            vulnerability_hunter,
+        )
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)
@@ -233,7 +235,9 @@ class TestDecompilationFinal:
     @pytest.mark.asyncio
     async def test_smart_decompile_basic(self, patched_workspace_config, workspace_dir):
         """Test smart_decompile basic call."""
-        from reversecore_mcp.tools.radare2.r2ghidra_tools import r2_decompile as smart_decompile
+        from reversecore_mcp.tools.radare2.r2ghidra_tools import (
+            r2_decompile as smart_decompile,
+        )
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 100)

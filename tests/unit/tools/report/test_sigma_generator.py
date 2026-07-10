@@ -1,6 +1,9 @@
 import pytest
 
-from reversecore_mcp.tools.report.sigma_generator import _generate_sigma_yaml, generate_sigma_rule
+from reversecore_mcp.tools.report.sigma_generator import (
+    _generate_sigma_yaml,
+    generate_sigma_rule,
+)
 
 
 @pytest.mark.unit

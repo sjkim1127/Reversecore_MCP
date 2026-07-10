@@ -47,7 +47,9 @@ class AnalysisToolsPlugin(Plugin):
         from reversecore_mcp.tools.analysis.fuzz_tools import generate_fuzzing_harness
         from reversecore_mcp.tools.analysis.fuzzing_campaign import run_fuzzing_campaign
         from reversecore_mcp.tools.analysis.lief_tools import parse_binary_with_lief
-        from reversecore_mcp.tools.analysis.patch_vuln_inference import analyze_patch_diff_auto
+        from reversecore_mcp.tools.analysis.patch_vuln_inference import (
+            analyze_patch_diff_auto,
+        )
         from reversecore_mcp.tools.analysis.signature_tools import (
             generate_signature,
             generate_yara_rule,

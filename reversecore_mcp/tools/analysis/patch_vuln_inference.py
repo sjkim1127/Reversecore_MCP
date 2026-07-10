@@ -64,7 +64,18 @@ SECURITY_PATCH_PATTERNS: list[PatchPattern] = [
         vuln_class="Buffer Overflow",
         cwe_id="CWE-120",
         severity="critical",
-        indicators=["cmp", "jbe", "jle", "jge", "jne", "test", "bounds", "size", "len", "limit"],
+        indicators=[
+            "cmp",
+            "jbe",
+            "jle",
+            "jge",
+            "jne",
+            "test",
+            "bounds",
+            "size",
+            "len",
+            "limit",
+        ],
         confidence="high",
     ),
     PatchPattern(
@@ -338,7 +349,8 @@ def _get_exploitation_hint(pattern: PatchPattern) -> str:
         ),
     }
     return hints.get(
-        pattern.name, "Analyze the patched code diff to identify the vulnerability trigger."
+        pattern.name,
+        "Analyze the patched code diff to identify the vulnerability trigger.",
     )
 
 
@@ -642,7 +654,10 @@ async def analyze_patch_diff_auto(
             diff_snippet = None
             try:
                 explain_res = await explain_patch(
-                    str(validated_old), str(validated_new), function_name=func_name, ctx=None
+                    str(validated_old),
+                    str(validated_new),
+                    function_name=func_name,
+                    ctx=None,
                 )
                 if explain_res.status == "success" and isinstance(explain_res.data, dict):
                     explanations = explain_res.data.get("explanations", [])

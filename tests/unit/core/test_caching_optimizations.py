@@ -114,7 +114,9 @@ def test_extract_library_name_caching():
 
 def test_sanitize_filename_for_rule_caching(workspace_dir):
     """Test that _sanitize_filename_for_rule uses caching effectively."""
-    from reversecore_mcp.tools.analysis.signature_tools import _sanitize_filename_for_rule
+    from reversecore_mcp.tools.analysis.signature_tools import (
+        _sanitize_filename_for_rule,
+    )
 
     test_file = workspace_dir / "test-file.name.ext"
     test_file.write_bytes(b"test")
@@ -148,7 +150,9 @@ def test_cache_size_limits():
         _get_r2_project_name,
     )
     from reversecore_mcp.tools.analysis.diff_tools import _extract_library_name
-    from reversecore_mcp.tools.analysis.signature_tools import _sanitize_filename_for_rule
+    from reversecore_mcp.tools.analysis.signature_tools import (
+        _sanitize_filename_for_rule,
+    )
 
     # Clear all caches
     _calculate_dynamic_timeout.cache_clear()

@@ -128,7 +128,8 @@ async def generate_sigma_rule(
 
     if not detection:
         return failure(
-            "PROCESSING_ERROR", "Could not map provided inputs to Sigma detection logic."
+            "PROCESSING_ERROR",
+            "Could not map provided inputs to Sigma detection logic.",
         )
 
     # Combine conditions using OR if both are present
@@ -147,5 +148,10 @@ async def generate_sigma_rule(
         return failure("GENERATION_ERROR", f"Failed to format Sigma YAML: {e}")
 
     return success(
-        {"rule_title": title, "sigma_yaml": yaml_output, "format": "sigma", "category": category}
+        {
+            "rule_title": title,
+            "sigma_yaml": yaml_output,
+            "format": "sigma",
+            "category": category,
+        }
     )

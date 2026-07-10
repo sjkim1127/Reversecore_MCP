@@ -70,7 +70,9 @@ async def test_generate_function_graph_validation_error(
     """Test generate_function_graph with invalid parameters."""
     # Test invalid format
     result = await r2_analysis.generate_function_graph(
-        file_path=str(workspace_dir / "test.bin"), function_address="main", format="invalid_format"
+        file_path=str(workspace_dir / "test.bin"),
+        function_address="main",
+        format="invalid_format",
     )
 
     assert result.status == "error"

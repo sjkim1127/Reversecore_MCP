@@ -59,7 +59,8 @@ class TestDiffBinaries:
         file_b.write_bytes(b"MZ" + b"\x01" * 100)
 
         with patch(
-            "reversecore_mcp.tools.analysis.diff_tools.validate_file_path", return_value=file_a
+            "reversecore_mcp.tools.analysis.diff_tools.validate_file_path",
+            return_value=file_a,
         ):
             with patch(
                 "reversecore_mcp.tools.analysis.diff_tools.execute_subprocess_async",
@@ -80,7 +81,8 @@ class TestDiffBinaries:
         file_b.write_bytes(b"MZ" + b"\x01" * 100)
 
         with patch(
-            "reversecore_mcp.tools.analysis.diff_tools.validate_file_path", return_value=file_a
+            "reversecore_mcp.tools.analysis.diff_tools.validate_file_path",
+            return_value=file_a,
         ):
             with patch(
                 "reversecore_mcp.tools.analysis.diff_tools.execute_subprocess_async",
@@ -101,7 +103,8 @@ class TestDiffBinaries:
         file_b.write_bytes(b"MZ" + b"\x01" * 100)
 
         with patch(
-            "reversecore_mcp.tools.analysis.diff_tools.validate_file_path", return_value=file_a
+            "reversecore_mcp.tools.analysis.diff_tools.validate_file_path",
+            return_value=file_a,
         ):
             with patch(
                 "reversecore_mcp.tools.analysis.diff_tools.execute_subprocess_async",
@@ -129,7 +132,8 @@ class TestAnalyzeVariantChanges:
         file_b.write_bytes(b"MZ" + b"\x01" * 100)
 
         with patch(
-            "reversecore_mcp.tools.analysis.diff_tools.validate_file_path", return_value=file_a
+            "reversecore_mcp.tools.analysis.diff_tools.validate_file_path",
+            return_value=file_a,
         ):
             with patch(
                 "reversecore_mcp.tools.analysis.diff_tools.execute_subprocess_async",
@@ -150,7 +154,8 @@ class TestAnalyzeVariantChanges:
         file_b.write_bytes(b"MZ" + b"\x01" * 100)
 
         with patch(
-            "reversecore_mcp.tools.analysis.diff_tools.validate_file_path", return_value=file_a
+            "reversecore_mcp.tools.analysis.diff_tools.validate_file_path",
+            return_value=file_a,
         ):
             with patch(
                 "reversecore_mcp.tools.analysis.diff_tools.execute_subprocess_async",
@@ -173,7 +178,8 @@ class TestMatchLibraries:
         test_file.write_bytes(b"MZ" + b"\x00" * 100)
 
         with patch(
-            "reversecore_mcp.tools.analysis.diff_tools.validate_file_path", return_value=test_file
+            "reversecore_mcp.tools.analysis.diff_tools.validate_file_path",
+            return_value=test_file,
         ):
             with patch(
                 "reversecore_mcp.tools.analysis.diff_tools.execute_subprocess_async",
@@ -194,7 +200,8 @@ class TestMatchLibraries:
         sig_db.write_text("libc\nkernel32")
 
         with patch(
-            "reversecore_mcp.tools.analysis.diff_tools.validate_file_path", return_value=test_file
+            "reversecore_mcp.tools.analysis.diff_tools.validate_file_path",
+            return_value=test_file,
         ):
             with patch(
                 "reversecore_mcp.tools.analysis.diff_tools.execute_subprocess_async",

@@ -95,4 +95,8 @@ class R2EsilSimulator:
                 corrupted_pc = hex(pc)
                 break
 
-        return {"crashed": crashed, "corrupted_pc": corrupted_pc, "pc_history": pc_history}
+        return {
+            "crashed": crashed,
+            "corrupted_pc": corrupted_pc,
+            "pc_history": pc_history,
+        }

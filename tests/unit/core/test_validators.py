@@ -429,7 +429,11 @@ class TestValidateYaraGenerationParams:
 
         _validate_yara_generation_params({})
         _validate_yara_generation_params(
-            {"function_address": "0x401000", "byte_length": 64, "rule_name": "test_rule"}
+            {
+                "function_address": "0x401000",
+                "byte_length": 64,
+                "rule_name": "test_rule",
+            }
         )
 
     def test_invalid_function_address_type(self):

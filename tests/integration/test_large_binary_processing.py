@@ -42,7 +42,10 @@ class TestLargeBinaryHandling:
 
         start = time.time()
         result = subprocess.run(
-            ["file", "-b", str(large_binary)], capture_output=True, text=True, timeout=10
+            ["file", "-b", str(large_binary)],
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         elapsed = time.time() - start
 
@@ -80,7 +83,10 @@ class TestLargeBinaryHandling:
         # objdump may fail on non-ELF, but should handle it gracefully
         try:
             result = subprocess.run(
-                ["objdump", "-h", str(large_binary)], capture_output=True, text=True, timeout=10
+                ["objdump", "-h", str(large_binary)],
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             # Should return quickly even if it fails
             assert result.returncode in (0, 1)
@@ -222,7 +228,10 @@ class TestTimeoutHandling:
         for attempt in range(max_retries):
             try:
                 subprocess.run(
-                    ["strings", str(binary)], capture_output=True, timeout=timeout_value, text=True
+                    ["strings", str(binary)],
+                    capture_output=True,
+                    timeout=timeout_value,
+                    text=True,
                 )
                 # Success
                 break
@@ -288,7 +297,10 @@ class TestPEBinaryProcessing:
             pytest.skip("file not available")
 
         result = subprocess.run(
-            ["file", "-b", str(pe_x86_binary)], capture_output=True, text=True, timeout=5
+            ["file", "-b", str(pe_x86_binary)],
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
 
         assert result.returncode == 0

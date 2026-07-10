@@ -42,7 +42,9 @@ EVIDENCE_TO_JUSTIFICATION = {
 
 
 def _generate_document_tracking(
-    title: str, version: str = "1.0.0", revision_history: list[dict[str, str]] | None = None
+    title: str,
+    version: str = "1.0.0",
+    revision_history: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     """Generate the CSAF document tracking section."""
     now = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")

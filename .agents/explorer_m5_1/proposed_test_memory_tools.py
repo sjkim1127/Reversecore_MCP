@@ -4,7 +4,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from reversecore_mcp.tools.common.memory_tools import MemoryToolsPlugin, register_memory_tools
+from reversecore_mcp.tools.common.memory_tools import (
+    MemoryToolsPlugin,
+    register_memory_tools,
+)
 
 
 class TestMemoryToolsPlugin:
@@ -33,7 +36,8 @@ class TestMemoryToolsPlugin:
     def plugin(self, mock_store):
         """Create plugin with mocked store."""
         with patch(
-            "reversecore_mcp.tools.common.memory_tools.get_memory_store", return_value=mock_store
+            "reversecore_mcp.tools.common.memory_tools.get_memory_store",
+            return_value=mock_store,
         ):
             p = MemoryToolsPlugin()
             yield p
@@ -155,7 +159,10 @@ class TestMemoryToolsPlugin:
     @pytest.mark.asyncio
     async def test_resume_memory_session_by_id(self, plugin, mock_mcp, mock_store):
         """Test resume_memory_session tool with session_id."""
-        mock_store.get_session.return_value = {"id": "session_123", "name": "test_session"}
+        mock_store.get_session.return_value = {
+            "id": "session_123",
+            "name": "test_session",
+        }
         mock_store.update_session.return_value = True
         mock_store.get_session_context.return_value = {
             "session": {"id": "session_123"},
@@ -228,7 +235,9 @@ class TestMemoryToolsPlugin:
         )
 
         mock_store.update_session.assert_called_once_with(
-            session_id="session_123", status="completed", summary="analysis completed successfully"
+            session_id="session_123",
+            status="completed",
+            summary="analysis completed successfully",
         )
         assert result["status"] == "success"
         assert result["summary"] == "analysis completed successfully"
@@ -319,11 +328,15 @@ class TestMemoryToolsPlugin:
         get_context = mock_mcp.tools["get_relevant_context"]
 
         result = await get_context(
-            description="process hollowing analysis", current_session_id="session_123", limit=3
+            description="process hollowing analysis",
+            current_session_id="session_123",
+            limit=3,
         )
 
         mock_store.get_relevant_context.assert_called_once_with(
-            current_analysis="process hollowing analysis", current_session_id="session_123", limit=3
+            current_analysis="process hollowing analysis",
+            current_session_id="session_123",
+            limit=3,
         )
         assert result["status"] == "success"
         assert result["count"] == 1

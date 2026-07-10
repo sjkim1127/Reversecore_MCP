@@ -17,9 +17,11 @@ class TestToolInstallation:
     def test_radare2_installed(self):
         """Verify radare2 is installed and accessible."""
         result = shutil.which("r2")
-        pytest.skip(
-            "radare2 (r2) is not installed", allow_module_level=False
-        ) if result is None else None
+        (
+            pytest.skip("radare2 (r2) is not installed", allow_module_level=False)
+            if result is None
+            else None
+        )
 
         # Test r2 version
         output = subprocess.run(["r2", "-v"], capture_output=True, text=True, timeout=5)
@@ -29,7 +31,7 @@ class TestToolInstallation:
     def test_yara_installed(self):
         """Verify yara is installed and accessible."""
         result = shutil.which("yara")
-        pytest.skip("yara is not installed", allow_module_level=False) if result is None else None
+        (pytest.skip("yara is not installed", allow_module_level=False) if result is None else None)
 
         # Test yara version
         output = subprocess.run(["yara", "--version"], capture_output=True, text=True, timeout=5)
@@ -50,9 +52,11 @@ class TestToolInstallation:
     def test_binwalk_installed(self):
         """Verify binwalk is installed."""
         result = shutil.which("binwalk")
-        pytest.skip(
-            "binwalk is not installed", allow_module_level=False
-        ) if result is None else None
+        (
+            pytest.skip("binwalk is not installed", allow_module_level=False)
+            if result is None
+            else None
+        )
 
     def test_objdump_installed(self):
         """Verify objdump (part of binutils) is installed."""

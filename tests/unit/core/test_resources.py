@@ -135,7 +135,10 @@ class TestStaticResources:
 
         mock_file = mock_open(read_data="".join(log_lines))
 
-        with patch.object(Path, "exists", return_value=True), patch("builtins.open", mock_file):
+        with (
+            patch.object(Path, "exists", return_value=True),
+            patch("builtins.open", mock_file),
+        ):
             result = logs_func()
             # Should return last 100 lines with newlines
             result_lines = result.split("\n")
@@ -226,7 +229,10 @@ class TestDynamicResources:
         mock_result.data = "String1\nString2\nString3"
         mock_result.content = [Mock(text="String1\nString2\nString3")]
 
-        with patch("reversecore_mcp.tools.static_analysis.run_strings", return_value=mock_result):
+        with patch(
+            "reversecore_mcp.tools.static_analysis.run_strings",
+            return_value=mock_result,
+        ):
             result = await strings_func("test.exe")
             assert "# Strings from test.exe" in result
             assert "String1" in result
@@ -254,7 +260,10 @@ class TestDynamicResources:
         mock_result.status = "error"
         mock_result.message = "File not found"
 
-        with patch("reversecore_mcp.tools.static_analysis.run_strings", return_value=mock_result):
+        with patch(
+            "reversecore_mcp.tools.static_analysis.run_strings",
+            return_value=mock_result,
+        ):
             result = await strings_func("missing.exe")
             assert "Error extracting strings" in result
 
@@ -299,7 +308,8 @@ class TestDynamicResources:
                 return_value=mock_strings_result,
             ),
             patch(
-                "reversecore_mcp.tools.malware.ioc_tools.extract_iocs", return_value=mock_ioc_result
+                "reversecore_mcp.tools.malware.ioc_tools.extract_iocs",
+                return_value=mock_ioc_result,
             ),
         ):
             result = await iocs_func("malware.exe")
@@ -392,7 +402,8 @@ class TestDynamicResources:
         mock_result.content = [Mock(text="graph TD\nA-->B")]
 
         with patch(
-            "reversecore_mcp.tools.r2_analysis.generate_function_graph", return_value=mock_result
+            "reversecore_mcp.tools.r2_analysis.generate_function_graph",
+            return_value=mock_result,
         ):
             result = await cfg_func("test.exe", "main")
             assert "# Control Flow Graph: test.exe @ main" in result
@@ -427,7 +438,10 @@ class TestDynamicResources:
         mock_result.content = [Mock(text=str(functions_json))]
 
         with (
-            patch("reversecore_mcp.tools.r2_analysis.run_radare2", return_value=mock_result),
+            patch(
+                "reversecore_mcp.tools.r2_analysis.run_radare2",
+                return_value=mock_result,
+            ),
             patch("reversecore_mcp.resources.json.loads", return_value=functions_json),
         ):
             result = await func_list("test.exe")
@@ -470,7 +484,8 @@ class TestDynamicResources:
         }
 
         with patch(
-            "reversecore_mcp.tools.dormant_detector.dormant_detector", return_value=mock_result
+            "reversecore_mcp.tools.dormant_detector.dormant_detector",
+            return_value=mock_result,
         ):
             result = await dormant_func("test.exe")
             assert "Dormant Detector" in result
@@ -500,7 +515,8 @@ class TestDynamicResources:
         mock_result.message = "Analysis failed"
 
         with patch(
-            "reversecore_mcp.tools.dormant_detector.dormant_detector", return_value=mock_result
+            "reversecore_mcp.tools.dormant_detector.dormant_detector",
+            return_value=mock_result,
         ):
             result = await dormant_func("test.exe")
             assert "Dormant Detector analysis failed" in result
@@ -524,7 +540,8 @@ class TestDynamicResources:
         assert strings_func is not None
 
         with patch(
-            "reversecore_mcp.tools.static_analysis.run_strings", side_effect=Exception("Test error")
+            "reversecore_mcp.tools.static_analysis.run_strings",
+            side_effect=Exception("Test error"),
         ):
             result = await strings_func("test.exe")
             assert "Error:" in result
@@ -551,7 +568,10 @@ class TestDynamicResources:
         mock_result = Mock()
         mock_result.status = "error"
 
-        with patch("reversecore_mcp.tools.static_analysis.run_strings", return_value=mock_result):
+        with patch(
+            "reversecore_mcp.tools.static_analysis.run_strings",
+            return_value=mock_result,
+        ):
             result = await iocs_func("test.exe")
             assert "Failed to extract strings" in result
 
@@ -633,7 +653,8 @@ class TestDynamicResources:
         mock_result.message = "CFG generation failed"
 
         with patch(
-            "reversecore_mcp.tools.r2_analysis.generate_function_graph", return_value=mock_result
+            "reversecore_mcp.tools.r2_analysis.generate_function_graph",
+            return_value=mock_result,
         ):
             result = await cfg_func("test.exe", "main")
             assert "Error generating CFG" in result

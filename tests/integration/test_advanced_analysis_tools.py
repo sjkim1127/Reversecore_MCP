@@ -82,7 +82,10 @@ int main() { return add(2, 3); }
 
         # Read .text section
         readelf = subprocess.run(
-            ["readelf", "-x", ".text", str(binary)], capture_output=True, text=True, timeout=5
+            ["readelf", "-x", ".text", str(binary)],
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
 
         if readelf.returncode == 0:
@@ -238,7 +241,9 @@ int main(int argc, char *argv[]) {
 
         binary = tmp_path / "test_bin"
         result = subprocess.run(
-            ["gcc", "-g", "-o", str(binary), str(target_source)], capture_output=True, timeout=10
+            ["gcc", "-g", "-o", str(binary), str(target_source)],
+            capture_output=True,
+            timeout=10,
         )
 
         if result.returncode != 0:

@@ -22,7 +22,10 @@ class TestCommandSpec:
     def test_command_spec_creation(self):
         """Test creating a CommandSpec."""
         spec = CommandSpec(
-            name="test", type="read", regex=re.compile(r"^test$"), description="Test command"
+            name="test",
+            type="read",
+            regex=re.compile(r"^test$"),
+            description="Test command",
         )
         assert spec.name == "test"
         assert spec.type == "read"

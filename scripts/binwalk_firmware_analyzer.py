@@ -80,7 +80,10 @@ class BinwalkFirmwareAnalyzer:
         start_time = time.time()
         try:
             result = subprocess.run(
-                ["binwalk", "-j", binary_path], capture_output=True, text=True, timeout=30
+                ["binwalk", "-j", binary_path],
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
             scan_time = time.time() - start_time
 

@@ -151,7 +151,10 @@ class TestSandboxExecutorWrapCmd:
         patched_config._settings.sandbox_user = "sandbox_user"
 
         with (
-            patch("shutil.which", side_effect=lambda x: "/usr/bin/capsh" if x == "capsh" else None),
+            patch(
+                "shutil.which",
+                side_effect=lambda x: "/usr/bin/capsh" if x == "capsh" else None,
+            ),
             patch("reversecore_mcp.core.execution.is_in_container", return_value=True),
         ):
             cmd = ["yara", "rules.yar", "file.bin"]

@@ -35,7 +35,11 @@ class TestGenerateExplanation:
         "old_api,new_api,expected_msg",
         [
             ("strcpy", "strncpy", "Replaced unsafe string copy with bounded copy."),
-            ("sprintf", "snprintf", "Replaced unsafe format string with bounded version."),
+            (
+                "sprintf",
+                "snprintf",
+                "Replaced unsafe format string with bounded version.",
+            ),
             ("gets", "fgets", "Replaced dangerous input function."),
             ("memcpy", "memcpy_s", "Replaced memory copy with secure version."),
         ],
@@ -93,7 +97,11 @@ class TestExplainPatch:
         mock_diff_result.status = "success"
         mock_diff_result.data = {
             "changes": [
-                {"address": "main", "type": "code_change", "description": "some change"},
+                {
+                    "address": "main",
+                    "type": "code_change",
+                    "description": "some change",
+                },
             ],
             "similarity": 0.5,
         }

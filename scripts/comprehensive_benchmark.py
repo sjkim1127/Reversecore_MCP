@@ -126,9 +126,9 @@ class ComprehensiveBenchmark:
             "benchmarks_run": total_benchmarks,
             "successful": successful,
             "failed": total_benchmarks - successful,
-            "success_rate": f"{(successful / total_benchmarks * 100):.1f}%"
-            if total_benchmarks > 0
-            else "N/A",
+            "success_rate": (
+                f"{(successful / total_benchmarks * 100):.1f}%" if total_benchmarks > 0 else "N/A"
+            ),
             "details": benchmark_results["benchmarks"],
         }
 
@@ -142,8 +142,14 @@ class ComprehensiveBenchmark:
         reports = {}
 
         report_files = [
-            ("extended_analysis", "artifacts/extended_analysis/extended_analysis_report.json"),
-            ("parallel_analysis", "artifacts/parallel_analysis/parallel_analysis_report.json"),
+            (
+                "extended_analysis",
+                "artifacts/extended_analysis/extended_analysis_report.json",
+            ),
+            (
+                "parallel_analysis",
+                "artifacts/parallel_analysis/parallel_analysis_report.json",
+            ),
             ("yara_scan", "artifacts/yara_scan_report.json"),
             ("binwalk_analysis", "artifacts/firmware_analysis/binwalk_report.json"),
         ]

@@ -68,7 +68,10 @@ class TestJsonUtilsFinalPush:
         """Test dumps with complex nested structures."""
         from reversecore_mcp.core import json_utils
 
-        data = {"level1": {"level2": [1, 2, {"level3": "value"}]}, "list": [True, False, None]}
+        data = {
+            "level1": {"level2": [1, 2, {"level3": "value"}]},
+            "list": [True, False, None],
+        }
         result = json_utils.dumps(data)
         assert "level1" in result
         assert "level2" in result
@@ -102,7 +105,9 @@ class TestDecompilationFinalPush:
     @pytest.mark.asyncio
     async def test_smart_decompile_detailed(self, patched_workspace_config, workspace_dir):
         """Test smart_decompile with detailed mock."""
-        from reversecore_mcp.tools.radare2.r2ghidra_tools import r2_decompile as smart_decompile
+        from reversecore_mcp.tools.radare2.r2ghidra_tools import (
+            r2_decompile as smart_decompile,
+        )
 
         test_file = workspace_dir / "test.bin"
         test_file.write_bytes(b"\x7fELF" + b"\x00" * 150)
@@ -126,7 +131,9 @@ class TestSignatureToolsFinalPush:
 
     def test_validate_address_or_fail_decimal(self):
         """Test _validate_address_or_fail with decimal address."""
-        from reversecore_mcp.tools.analysis.signature_tools import _validate_address_or_fail
+        from reversecore_mcp.tools.analysis.signature_tools import (
+            _validate_address_or_fail,
+        )
 
         # Should not raise for decimal address
         _validate_address_or_fail("4198400")

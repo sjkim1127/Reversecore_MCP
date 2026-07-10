@@ -338,7 +338,10 @@ class TestR2SimulatePatch:
         with patch("shutil.which", return_value="/usr/bin/r2"):
             mock_proc = MagicMock()
             mock_proc.communicate = AsyncMock(
-                return_value=(b"0x401000  90 90  nop; nop\nint main() { return 0; }\n", b"")
+                return_value=(
+                    b"0x401000  90 90  nop; nop\nint main() { return 0; }\n",
+                    b"",
+                )
             )
             with patch(
                 "asyncio.create_subprocess_exec",

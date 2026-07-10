@@ -45,7 +45,8 @@ async def test_trace_execution_path_get_address_batching():
         patch("reversecore_mcp.core.security.validate_file_path") as mock_validate,
         patch("reversecore_mcp.tools.r2_analysis._build_r2_cmd") as mock_build_cmd,
         patch(
-            "reversecore_mcp.tools.r2_analysis.execute_subprocess_async", new_callable=AsyncMock
+            "reversecore_mcp.tools.r2_analysis.execute_subprocess_async",
+            new_callable=AsyncMock,
         ) as mock_execute,
     ):
         # Setup mocks
@@ -100,7 +101,8 @@ async def test_get_address_helper_finds_symbol():
         patch("reversecore_mcp.core.security.validate_file_path") as mock_validate,
         patch("reversecore_mcp.tools.r2_analysis._build_r2_cmd") as mock_build_cmd,
         patch(
-            "reversecore_mcp.tools.r2_analysis.execute_subprocess_async", new_callable=AsyncMock
+            "reversecore_mcp.tools.r2_analysis.execute_subprocess_async",
+            new_callable=AsyncMock,
         ) as mock_execute,
     ):
         mock_validate.return_value = "/app/workspace/test.exe"
@@ -120,7 +122,9 @@ async def test_get_address_helper_finds_symbol():
         ]
 
         result = await trace_execution_path(
-            file_path="/app/workspace/test.exe", target_function="sym.target", max_depth=1
+            file_path="/app/workspace/test.exe",
+            target_function="sym.target",
+            max_depth=1,
         )
 
         # Should successfully resolve the address without errors
@@ -146,7 +150,8 @@ async def test_get_address_helper_finds_function():
         patch("reversecore_mcp.core.security.validate_file_path") as mock_validate,
         patch("reversecore_mcp.tools.r2_analysis._build_r2_cmd") as mock_build_cmd,
         patch(
-            "reversecore_mcp.tools.r2_analysis.execute_subprocess_async", new_callable=AsyncMock
+            "reversecore_mcp.tools.r2_analysis.execute_subprocess_async",
+            new_callable=AsyncMock,
         ) as mock_execute,
     ):
         mock_validate.return_value = "/app/workspace/test.exe"
@@ -164,7 +169,9 @@ async def test_get_address_helper_finds_function():
         ]
 
         result = await trace_execution_path(
-            file_path="/app/workspace/test.exe", target_function="fcn.00401500", max_depth=1
+            file_path="/app/workspace/test.exe",
+            target_function="fcn.00401500",
+            max_depth=1,
         )
 
         # Should successfully resolve the address
@@ -189,7 +196,8 @@ async def test_get_address_helper_handles_not_found():
         patch("reversecore_mcp.core.security.validate_file_path") as mock_validate,
         patch("reversecore_mcp.tools.r2_analysis._build_r2_cmd") as mock_build_cmd,
         patch(
-            "reversecore_mcp.tools.r2_analysis.execute_subprocess_async", new_callable=AsyncMock
+            "reversecore_mcp.tools.r2_analysis.execute_subprocess_async",
+            new_callable=AsyncMock,
         ) as mock_execute,
     ):
         mock_validate.return_value = "/app/workspace/test.exe"
@@ -207,7 +215,9 @@ async def test_get_address_helper_handles_not_found():
         ]
 
         result = await trace_execution_path(
-            file_path="/app/workspace/test.exe", target_function="nonexistent_func", max_depth=1
+            file_path="/app/workspace/test.exe",
+            target_function="nonexistent_func",
+            max_depth=1,
         )
 
         # Should handle gracefully (may use the name as-is or return error)
@@ -292,7 +302,8 @@ async def test_get_address_robust_error_handling():
         patch("reversecore_mcp.core.security.validate_file_path") as mock_validate,
         patch("reversecore_mcp.tools.r2_analysis._build_r2_cmd") as mock_build_cmd,
         patch(
-            "reversecore_mcp.tools.r2_analysis.execute_subprocess_async", new_callable=AsyncMock
+            "reversecore_mcp.tools.r2_analysis.execute_subprocess_async",
+            new_callable=AsyncMock,
         ) as mock_execute,
     ):
         mock_validate.return_value = "/app/workspace/test.exe"
@@ -310,7 +321,9 @@ async def test_get_address_robust_error_handling():
         ]
 
         result = await trace_execution_path(
-            file_path="/app/workspace/test.exe", target_function="fcn.00401500", max_depth=1
+            file_path="/app/workspace/test.exe",
+            target_function="fcn.00401500",
+            max_depth=1,
         )
 
         # Should handle gracefully without crashing
@@ -323,7 +336,8 @@ async def test_get_address_robust_error_handling():
         patch("reversecore_mcp.core.security.validate_file_path") as mock_validate,
         patch("reversecore_mcp.tools.r2_analysis._build_r2_cmd") as mock_build_cmd,
         patch(
-            "reversecore_mcp.tools.r2_analysis.execute_subprocess_async", new_callable=AsyncMock
+            "reversecore_mcp.tools.r2_analysis.execute_subprocess_async",
+            new_callable=AsyncMock,
         ) as mock_execute,
     ):
         mock_validate.return_value = "/app/workspace/test.exe"
@@ -341,7 +355,9 @@ async def test_get_address_robust_error_handling():
         ]
 
         result = await trace_execution_path(
-            file_path="/app/workspace/test.exe", target_function="nonexistent", max_depth=1
+            file_path="/app/workspace/test.exe",
+            target_function="nonexistent",
+            max_depth=1,
         )
 
         # Should handle gracefully without crashing
@@ -352,7 +368,8 @@ async def test_get_address_robust_error_handling():
         patch("reversecore_mcp.core.security.validate_file_path") as mock_validate,
         patch("reversecore_mcp.tools.r2_analysis._build_r2_cmd") as mock_build_cmd,
         patch(
-            "reversecore_mcp.tools.r2_analysis.execute_subprocess_async", new_callable=AsyncMock
+            "reversecore_mcp.tools.r2_analysis.execute_subprocess_async",
+            new_callable=AsyncMock,
         ) as mock_execute,
     ):
         mock_validate.return_value = "/app/workspace/test.exe"

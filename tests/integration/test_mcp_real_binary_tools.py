@@ -93,7 +93,8 @@ int main() {
         # Compile pie_x64
         pie_path = dest_bin_dir / "pie_x64"
         subprocess.run(
-            ["gcc", "-fPIE", "-pie", "-o", str(pie_path), str(c_src)], capture_output=True
+            ["gcc", "-fPIE", "-pie", "-o", str(pie_path), str(c_src)],
+            capture_output=True,
         )
         if pie_path.exists():
             bin_dict["pie_x64"] = pie_path

@@ -365,7 +365,12 @@ def _check(
     passed, detail = _with_timeout(fn, timeout=timeout)
     elapsed = time.perf_counter() - t0
     return CheckResult(
-        name=name, passed=passed, required=required, layer=layer, detail=detail, elapsed=elapsed
+        name=name,
+        passed=passed,
+        required=required,
+        layer=layer,
+        detail=detail,
+        elapsed=elapsed,
     )
 
 
@@ -459,7 +464,15 @@ def _cli_radare2_disasm() -> tuple[bool, str]:
         return False, "`r2` not in PATH"
     # aaa = analyze all, pd 5 = print 5 disasm insns at entry
     out = subprocess.check_output(
-        ["r2", "-q", "-e", "scr.color=false", "-c", "aaa;s entry0;pd 5", str(FIXTURE_DEST)],
+        [
+            "r2",
+            "-q",
+            "-e",
+            "scr.color=false",
+            "-c",
+            "aaa;s entry0;pd 5",
+            str(FIXTURE_DEST),
+        ],
         text=True,
         timeout=25,
         stderr=subprocess.DEVNULL,
@@ -1595,7 +1608,10 @@ def _l25_pwntools_missing_graceful() -> tuple[bool, str]:
 
     if result.status != "error":
         return False, f"Expected error when pwntools absent, got status={result.status}"
-    return True, "generate_poc_exploit returns graceful error when pwntools not installed"
+    return (
+        True,
+        "generate_poc_exploit returns graceful error when pwntools not installed",
+    )
 
 
 def _l26_malformed_elf_header() -> tuple[bool, str]:
@@ -1683,7 +1699,10 @@ def _l26_large_file_timeout() -> tuple[bool, str]:
             t0 = time.perf_counter()
             res = asyncio.run(run_strings(str(large_file), min_length=4))
             elapsed = time.perf_counter() - t0
-            return True, f"100MB dummy file handled in {elapsed:.2f}s (status={res.status})"
+            return (
+                True,
+                f"100MB dummy file handled in {elapsed:.2f}s (status={res.status})",
+            )
         finally:
             _patch_workspace()
 
@@ -1931,7 +1950,9 @@ def _perf_list_workspace() -> tuple[bool, str]:
 
 def _perf_parse_lief() -> tuple[bool, str]:
     return _perf_check(
-        "parse_binary_with_lief", _tool_parse_lief, PERF_LIMITS["parse_binary_with_lief"]
+        "parse_binary_with_lief",
+        _tool_parse_lief,
+        PERF_LIMITS["parse_binary_with_lief"],
     )
 
 
@@ -2115,7 +2136,10 @@ def _concurrent_5_tools() -> tuple[bool, str]:
         results = asyncio.run(_run_all())
         exceptions = [r for r in results if isinstance(r, Exception)]
         if exceptions:
-            return False, f"{len(exceptions)} exceptions in concurrent run: {exceptions[0]}"
+            return (
+                False,
+                f"{len(exceptions)} exceptions in concurrent run: {exceptions[0]}",
+            )
         statuses = [getattr(r, "status", "unknown") for r in results]
         return True, f"3 async tools concurrent OK: statuses={statuses}"
     except Exception as exc:
@@ -2235,7 +2259,10 @@ def _integrity_fixture_sha256() -> tuple[bool, str]:
     with open(FIXTURE_DEST, "rb") as f:
         sha = hashlib.sha256(f.read()).hexdigest()
     if sha != FIXTURE_SHA256:
-        return False, f"SHA256 mismatch: expected {FIXTURE_SHA256[:16]}..., got {sha[:16]}..."
+        return (
+            False,
+            f"SHA256 mismatch: expected {FIXTURE_SHA256[:16]}..., got {sha[:16]}...",
+        )
     return True, f"SHA256 {sha[:16]}... verified ✓"
 
 
@@ -2262,7 +2289,10 @@ def _integrity_deterministic_file_output() -> tuple[bool, str]:
         results.append(str(data) if data is not None else str(r))
 
     if len(set(results)) != 1:
-        return False, f"Non-deterministic output: {len(set(results))} unique results from 3 runs"
+        return (
+            False,
+            f"Non-deterministic output: {len(set(results))} unique results from 3 runs",
+        )
     return True, "3 identical outputs from run_file ✓"
 
 
@@ -2377,7 +2407,10 @@ def _schema_error_resilience_returns_toolresult() -> tuple[bool, str]:
 
     r = asyncio.run(file_operations.run_file("/nonexistent/file.exe"))
     if not isinstance(r, (ToolSuccess, ToolError)):
-        return False, f"Error path returned {type(r).__name__}, not ToolSuccess/ToolError"
+        return (
+            False,
+            f"Error path returned {type(r).__name__}, not ToolSuccess/ToolError",
+        )
     return True, f"Error path returns {type(r).__name__} ✓"
 
 
@@ -2671,7 +2704,10 @@ def _mcp_protocol_tools_call() -> tuple[bool, str]:
         result = resp.get("result", {})
         content = result.get("content", [])
         if not isinstance(content, list) or len(content) == 0:
-            return False, f"tools/call result.content must be non-empty list, got: {content!r}"
+            return (
+                False,
+                f"tools/call result.content must be non-empty list, got: {content!r}",
+            )
 
         first = content[0]
         if first.get("type") != "text":
@@ -2861,7 +2897,12 @@ def main() -> int:
 
     # ── L5: Named tool existence ──────────────────────────────────────────────
     _section(f"Layer 5 · Named Tool Existence ({len(REQUIRED_TOOL_NAMES)} required)")
-    _run(f"named tools: {len(REQUIRED_TOOL_NAMES)} present", _layer5_named_tools, layer=5, t=30)
+    _run(
+        f"named tools: {len(REQUIRED_TOOL_NAMES)} present",
+        _layer5_named_tools,
+        layer=5,
+        t=30,
+    )
 
     # ── L6: Registration metrics ──────────────────────────────────────────────
     _section(
@@ -2894,7 +2935,12 @@ def main() -> int:
 
     # ── L10: End-to-end chain ─────────────────────────────────────────────────
     _section("Layer 10 · End-to-End 7-Step Analysis Chain")
-    _run("e2e: list→file→lief→strings→yara_gen→yara_scan→iocs", _layer10_chain, layer=10, t=60)
+    _run(
+        "e2e: list→file→lief→strings→yara_gen→yara_scan→iocs",
+        _layer10_chain,
+        layer=10,
+        t=60,
+    )
 
     # ── L11: Radare2 deep verification ────────────────────────────────────────
     _section("Layer 11 · Radare2 Deep Verification")
@@ -2906,7 +2952,12 @@ def main() -> int:
     # ── L12: Concurrent execution ─────────────────────────────────────────────
     _section("Layer 12 · Concurrent Tool Execution")
     _run("concurrent: 5 tools parallel", _concurrent_5_tools, layer=12, t=60)
-    _run("concurrent: 3x same tool (idempotency)", _concurrent_repeated_3x, layer=12, t=30)
+    _run(
+        "concurrent: 3x same tool (idempotency)",
+        _concurrent_repeated_3x,
+        layer=12,
+        t=30,
+    )
 
     # ── L13: Resource leak detection ──────────────────────────────────────────
     _section("Layer 13 · Resource Leak Detection")
@@ -2919,13 +2970,25 @@ def main() -> int:
     _run("integrity: fixture SHA256", _integrity_fixture_sha256, layer=14)
     _run("integrity: fixture size = 132 bytes", _integrity_fixture_size, layer=14)
     _run("integrity: ELF magic bytes", _integrity_elf_magic_bytes, layer=14)
-    _run("integrity: run_file deterministic (3x)", _integrity_deterministic_file_output, layer=14)
-    _run("integrity: LIEF deterministic (3x)", _integrity_deterministic_lief_output, layer=14)
+    _run(
+        "integrity: run_file deterministic (3x)",
+        _integrity_deterministic_file_output,
+        layer=14,
+    )
+    _run(
+        "integrity: LIEF deterministic (3x)",
+        _integrity_deterministic_lief_output,
+        layer=14,
+    )
 
     # ── L15: ToolResult schema validation ─────────────────────────────────────
     _section("Layer 15 · ToolResult Schema Validation")
     _run("schema: success has data field", _schema_toolresult_success_has_data, layer=15)
-    _run("schema: error has error_code (RCMCP-*)", _schema_toolresult_error_has_code, layer=15)
+    _run(
+        "schema: error has error_code (RCMCP-*)",
+        _schema_toolresult_error_has_code,
+        layer=15,
+    )
     _run("schema: Pydantic model_dump OK", _schema_toolresult_pydantic_valid, layer=15)
     _run("schema: JSON serializable", _schema_toolresult_json_serializable, layer=15)
     _run(
@@ -2947,23 +3010,47 @@ def main() -> int:
 
     # ── L18: Report E2E Workflow ─────────────────────────────────────────────
     _section("Layer 18 · Report Generation E2E Workflow")
-    _run("report e2e: start -> add ioc -> create -> end", _layer18_report_e2e, layer=18, t=30)
+    _run(
+        "report e2e: start -> add ioc -> create -> end",
+        _layer18_report_e2e,
+        layer=18,
+        t=30,
+    )
 
     # ── L19: Output Correctness Assertions ────────────────────────────────────
     _section("Layer 19 · Output Correctness Assertions (/bin/ls + PE stub)")
     _run("correctness: arch detection ELF", _l19_arch_detection_elf, layer=19, t=20)
-    _run("correctness: .text section in lief output", _l19_section_detection_elf, layer=19, t=20)
+    _run(
+        "correctness: .text section in lief output",
+        _l19_section_detection_elf,
+        layer=19,
+        t=20,
+    )
     _run("correctness: entrypoint non-zero", _l19_entrypoint_nonzero, layer=19, t=20)
-    _run("correctness: disasm >= 5 instructions", _l19_disasm_min_instructions, layer=19, t=20)
+    _run(
+        "correctness: disasm >= 5 instructions",
+        _l19_disasm_min_instructions,
+        layer=19,
+        t=20,
+    )
     _run("correctness: PE stub detected", _l19_pe_arch_detection, layer=19, t=20)
-    _run("correctness: ioc extraction non-empty", _l19_ioc_extraction_nonempty, layer=19, t=20)
+    _run(
+        "correctness: ioc extraction non-empty",
+        _l19_ioc_extraction_nonempty,
+        layer=19,
+        t=20,
+    )
 
     # ── L20: Security Boundary Deep Assertions ────────────────────────────────
     _section("Layer 20 · Security Boundary Deep Assertions")
     _run("sec-deep: path traversal has error", _l20_path_traversal_error_code, layer=20)
     _run("sec-deep: null-byte path blocked", _l20_null_byte_blocked, layer=20)
     _run("sec-deep: empty path blocked", _l20_empty_path_blocked, layer=20)
-    _run("sec-deep: nonexistent absolute path", _l20_nonexistent_absolute_path_blocked, layer=20)
+    _run(
+        "sec-deep: nonexistent absolute path",
+        _l20_nonexistent_absolute_path_blocked,
+        layer=20,
+    )
 
     # ── L21: Timeout Resilience ───────────────────────────────────────────────
     _section("Layer 21 · Timeout Resilience (no hangs within 35s)")
@@ -2976,7 +3063,12 @@ def main() -> int:
     # ── L22: MCP Resource Exposure ────────────────────────────────────────────
     _section("Layer 22 · MCP Resource Exposure")
     _run("resources: >= 3 resources exposed", _l22_resources_exposed, layer=22, t=30)
-    _run("resources: health resource present", _l22_resource_health_present, layer=22, t=30)
+    _run(
+        "resources: health resource present",
+        _l22_resource_health_present,
+        layer=22,
+        t=30,
+    )
 
     # ── L23: Prompt Document Integrity ────────────────────────────────────────
     _section("Layer 23 · Prompt Document Integrity")
@@ -2986,7 +3078,12 @@ def main() -> int:
     # ── L24: Analysis Determinism ─────────────────────────────────────────────
     _section("Layer 24 · Analysis Determinism")
     _run("determinism: run_file consistent", _l24_run_file_deterministic, layer=24, t=30)
-    _run("determinism: parse_lief consistent", _l24_parse_lief_deterministic, layer=24, t=30)
+    _run(
+        "determinism: parse_lief consistent",
+        _l24_parse_lief_deterministic,
+        layer=24,
+        t=30,
+    )
 
     # ── L25: Exploit Pipeline Safety ──────────────────────────────────────────
     _section("Layer 25 · Exploit Pipeline Safety")
@@ -3026,7 +3123,12 @@ def main() -> int:
     _run("resilience: malformed ELF header", _l26_malformed_elf_header, layer=26, t=30)
     _run("resilience: zero-byte file", _l26_zero_byte_file, layer=26, t=30)
     _run("resilience: invalid PE magic stub", _l26_invalid_pe_magic, layer=26, t=30)
-    _run("resilience: large 100MB file processing", _l26_large_file_timeout, layer=26, t=45)
+    _run(
+        "resilience: large 100MB file processing",
+        _l26_large_file_timeout,
+        layer=26,
+        t=45,
+    )
 
     # ── Final report ──────────────────────────────────────────────────────────
     report.print_summary()

@@ -113,7 +113,8 @@ class TestFileOperationsMain:
         (workspace_dir / "sample.bin").write_bytes(b"\x4d\x5a\x90\x00")
 
         with patch(
-            "reversecore_mcp.tools.file_operations.execute_subprocess_async", new_callable=AsyncMock
+            "reversecore_mcp.tools.file_operations.execute_subprocess_async",
+            new_callable=AsyncMock,
         ) as mock_exec:
             mock_exec.return_value = ("PE32 executable", 30)
 
@@ -399,7 +400,9 @@ class TestDecompilationMain:
     @pytest.mark.asyncio
     async def test_get_pseudo_code(self, sample_binary_path, patched_config):
         """Test get_pseudo_code function."""
-        from reversecore_mcp.tools.radare2.r2ghidra_tools import r2_decompile as get_pseudo_code
+        from reversecore_mcp.tools.radare2.r2ghidra_tools import (
+            r2_decompile as get_pseudo_code,
+        )
 
         result = await get_pseudo_code(str(sample_binary_path), "0x1000")
 
@@ -408,7 +411,9 @@ class TestDecompilationMain:
     @pytest.mark.asyncio
     async def test_smart_decompile(self, sample_binary_path, patched_config):
         """Test smart_decompile function."""
-        from reversecore_mcp.tools.radare2.r2ghidra_tools import r2_decompile as smart_decompile
+        from reversecore_mcp.tools.radare2.r2ghidra_tools import (
+            r2_decompile as smart_decompile,
+        )
 
         result = await smart_decompile(str(sample_binary_path), "0x1000")
 

@@ -95,7 +95,8 @@ async def test_import_analysis_cache_success(mock_cache_data, tmp_path):
     with (
         patch("reversecore_mcp.tools.analysis.cache_tools.validate_file_path") as mock_validate,
         patch(
-            "reversecore_mcp.tools.analysis.cache_tools.import_cache_data", new_callable=AsyncMock
+            "reversecore_mcp.tools.analysis.cache_tools.import_cache_data",
+            new_callable=AsyncMock,
         ) as mock_import,
     ):
         mock_path = MagicMock()

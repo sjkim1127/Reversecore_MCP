@@ -18,7 +18,8 @@ class TestCliToolsMocked:
 
         # Mock r2_helpers where execute_subprocess_async is actually used
         with patch(
-            "reversecore_mcp.core.r2_helpers.execute_subprocess_async", new_callable=AsyncMock
+            "reversecore_mcp.core.r2_helpers.execute_subprocess_async",
+            new_callable=AsyncMock,
         ) as mock_exec:
             mock_exec.return_value = (mock_output, len(mock_output))
 
@@ -55,7 +56,8 @@ class TestCliToolsMocked:
 
         # Mock r2_helpers where execute_subprocess_async is actually used
         with patch(
-            "reversecore_mcp.core.r2_helpers.execute_subprocess_async", new_callable=AsyncMock
+            "reversecore_mcp.core.r2_helpers.execute_subprocess_async",
+            new_callable=AsyncMock,
         ) as mock_exec:
             mock_exec.return_value = ("", 0)
 
@@ -76,7 +78,8 @@ _ZTIMyClass
 """
 
         with patch(
-            "reversecore_mcp.tools.static_analysis.execute_subprocess_async", new_callable=AsyncMock
+            "reversecore_mcp.tools.static_analysis.execute_subprocess_async",
+            new_callable=AsyncMock,
         ) as mock_exec:
             mock_exec.return_value = (mock_output, len(mock_output))
 
@@ -93,7 +96,8 @@ _ZTIMyClass
         test_file.write_bytes(b"FAKE")
 
         with patch(
-            "reversecore_mcp.tools.static_analysis.execute_subprocess_async", new_callable=AsyncMock
+            "reversecore_mcp.tools.static_analysis.execute_subprocess_async",
+            new_callable=AsyncMock,
         ) as mock_exec:
             mock_exec.return_value = ("NO RTTI HERE", 10)
 
@@ -115,7 +119,8 @@ _ZTIMyClass
 
         # Mock r2_helpers where execute_subprocess_async is actually used
         with patch(
-            "reversecore_mcp.core.r2_helpers.execute_subprocess_async", new_callable=AsyncMock
+            "reversecore_mcp.core.r2_helpers.execute_subprocess_async",
+            new_callable=AsyncMock,
         ) as mock_exec:
             mock_exec.return_value = (output, len(output))
 
@@ -146,9 +151,13 @@ _ZTIMyClass
 
         # Mock diff_tools where execute_subprocess_async is actually used
         with patch(
-            "reversecore_mcp.tools.diff_tools.execute_subprocess_async", new_callable=AsyncMock
+            "reversecore_mcp.tools.diff_tools.execute_subprocess_async",
+            new_callable=AsyncMock,
         ) as mock_exec:
-            mock_exec.side_effect = [(diff_output, len(diff_output)), (sim_output, len(sim_output))]
+            mock_exec.side_effect = [
+                (diff_output, len(diff_output)),
+                (sim_output, len(sim_output)),
+            ]
 
             result = await diff_tools.diff_binaries(str(file_a), str(file_b))
 
@@ -163,12 +172,16 @@ _ZTIMyClass
         test_file.write_bytes(b"FAKE")
 
         funcs_json = json.dumps(
-            [{"name": "sym.imp.printf", "offset": 0x1000}, {"name": "main", "offset": 0x2000}]
+            [
+                {"name": "sym.imp.printf", "offset": 0x1000},
+                {"name": "main", "offset": 0x2000},
+            ]
         )
 
         # Mock r2_helpers where execute_subprocess_async is actually used
         with patch(
-            "reversecore_mcp.core.r2_helpers.execute_subprocess_async", new_callable=AsyncMock
+            "reversecore_mcp.core.r2_helpers.execute_subprocess_async",
+            new_callable=AsyncMock,
         ) as mock_exec:
             mock_exec.return_value = (funcs_json, len(funcs_json))
 
@@ -187,7 +200,8 @@ _ZTIMyClass
 
         # Mock r2_helpers where execute_subprocess_async is actually used
         with patch(
-            "reversecore_mcp.core.r2_helpers.execute_subprocess_async", new_callable=AsyncMock
+            "reversecore_mcp.core.r2_helpers.execute_subprocess_async",
+            new_callable=AsyncMock,
         ) as mock_exec:
             mock_exec.return_value = ("INVALID", 10)
 

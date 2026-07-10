@@ -445,7 +445,9 @@ for plugin in plugins:
 # Note: discover_all() runs at server startup (lifespan), but we pre-call here
 # so tools are available before the first request.
 try:
-    from reversecore_mcp.core.extension_registry import get_extension_registry as _get_ext_reg
+    from reversecore_mcp.core.extension_registry import (
+        get_extension_registry as _get_ext_reg,
+    )
 
     _ext_reg = _get_ext_reg()
     _ext_reg.discover_all()  # idempotent — safe to call before lifespan too
@@ -505,7 +507,10 @@ class SecurityHeadersMiddleware:
 
                 if not has_header(b"strict-transport-security"):
                     headers.append(
-                        (b"strict-transport-security", b"max-age=31536000; includeSubDomains")
+                        (
+                            b"strict-transport-security",
+                            b"max-age=31536000; includeSubDomains",
+                        )
                     )
                 if not has_header(b"x-content-type-options"):
                     headers.append((b"x-content-type-options", b"nosniff"))
@@ -773,7 +778,10 @@ def main():
 
             # radare2
             if shutil.which("radare2"):
-                deps["radare2"] = {"status": "available", "path": shutil.which("radare2")}
+                deps["radare2"] = {
+                    "status": "available",
+                    "path": shutil.which("radare2"),
+                }
             else:
                 deps["radare2"] = {"status": "unavailable"}
                 health_status["status"] = "degraded"
@@ -798,7 +806,10 @@ def main():
 
             # binwalk
             if shutil.which("binwalk"):
-                deps["binwalk"] = {"status": "available", "path": shutil.which("binwalk")}
+                deps["binwalk"] = {
+                    "status": "available",
+                    "path": shutil.which("binwalk"),
+                }
             else:
                 deps["binwalk"] = {"status": "unavailable"}
 

@@ -45,7 +45,10 @@ def run_analysis_task(task: AnalysisTask) -> AnalysisResult:
 
     try:
         result = subprocess.run(
-            task.command + [task.binary_path], capture_output=True, text=True, timeout=task.timeout
+            task.command + [task.binary_path],
+            capture_output=True,
+            text=True,
+            timeout=task.timeout,
         )
 
         elapsed = time.time() - start_time
@@ -220,7 +223,12 @@ class ParallelBinaryAnalyzer:
         by_tool = {}
         for result in results:
             if result.tool_name not in by_tool:
-                by_tool[result.tool_name] = {"success": 0, "total": 0, "avg_time": 0, "times": []}
+                by_tool[result.tool_name] = {
+                    "success": 0,
+                    "total": 0,
+                    "avg_time": 0,
+                    "times": [],
+                }
             by_tool[result.tool_name]["total"] += 1
             by_tool[result.tool_name]["times"].append(result.execution_time)
             if result.success:

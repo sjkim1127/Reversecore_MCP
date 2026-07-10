@@ -88,7 +88,10 @@ class ExtendedToolAnalyzer:
                 # Try to get version
                 try:
                     version_result = subprocess.run(
-                        [tool_name, "--version"], capture_output=True, text=True, timeout=5
+                        [tool_name, "--version"],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
                     )
                     if version_result.returncode == 0:
                         result.version = version_result.stdout.split("\n")[0]
@@ -109,7 +112,11 @@ class ExtendedToolAnalyzer:
         return results
 
     def analyze_binary_with_tool(
-        self, tool_name: str, binary_path: str, args: list[str] = None, timeout: int = 30
+        self,
+        tool_name: str,
+        binary_path: str,
+        args: list[str] = None,
+        timeout: int = 30,
     ) -> ToolComparison:
         """Analyze binary with specific tool."""
         if args is None:
@@ -118,7 +125,10 @@ class ExtendedToolAnalyzer:
         start_time = time.time()
         try:
             result = subprocess.run(
-                [tool_name] + args + [binary_path], capture_output=True, text=True, timeout=timeout
+                [tool_name] + args + [binary_path],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
             )
             elapsed = time.time() - start_time
 

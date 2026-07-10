@@ -144,7 +144,8 @@ class TestEvidenceBasedReport:
 
     def test_generate_markdown_with_yara_rule(self):
         r = EvidenceBasedReport(
-            metadata=_metadata(), yara_rule="rule Test { strings: $a = { 4d 5a } condition: $a }"
+            metadata=_metadata(),
+            yara_rule="rule Test { strings: $a = { 4d 5a } condition: $a }",
         )
         md = r.generate_markdown()
         assert "Detection Rule" in md

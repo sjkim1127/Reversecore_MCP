@@ -70,7 +70,9 @@ int main(int argc, char *argv[]) {
         # Try to compile with gcc
         if shutil.which("gcc"):
             result = subprocess.run(
-                ["gcc", "-o", str(binary_path), str(c_file)], capture_output=True, timeout=10
+                ["gcc", "-o", str(binary_path), str(c_file)],
+                capture_output=True,
+                timeout=10,
             )
             if result.returncode == 0 and binary_path.exists():
                 return binary_path
@@ -225,7 +227,10 @@ int main(int argc, char *argv[]) {
     def test_strings_command_extraction(self, sample_binary_path):
         """Test strings command extracts strings from binary."""
         output = subprocess.run(
-            ["strings", str(sample_binary_path)], capture_output=True, text=True, timeout=5
+            ["strings", str(sample_binary_path)],
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         assert output.returncode == 0
         # Should have some output
@@ -259,7 +264,10 @@ int main(int argc, char *argv[]) {
             pytest.skip("objdump not installed")
 
         output = subprocess.run(
-            ["objdump", "-d", str(sample_binary_path)], capture_output=True, text=True, timeout=10
+            ["objdump", "-d", str(sample_binary_path)],
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         # objdump should succeed or gracefully fail
         assert output.returncode in (0, 1)
@@ -340,7 +348,10 @@ class TestAnalysisToolAccuracy:
         )
 
         binary_output = subprocess.run(
-            ["file", str(test_files["binary"])], capture_output=True, text=True, timeout=5
+            ["file", str(test_files["binary"])],
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
 
         assert text_output.returncode == 0
@@ -352,7 +363,10 @@ class TestAnalysisToolAccuracy:
     def test_strings_finds_text_in_file(self, test_files):
         """strings should find readable text."""
         output = subprocess.run(
-            ["strings", str(test_files["text"])], capture_output=True, text=True, timeout=5
+            ["strings", str(test_files["text"])],
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
 
         assert output.returncode == 0
@@ -382,7 +396,9 @@ int main() {
 }
 """)
             result = subprocess.run(
-                ["gcc", "-g", "-o", str(binary), str(c_file)], capture_output=True, timeout=10
+                ["gcc", "-g", "-o", str(binary), str(c_file)],
+                capture_output=True,
+                timeout=10,
             )
             if result.returncode == 0:
                 return binary

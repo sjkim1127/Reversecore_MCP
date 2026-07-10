@@ -505,10 +505,12 @@ class TestHelperMethods:
         mock_ctx.__aenter__ = AsyncMock(return_value=mock_file)
         mock_ctx.__aexit__ = AsyncMock(return_value=False)
         with patch(
-            "reversecore_mcp.tools.report.report_tools.aiosmtplib.send", new_callable=AsyncMock
+            "reversecore_mcp.tools.report.report_tools.aiosmtplib.send",
+            new_callable=AsyncMock,
         ):
             with patch(
-                "reversecore_mcp.tools.report.report_tools.aiofiles.open", return_value=mock_ctx
+                "reversecore_mcp.tools.report.report_tools.aiofiles.open",
+                return_value=mock_ctx,
             ):
                 result = await rt.send_report("r1", ["a@example.com"])
         assert result["success"] is True
@@ -528,10 +530,12 @@ class TestHelperMethods:
         mock_ctx.__aenter__ = AsyncMock(return_value=mock_file)
         mock_ctx.__aexit__ = AsyncMock(return_value=False)
         with patch(
-            "reversecore_mcp.tools.report.report_tools.aiosmtplib.send", new_callable=AsyncMock
+            "reversecore_mcp.tools.report.report_tools.aiosmtplib.send",
+            new_callable=AsyncMock,
         ):
             with patch(
-                "reversecore_mcp.tools.report.report_tools.aiofiles.open", return_value=mock_ctx
+                "reversecore_mcp.tools.report.report_tools.aiofiles.open",
+                return_value=mock_ctx,
             ):
                 result = await rt.send_report("r1", ["Alice"])
         assert result["success"] is True
@@ -555,7 +559,8 @@ class TestHelperMethods:
             side_effect=Exception("SMTP error"),
         ):
             with patch(
-                "reversecore_mcp.tools.report.report_tools.aiofiles.open", return_value=mock_ctx
+                "reversecore_mcp.tools.report.report_tools.aiofiles.open",
+                return_value=mock_ctx,
             ):
                 result = await rt.send_report("r1", ["a@example.com"])
         assert result["success"] is False
@@ -598,7 +603,10 @@ class TestGetReportTools:
     """Tests for get_report_tools singleton."""
 
     def test_singleton(self, tmp_path):
-        from reversecore_mcp.tools.report.report_tools import get_report_tools, reset_report_tools
+        from reversecore_mcp.tools.report.report_tools import (
+            get_report_tools,
+            reset_report_tools,
+        )
 
         reset_report_tools()
         rt1 = get_report_tools(template_dir=tmp_path, output_dir=tmp_path)

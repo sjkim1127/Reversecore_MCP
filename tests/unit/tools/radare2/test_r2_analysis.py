@@ -93,7 +93,8 @@ class TestRunRadare2:
         test_file.write_bytes(b"\x00" * 100)
 
         with patch(
-            "reversecore_mcp.tools.radare2.r2_analysis.validate_file_path", return_value=test_file
+            "reversecore_mcp.tools.radare2.r2_analysis.validate_file_path",
+            return_value=test_file,
         ):
             with patch(
                 "reversecore_mcp.tools.radare2.r2_analysis._execute_r2_command",
@@ -116,7 +117,8 @@ class TestTraceExecutionPath:
         test_file.write_bytes(b"\x00" * 100)
 
         with patch(
-            "reversecore_mcp.tools.radare2.r2_analysis.validate_file_path", return_value=test_file
+            "reversecore_mcp.tools.radare2.r2_analysis.validate_file_path",
+            return_value=test_file,
         ):
             with patch(
                 "reversecore_mcp.tools.radare2.r2_analysis._execute_r2_command",
@@ -139,7 +141,8 @@ class TestAnalyzeXrefs:
         test_file.write_bytes(b"\x00" * 100)
 
         with patch(
-            "reversecore_mcp.tools.radare2.r2_analysis.validate_file_path", return_value=test_file
+            "reversecore_mcp.tools.radare2.r2_analysis.validate_file_path",
+            return_value=test_file,
         ):
             with patch(
                 "reversecore_mcp.tools.radare2.r2_analysis._execute_r2_command",

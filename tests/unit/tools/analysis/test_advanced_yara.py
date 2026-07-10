@@ -18,7 +18,11 @@ def test_mask_instruction():
     assert _mask_instruction(inst_mov, False) == "48 89 d8"
 
     # CALL instruction (5 bytes typically)
-    inst_call = {"mnemonic": "call 0x123456", "opcode": "call 0x123456", "bytes": "e811223344"}
+    inst_call = {
+        "mnemonic": "call 0x123456",
+        "opcode": "call 0x123456",
+        "bytes": "e811223344",
+    }
     assert _mask_instruction(inst_call, True) == "e8 ?? ?? ?? ??"
     assert _mask_instruction(inst_call, False) == "e8 11 22 33 44"
 
@@ -28,7 +32,11 @@ def test_mask_instruction():
     assert _mask_instruction(inst_je, False) == "74 0a"
 
     # Conditional JMP (6 bytes)
-    inst_je_long = {"mnemonic": "je 0x123456", "opcode": "je 0x123456", "bytes": "0f8411223344"}
+    inst_je_long = {
+        "mnemonic": "je 0x123456",
+        "opcode": "je 0x123456",
+        "bytes": "0f8411223344",
+    }
     assert _mask_instruction(inst_je_long, True) == "0f 84 ?? ?? ?? ??"
 
 

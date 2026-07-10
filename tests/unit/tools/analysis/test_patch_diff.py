@@ -15,7 +15,10 @@ def mock_binary(tmp_path):
 
 @pytest.mark.asyncio
 @patch("reversecore_mcp.tools.analysis.diff_tools.diff_binaries", new_callable=AsyncMock)
-@patch("reversecore_mcp.tools.analysis.diff_tools.analyze_variant_changes", new_callable=AsyncMock)
+@patch(
+    "reversecore_mcp.tools.analysis.diff_tools.analyze_variant_changes",
+    new_callable=AsyncMock,
+)
 async def test_patch_diff_1day_identical(mock_variant, mock_diff, mock_binary):
     mock_diff.return_value = success({"similarity": 1.0, "changes": []})
     result = await patch_diff_1day(mock_binary, mock_binary)
@@ -25,7 +28,10 @@ async def test_patch_diff_1day_identical(mock_variant, mock_diff, mock_binary):
 
 @pytest.mark.asyncio
 @patch("reversecore_mcp.tools.analysis.diff_tools.diff_binaries", new_callable=AsyncMock)
-@patch("reversecore_mcp.tools.analysis.diff_tools.analyze_variant_changes", new_callable=AsyncMock)
+@patch(
+    "reversecore_mcp.tools.analysis.diff_tools.analyze_variant_changes",
+    new_callable=AsyncMock,
+)
 async def test_patch_diff_1day_different(mock_variant, mock_diff, mock_binary):
     mock_diff.return_value = success({"similarity": 0.8, "changes": [{"type": "code_change"}]})
     mock_variant.return_value = success(

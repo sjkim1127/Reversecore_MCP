@@ -150,7 +150,13 @@ class TestRunFuzzingCampaign:
     @patch("reversecore_mcp.tools.analysis.fuzzing_campaign._triage_crashes")
     @patch("reversecore_mcp.tools.analysis.fuzzing_campaign._collect_crashes")
     def test_success_with_exploitable_crashes(
-        self, mock_collect, mock_triage, mock_afl_run, mock_avail, mock_validate, tmp_path
+        self,
+        mock_collect,
+        mock_triage,
+        mock_afl_run,
+        mock_avail,
+        mock_validate,
+        tmp_path,
     ):
         """When crashes are found and exploitable, report should reflect them."""
         binary = tmp_path / "vuln"
@@ -206,7 +212,13 @@ class TestRunFuzzingCampaign:
     @patch("reversecore_mcp.tools.analysis.fuzzing_campaign._triage_crashes")
     @patch("reversecore_mcp.tools.analysis.fuzzing_campaign._collect_crashes")
     async def test_next_steps_populated(
-        self, mock_collect, mock_triage, mock_afl_run, mock_avail, mock_validate, tmp_path
+        self,
+        mock_collect,
+        mock_triage,
+        mock_afl_run,
+        mock_avail,
+        mock_validate,
+        tmp_path,
     ):
         binary = tmp_path / "vuln"
         binary.write_bytes(b"\x7fELF")

@@ -52,7 +52,10 @@ class AnalysisToolBenchmark:
         start_time = time.time()
         try:
             result = subprocess.run(
-                [tool] + args + [binary_path], capture_output=True, text=True, timeout=timeout
+                [tool] + args + [binary_path],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
             )
             elapsed = time.time() - start_time
 

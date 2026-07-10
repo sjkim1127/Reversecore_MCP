@@ -276,7 +276,8 @@ class TestGetOrCreateSession:
                     with patch.object(R2Session, "open", return_value=True):
                         with patch.object(R2Session, "cmd", return_value=""):
                             with patch(
-                                "asyncio.to_thread", side_effect=lambda f, *a, **k: f(*a, **k)
+                                "asyncio.to_thread",
+                                side_effect=lambda f, *a, **k: f(*a, **k),
                             ):
                                 result = await plugin._get_or_create_session("/app/test.bin")
 
@@ -318,7 +319,10 @@ class TestGetOrCreateSession:
             with patch("os.path.exists", return_value=True):
                 with patch.object(R2Session, "__init__", side_effect=mock_init, autospec=True):
                     with patch.object(R2Session, "open", return_value=True):
-                        with patch("asyncio.to_thread", side_effect=lambda f, *a, **k: f(*a, **k)):
+                        with patch(
+                            "asyncio.to_thread",
+                            side_effect=lambda f, *a, **k: f(*a, **k),
+                        ):
                             await plugin._get_or_create_session("/app/test.bin")
         assert "sid-1" not in plugin._sessions
 
@@ -901,7 +905,10 @@ class TestMcpToolsMocked:
         with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
             tool = plugin._tools["Radare2_rename_flag"]
             result = await tool(
-                "/app/test.bin", address="0x401000", name="old_flag", new_name="new_flag"
+                "/app/test.bin",
+                address="0x401000",
+                name="old_flag",
+                new_name="new_flag",
             )
         assert result["status"] == "success"
 

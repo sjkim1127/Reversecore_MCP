@@ -42,7 +42,8 @@ class TestReportMcpTools:
         self.rt.create_report = AsyncMock(return_value={"success": True})
 
         with patch(
-            "reversecore_mcp.tools.report.report_mcp_tools.get_report_tools", return_value=self.rt
+            "reversecore_mcp.tools.report.report_mcp_tools.get_report_tools",
+            return_value=self.rt,
         ):
             yield
 

@@ -138,7 +138,12 @@ def generate_params(tool_name: str, schema: dict[str, Any]) -> dict[str, Any]:
         val = None
 
         # 1. Handle session parameters
-        if prop_name in ["session_id", "r2_session_id", "report_session_id", "mem_session_id"]:
+        if prop_name in [
+            "session_id",
+            "r2_session_id",
+            "report_session_id",
+            "mem_session_id",
+        ]:
             if "report" in tool_name or "report" in prop_name:
                 val = session_cache["report_session_id"] or "SES-CI-DUMMY-ID"
             elif "memory" in tool_name or "mem" in prop_name:
@@ -290,10 +295,16 @@ async def test_all_tools() -> int:
                 sorted_tools = sorted(
                     tools,
                     key=lambda t: (
-                        0
-                        if t.name
-                        in ["Radare2_open_file", "create_memory_session", "start_report_session"]
-                        else 1,
+                        (
+                            0
+                            if t.name
+                            in [
+                                "Radare2_open_file",
+                                "create_memory_session",
+                                "start_report_session",
+                            ]
+                            else 1
+                        ),
                         t.name,
                     ),
                 )

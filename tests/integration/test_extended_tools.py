@@ -118,7 +118,9 @@ int main() {
             pytest.skip("gcc not available")
 
         result = subprocess.run(
-            ["gcc", "-g", "-o", str(binary), str(c_file)], capture_output=True, timeout=10
+            ["gcc", "-g", "-o", str(binary), str(c_file)],
+            capture_output=True,
+            timeout=10,
         )
         assert result.returncode == 0
 
@@ -171,7 +173,9 @@ int main() { return 0; }
             pytest.skip("gcc not available")
 
         result = subprocess.run(
-            ["gcc", "-g", "-o", str(binary), str(c_file)], capture_output=True, timeout=10
+            ["gcc", "-g", "-o", str(binary), str(c_file)],
+            capture_output=True,
+            timeout=10,
         )
         assert result.returncode == 0
 
@@ -447,7 +451,10 @@ class TestStraceAnalysis:
         assert result.returncode == 0
 
         result = subprocess.run(
-            ["strace", "-e", "trace=exit", str(binary)], capture_output=True, text=True, timeout=10
+            ["strace", "-e", "trace=exit", str(binary)],
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
 
         # strace outputs to stderr
@@ -482,7 +489,10 @@ class TestLtraceAnalysis:
         assert result.returncode == 0
 
         result = subprocess.run(
-            ["ltrace", "-e", "printf", str(binary)], capture_output=True, text=True, timeout=10
+            ["ltrace", "-e", "printf", str(binary)],
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
 
         # ltrace outputs to stderr
@@ -519,7 +529,9 @@ int main(int argc, char *argv[]) {
             pytest.skip("gcc not available")
 
         result = subprocess.run(
-            ["gcc", "-g", "-o", str(binary), str(c_file)], capture_output=True, timeout=10
+            ["gcc", "-g", "-o", str(binary), str(c_file)],
+            capture_output=True,
+            timeout=10,
         )
         assert result.returncode == 0
         return binary
@@ -531,21 +543,30 @@ int main(int argc, char *argv[]) {
         # nm
         if shutil.which("nm"):
             result = subprocess.run(
-                ["nm", "-a", str(test_binary)], capture_output=True, text=True, timeout=5
+                ["nm", "-a", str(test_binary)],
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             results["nm"] = result.returncode == 0
 
         # objdump
         if shutil.which("objdump"):
             result = subprocess.run(
-                ["objdump", "-t", str(test_binary)], capture_output=True, text=True, timeout=5
+                ["objdump", "-t", str(test_binary)],
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             results["objdump"] = result.returncode == 0
 
         # readelf (if available)
         if shutil.which("readelf"):
             result = subprocess.run(
-                ["readelf", "-s", str(test_binary)], capture_output=True, text=True, timeout=5
+                ["readelf", "-s", str(test_binary)],
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             results["readelf"] = result.returncode == 0
 
@@ -566,14 +587,20 @@ int main(int argc, char *argv[]) {
         # otool (macOS)
         if shutil.which("otool"):
             result = subprocess.run(
-                ["otool", "-h", str(test_binary)], capture_output=True, text=True, timeout=5
+                ["otool", "-h", str(test_binary)],
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             results["otool"] = result.returncode == 0
 
         # readelf (Linux)
         if shutil.which("readelf"):
             result = subprocess.run(
-                ["readelf", "-h", str(test_binary)], capture_output=True, text=True, timeout=5
+                ["readelf", "-h", str(test_binary)],
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             results["readelf"] = result.returncode == 0
 
@@ -587,13 +614,19 @@ int main(int argc, char *argv[]) {
 
         if shutil.which("file"):
             result = subprocess.run(
-                ["file", "-b", str(test_binary)], capture_output=True, text=True, timeout=5
+                ["file", "-b", str(test_binary)],
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             results["file"] = result.stdout.lower()
 
         if shutil.which("otool"):
             result = subprocess.run(
-                ["otool", "-h", str(test_binary)], capture_output=True, text=True, timeout=5
+                ["otool", "-h", str(test_binary)],
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             results["otool"] = result.stdout.lower()
 

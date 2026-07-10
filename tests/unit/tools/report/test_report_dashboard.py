@@ -173,7 +173,10 @@ class TestReportDashboardRoutes:
             "reversecore_mcp.tools.report.report_mcp_tools.get_report_tools"
         ) as mock_get_tools:
             mock_tools = MagicMock()
-            mock_tools.get_report.return_value = {"success": True, "content": "# Test Report"}
+            mock_tools.get_report.return_value = {
+                "success": True,
+                "content": "# Test Report",
+            }
             mock_get_tools.return_value = mock_tools
 
             with patch("starlette.templating.Jinja2Templates.TemplateResponse") as mock_tr:
@@ -255,7 +258,8 @@ class TestReportDashboardRoutes:
                 mock_get_config.return_value = mock_config
 
                 with patch(
-                    "reversecore_mcp.core.security.validate_file_path", return_value=binary_file
+                    "reversecore_mcp.core.security.validate_file_path",
+                    return_value=binary_file,
                 ):
                     with patch(
                         "reversecore_mcp.tools.report.report_mcp_tools.get_report_tools"

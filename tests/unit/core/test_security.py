@@ -96,7 +96,10 @@ class TestValidateFilePath:
 
     def test_reset_workspace_config(self, workspace_dir):
         """Test reset_workspace_config clears cached config."""
-        from reversecore_mcp.core.security import get_workspace_config, reset_workspace_config
+        from reversecore_mcp.core.security import (
+            get_workspace_config,
+            reset_workspace_config,
+        )
 
         config1 = get_workspace_config()
         reset_workspace_config()

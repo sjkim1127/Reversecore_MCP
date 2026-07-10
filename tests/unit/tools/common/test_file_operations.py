@@ -232,7 +232,8 @@ class TestScanWorkspace:
             mock_config.workspace = workspace
             mock_get_config.return_value = mock_config
             with patch(
-                "reversecore_mcp.tools.common.file_operations.run_file", new_callable=AsyncMock
+                "reversecore_mcp.tools.common.file_operations.run_file",
+                new_callable=AsyncMock,
             ) as mock_run_file:
                 mock_run_file.return_value.status = "success"
                 mock_run_file.return_value.data = "PE32 executable"

@@ -238,7 +238,11 @@ class TestYaraToolsVariations:
         mock_match.rule = "rule_with_meta"
         mock_match.namespace = "custom"
         mock_match.tags = ["malware", "suspicious"]
-        mock_match.meta = {"author": "test", "description": "Test rule", "severity": "high"}
+        mock_match.meta = {
+            "author": "test",
+            "description": "Test rule",
+            "severity": "high",
+        }
         mock_match.strings = []
 
         result = _format_yara_match(mock_match)
