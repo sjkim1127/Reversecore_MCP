@@ -42,7 +42,66 @@ def create_minimal_fallback_binaries():
     print("⚠️  Creating minimal fallback binaries...")
     BINARIES_DIR.mkdir(parents=True, exist_ok=True)
 
+    import subprocess
+
+    if shutil.which("gcc"):
+        print("🔧 gcc found, compiling real test binaries on the fly...")
+        c_src = BINARIES_DIR / "hello.c"
+        c_src.write_text("""
+#include <stdio.h>
+int fib(int n) {
+    if (n <= 1) return n;
+    return fib(n-1) + fib(n-2);
+}
+int main() {
+    printf("Hello from real test binary\\n");
+    return fib(10);
+}
+""")
+        hello_path = BINARIES_DIR / "hello_x64"
+        subprocess.run(["gcc", "-o", str(hello_path), str(c_src)], capture_output=True)
+        stripped_path = BINARIES_DIR / "hello_x64_stripped"
+        shutil.copy2(hello_path, stripped_path)
+        subprocess.run(["strip", str(stripped_path)], capture_output=True)
+
+        pie_path = BINARIES_DIR / "pie_x64"
+        subprocess.run(
+            ["gcc", "-fPIE", "-pie", "-o", str(pie_path), str(c_src)], capture_output=True
+        )
+
+        vuln_c = BINARIES_DIR / "vuln.c"
+        vuln_c.write_text("""
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+void vuln_function(char *str) {
+    char buffer[16];
+    strcpy(buffer, str);
+}
+int main(int argc, char *argv[]) {
+    if (argc > 1) {
+        if (strcmp(argv[1], "backdoor") == 0) {
+            system("ls");
+        } else {
+            vuln_function(argv[1]);
+        }
+    }
+    return 0;
+}
+""")
+        vuln_path = BINARIES_DIR / "vuln_x64"
+        subprocess.run(["gcc", "-o", str(vuln_path), str(vuln_c)], capture_output=True)
+        vuln_stripped_path = BINARIES_DIR / "vuln_x64_stripped"
+        shutil.copy2(vuln_path, vuln_stripped_path)
+        subprocess.run(["strip", str(vuln_stripped_path)], capture_output=True)
+
+        with open(BINARIES_DIR / "loop_x64", "wb") as f:
+            f.write(b"\x7fELF\x02\x01\x01\x00")
+        print("✅ Compilation complete.")
+        return
+
     # Minimal ELF (x86_64)
+    print("⚠️  gcc not found, falling back to 24-byte zero files...")
     elf_path = BINARIES_DIR / "hello_x64"
     with open(elf_path, "wb") as f:
         # Minimal viable ELF header
