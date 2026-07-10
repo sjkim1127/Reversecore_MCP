@@ -138,7 +138,7 @@ WORKDIR /app
 # Create workspace and rules directories
 RUN mkdir -p /app/workspace /app/rules
 
-# hadolint ignore=DL3008
+# hadolint ignore=DL3008,DL3013
 # Runtime system packages only (no compiler, no build tools)
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -159,7 +159,8 @@ RUN apt-get update \
     gnupg \
     # Disk forensics: Sleuth Kit CLI (fls, mmls, icat, istat, ffind, fsstat)
     sleuthkit \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir --upgrade pip
 
 # ── Copy compiled artifacts from parallel compiler stages ─────────────────────
 RUN mkdir -p /usr/local/include /usr/local/lib/pkgconfig
