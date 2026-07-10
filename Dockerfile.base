@@ -120,7 +120,7 @@ COPY requirements.txt .
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 # Use pip cache mount for faster rebuilds when requirements.txt changes
-# hadolint ignore=DL3042
+# hadolint ignore=DL3042,DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --upgrade pip \
     && pip install -r requirements.txt \
