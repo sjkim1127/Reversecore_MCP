@@ -487,7 +487,8 @@ class ReportTools:
         # 타임스탬프 생성 (서버 시간 기준, 타임존 지정 가능)
         ts = self.get_timestamp_data(tz_name=timezone)
 
-        # 템플릿 로드
+        # 템플릿 로드 (Prevent path traversal)
+        template_type = Path(template_type).name
         template_path = self.template_dir / f"{template_type}.md"
         if not template_path.exists():
             available = [f.stem for f in self.template_dir.glob("*.md")]
@@ -649,7 +650,9 @@ class ReportTools:
 
     async def get_report(self, report_id: str) -> dict:
         """Retrieve a generated report"""
-        report_path = self.output_dir / f"{report_id}.md"
+        # Prevent path traversal
+        clean_report_id = Path(report_id).name
+        report_path = self.output_dir / f"{clean_report_id}.md"
 
         if not report_path.exists():
             # 리포트 목록 반환
@@ -779,8 +782,9 @@ class ReportTools:
             message: Email body
             include_attachment: Whether to attach the report file
         """
-        # 리포트 확인
-        report_path = self.output_dir / f"{report_id}.md"
+        # 리포트 확인 (Prevent path traversal)
+        clean_report_id = Path(report_id).name
+        report_path = self.output_dir / f"{clean_report_id}.md"
         if not report_path.exists():
             return {"success": False, "error": f"Report not found: {report_id}"}
 
