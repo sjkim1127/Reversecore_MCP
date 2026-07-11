@@ -136,6 +136,11 @@ def fetch_binaries():
     WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
     BINARIES_DIR.mkdir(parents=True, exist_ok=True)
 
+    hello_bin = BINARIES_DIR / "hello_x64"
+    if hello_bin.exists() and os.path.getsize(hello_bin) > 100:
+        print("✅ Real test binaries already exist. Skipping fetch/generation.")
+        return
+
     archive_path = WORKSPACE_DIR / "test_binaries.tar.gz"
 
     print(f"Downloading from {TEST_BINARIES_URL}...")
