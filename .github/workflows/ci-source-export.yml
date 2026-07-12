@@ -1,0 +1,33 @@
+name: CI Source Export
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  export-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Stage files for patching
+        run: |
+          mkdir -p source-export/reversecore_mcp/core
+          mkdir -p source-export/reversecore_mcp/web
+          mkdir -p source-export/reversecore_mcp/tools/malware
+          mkdir -p source-export/reversecore_mcp/tools
+          mkdir -p source-export/tests/unit/prompts
+          cp reversecore_mcp/core/config.py source-export/reversecore_mcp/core/config.py
+          cp reversecore_mcp/web/endpoints.py source-export/reversecore_mcp/web/endpoints.py
+          cp reversecore_mcp/server.py source-export/reversecore_mcp/server.py
+          cp reversecore_mcp/tools/__init__.py source-export/reversecore_mcp/tools/__init__.py
+          cp reversecore_mcp/tools/malware/__init__.py source-export/reversecore_mcp/tools/malware/__init__.py
+          cp tests/unit/prompts/test_structured_evidence_prompts.py source-export/tests/unit/prompts/test_structured_evidence_prompts.py
+          cp pyproject.toml source-export/pyproject.toml
+      - uses: actions/upload-artifact@v6
+        with:
+          name: ci-source-export
+          path: source-export/
+          if-no-files-found: error
