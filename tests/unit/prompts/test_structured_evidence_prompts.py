@@ -47,7 +47,7 @@ def test_required_smoke_prompts_are_registered():
     }
     mcp = FastMCP("prompt-test")
     register_prompts(mcp)
-    # FastMCP 2.x exposes registered prompts through a name-to-prompt mapping.
+    # FastMCP 2.x exposes registered prompts through its name-to-prompt mapping.
     prompt_names = set(mcp.get_prompts())
 
     assert required_prompt_names <= prompt_names
