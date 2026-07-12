@@ -1,11 +1,21 @@
 # Trivy ignore file for Reversecore_MCP
-# Ignore false positives in external dependencies and third-party tools
+# Ignore false positives in external dependencies and third-party tools.
 
 # pip vulnerability (MEDIUM/LOW) - pip is in the build virtualenv
 CVE-2025-8869
 CVE-2026-3219
 CVE-2026-6357
 CVE-2026-1703
+
+# Temporary Pillow exceptions for the Qiling emulation dependency chain.
+# qiling==1.4.6 -> python-fx==0.4.0 requires Pillow<11, while these fixes
+# require Pillow>=12.1.1/12.2.0. Migration/isolation is tracked in issue #146.
+# These exceptions expire automatically and must not be renewed without review.
+CVE-2026-25990 exp:2026-10-15
+CVE-2026-40192 exp:2026-10-15
+CVE-2026-42308 exp:2026-10-15
+CVE-2026-42310 exp:2026-10-15
+CVE-2026-42311 exp:2026-10-15
 
 # False positive secrets in third-party libraries (hcli / ida-hcli)
 jwt-token

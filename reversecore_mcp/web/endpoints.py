@@ -10,6 +10,7 @@ import sys
 import time
 import uuid
 from importlib.metadata import PackageNotFoundError, version
+from typing import Any
 
 import aiofiles
 from fastapi import APIRouter, File, UploadFile
@@ -25,11 +26,14 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
-# Global check for python-magic
+# Global check for python-magic. The module is optional and dynamically typed.
+magic: Any = None
 try:
-    import magic
+    import magic as _magic
+
+    magic = _magic
 except ImportError:
-    magic = None
+    pass
 
 
 async def _validate_file_magic(file_path: str, filename: str):
@@ -127,7 +131,7 @@ async def health_details():
     except PackageNotFoundError:
         package_version = "2.1.0"  # fallback if not installed via pip/setuptools yet
 
-    health_status = {
+    health_status: dict[str, Any] = {
         "status": "healthy",
         "service": "Reversecore_MCP",
         "transport": "http",
@@ -140,41 +144,46 @@ async def health_details():
         "dependencies": {},
     }
 
-    deps = health_status["dependencies"]
+    deps: dict[str, dict[str, str]] = health_status["dependencies"]
 
     # radare2
-    if shutil.which("radare2"):
+    radare2_path = shutil.which("radare2")
+    if radare2_path:
         deps["radare2"] = {
             "status": "available",
-            "path": shutil.which("radare2"),
+            "path": radare2_path,
         }
     else:
         deps["radare2"] = {"status": "unavailable"}
         health_status["status"] = "degraded"
 
     # Java (for Ghidra)
-    if shutil.which("java"):
-        deps["java"] = {"status": "available", "path": shutil.which("java")}
+    java_path = shutil.which("java")
+    if java_path:
+        deps["java"] = {"status": "available", "path": java_path}
     else:
         deps["java"] = {"status": "unavailable"}
 
     # Graphviz
-    if shutil.which("dot"):
-        deps["graphviz"] = {"status": "available", "path": shutil.which("dot")}
+    graphviz_path = shutil.which("dot")
+    if graphviz_path:
+        deps["graphviz"] = {"status": "available", "path": graphviz_path}
     else:
         deps["graphviz"] = {"status": "unavailable"}
 
     # YARA
-    if shutil.which("yara"):
-        deps["yara"] = {"status": "available", "path": shutil.which("yara")}
+    yara_path = shutil.which("yara")
+    if yara_path:
+        deps["yara"] = {"status": "available", "path": yara_path}
     else:
         deps["yara"] = {"status": "unavailable"}
 
     # binwalk
-    if shutil.which("binwalk"):
+    binwalk_path = shutil.which("binwalk")
+    if binwalk_path:
         deps["binwalk"] = {
             "status": "available",
-            "path": shutil.which("binwalk"),
+            "path": binwalk_path,
         }
     else:
         deps["binwalk"] = {"status": "unavailable"}
