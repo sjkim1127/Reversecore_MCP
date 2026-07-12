@@ -2541,7 +2541,7 @@ def _mcp_server_cmd() -> list[str]:
         python = Path("/opt/venv/bin/python")
     if not python.exists():
         python = Path(sys.executable)
-    return [str(python), str(APP_DIR / "server.py")]
+    return [str(python), "-m", "reversecore_mcp.server"]
 
 
 def _mcp_protocol_initialize() -> tuple[bool, str]:
