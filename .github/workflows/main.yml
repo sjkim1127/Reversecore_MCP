@@ -153,6 +153,30 @@ jobs:
         run: |
           pytest tests/security/ -m security -v --tb=short
 
+  wheel-smoke-test:
+    name: Wheel Build & Install Smoke Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Install build tools
+        run: pip install build
+      - name: Build wheel
+        run: python -m build --wheel
+      - name: Test install wheel
+        run: |
+          python -m venv test_env
+          test_env/bin/pip install dist/*.whl
+      - name: Verify plugin discovery
+        run: |
+          test_env/bin/python -c "import reversecore_mcp.server as s; assert len(s.plugins) > 0, 'No plugins discovered from installed wheel!'"
+
   docker-verification:
     name: Docker & E2E Integration Verification
     runs-on: ubuntu-latest

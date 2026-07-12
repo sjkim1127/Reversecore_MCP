@@ -113,6 +113,14 @@ async def health_details():
     """Detailed health check endpoint with dependency status. Requires authentication."""
     settings = get_config()
 
+    if not settings.api_key:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=403,
+            detail="Detailed health requires MCP_API_KEY to be configured in the environment.",
+        )
+
     # Dynamically resolve package version using importlib.metadata
     try:
         package_version = version("reversecore-mcp")

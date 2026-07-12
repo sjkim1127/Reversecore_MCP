@@ -45,7 +45,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends gcc g++ make py
 
 
 # Application source (invalidates on every code change)
-COPY server.py           ./
 COPY scripts/            ./scripts/
 COPY reversecore_mcp/    ./reversecore_mcp/
 
@@ -57,4 +56,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import socket; s=socket.socket(); s.connect(('localhost', 8000)); s.close()" || exit 1
 
-CMD ["python", "server.py"]
+CMD ["python", "-m", "reversecore_mcp.server"]

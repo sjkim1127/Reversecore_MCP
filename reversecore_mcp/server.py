@@ -12,6 +12,7 @@ import stat
 import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastmcp import FastMCP
 
@@ -320,12 +321,9 @@ loader = PluginLoader()
 
 # Discover and load plugins from the tools directory
 # We assume tools are in the 'reversecore_mcp/tools' package
-tools_dir = os.path.join(os.path.dirname(__file__), "reversecore_mcp", "tools")
-if not os.path.exists(tools_dir):
-    # Fallback for development environment where running from root
-    tools_dir = os.path.join(os.getcwd(), "reversecore_mcp", "tools")
+tools_dir = Path(__file__).resolve().parent / "tools"
 
-plugins = loader.discover_plugins(tools_dir, "reversecore_mcp.tools")
+plugins = loader.discover_plugins(str(tools_dir), "reversecore_mcp.tools")
 
 # Register each plugin with the MCP server
 for plugin in plugins:
