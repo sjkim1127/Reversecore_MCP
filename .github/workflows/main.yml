@@ -175,7 +175,8 @@ jobs:
           test_env/bin/pip install dist/*.whl
       - name: Verify plugin discovery
         run: |
-          test_env/bin/python -c "import reversecore_mcp.server as s; assert len(s.plugins) > 0, 'No plugins discovered from installed wheel!'"
+          cd /tmp
+          $GITHUB_WORKSPACE/test_env/bin/python -c "import reversecore_mcp.server as s; assert len(s.plugins) > 0, 'No plugins discovered from installed wheel!'"
 
   docker-verification:
     name: Docker & E2E Integration Verification

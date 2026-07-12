@@ -30,7 +30,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -61,6 +61,12 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
+    )
+
+    api_key: SecretStr | None = Field(
+        default=None,
+        alias="MCP_API_KEY",
+        description="API key for HTTP authentication",
     )
 
     # Workspace configuration
@@ -343,6 +349,7 @@ class Config:
         self,
         settings: Settings | None = None,
         *,
+        api_key: str | None = None,
         workspace: Path | str | None = None,
         read_only_dirs: tuple[Path, ...] | None = None,
         log_level: str | None = None,
@@ -377,6 +384,8 @@ class Config:
         else:
             # Build settings from individual values if provided
             env_overrides: dict[str, Any] = {}
+            if api_key is not None:
+                env_overrides["api_key"] = api_key
             if workspace is not None:
                 env_overrides["workspace"] = Path(workspace)
             if log_level is not None:
@@ -421,6 +430,11 @@ class Config:
     @property
     def workspace(self) -> Path:
         return self._settings.workspace
+
+    @property
+    def api_key(self) -> str | None:
+        value = self._settings.api_key
+        return value.get_secret_value() if value else None
 
     @workspace.setter
     def workspace(self, val: Path | str) -> None:

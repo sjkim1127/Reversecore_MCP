@@ -103,6 +103,7 @@ def test_safe_bind_address_fallback_no_api_key(mock_get_config, mock_http_app, m
     mock_settings.mcp_transport = "http"
     mock_settings.host = "0.0.0.0"
     mock_settings.port = 8000
+    mock_settings.api_key = None
     mock_get_config.return_value = mock_settings
 
     # Run server main with empty API key env
@@ -141,3 +142,56 @@ def test_safe_bind_address_with_api_key(mock_get_config, mock_http_app, mock_uvi
         mock_uvicorn_run.assert_called_once()
         args, kwargs = mock_uvicorn_run.call_args
         assert kwargs.get("host") == "0.0.0.0"
+
+
+def test_health_details_rejected_when_api_key_not_configured():
+    from reversecore_mcp.web.endpoints import router
+
+    app = FastAPI()
+    app.include_router(router)
+    client = TestClient(app)
+
+    # settings.api_key defaults to None
+    response = client.get("/health/details")
+    assert response.status_code == 403
+
+
+@patch("reversecore_mcp.web.endpoints.get_config")
+def test_health_details_allowed_with_valid_key(mock_get_config):
+    from reversecore_mcp.server import APIKeyAuthMiddleware
+    from reversecore_mcp.web.endpoints import router
+
+    mock_settings = MagicMock()
+    mock_settings.api_key = "configured_key"
+    mock_settings.workspace.exists.return_value = True
+    mock_get_config.return_value = mock_settings
+
+    app = FastAPI()
+    app.include_router(router)
+    # The middleware handles the 403 if header is missing, but if the header is provided, it passes it through.
+    app.add_middleware(APIKeyAuthMiddleware, api_key="configured_key")
+    client = TestClient(app)
+
+    response = client.get("/health/details", headers={"X-API-Key": "configured_key"})
+    assert response.status_code == 200
+    assert "service" in response.json()
+    assert response.json()["service"] == "Reversecore_MCP"
+
+
+@patch("reversecore_mcp.web.endpoints.get_config")
+def test_health_details_rejected_without_request_key(mock_get_config):
+    from reversecore_mcp.server import APIKeyAuthMiddleware
+    from reversecore_mcp.web.endpoints import router
+
+    mock_settings = MagicMock()
+    mock_settings.api_key = "configured_key"
+    mock_get_config.return_value = mock_settings
+
+    app = FastAPI()
+    app.include_router(router)
+    # The middleware blocks it because it's not an exempt path
+    app.add_middleware(APIKeyAuthMiddleware, api_key="configured_key")
+    client = TestClient(app)
+
+    response = client.get("/health/details")
+    assert response.status_code == 403

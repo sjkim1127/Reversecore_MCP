@@ -403,7 +403,7 @@ def main():
         from reversecore_mcp.web.endpoints import router as web_router
 
         # Setup authentication (if MCP_API_KEY is set)
-        api_key = os.getenv("MCP_API_KEY")
+        api_key = settings.api_key
         host = settings.host
 
         # Safe Bind Address Fallback (P0)
