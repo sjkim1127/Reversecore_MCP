@@ -1,0 +1,23 @@
+name: Export Main Workflow
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Stage workflow
+        run: |
+          mkdir -p workflow-export/.github/workflows
+          cp .github/workflows/main.yml workflow-export/.github/workflows/main.yml
+      - uses: actions/upload-artifact@v6
+        with:
+          name: main-workflow-export
+          path: workflow-export/
+          if-no-files-found: error
