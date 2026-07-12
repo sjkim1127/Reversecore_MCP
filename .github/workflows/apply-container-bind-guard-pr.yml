@@ -18,8 +18,77 @@ jobs:
           fetch-depth: 0
       - name: Apply container bind guard
         run: |
-          git apply --check .github/container-bind-guard.patch
-          git apply .github/container-bind-guard.patch
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("reversecore_mcp/server.py")
+          content = path.read_text()
+
+          content = content.replace(
+              "from reversecore_mcp.web.middleware import SecurityHeadersMiddleware  # noqa: E402",
+              "from reversecore_mcp.web.middleware import (  # noqa: E402\n"
+              "    LoopbackOnlyMiddleware,\n"
+              "    SecurityHeadersMiddleware,\n"
+              ")",
+          )
+
+          old_bind = '''        api_key = settings.api_key
+          host = settings.host
+
+          # Safe Bind Address Fallback (P0)
+          if not api_key:
+              if host != "127.0.0.1" and host != "localhost":
+                  logger.warning(
+                      f"⚠️ Safety warning: Binding to external interface '{host}' without an API key is unsafe. "
+                      "Overriding host binding to 127.0.0.1 (loopback) to prevent unauthorized access."
+                  )
+                  host = "127.0.0.1"
+          '''
+          new_bind = '''        api_key = settings.api_key
+          host = settings.host
+          use_loopback_guard = False
+
+          # Safe Bind Address Fallback (P0)
+          if not api_key:
+              if host != "127.0.0.1" and host != "localhost":
+                  if Path("/.dockerenv").exists():
+                      logger.warning(
+                          f"⚠️ Container binding to '{host}' without an API key. "
+                          "Only public health endpoints and loopback clients will be allowed."
+                      )
+                      use_loopback_guard = True
+                  else:
+                      logger.warning(
+                          f"⚠️ Safety warning: Binding to external interface '{host}' without an API key is unsafe. "
+                          "Overriding host binding to 127.0.0.1 (loopback) to prevent unauthorized access."
+                      )
+                      host = "127.0.0.1"
+          '''
+          if old_bind not in content:
+              raise SystemExit("safe-bind target block not found")
+          content = content.replace(old_bind, new_bind)
+
+          old_middleware = '''        # Enforce Security Headers
+          app.add_middleware(SecurityHeadersMiddleware)
+
+          # Enforce API Key globally if set (including on mounted sub-apps)
+          '''
+          new_middleware = '''        # Enforce Security Headers
+          app.add_middleware(SecurityHeadersMiddleware)
+
+          # Container health probes may be external, but all other unauthenticated
+          # traffic must still originate from the container loopback interface.
+          if use_loopback_guard:
+              app.add_middleware(LoopbackOnlyMiddleware)
+
+          # Enforce API Key globally if set (including on mounted sub-apps)
+          '''
+          if old_middleware not in content:
+              raise SystemExit("middleware target block not found")
+          content = content.replace(old_middleware, new_middleware)
+
+          path.write_text(content)
+          PY
           rm -f .github/container-bind-guard.patch
       - name: Commit server change
         run: |
