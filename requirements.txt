@@ -149,7 +149,7 @@ cxxheaderparser==1.9.0
     # via angr
 cycler==0.12.1
     # via matplotlib
-cyclopts==4.19.0
+cyclopts==4.21.0
     # via fastmcp-slim
 dacite==1.8.0
     # via python-fx
