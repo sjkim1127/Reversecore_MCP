@@ -14,10 +14,10 @@ jobs:
       - uses: actions/checkout@v7
       - name: Stage workflow
         run: |
-          mkdir -p workflow-export/.github/workflows
-          cp .github/workflows/main.yml workflow-export/.github/workflows/main.yml
+          mkdir -p workflow-export
+          cp .github/workflows/main.yml workflow-export/main.yml
       - uses: actions/upload-artifact@v6
         with:
           name: main-workflow-export
-          path: workflow-export/
+          path: workflow-export/main.yml
           if-no-files-found: error
