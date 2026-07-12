@@ -226,7 +226,7 @@ humanize==4.15.0
     # via flare-capa
 hypothesis==6.156.6
     # via reversecore-mcp (pyproject.toml)
-ida-hcli==0.18.3
+ida-hcli==0.18.5
     # via ida-settings
 ida-netnode==3.0
     # via flare-capa
