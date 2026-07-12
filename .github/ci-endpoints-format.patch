@@ -1,0 +1,12 @@
+diff --git a/reversecore_mcp/web/endpoints.py b/reversecore_mcp/web/endpoints.py
+index 97c8976..ff9c8ad 100644
+--- a/reversecore_mcp/web/endpoints.py
++++ b/reversecore_mcp/web/endpoints.py
+@@ -30,6 +30,7 @@ router = APIRouter()
+ magic: Any = None
+ try:
+     import magic as _magic
++
+     magic = _magic
+ except ImportError:
+     pass
