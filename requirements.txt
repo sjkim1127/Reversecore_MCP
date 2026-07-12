@@ -180,7 +180,7 @@ fakeredis==2.34.1
     # via fastmcp
 fastapi==0.138.1
     # via reversecore-mcp (pyproject.toml)
-fastmcp==2.14.7
+fastmcp==3.4.4
     # via reversecore-mcp (pyproject.toml)
 first==2.0.0
     # via python-fx
