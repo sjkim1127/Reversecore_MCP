@@ -1,5 +1,7 @@
 """Tests for structured evidence guidance in security prompts."""
 
+import asyncio
+
 from reversecore_mcp.prompts import register_prompts
 from reversecore_mcp.prompts.cve_research import patch_diff_auto_mode
 from reversecore_mcp.prompts.security import patch_analysis_mode, source_code_audit_mode
@@ -47,7 +49,7 @@ def test_required_smoke_prompts_are_registered():
     }
     mcp = FastMCP("prompt-test")
     register_prompts(mcp)
-    # FastMCP 2.x exposes registered prompts through its name-to-prompt registry.
-    prompt_names = set(mcp.get_prompts())
+    # FastMCP 2.x resolves the registered name-to-prompt mapping asynchronously.
+    prompt_names = set(asyncio.run(mcp.get_prompts()))
 
     assert required_prompt_names <= prompt_names
