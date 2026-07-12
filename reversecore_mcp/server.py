@@ -13,13 +13,6 @@ import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-import aiofiles
-
-try:
-    import magic
-except ImportError:
-    magic = None
-
 from fastmcp import FastMCP
 
 from reversecore_mcp.core.config import get_config
@@ -314,103 +307,6 @@ async def _cleanup_old_files():
             await asyncio.sleep(300)  # Retry sooner on error
 
 
-async def _validate_file_magic(file_path: str, filename: str):
-    """
-    Validate file content matches extension using libmagic.
-
-    prevents malicious renaming (e.g. malware.exe -> report.pdf).
-    """
-    ext = filename.lower().split(".")[-1] if "." in filename else ""
-    is_safe_ext = ext in [
-        "txt",
-        "pdf",
-        "json",
-        "yml",
-        "yaml",
-        "md",
-        "csv",
-        "log",
-        "png",
-        "jpg",
-        "jpeg",
-        "gif",
-    ]
-
-    if not magic:
-        # Fallback: Check magic headers manually when python-magic is unavailable
-        logger.warning("python-magic not installed. Using fallback header validation.")
-        try:
-            async with aiofiles.open(file_path, "rb") as f:
-                header = await f.read(8)
-
-            # Known executable headers
-            EXECUTABLE_HEADERS = [
-                (b"MZ", "DOS/PE executable"),
-                (b"\x7fELF", "ELF executable"),
-                (b"\xca\xfe\xba\xbe", "Mach-O universal"),
-                (b"\xcf\xfa\xed\xfe", "Mach-O 64-bit"),
-                (b"\xce\xfa\xed\xfe", "Mach-O 32-bit"),
-                (b"\xfe\xed\xfa\xce", "Mach-O 32-bit (BE)"),
-                (b"\xfe\xed\xfa\xcf", "Mach-O 64-bit (BE)"),
-            ]
-
-            for magic_bytes, desc in EXECUTABLE_HEADERS:
-                if header.startswith(magic_bytes):
-                    if is_safe_ext:
-                        raise ValueError(
-                            f"Security Alert: File {filename} contains {desc} code but has safe extension. Upload rejected."
-                        )
-                    return  # Executable with executable extension is OK
-            return  # No executable header found
-        except ValueError:
-            raise
-        except Exception as e:
-            logger.warning(f"Fallback magic validation failed: {e}")
-            return
-
-    try:
-        # Get MIME type from content
-        mime = magic.from_file(file_path, mime=True)
-        ext = filename.lower().split(".")[-1] if "." in filename else ""
-
-        # Define suspicious mismatches
-        # executing header but safe extension
-        is_executable = mime in [
-            "application/x-dosexec",
-            "application/x-executable",
-            "application/x-elf",
-            "application/x-mach-binary",
-        ]
-        is_safe_ext = ext in [
-            "txt",
-            "pdf",
-            "json",
-            "yml",
-            "yaml",
-            "md",
-            "csv",
-            "log",
-            "png",
-            "jpg",
-            "jpeg",
-            "gif",
-        ]
-
-        if is_executable and is_safe_ext:
-            logger.warning(f"SECURITY: Executable content detected in {filename} (MIME: {mime})")
-            raise ValueError(
-                f"Security Alert: File {filename} contains executable code but has safe extension. Upload rejected."
-            )
-
-    except Exception as e:
-        if "Security Alert" in str(e):
-            raise
-        logger.warning(f"Magic validation failed for {filename}: {e}")
-        # Re-raise if it's a critical validation failure, otherwise just log.
-        # For now, we'll re-raise to prevent processing potentially malicious files.
-        raise
-
-
 # Initialize the FastMCP server with lifespan management
 mcp = FastMCP(name="Reversecore_MCP", lifespan=server_lifespan)
 
@@ -481,62 +377,8 @@ logger.info("Registered get_job_result tool")
 # ============================================================================
 # Security & Authentication Middleware
 # ============================================================================
-import secrets  # noqa: E402
-
+from reversecore_mcp.web.auth import APIKeyAuthMiddleware  # noqa: E402
 from reversecore_mcp.web.middleware import SecurityHeadersMiddleware  # noqa: E402
-
-
-class APIKeyAuthMiddleware:
-    """ASGI middleware to enforce API Key authentication globally (including mounted sub-apps)."""
-
-    def __init__(self, app, api_key: str):
-        self.app = app
-        self.api_key = api_key
-
-    async def __call__(self, scope, receive, send):
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
-
-        path = scope.get("path", "")
-        # Public health check endpoints
-        exempt_paths = {"/health", "/health/live", "/health/ready"}
-        if path in exempt_paths:
-            await self.app(scope, receive, send)
-            return
-
-        # Extract X-API-Key or Authorization Bearer header
-        headers = dict(scope.get("headers", []))
-        req_key = None
-
-        if b"x-api-key" in headers:
-            req_key = headers[b"x-api-key"].decode("utf-8", errors="ignore")
-        elif b"authorization" in headers:
-            auth_val = headers[b"authorization"].decode("utf-8", errors="ignore")
-            if auth_val.lower().startswith("bearer "):
-                req_key = auth_val[7:]
-
-        if not req_key or not secrets.compare_digest(req_key, self.api_key):
-            # Send 403 response directly at ASGI level
-            await send(
-                {
-                    "type": "http.response.start",
-                    "status": 403,
-                    "headers": [
-                        (b"content-type", b"application/json"),
-                    ],
-                }
-            )
-            await send(
-                {
-                    "type": "http.response.body",
-                    "body": b'{"detail": "Invalid or missing API key. Use X-API-Key or Authorization: Bearer token."}',
-                    "more_body": False,
-                }
-            )
-            return
-
-        await self.app(scope, receive, send)
 
 
 def main():

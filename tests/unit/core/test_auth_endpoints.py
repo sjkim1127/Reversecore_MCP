@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from server import APIKeyAuthMiddleware
+from reversecore_mcp.server import APIKeyAuthMiddleware
 
 
 def test_api_key_auth_middleware_exempt_paths():
@@ -92,11 +92,11 @@ def test_api_key_auth_middleware_invalid_key():
 
 
 @patch("uvicorn.run")
-@patch("server.FastMCP.http_app")
-@patch("server.get_config")
+@patch("reversecore_mcp.server.FastMCP.http_app")
+@patch("reversecore_mcp.server.get_config")
 def test_safe_bind_address_fallback_no_api_key(mock_get_config, mock_http_app, mock_uvicorn_run):
     """Test that host is overridden to 127.0.0.1 when binding to external interface without API key."""
-    from server import main
+    from reversecore_mcp.server import main
 
     # Mock settings
     mock_settings = MagicMock()
@@ -120,11 +120,11 @@ def test_safe_bind_address_fallback_no_api_key(mock_get_config, mock_http_app, m
 
 
 @patch("uvicorn.run")
-@patch("server.FastMCP.http_app")
-@patch("server.get_config")
+@patch("reversecore_mcp.server.FastMCP.http_app")
+@patch("reversecore_mcp.server.get_config")
 def test_safe_bind_address_with_api_key(mock_get_config, mock_http_app, mock_uvicorn_run):
     """Test that host is NOT overridden when binding to external interface with API key."""
-    from server import main
+    from reversecore_mcp.server import main
 
     # Mock settings
     mock_settings = MagicMock()

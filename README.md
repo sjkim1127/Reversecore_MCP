@@ -398,15 +398,15 @@ All settings can be provided via environment variables or a `.env` file (see [`.
 
 | Variable | Default | Description |
 |---|---|---|
-| `REVERSECORE_MCP_TRANSPORT` | `stdio` | Transport mode: `stdio` or `http` |
+| `MCP_TRANSPORT` | `stdio` | Transport mode: `stdio` or `http` |
 | `REVERSECORE_WORKSPACE` | `/app/workspace` | Analysis workspace directory |
 | `REVERSECORE_READ_DIRS` | `""` | Additional colon-separated read-only directories |
-| `REVERSECORE_LOG_LEVEL` | `INFO` | Logging verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR` |
-| `REVERSECORE_MCP_API_KEY` | *(unset)* | API key for HTTP mode authentication (optional) |
+| `LOG_LEVEL` | `INFO` | Logging verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR` |
+| `MCP_API_KEY` | *(unset)* | API key for HTTP mode authentication (optional) |
 | `REVERSECORE_RATE_LIMIT` | `60` | Max requests per minute (HTTP mode only) |
 | `REVERSECORE_DEFAULT_TOOL_TIMEOUT` | `120` | Default tool execution timeout in seconds |
 | `REVERSECORE_R2_POOL_SIZE` | `3` | Radare2 connection pool size |
-| `REVERSECORE_REDIS_URL` | `redis://localhost:6379/0` | Redis URL for background task queue |
+| `REDIS_URL` | `redis://localhost:6379/0` | Redis URL for background task queue |
 | `REVERSECORE_SMTP_HOST` | *(unset)* | SMTP host for report email delivery |
 | `REVERSECORE_SMTP_PORT` | `587` | SMTP port |
 | `REVERSECORE_SMTP_USER` | *(unset)* | SMTP username |

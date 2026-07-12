@@ -2,73 +2,61 @@
 Authentication verification dependencies for Reversecore MCP HTTP transport.
 """
 
-import os
 import secrets
-
-from fastapi import Depends, HTTPException, Request, status
-from fastapi.security import APIKeyHeader
 
 from reversecore_mcp.core.logging_config import get_logger
 
 logger = get_logger(__name__)
 
 
-def setup_authentication():
-    """
-    Setup API Key authentication for HTTP transport mode.
+class APIKeyAuthMiddleware:
+    """ASGI middleware to enforce API Key authentication globally (including mounted sub-apps)."""
 
-    To enable authentication, set environment variable:
-        MCP_API_KEY=your-secret-key
+    def __init__(self, app, api_key: str):
+        self.app = app
+        self.api_key = api_key
 
-    All HTTP requests must include header:
-        X-API-Key: your-secret-key
-    or header:
-        Authorization: Bearer your-secret-key
-    """
-    api_key = os.getenv("MCP_API_KEY")
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
 
-    if not api_key:
-        logger.info("🔓 API Key authentication disabled (MCP_API_KEY not set)")
-        return None
+        path = scope.get("path", "")
+        # Public health check endpoints
+        exempt_paths = {"/health", "/health/live", "/health/ready"}
+        if path in exempt_paths:
+            await self.app(scope, receive, send)
+            return
 
-    logger.info("🔐 API Key authentication enabled")
+        # Extract X-API-Key or Authorization Bearer header
+        headers = dict(scope.get("headers", []))
+        req_key = None
 
-    # APIKeyHeader extracts from "X-API-Key"
-    api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+        if b"x-api-key" in headers:
+            req_key = headers[b"x-api-key"].decode("utf-8", errors="ignore")
+        elif b"authorization" in headers:
+            auth_val = headers[b"authorization"].decode("utf-8", errors="ignore")
+            if auth_val.lower().startswith("bearer "):
+                req_key = auth_val[7:]
 
-    async def verify_api_key(
-        request: Request,
-        key: str | None = Depends(api_key_header),
-    ) -> str | None:
-        # Check X-API-Key header or Authorization Bearer header
-        req_key = key
-
-        # If not present in X-API-Key, check Authorization header
-        if not req_key:
-            auth_header = request.headers.get("Authorization")
-            if auth_header and auth_header.lower().startswith("bearer "):
-                req_key = auth_header[7:]
-
-        # If no key provided at all
-        if not req_key:
-            logger.warning(
-                f"⚠️ Unauthorized access attempt (no key provided) from {request.client.host if request.client else 'unknown'} to {request.url.path}"
+        if not req_key or not secrets.compare_digest(req_key, self.api_key):
+            # Send 403 response directly at ASGI level
+            await send(
+                {
+                    "type": "http.response.start",
+                    "status": 403,
+                    "headers": [
+                        (b"content-type", b"application/json"),
+                    ],
+                }
             )
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Missing API key. Use X-API-Key header or Authorization: Bearer token.",
+            await send(
+                {
+                    "type": "http.response.body",
+                    "body": b'{"detail": "Invalid or missing API key. Use X-API-Key or Authorization: Bearer token."}',
+                    "more_body": False,
+                }
             )
+            return
 
-        # Constant-time comparison to prevent side-channel timing attacks
-        if not secrets.compare_digest(req_key, api_key):
-            logger.warning(
-                f"⚠️ Unauthorized access attempt (invalid key) from {request.client.host if request.client else 'unknown'} to {request.url.path}"
-            )
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Invalid API key. Use X-API-Key header or Authorization: Bearer token.",
-            )
-
-        return req_key
-
-    return Depends(verify_api_key)
+        await self.app(scope, receive, send)

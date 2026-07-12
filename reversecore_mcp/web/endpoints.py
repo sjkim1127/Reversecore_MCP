@@ -104,7 +104,13 @@ async def _validate_file_magic(file_path: str, filename: str):
 
 @router.get("/health")
 async def health():
-    """Health check endpoint with dynamic dependency status and metadata-resolved version."""
+    """Health check endpoint. Publicly accessible."""
+    return JSONResponse(content={"status": "alive"})
+
+
+@router.get("/health/details")
+async def health_details():
+    """Detailed health check endpoint with dependency status. Requires authentication."""
     settings = get_config()
 
     # Dynamically resolve package version using importlib.metadata

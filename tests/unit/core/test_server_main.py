@@ -26,8 +26,8 @@ def test_server_main_stdio(monkeypatch, tmp_path):
     reload_settings()
 
     # Ensure fresh import
-    sys.modules.pop("server", None)
-    import server
+    sys.modules.pop("reversecore_mcp.server", None)
+    from reversecore_mcp import server
 
     called = {"run": False}
 
@@ -86,8 +86,8 @@ def test_server_main_http(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "uvicorn.server", mock_uvicorn.server)
 
     # Ensure fresh import
-    sys.modules.pop("server", None)
-    import server
+    sys.modules.pop("reversecore_mcp.server", None)
+    from reversecore_mcp import server
 
     server.main()
 
