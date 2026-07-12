@@ -34,10 +34,13 @@ WORKDIR /app
 COPY resources/  /app/resources/
 COPY templates/  /app/templates/
 
-# Install python dependencies that might have updated in requirements.txt
+# Install current Debian security updates for packages inherited from the base
+# image, then install Python build dependencies and the locked Python stack.
 COPY requirements.txt    ./
 # hadolint ignore=DL3008,DL3013
-RUN apt-get update && apt-get install -y --no-install-recommends gcc g++ make python3-dev libc-dev \
+RUN apt-get update \
+    && apt-get install -y --only-upgrade curl libcurl3-gnutls libcurl4 libgraphite2-3 \
+    && apt-get install -y --no-install-recommends gcc g++ make python3-dev libc-dev \
     && pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt \
     && apt-get purge -y --auto-remove gcc g++ make python3-dev libc-dev \
