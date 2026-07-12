@@ -360,7 +360,7 @@ pyjwt[crypto]==2.13.0
     # via
     #   mcp
     #   redis
-pymdown-extensions==11.0
+pymdown-extensions==11.0.1
     # via
     #   mkdocs-material
     #   mkdocstrings
