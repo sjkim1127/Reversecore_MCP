@@ -1,0 +1,30 @@
+name: Apply Container Bind Guard From PR
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.head_ref == 'ci/verify-main-20260712-9d051e0'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ci/verify-main-20260712-9d051e0
+          fetch-depth: 0
+      - name: Apply container bind guard
+        run: |
+          git apply --check .github/container-bind-guard.patch
+          git apply .github/container-bind-guard.patch
+          rm -f .github/container-bind-guard.patch
+      - name: Commit server change
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add reversecore_mcp/server.py .github/container-bind-guard.patch
+          git commit -m "security(http): guard unauthenticated container binds"
+          git push origin HEAD:ci/verify-main-20260712-9d051e0
