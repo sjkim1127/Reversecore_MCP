@@ -1,0 +1,32 @@
+name: Lock Resolution Diagnostics
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    if: github.head_ref == 'ci/verify-main-20260712-9d051e0'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@v7
+      - name: Capture uv resolution
+        shell: bash
+        run: |
+          mkdir -p diagnostics
+          set +e
+          uv pip compile pyproject.toml --all-extras -o diagnostics/requirements.txt > diagnostics/uv-compile.txt 2>&1
+          echo $? > diagnostics/uv-compile.status
+          exit 0
+      - uses: actions/upload-artifact@v6
+        with:
+          name: lock-resolution-diagnostics
+          path: diagnostics/
+          if-no-files-found: error
