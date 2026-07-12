@@ -431,14 +431,14 @@ class Config:
     def workspace(self) -> Path:
         return self._settings.workspace
 
+    @workspace.setter
+    def workspace(self, val: Path | str) -> None:
+        self._settings.workspace = Path(val)
+
     @property
     def api_key(self) -> str | None:
         value = self._settings.api_key
         return value.get_secret_value() if value else None
-
-    @workspace.setter
-    def workspace(self, val: Path | str) -> None:
-        self._settings.workspace = Path(val)
 
     @property
     def read_only_dirs(self) -> tuple[Path, ...]:

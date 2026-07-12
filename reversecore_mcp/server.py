@@ -119,7 +119,7 @@ async def server_lifespan(server: FastMCP) -> AsyncGenerator[None, None]:
     if pool is not None:
         try:
             worker = Worker(
-                functions=WorkerSettings.functions,
+                functions=WorkerSettings.functions,  # type: ignore[arg-type]
                 redis_pool=pool,
                 handle_signals=False,
             )
@@ -274,7 +274,8 @@ async def _cleanup_old_files():
                             try:
                                 for plugin in plugins:
                                     if plugin.name == "radare2_mcp_tools":
-                                        if str(p) in plugin._file_to_session:
+                                        file_to_session = getattr(plugin, "_file_to_session", None)
+                                        if isinstance(file_to_session, dict) and str(p) in file_to_session:
                                             is_in_use = True
                                             break
                             except Exception as e:
@@ -443,8 +444,9 @@ def main():
 
         # Add CORS middleware with restricted origins when API Key is set
         allowed_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
-        if os.getenv("ALLOWED_ORIGINS"):
-            allowed_origins = os.getenv("ALLOWED_ORIGINS").split(",")
+        allowed_origins_env = os.getenv("ALLOWED_ORIGINS")
+        if allowed_origins_env:
+            allowed_origins = allowed_origins_env.split(",")
         elif not api_key:
             allowed_origins = ["*"]
 
@@ -491,7 +493,9 @@ def main():
             limiter = Limiter(key_func=get_remote_address, default_limits=[f"{rate_limit}/minute"])
             app.state.limiter = limiter
             app.add_middleware(SafeSlowAPIMiddleware)
-            app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+            app.add_exception_handler(
+                RateLimitExceeded, _rate_limit_exceeded_handler  # type: ignore[arg-type]
+            )
             logger.info(f"Rate limiting enabled: {rate_limit}/minute")
         except ImportError:
             logger.warning(

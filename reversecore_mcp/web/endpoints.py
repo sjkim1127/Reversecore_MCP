@@ -10,6 +10,7 @@ import sys
 import time
 import uuid
 from importlib.metadata import PackageNotFoundError, version
+from typing import Any
 
 import aiofiles
 from fastapi import APIRouter, File, UploadFile
@@ -25,11 +26,12 @@ logger = get_logger(__name__)
 
 router = APIRouter()
 
-# Global check for python-magic
+# Global check for python-magic. The module is optional and dynamically typed.
 try:
-    import magic
+    import magic as _magic
 except ImportError:
-    magic = None
+    _magic = None
+magic: Any = _magic
 
 
 async def _validate_file_magic(file_path: str, filename: str):
@@ -127,7 +129,7 @@ async def health_details():
     except PackageNotFoundError:
         package_version = "2.1.0"  # fallback if not installed via pip/setuptools yet
 
-    health_status = {
+    health_status: dict[str, Any] = {
         "status": "healthy",
         "service": "Reversecore_MCP",
         "transport": "http",
@@ -140,7 +142,7 @@ async def health_details():
         "dependencies": {},
     }
 
-    deps = health_status["dependencies"]
+    deps: dict[str, dict[str, str]] = health_status["dependencies"]
 
     # radare2
     if shutil.which("radare2"):

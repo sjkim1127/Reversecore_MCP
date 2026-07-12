@@ -1,77 +1,60 @@
+"""Tool definitions for Reversecore_MCP.
+
+Tool modules are exposed lazily so importing :mod:`reversecore_mcp.tools` does
+not require every optional reverse-engineering dependency to be installed.
+Individual plugins can still fail gracefully during registration when an
+optional dependency is unavailable.
 """
-Tool definitions for Reversecore_MCP.
 
-This package contains tool modules that wrap reverse engineering CLI tools
-and libraries, making them accessible to AI agents through the MCP protocol.
-"""
+from importlib import import_module
+from types import ModuleType
+from typing import Final
 
-# Analysis tools
-from reversecore_mcp.tools.analysis import (
-    cache_tools,
-    crash_triage,
-    diff_tools,
-    emulation_tools,
-    lief_tools,
-    signature_tools,
-    source_auditor,
-    static_analysis,
-)
-
-# Common tools
-from reversecore_mcp.tools.common import file_operations, patch_explainer
-
-# Forensics tools
-from reversecore_mcp.tools.forensics import artifact, disk, memory, network
-
-# Ghidra tools
-# NOTE: Ghidra JVM integration removed in v2.2.0. r2ghidra plugin is used instead.
-# Decompilation and analysis tools are now registered via radare2/__init__.py
-# Malware tools
-from reversecore_mcp.tools.malware import (
-    adaptive_vaccine,
-    dormant_detector,
-    ioc_tools,
-    vulnerability_hunter,
-    yara_tools,
-)
-
-# Radare2 tools
-from reversecore_mcp.tools.radare2 import r2_analysis
-
-# Report tools
-from reversecore_mcp.tools.report import report_mcp_tools, report_tools
-
-__all__ = [
+_LAZY_MODULES: Final[dict[str, str]] = {
     # Analysis tools
-    "crash_triage",
-    "static_analysis",
-    "diff_tools",
-    "signature_tools",
-    "lief_tools",
-    "emulation_tools",
-    "source_auditor",
-    "cache_tools",
+    "cache_tools": "reversecore_mcp.tools.analysis.cache_tools",
+    "crash_triage": "reversecore_mcp.tools.analysis.crash_triage",
+    "diff_tools": "reversecore_mcp.tools.analysis.diff_tools",
+    "emulation_tools": "reversecore_mcp.tools.analysis.emulation_tools",
+    "lief_tools": "reversecore_mcp.tools.analysis.lief_tools",
+    "signature_tools": "reversecore_mcp.tools.analysis.signature_tools",
+    "source_auditor": "reversecore_mcp.tools.analysis.source_auditor",
+    "static_analysis": "reversecore_mcp.tools.analysis.static_analysis",
     # Common tools
-    "file_operations",
-    "patch_explainer",
+    "file_operations": "reversecore_mcp.tools.common.file_operations",
+    "patch_explainer": "reversecore_mcp.tools.common.patch_explainer",
     # Forensics tools
-    "memory",
-    "disk",
-    "network",
-    "artifact",
-    # Radare2 tools (incl. r2ghidra decompilation + r2_db annotation)
-    "r2_analysis",
-    # Ghidra replacement — now served via radare2/r2ghidra_tools.py
+    "artifact": "reversecore_mcp.tools.forensics.artifact",
+    "disk": "reversecore_mcp.tools.forensics.disk",
+    "memory": "reversecore_mcp.tools.forensics.memory",
+    "network": "reversecore_mcp.tools.forensics.network",
     # Malware tools
-    "dormant_detector",
-    "adaptive_vaccine",
-    "vulnerability_hunter",
-    "ioc_tools",
-    "yara_tools",
+    "adaptive_vaccine": "reversecore_mcp.tools.malware.adaptive_vaccine",
+    "dormant_detector": "reversecore_mcp.tools.malware.dormant_detector",
+    "ioc_tools": "reversecore_mcp.tools.malware.ioc_tools",
+    "vulnerability_hunter": "reversecore_mcp.tools.malware.vulnerability_hunter",
+    "yara_tools": "reversecore_mcp.tools.malware.yara_tools",
+    # Radare2 tools
+    "r2_analysis": "reversecore_mcp.tools.radare2.r2_analysis",
     # Report tools
-    "report_tools",
-    "report_mcp_tools",
-]
+    "report_mcp_tools": "reversecore_mcp.tools.report.report_mcp_tools",
+    "report_tools": "reversecore_mcp.tools.report.report_tools",
+}
 
-# NOTE: Legacy alias 'ghost_trace' was removed in v1.0.0
-# Use 'dormant_detector' directly
+__all__ = list(_LAZY_MODULES)
+
+
+def __getattr__(name: str) -> ModuleType:
+    """Load a compatibility module export only when it is requested."""
+    try:
+        module_path = _LAZY_MODULES[name]
+    except KeyError as exc:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from exc
+
+    module = import_module(module_path)
+    globals()[name] = module
+    return module
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(__all__))

@@ -1,7 +1,5 @@
 """Tests for structured evidence guidance in security prompts."""
 
-import asyncio
-
 from reversecore_mcp.prompts import register_prompts
 from reversecore_mcp.prompts.cve_research import patch_diff_auto_mode
 from reversecore_mcp.prompts.security import patch_analysis_mode, source_code_audit_mode
@@ -49,7 +47,6 @@ def test_required_smoke_prompts_are_registered():
     }
     mcp = FastMCP("prompt-test")
     register_prompts(mcp)
-    prompts = asyncio.run(mcp.list_prompts())
-    prompt_names = {prompt.name for prompt in prompts}
+    prompt_names = set(mcp.get_prompts())
 
     assert required_prompt_names <= prompt_names
