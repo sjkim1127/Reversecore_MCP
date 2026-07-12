@@ -8,7 +8,7 @@ license = {text = "MIT"}
 dependencies = [
     # Core MCP server dependencies
     "mcp[cli]>=1.27.0",
-    "fastmcp==2.14.7",
+    "fastmcp==3.2.0",
     "fastapi>=0.100.0",
     "uvicorn>=0.30.0",
     "python-multipart>=0.0.27",
@@ -27,7 +27,7 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "arq>=0.25.0",
     "redis>=5.0.0",
-    "pillow>=10.4.0,<11",
+    "pillow>=10.4.0,<13",
     "markdown>=3.6.0",
     "xhtml2pdf>=0.2.16",
     "numpy<2.3.0",

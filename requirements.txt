@@ -180,7 +180,7 @@ fakeredis==2.34.1
     # via fastmcp
 fastapi==0.138.1
     # via reversecore-mcp (pyproject.toml)
-fastmcp==2.14.7
+fastmcp==3.2.0
     # via reversecore-mcp (pyproject.toml)
 first==2.0.0
     # via python-fx
@@ -436,7 +436,7 @@ pefile==2024.8.26
     #   qiling
     #   viv-utils
     #   volatility3
-pillow==10.4.0
+pillow==12.2.0
     # via
     #   reversecore-mcp (pyproject.toml)
     #   asciimatics
