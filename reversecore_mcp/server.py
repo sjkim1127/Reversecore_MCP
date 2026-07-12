@@ -275,7 +275,10 @@ async def _cleanup_old_files():
                                 for plugin in plugins:
                                     if plugin.name == "radare2_mcp_tools":
                                         file_to_session = getattr(plugin, "_file_to_session", None)
-                                        if isinstance(file_to_session, dict) and str(p) in file_to_session:
+                                        if (
+                                            isinstance(file_to_session, dict)
+                                            and str(p) in file_to_session
+                                        ):
                                             is_in_use = True
                                             break
                             except Exception as e:
@@ -494,7 +497,8 @@ def main():
             app.state.limiter = limiter
             app.add_middleware(SafeSlowAPIMiddleware)
             app.add_exception_handler(
-                RateLimitExceeded, _rate_limit_exceeded_handler  # type: ignore[arg-type]
+                RateLimitExceeded,
+                _rate_limit_exceeded_handler,  # type: ignore[arg-type]
             )
             logger.info(f"Rate limiting enabled: {rate_limit}/minute")
         except ImportError:
