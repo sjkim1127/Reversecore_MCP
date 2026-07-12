@@ -24,68 +24,75 @@ jobs:
           path = Path("reversecore_mcp/server.py")
           content = path.read_text()
 
-          content = content.replace(
-              "from reversecore_mcp.web.middleware import SecurityHeadersMiddleware  # noqa: E402",
+          old_import = "from reversecore_mcp.web.middleware import SecurityHeadersMiddleware  # noqa: E402"
+          new_import = (
               "from reversecore_mcp.web.middleware import (  # noqa: E402\n"
               "    LoopbackOnlyMiddleware,\n"
               "    SecurityHeadersMiddleware,\n"
-              ")",
+              ")"
           )
+          if old_import not in content:
+              raise SystemExit("middleware import target not found")
+          content = content.replace(old_import, new_import, 1)
 
-          old_bind = '''        api_key = settings.api_key
-          host = settings.host
-
-          # Safe Bind Address Fallback (P0)
-          if not api_key:
-              if host != "127.0.0.1" and host != "localhost":
-                  logger.warning(
-                      f"⚠️ Safety warning: Binding to external interface '{host}' without an API key is unsafe. "
-                      "Overriding host binding to 127.0.0.1 (loopback) to prevent unauthorized access."
-                  )
-                  host = "127.0.0.1"
-          '''
-          new_bind = '''        api_key = settings.api_key
-          host = settings.host
-          use_loopback_guard = False
-
-          # Safe Bind Address Fallback (P0)
-          if not api_key:
-              if host != "127.0.0.1" and host != "localhost":
-                  if Path("/.dockerenv").exists():
-                      logger.warning(
-                          f"⚠️ Container binding to '{host}' without an API key. "
-                          "Only public health endpoints and loopback clients will be allowed."
-                      )
-                      use_loopback_guard = True
-                  else:
-                      logger.warning(
-                          f"⚠️ Safety warning: Binding to external interface '{host}' without an API key is unsafe. "
-                          "Overriding host binding to 127.0.0.1 (loopback) to prevent unauthorized access."
-                      )
-                      host = "127.0.0.1"
-          '''
+          old_bind = (
+              "        api_key = settings.api_key\n"
+              "        host = settings.host\n"
+              "\n"
+              "        # Safe Bind Address Fallback (P0)\n"
+              "        if not api_key:\n"
+              "            if host != \"127.0.0.1\" and host != \"localhost\":\n"
+              "                logger.warning(\n"
+              "                    f\"⚠️ Safety warning: Binding to external interface '{host}' without an API key is unsafe. \"\n"
+              "                    \"Overriding host binding to 127.0.0.1 (loopback) to prevent unauthorized access.\"\n"
+              "                )\n"
+              "                host = \"127.0.0.1\"\n"
+          )
+          new_bind = (
+              "        api_key = settings.api_key\n"
+              "        host = settings.host\n"
+              "        use_loopback_guard = False\n"
+              "\n"
+              "        # Safe Bind Address Fallback (P0)\n"
+              "        if not api_key:\n"
+              "            if host != \"127.0.0.1\" and host != \"localhost\":\n"
+              "                if Path(\"/.dockerenv\").exists():\n"
+              "                    logger.warning(\n"
+              "                        f\"⚠️ Container binding to '{host}' without an API key. \"\n"
+              "                        \"Only public health endpoints and loopback clients will be allowed.\"\n"
+              "                    )\n"
+              "                    use_loopback_guard = True\n"
+              "                else:\n"
+              "                    logger.warning(\n"
+              "                        f\"⚠️ Safety warning: Binding to external interface '{host}' without an API key is unsafe. \"\n"
+              "                        \"Overriding host binding to 127.0.0.1 (loopback) to prevent unauthorized access.\"\n"
+              "                    )\n"
+              "                    host = \"127.0.0.1\"\n"
+          )
           if old_bind not in content:
               raise SystemExit("safe-bind target block not found")
-          content = content.replace(old_bind, new_bind)
+          content = content.replace(old_bind, new_bind, 1)
 
-          old_middleware = '''        # Enforce Security Headers
-          app.add_middleware(SecurityHeadersMiddleware)
-
-          # Enforce API Key globally if set (including on mounted sub-apps)
-          '''
-          new_middleware = '''        # Enforce Security Headers
-          app.add_middleware(SecurityHeadersMiddleware)
-
-          # Container health probes may be external, but all other unauthenticated
-          # traffic must still originate from the container loopback interface.
-          if use_loopback_guard:
-              app.add_middleware(LoopbackOnlyMiddleware)
-
-          # Enforce API Key globally if set (including on mounted sub-apps)
-          '''
-          if old_middleware not in content:
-              raise SystemExit("middleware target block not found")
-          content = content.replace(old_middleware, new_middleware)
+          old_stack = (
+              "        # Enforce Security Headers\n"
+              "        app.add_middleware(SecurityHeadersMiddleware)\n"
+              "\n"
+              "        # Enforce API Key globally if set (including on mounted sub-apps)\n"
+          )
+          new_stack = (
+              "        # Enforce Security Headers\n"
+              "        app.add_middleware(SecurityHeadersMiddleware)\n"
+              "\n"
+              "        # Container health probes may be external, but all other unauthenticated\n"
+              "        # traffic must still originate from the container loopback interface.\n"
+              "        if use_loopback_guard:\n"
+              "            app.add_middleware(LoopbackOnlyMiddleware)\n"
+              "\n"
+              "        # Enforce API Key globally if set (including on mounted sub-apps)\n"
+          )
+          if old_stack not in content:
+              raise SystemExit("middleware stack target not found")
+          content = content.replace(old_stack, new_stack, 1)
 
           path.write_text(content)
           PY
