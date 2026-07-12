@@ -1,0 +1,109 @@
+name: CI Diagnostics
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  wheel-and-mypy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          pip install build
+      - name: Capture wheel diagnostics
+        shell: bash
+        run: |
+          mkdir -p diagnostics
+          python -m build --wheel > diagnostics/wheel-build.txt 2>&1
+          python -m venv /tmp/reversecore-wheel-diagnostic
+          /tmp/reversecore-wheel-diagnostic/bin/pip install dist/*.whl > diagnostics/wheel-install.txt 2>&1
+          cd /tmp
+          set +e
+          /tmp/reversecore-wheel-diagnostic/bin/python - <<'PY' > "$GITHUB_WORKSPACE/diagnostics/wheel-import.txt" 2>&1
+          import pathlib
+          import pkgutil
+          import sys
+          import traceback
+
+          print('sys.prefix:', sys.prefix)
+          try:
+              import reversecore_mcp
+              package_path = pathlib.Path(reversecore_mcp.__file__).resolve()
+              tools_path = package_path.parent / 'tools'
+              print('package:', package_path)
+              print('tools exists:', tools_path.exists())
+              if tools_path.exists():
+                  print('walk_packages sample:', [m.name for m in pkgutil.walk_packages([str(tools_path)], prefix='reversecore_mcp.tools.')][:30])
+              import reversecore_mcp.server as server
+              print('plugins:', len(server.plugins))
+              print('plugin names:', [getattr(p, 'name', type(p).__name__) for p in server.plugins])
+              if not server.plugins:
+                  raise AssertionError('No plugins discovered from installed wheel')
+          except Exception:
+              traceback.print_exc()
+              raise
+          PY
+          echo $? > "$GITHUB_WORKSPACE/diagnostics/wheel-import.status"
+          exit 0
+      - name: Capture mypy diagnostics
+        shell: bash
+        run: |
+          set +e
+          mypy reversecore_mcp/ > diagnostics/mypy.txt 2>&1
+          echo $? > diagnostics/mypy.status
+          exit 0
+      - name: Upload wheel and mypy diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ci-diagnostics-wheel-mypy
+          path: diagnostics/
+          if-no-files-found: error
+
+  unit-python310:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install system dependencies
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/azure-cli.sources /etc/apt/sources.list.d/azure-cli.list /etc/apt/sources.list.d/microsoft-prod.list
+          sudo apt-get update
+          sudo apt-get install -y radare2 yara libyara-dev binutils binwalk build-essential nasm sleuthkit
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      - name: Capture unit-test diagnostics
+        shell: bash
+        env:
+          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
+          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
+          LOG_LEVEL: INFO
+        run: |
+          mkdir -p diagnostics tests/fixtures/workspace tests/fixtures/rules
+          set +e
+          pytest tests/unit/ -v --tb=short --cov=reversecore_mcp --cov-report=term-missing --cov-fail-under=80 > diagnostics/pytest-py310.txt 2>&1
+          echo $? > diagnostics/pytest-py310.status
+          exit 0
+      - name: Upload unit-test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ci-diagnostics-py310
+          path: diagnostics/
+          if-no-files-found: error
