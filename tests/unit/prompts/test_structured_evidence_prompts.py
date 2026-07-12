@@ -49,7 +49,11 @@ def test_required_smoke_prompts_are_registered():
     }
     mcp = FastMCP("prompt-test")
     register_prompts(mcp)
-    # FastMCP 2.x resolves the registered name-to-prompt mapping asynchronously.
-    prompt_names = set(asyncio.run(mcp.get_prompts()))
+
+    if hasattr(mcp, "list_prompts"):
+        prompts = asyncio.run(mcp.list_prompts())
+        prompt_names = {prompt.name for prompt in prompts}
+    else:
+        prompt_names = set(asyncio.run(mcp.get_prompts()))
 
     assert required_prompt_names <= prompt_names
