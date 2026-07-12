@@ -111,6 +111,7 @@ def validate_file_path(
     path: str,
     read_only: bool = False,
     config: WorkspaceConfig | None = None,
+    bypass_cache: bool = True,
 ) -> Path:
     """
     Validate and normalize a file path.
@@ -126,12 +127,14 @@ def validate_file_path(
     REVERSECORE_READ_DIRS).
 
     Performance: Uses LRU cache for path resolution to avoid repeated
-    filesystem calls for frequently accessed files.
+    filesystem calls for frequently accessed files if bypass_cache=False.
+    By default, bypass_cache=True is used to prevent TOCTOU vulnerabilities.
 
     Args:
         path: The file path to validate
         read_only: If True, also allow files from configured read-only directories
         config: Optional WorkspaceConfig override (useful for tests)
+        bypass_cache: If True, bypass the LRU path resolution cache.
 
     Returns:
         The normalized absolute file path as a Path instance
@@ -166,8 +169,17 @@ def validate_file_path(
         if workspace_path.exists():
             path = str(workspace_path)
 
-    # Use cached path resolution to avoid repeated filesystem calls
-    abs_path, is_file, error = _resolve_path_cached(path)
+    # Use cached or real-time path resolution
+    if bypass_cache:
+        try:
+            temp_path = Path(path)
+            abs_path = temp_path.resolve(strict=True)
+            is_file = abs_path.is_file()
+            error = ""
+        except (OSError, RuntimeError) as e:
+            abs_path, is_file, error = Path(path), False, str(e)
+    else:
+        abs_path, is_file, error = _resolve_path_cached(path)
 
     if error:
         raise ValidationError(

@@ -398,19 +398,19 @@ All settings can be provided via environment variables or a `.env` file (see [`.
 
 | Variable | Default | Description |
 |---|---|---|
-| `MCP_TRANSPORT` | `http` | Transport mode: `stdio` or `http` |
+| `REVERSECORE_MCP_TRANSPORT` | `stdio` | Transport mode: `stdio` or `http` |
 | `REVERSECORE_WORKSPACE` | `/app/workspace` | Analysis workspace directory |
 | `REVERSECORE_READ_DIRS` | `""` | Additional colon-separated read-only directories |
-| `LOG_LEVEL` | `INFO` | Logging verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR` |
-| `MCP_API_KEY` | *(unset)* | API key for HTTP mode authentication (optional) |
-| `RATE_LIMIT` | `60` | Max requests per minute (HTTP mode only) |
-| `TOOL_TIMEOUT` | `300` | Default tool execution timeout in seconds |
-| `R2_POOL_SIZE` | `4` | Radare2 connection pool size |
-| `REDIS_URL` | `redis://localhost:6379` | Redis URL for background task queue |
-| `SMTP_HOST` | *(unset)* | SMTP host for report email delivery |
-| `SMTP_PORT` | `587` | SMTP port |
-| `SMTP_USER` | *(unset)* | SMTP username |
-| `SMTP_PASSWORD` | *(unset)* | SMTP password |
+| `REVERSECORE_LOG_LEVEL` | `INFO` | Logging verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR` |
+| `REVERSECORE_MCP_API_KEY` | *(unset)* | API key for HTTP mode authentication (optional) |
+| `REVERSECORE_RATE_LIMIT` | `60` | Max requests per minute (HTTP mode only) |
+| `REVERSECORE_DEFAULT_TOOL_TIMEOUT` | `120` | Default tool execution timeout in seconds |
+| `REVERSECORE_R2_POOL_SIZE` | `3` | Radare2 connection pool size |
+| `REVERSECORE_REDIS_URL` | `redis://localhost:6379/0` | Redis URL for background task queue |
+| `REVERSECORE_SMTP_HOST` | *(unset)* | SMTP host for report email delivery |
+| `REVERSECORE_SMTP_PORT` | `587` | SMTP port |
+| `REVERSECORE_SMTP_USER` | *(unset)* | SMTP username |
+| `REVERSECORE_SMTP_PASSWORD` | *(unset)* | SMTP password |
 
 ---
 
@@ -427,7 +427,7 @@ Security is a first-class concern. Reversecore MCP was designed to safely analyz
 | **Container isolation** | Runs as non-root `appuser` (UID 1000) with minimal Linux capabilities |
 | **Secrets scanning** | Gitleaks runs on every commit — no credentials ever reach the repo |
 | **SAST in CI** | Bandit (all severities) + CodeQL on every push to `main` |
-| **Dependency auditing** | pip-audit on every push — zero known CVEs enforced |
+| **Dependency auditing** | pip-audit on every push — no unreviewed CVEs |
 | **Container scanning** | Trivy scans final Docker image — LOW through CRITICAL findings reviewed |
 | **Error codes** | Structured exception hierarchy with `RCMCP-E*` codes for AI-parseable errors |
 
@@ -468,7 +468,7 @@ pytest tests/unit/test_cli_tools.py::TestRunFile::test_success -v
 **Test status:**
 - ✅ **1,520 unit tests** passing across Python 3.10 / 3.11 / 3.12
 - 📊 **82% code coverage** (80% minimum enforced in CI)
-- 🔒 Zero Bandit findings · Zero pip-audit CVEs · Zero container vulnerabilities
+- 🔒 Zero Bandit findings · No unreviewed vulnerabilities (pip-audit / container scans)
 - ⚡ Fully async test suite via `pytest-asyncio`
 
 ### Code Quality
@@ -492,12 +492,10 @@ Lint & Security Gate            Unit Tests (Python Matrix)
   ├─ Ruff check + format          └─ pytest 3.12 --cov-fail-under=80
   ├─ Mypy type check (87 files)
   ├─ Bandit (all severities)    Docker Verification
-  └─ pip-audit (zero CVE)         ├─ Build multi-arch image (amd64/arm64)
+  └─ pip-audit (no unreviewed CVEs) ├─ Build multi-arch image (amd64/arm64)
                                   ├─ Trivy container scan (LOW→CRITICAL)
 CodeQL Analysis                   ├─ Integration tests (inside container)
   └─ Python SAST                  └─ E2E MCP tool invocation
-
-Deploy (main branch only)
   └─ Push to GHCR + Trivy rescan on published image
 ```
 

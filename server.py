@@ -10,7 +10,6 @@ import re
 import shutil
 import stat
 import time
-import uuid
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -23,7 +22,6 @@ except ImportError:
 
 from fastmcp import FastMCP
 
-from reversecore_mcp.core.audit import AuditAction, audit_logger
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.logging_config import get_logger, setup_logging
 from reversecore_mcp.core.resource_manager import resource_manager
@@ -481,147 +479,64 @@ logger.info("Registered get_job_result tool")
 
 
 # ============================================================================
-# Security Middleware
+# Security & Authentication Middleware
 # ============================================================================
+import secrets  # noqa: E402
+
+from reversecore_mcp.web.middleware import SecurityHeadersMiddleware  # noqa: E402
 
 
-LATEST_ACTIVE_SESSION_ID = None
+class APIKeyAuthMiddleware:
+    """ASGI middleware to enforce API Key authentication globally (including mounted sub-apps)."""
 
-
-class SecurityHeadersMiddleware:
-    def __init__(self, app):
+    def __init__(self, app, api_key: str):
         self.app = app
+        self.api_key = api_key
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
-        async def send_wrapper(message):
-            if message["type"] == "http.response.start":
-                headers = list(message.get("headers", []))
+        path = scope.get("path", "")
+        # Public health check endpoints
+        exempt_paths = {"/health", "/health/live", "/health/ready"}
+        if path in exempt_paths:
+            await self.app(scope, receive, send)
+            return
 
-                # Helper to check if header is already present
-                def has_header(name_bytes):
-                    return any(h[0].lower() == name_bytes for h in headers)
+        # Extract X-API-Key or Authorization Bearer header
+        headers = dict(scope.get("headers", []))
+        req_key = None
 
-                if not has_header(b"strict-transport-security"):
-                    headers.append(
-                        (
-                            b"strict-transport-security",
-                            b"max-age=31536000; includeSubDomains",
-                        )
-                    )
-                if not has_header(b"x-content-type-options"):
-                    headers.append((b"x-content-type-options", b"nosniff"))
-                if not has_header(b"x-frame-options"):
-                    headers.append((b"x-frame-options", b"DENY"))
-                if not has_header(b"content-security-policy"):
-                    headers.append((b"content-security-policy", b"default-src 'self'"))
+        if b"x-api-key" in headers:
+            req_key = headers[b"x-api-key"].decode("utf-8", errors="ignore")
+        elif b"authorization" in headers:
+            auth_val = headers[b"authorization"].decode("utf-8", errors="ignore")
+            if auth_val.lower().startswith("bearer "):
+                req_key = auth_val[7:]
 
-                message["headers"] = headers
-            await send(message)
-
-        await self.app(scope, receive, send_wrapper)
-
-
-# Access underlying FastAPI app to add middleware
-# Note: FastMCP 2.13.1 exposes _fastapi_app or we can use mcp.fastapi_app if available
-# Checking source or assuming standard access.
-if hasattr(mcp, "_fastapi_app"):
-    mcp._fastapi_app.add_middleware(SecurityHeadersMiddleware)
-elif hasattr(mcp, "fastapi_app"):
-    mcp.fastapi_app.add_middleware(SecurityHeadersMiddleware)
-
-# ============================================================================
-# Server Composition (Mounting Sub-servers)
-# ============================================================================
-# If you have specialized sub-servers (e.g., Ghidra-only, Dynamic-analysis-only),
-# you can mount them here to create a unified platform:
-#
-# Example:
-#   from ghidra_server import ghidra_mcp
-#   mcp.mount("ghidra", ghidra_mcp)
-#
-# Now clients can access ghidra tools with prefix: ghidra.tool_name
-# This allows microservice-style architecture for large deployments.
-# ============================================================================
-
-
-# ============================================================================
-# Authentication (HTTP mode only)
-# ============================================================================
-def setup_authentication():
-    """
-    Setup API Key authentication for HTTP transport mode.
-
-    To enable authentication, set environment variable:
-        MCP_API_KEY=your-secret-key
-
-    All HTTP requests must include header:
-        X-API-Key: your-secret-key
-    """
-    import os
-
-    from fastapi import Depends, HTTPException, Request, Response, status
-    from fastapi.security import APIKeyHeader
-
-    api_key = os.getenv("MCP_API_KEY")
-
-    if not api_key:
-        logger.info("🔓 API Key authentication disabled (MCP_API_KEY not set)")
-        return None
-
-    logger.info("🔐 API Key authentication enabled")
-
-    api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
-
-    async def verify_api_key(
-        request: Request, response: Response, key: str = Depends(api_key_header)
-    ):
-        # Allow specific endpoints without authentication
-        exempt_exact_paths = {
-            "/health",
-            "/health/live",
-            "/health/ready",
-            "/metrics",
-            "/openapi.json",
-        }
-        exempt_prefixes = ("/docs", "/redoc")
-
-        # Resolve API key from header, query parameter, or browser cookie
-        req_key = (
-            key
-            or request.query_params.get("api_key")
-            or request.query_params.get("key")
-            or request.cookies.get("mcp_api_key")
-        )
-
-        if request.url.path in exempt_exact_paths or request.url.path.startswith(exempt_prefixes):
-            return req_key
-
-        if req_key != api_key:
-            logger.warning(
-                f"⚠️ Unauthorized access attempt from {request.client.host} to {request.url.path}"
+        if not req_key or not secrets.compare_digest(req_key, self.api_key):
+            # Send 403 response directly at ASGI level
+            await send(
+                {
+                    "type": "http.response.start",
+                    "status": 403,
+                    "headers": [
+                        (b"content-type", b"application/json"),
+                    ],
+                }
             )
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Invalid or missing API key. Use X-API-Key header or api_key query parameter.",
+            await send(
+                {
+                    "type": "http.response.body",
+                    "body": b'{"detail": "Invalid or missing API key. Use X-API-Key or Authorization: Bearer token."}',
+                    "more_body": False,
+                }
             )
+            return
 
-        # Set secure HTTP-only cookie if credentials were passed via query parameter
-        if request.query_params.get("api_key") or request.query_params.get("key"):
-            response.set_cookie(
-                key="mcp_api_key",
-                value=api_key,
-                httponly=True,
-                samesite="lax",
-                secure=request.url.scheme == "https",
-            )
-
-        return req_key
-
-    return Depends(verify_api_key)
+        await self.app(scope, receive, send)
 
 
 def main():
@@ -642,87 +557,49 @@ def main():
     if transport == "http":
         # HTTP transport mode for network-based AI agents
         import uvicorn
-        from fastapi import FastAPI, File, UploadFile
+        from fastapi import FastAPI
         from fastapi.middleware.cors import CORSMiddleware
-        from fastapi.responses import JSONResponse
 
-        from reversecore_mcp.core.metrics import metrics_collector
+        from reversecore_mcp.web.endpoints import router as web_router
 
         # Setup authentication (if MCP_API_KEY is set)
         api_key = os.getenv("MCP_API_KEY")
-        auth_dependency = setup_authentication()
+        host = settings.host
 
-        # Build a host FastAPI app with docs enabled and mount FastMCP under /mcp
-        # Apply authentication to all endpoints if enabled
-        dependencies = [auth_dependency] if auth_dependency else []
+        # Safe Bind Address Fallback (P0)
+        if not api_key:
+            if host != "127.0.0.1" and host != "localhost":
+                logger.warning(
+                    f"⚠️ Safety warning: Binding to external interface '{host}' without an API key is unsafe. "
+                    "Overriding host binding to 127.0.0.1 (loopback) to prevent unauthorized access."
+                )
+                host = "127.0.0.1"
 
         mcp_app = mcp.http_app(transport="sse")
 
-        # Fix: Wrap initialization in FastAPI lifespan
+        # Wrap initialization in FastAPI lifespan
         @asynccontextmanager
         async def app_lifespan(app: FastAPI):
-            # Run server startup logic via FastMCP context manager
             async with mcp._lifespan_manager():
                 yield
-
-        class MCPSSECompatibleMiddleware:
-            def __init__(self, app_arg):
-                self.app = app_arg
-
-            async def __call__(self, scope, receive, send):
-                global LATEST_ACTIVE_SESSION_ID
-
-                if scope["type"] == "http":
-                    path = scope.get("path", "")
-                    method = scope.get("method", "")
-
-                    # 1. Capture session_id from GET /mcp/sse response stream
-                    if method == "GET" and (path == "/mcp/sse" or path == "/mcp/sse/"):
-
-                        async def send_wrapper(message):
-                            global LATEST_ACTIVE_SESSION_ID
-                            if message["type"] == "http.response.body":
-                                body = message.get("body", b"").decode("utf-8", errors="ignore")
-                                match = re.search(r"session_id=([a-f0-9\-]+)", body)
-                                if match:
-                                    LATEST_ACTIVE_SESSION_ID = match.group(1)
-                                    logger.info(
-                                        f"🔑 Captured active SSE session_id: {LATEST_ACTIVE_SESSION_ID}"
-                                    )
-                            await send(message)
-
-                        await self.app(scope, receive, send_wrapper)
-                        return
-
-                    # 2. Redirect and inject session_id for POST/DELETE requests
-                    elif method in ("POST", "DELETE") and (
-                        path in ("/mcp/sse", "/mcp/sse/", "/mcp/messages", "/mcp/messages/")
-                    ):
-                        if path in ("/mcp/sse", "/mcp/sse/"):
-                            scope["path"] = "/mcp/messages/"
-                            scope["raw_path"] = b"/mcp/messages/"
-
-                        query_string = scope.get("query_string", b"").decode("utf-8")
-                        if "session_id=" not in query_string and LATEST_ACTIVE_SESSION_ID:
-                            new_query = f"session_id={LATEST_ACTIVE_SESSION_ID}"
-                            if query_string:
-                                new_query = f"{query_string}&{new_query}"
-                            scope["query_string"] = new_query.encode("utf-8")
-                            logger.debug(f"💉 Injected session_id into query: {new_query}")
-
-                await self.app(scope, receive, send)
 
         app = FastAPI(
             title="Reversecore_MCP",
             docs_url="/docs",
             redoc_url="/redoc",
             openapi_url="/openapi.json",
-            dependencies=dependencies,  # Apply authentication globally
-            lifespan=app_lifespan,  # Register lifespan
+            lifespan=app_lifespan,
         )
+
+        # Enforce Security Headers
         app.add_middleware(SecurityHeadersMiddleware)
-        app.add_middleware(MCPSSECompatibleMiddleware)
+
+        # Enforce API Key globally if set (including on mounted sub-apps)
+        if api_key:
+            app.add_middleware(APIKeyAuthMiddleware, api_key=api_key)
+
         app.mount("/mcp", mcp_app)
+        app.include_router(web_router)
 
         # Add CORS middleware with restricted origins when API Key is set
         allowed_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
@@ -731,7 +608,6 @@ def main():
         elif not api_key:
             allowed_origins = ["*"]
 
-        # Note: if "*" is in allowed_origins, allow_credentials must be False
         allow_creds = "*" not in allowed_origins
 
         app.add_middleware(
@@ -751,201 +627,6 @@ def main():
             logger.info("📊 Dashboard available at /dashboard/")
         except ImportError as e:
             logger.warning(f"Dashboard not available: {e}")
-
-        # Add health endpoint
-        @app.get("/health")
-        async def health():
-            """Health check endpoint with dependency status."""
-            import platform
-            import sys
-            import time
-
-            health_status = {
-                "status": "healthy",
-                "service": "Reversecore_MCP",
-                "transport": "http",
-                "version": "1.0.0",
-                "timestamp": time.time(),
-                "python_version": sys.version,
-                "platform": platform.system(),
-                "workspace": str(settings.workspace),
-                "workspace_exists": settings.workspace.exists(),
-                "dependencies": {},
-            }
-
-            # Check dependencies
-            deps = health_status["dependencies"]
-
-            # radare2
-            if shutil.which("radare2"):
-                deps["radare2"] = {
-                    "status": "available",
-                    "path": shutil.which("radare2"),
-                }
-            else:
-                deps["radare2"] = {"status": "unavailable"}
-                health_status["status"] = "degraded"
-
-            # Java (for Ghidra)
-            if shutil.which("java"):
-                deps["java"] = {"status": "available", "path": shutil.which("java")}
-            else:
-                deps["java"] = {"status": "unavailable"}
-
-            # Graphviz
-            if shutil.which("dot"):
-                deps["graphviz"] = {"status": "available", "path": shutil.which("dot")}
-            else:
-                deps["graphviz"] = {"status": "unavailable"}
-
-            # YARA
-            if shutil.which("yara"):
-                deps["yara"] = {"status": "available", "path": shutil.which("yara")}
-            else:
-                deps["yara"] = {"status": "unavailable"}
-
-            # binwalk
-            if shutil.which("binwalk"):
-                deps["binwalk"] = {
-                    "status": "available",
-                    "path": shutil.which("binwalk"),
-                }
-            else:
-                deps["binwalk"] = {"status": "unavailable"}
-
-            return JSONResponse(content=health_status)
-
-        # Lightweight liveness probe
-        @app.get("/health/live")
-        async def liveness():
-            """Kubernetes liveness probe endpoint."""
-            return JSONResponse(content={"status": "alive"})
-
-        @app.get("/health/ready")
-        async def readiness():
-            """Kubernetes readiness probe endpoint."""
-            is_ready = settings.workspace.exists() and shutil.which("radare2") is not None
-            if is_ready:
-                return JSONResponse(content={"status": "ready", "ready": True})
-            return JSONResponse(
-                status_code=503,
-                content={
-                    "status": "not_ready",
-                    "ready": False,
-                    "reason": "Dependencies not available",
-                },
-            )
-
-        # Add metrics endpoint
-        @app.get("/metrics")
-        async def metrics():
-            """Metrics endpoint returning collected tool metrics."""
-            return JSONResponse(content=metrics_collector.get_metrics())
-
-        # Add file upload endpoint for remote clients (e.g., Claude.ai)
-        @app.post("/upload")
-        async def upload_file(file: UploadFile = File(...)):
-            """
-            Upload a file to the workspace for analysis.
-
-            This endpoint allows remote clients (like Claude.ai) to upload files
-            to the local workspace for analysis by MCP tools.
-
-            Args:
-                file: The file to upload (multipart/form-data)
-
-            Returns:
-                JSON response with file path and status
-            """
-
-            def _secure_filename(filename: str) -> str:
-                """Sanitize filename to prevent path traversal and injection."""
-                # Remove path components
-                filename = filename.replace("/", "_").replace("\\", "_")
-                # Remove dangerous characters, keep only safe ones
-                filename = re.sub(r"[^\w\-.]", "_", filename)
-                # Limit length
-                if len(filename) > 200:
-                    name, ext = filename.rsplit(".", 1) if "." in filename else (filename, "")
-                    filename = name[:195] + ("." + ext if ext else "")
-                return filename or "unnamed_file"
-
-            try:
-                # Ensure uploads directory exists (separate from workspace root)
-                upload_dir = settings.workspace / "uploads"
-                upload_dir.mkdir(parents=True, exist_ok=True)
-
-                # SECURITY: Sanitize filename and add UUID prefix to prevent overwrites
-                original_filename = file.filename or "unnamed"
-                safe_filename = f"{uuid.uuid4().hex[:8]}_{_secure_filename(original_filename)}"
-                file_path = upload_dir / safe_filename
-
-                # PERFORMANCE: Use aiofiles for non-blocking async I/O
-                # This prevents blocking the event loop during large file uploads
-
-                max_size = getattr(settings, "max_upload_size", 100_000_000)
-                total_size = 0
-                async with aiofiles.open(file_path, "wb") as out_file:
-                    while content := await file.read(1024 * 64):  # 64KB chunks
-                        total_size += len(content)
-                        if total_size > max_size:
-                            # Clean up partial
-                            file_path.unlink(missing_ok=True)
-                            invalidate_path_cache()
-                            return JSONResponse(
-                                status_code=413,
-                                content={
-                                    "status": "error",
-                                    "message": f"File exceeds maximum upload size of {max_size} bytes",
-                                },
-                            )
-                        await out_file.write(content)
-
-                # Security: Validate file content (Magic Number)
-                try:
-                    await _validate_file_magic(str(file_path), safe_filename)
-                except Exception as e:
-                    audit_logger.log_event(
-                        AuditAction.FILE_UPLOAD,
-                        safe_filename,
-                        "FAILURE",
-                        details={"error": str(e), "path": str(file_path)},
-                    )
-                    # Cleanup malicious file
-                    try:
-                        file_path.unlink()
-                    finally:
-                        invalidate_path_cache()
-                    raise
-
-                audit_logger.log_event(
-                    AuditAction.FILE_UPLOAD,
-                    safe_filename,
-                    "SUCCESS",
-                    details={"path": str(file_path)},
-                )
-                invalidate_path_cache()
-
-                logger.info(f"File uploaded successfully: {safe_filename} ({file_path})")
-                return JSONResponse(
-                    content={
-                        "status": "success",
-                        "message": "File uploaded successfully",
-                        # SECURITY: Don't expose absolute server paths
-                        "filename": safe_filename,
-                        "original_filename": original_filename,
-                        "size": file_path.stat().st_size,
-                    }
-                )
-            except Exception as e:
-                logger.error(f"File upload failed: {e}")
-                return JSONResponse(
-                    status_code=500,
-                    content={
-                        "status": "error",
-                        "message": "File upload failed due to an internal error.",
-                    },
-                )
 
         # Optional: apply rate limiting if slowapi is available
         try:
@@ -973,21 +654,16 @@ def main():
             app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
             logger.info(f"Rate limiting enabled: {rate_limit}/minute")
         except ImportError:
-            # slowapi unavailable: log warning as this is a security risk
             logger.warning(
                 "slowapi not installed: Rate limiting is DISABLED. This is a security risk in production."
             )
         except Exception as e:
-            # Version mismatch or other error
             logger.warning(f"Failed to setup rate limiting: {e}")
 
         # Run uvicorn with the FastMCP HTTP app
-        # IMPORTANT: workers=1 is required because R2 sessions are stored in-memory
-        # and not shareable across worker processes
-        uvicorn.run(app, host=settings.host, port=settings.port, workers=1)
+        uvicorn.run(app, host=host, port=settings.port, workers=1)
     else:
         # Stdio transport mode for local AI clients (default)
-        # Rate limiting not needed for stdio mode (single client)
         mcp.run(transport="stdio")
 
 

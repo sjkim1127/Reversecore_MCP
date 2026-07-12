@@ -92,5 +92,6 @@ def test_server_main_http(monkeypatch, tmp_path):
     server.main()
 
     assert called["uvicorn_run"] is True
-    assert called["host"] == "0.0.0.0"
+    # Overridden to 127.0.0.1 because MCP_API_KEY is empty/unset (Safe Bind Address Fallback)
+    assert called["host"] == "127.0.0.1"
     assert called["port"] == 8000

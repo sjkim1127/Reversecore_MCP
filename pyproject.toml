@@ -93,7 +93,7 @@ forensics = [
 
 # Full installation (all features)
 full = [
-    "reversecore-mcp[analysis,viz,cli,magic,http,forensics]",
+    "reversecore-mcp[analysis,viz,cli,magic,http,emulation,forensics]",
 ]
 
 # Development & Testing dependencies
@@ -198,5 +198,8 @@ exclude_lines = [
     "if TYPE_CHECKING:",
 ]
 
-[tool.setuptools]
-packages = ["reversecore_mcp"]
+[tool.setuptools.packages]
+find = {}
+
+[project.scripts]
+reversecore-mcp = "server:main"

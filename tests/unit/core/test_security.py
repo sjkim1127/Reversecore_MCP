@@ -134,3 +134,20 @@ class TestValidateFilePath:
         with pytest.raises(ValidationError, match="Set REVERSECORE_WORKSPACE") as exc_info:
             validate_file_path(str(outside_file), read_only=True, config=config)
         assert str(rules_dir) in str(exc_info.value)
+
+    def test_bypass_cache_option(self, sample_binary_path, workspace_config):
+        """Test that bypass_cache option resolves path dynamically and bypasses/uses cache as configured."""
+        from reversecore_mcp.core.security import _resolve_path_cached
+
+        # Clear cache first
+        _resolve_path_cached.cache_clear()
+
+        # 1. Calling validate_file_path with bypass_cache=True (default) should NOT populate cache
+        validate_file_path(str(sample_binary_path), config=workspace_config, bypass_cache=True)
+        info = _resolve_path_cached.cache_info()
+        assert info.currsize == 0
+
+        # 2. Calling validate_file_path with bypass_cache=False should populate cache
+        validate_file_path(str(sample_binary_path), config=workspace_config, bypass_cache=False)
+        info = _resolve_path_cached.cache_info()
+        assert info.currsize == 1
