@@ -1,0 +1,38 @@
+name: Workflow Push Diagnostics
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    if: github.head_ref == 'ci/verify-main-20260712-9d051e0'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ci/verify-main-20260712-9d051e0
+          fetch-depth: 0
+      - name: Attempt workflow-file push and capture response
+        shell: bash
+        run: |
+          mkdir -p diagnostics
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git apply --check .github/ci-pip-audit-fix.patch
+          git apply .github/ci-pip-audit-fix.patch
+          git add .github/workflows/main.yml
+          git commit -m "diagnostic: test workflow push permission"
+          set +e
+          git push origin HEAD:ci/workflow-push-diagnostic > diagnostics/push.txt 2>&1
+          echo $? > diagnostics/push.status
+          cat diagnostics/push.txt
+          exit 0
+      - uses: actions/upload-artifact@v6
+        with:
+          name: workflow-push-diagnostics
+          path: diagnostics/
+          if-no-files-found: error
