@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reversecore-pip-audit-policy"
+version = "0.1.0"
+description = "CI-only pip-audit policy for Reversecore MCP"
+requires-python = ">=3.10"
+dependencies = ["pip-audit"]
+
+[project.scripts]
+pip-audit = "reversecore_pip_audit_policy:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
