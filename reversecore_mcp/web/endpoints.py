@@ -30,6 +30,7 @@ router = APIRouter()
 magic: Any = None
 try:
     import magic as _magic
+
     magic = _magic
 except ImportError:
     pass
