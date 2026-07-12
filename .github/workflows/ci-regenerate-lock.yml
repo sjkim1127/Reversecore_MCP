@@ -1,0 +1,39 @@
+name: Regenerate Dependency Lock
+
+on:
+  push:
+    branches:
+      - ci/verify-main-20260712-9d051e0
+    paths:
+      - pyproject.toml
+
+permissions:
+  contents: write
+
+jobs:
+  compile-lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ci/verify-main-20260712-9d051e0
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+      - name: Regenerate unified lock
+        run: uv pip compile pyproject.toml --all-extras -o requirements.txt
+      - name: Verify resolved security floor
+        run: |
+          grep -E '^fastmcp==3\.4\.4$' requirements.txt
+          grep -E '^fastmcp-slim\[client,server\]==3\.4\.4$' requirements.txt
+      - name: Commit lock update
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add requirements.txt
+          git diff --cached --quiet && exit 0
+          git commit -m "build(deps): regenerate lock for FastMCP 3.4.4"
+          git push origin HEAD:ci/verify-main-20260712-9d051e0
