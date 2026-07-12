@@ -380,7 +380,10 @@ logger.info("Registered get_job_result tool")
 # Security & Authentication Middleware
 # ============================================================================
 from reversecore_mcp.web.auth import APIKeyAuthMiddleware  # noqa: E402
-from reversecore_mcp.web.middleware import SecurityHeadersMiddleware  # noqa: E402
+from reversecore_mcp.web.middleware import (  # noqa: E402
+    LoopbackOnlyMiddleware,
+    SecurityHeadersMiddleware,
+)
 
 
 def main():
@@ -409,15 +412,23 @@ def main():
         # Setup authentication (if MCP_API_KEY is set)
         api_key = settings.api_key
         host = settings.host
+        use_loopback_guard = False
 
         # Safe Bind Address Fallback (P0)
         if not api_key:
             if host != "127.0.0.1" and host != "localhost":
-                logger.warning(
-                    f"⚠️ Safety warning: Binding to external interface '{host}' without an API key is unsafe. "
-                    "Overriding host binding to 127.0.0.1 (loopback) to prevent unauthorized access."
-                )
-                host = "127.0.0.1"
+                if Path("/.dockerenv").exists():
+                    logger.warning(
+                        f"⚠️ Container binding to '{host}' without an API key. "
+                        "Only public health endpoints and loopback clients will be allowed."
+                    )
+                    use_loopback_guard = True
+                else:
+                    logger.warning(
+                        f"⚠️ Safety warning: Binding to external interface '{host}' without an API key is unsafe. "
+                        "Overriding host binding to 127.0.0.1 (loopback) to prevent unauthorized access."
+                    )
+                    host = "127.0.0.1"
 
         mcp_app = mcp.http_app(transport="sse")
 
@@ -437,6 +448,11 @@ def main():
 
         # Enforce Security Headers
         app.add_middleware(SecurityHeadersMiddleware)
+
+        # Container health probes may be external, but all other unauthenticated
+        # traffic must still originate from the container loopback interface.
+        if use_loopback_guard:
+            app.add_middleware(LoopbackOnlyMiddleware)
 
         # Enforce API Key globally if set (including on mounted sub-apps)
         if api_key:
