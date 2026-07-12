@@ -22,12 +22,13 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
-      - name: Install current environment and FastMCP 3.4.4
+      - name: Install current environment and clean FastMCP 3.4.4
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
-          pip install --upgrade --force-reinstall 'fastmcp==3.4.4'
+          pip uninstall -y fastmcp fastmcp-slim
+          pip install --no-cache-dir 'fastmcp==3.4.4'
       - name: Capture compatibility diagnostics
         shell: bash
         env:
