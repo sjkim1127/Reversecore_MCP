@@ -13,19 +13,19 @@ jobs:
     if: github.head_ref == 'ci/diagnose-main-6db0078'
     runs-on: ubuntu-latest
     steps:
-      - name: Collect current pip-audit failure excerpt
+      - name: Collect current Docker E2E failure excerpt
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p diagnostics
           gh api -H "Accept: application/vnd.github+json" \
-            "/repos/${GITHUB_REPOSITORY}/actions/jobs/86807807265/logs" \
-            > diagnostics/lint.log
-          grep -n -A120 -B60 -E "reversecore-ci|Found [0-9]+ known vulnerabilities|Name +Version +ID|CVE-|PYSEC-|pip-audit|No known vulnerabilities|ERROR" \
-            diagnostics/lint.log > diagnostics/pip-audit-excerpt.txt || true
-          tail -500 diagnostics/lint.log > diagnostics/lint-tail.txt
+            "/repos/${GITHUB_REPOSITORY}/actions/jobs/86808173261/logs" \
+            > diagnostics/docker-e2e.log
+          grep -n -A180 -B100 -E "MCP Server Integration|Installing python dev|pytest/angr|timed out|operation was canceled|ERROR|FAILED|Traceback|No space left|exit code" \
+            diagnostics/docker-e2e.log > diagnostics/docker-e2e-excerpt.txt || true
+          tail -700 diagnostics/docker-e2e.log > diagnostics/docker-e2e-tail.txt
       - uses: actions/upload-artifact@v6
         with:
-          name: current-pip-audit-failure
+          name: current-docker-e2e-failure
           path: diagnostics/
           if-no-files-found: error
