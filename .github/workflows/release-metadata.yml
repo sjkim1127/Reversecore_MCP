@@ -48,7 +48,18 @@ jobs:
         run: python -m pip install --upgrade build twine
 
       - name: Build wheel and source distribution
-        run: python -m build
+        run: |
+          set -o pipefail
+          python -m build 2>&1 | tee package-build.log
+
+      - name: Upload build diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: package-build-diagnostics
+          path: package-build.log
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Validate distribution metadata
         run: python -m twine check dist/*
