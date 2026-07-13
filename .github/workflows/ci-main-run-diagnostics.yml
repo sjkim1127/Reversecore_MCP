@@ -19,7 +19,7 @@ jobs:
           TARGET_SHA: 6db007836466b24e1eb25d87a408b19bc521a368
         run: |
           mkdir -p diagnostics
-          gh api --paginate "/repos/${GITHUB_REPOSITORY}/actions/runs?branch=main&per_page=100" \
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/runs?branch=main&per_page=100" \
             > diagnostics/main-runs.json
           python - <<'PY'
           import json, os, subprocess
@@ -34,9 +34,10 @@ jobs:
               raise SystemExit('No main workflow run found for target SHA')
           run = matches[0]
           run_id = run['id']
-          subprocess.run([
-              'gh', 'api', f'/repos/{os.environ["GITHUB_REPOSITORY"]}/actions/runs/{run_id}/jobs?per_page=100'
-          ], check=True, stdout=open('diagnostics/jobs.json', 'w'))
+          with open('diagnostics/jobs.json', 'w') as output:
+              subprocess.run([
+                  'gh', 'api', f'/repos/{os.environ["GITHUB_REPOSITORY"]}/actions/runs/{run_id}/jobs?per_page=100'
+              ], check=True, stdout=output)
           print(f"run_id={run_id} status={run.get('status')} conclusion={run.get('conclusion')}")
           PY
       - uses: actions/upload-artifact@v6
