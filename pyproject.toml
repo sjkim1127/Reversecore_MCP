@@ -9,6 +9,7 @@ description = "A security-first MCP server that empowers AI agents to perform au
 readme = {file = "PYPI_README.md", content-type = "text/markdown"}
 requires-python = ">=3.10"
 license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     {name = "Kim Seongju"},
 ]
@@ -25,7 +26,6 @@ keywords = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -79,7 +79,6 @@ Changelog = "https://github.com/sjkim1127/Reversecore_MCP/releases"
 reversecore-mcp = "reversecore_mcp.server:main"
 
 [project.optional-dependencies]
-# Binary analysis tools
 analysis = [
     "pefile>=2023.0.0",
     "lief>=0.17.6",
@@ -91,14 +90,12 @@ analysis = [
     "flare-capa>=7.0.0",
 ]
 
-# Visualization (CFG, graphs)
 viz = [
     "graphviz>=0.20.0",
     "networkx>=3.4.2,<3.5",
     "matplotlib>=3.8.0,<3.11",
 ]
 
-# CLI and utilities
 cli = [
     "psutil>=5.9.0",
     "requests>=2.31.0",
@@ -106,35 +103,29 @@ cli = [
     "rich>=13.0.0",
 ]
 
-# Optional dependencies
 magic = [
     "python-magic>=0.4.27",
     "python-magic-bin; sys_platform == 'win32'",
 ]
 
-# HTTP server rate limiting
 http = [
     "slowapi>=0.1.9",
 ]
 
-# Emulation tools
 emulation = [
     "qiling>=1.4.6",
     "python-afl>=0.7.3",
 ]
 
-# Digital forensics tools
 forensics = [
     "volatility3>=2.4.0",
     "scapy>=2.5.0",
 ]
 
-# Full installation (all features)
 full = [
     "reversecore-mcp[analysis,viz,cli,magic,http,emulation,forensics]",
 ]
 
-# Development & Testing dependencies
 dev = [
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
@@ -161,6 +152,9 @@ include-package-data = true
 where = ["."]
 include = ["reversecore_mcp*"]
 
+[tool.setuptools.package-data]
+reversecore_mcp = ["py.typed"]
+
 [tool.ruff]
 target-version = "py310"
 line-length = 100
@@ -174,18 +168,18 @@ exclude = [
 
 [tool.ruff.lint]
 select = [
-    "E",    # pycodestyle errors
-    "W",    # pycodestyle warnings
-    "F",    # Pyflakes
-    "I",    # isort
-    "B",    # flake8-bugbear
-    "C4",   # flake8-comprehensions
-    "UP",   # pyupgrade
+    "E",
+    "W",
+    "F",
+    "I",
+    "B",
+    "C4",
+    "UP",
 ]
 ignore = [
-    "E501",  # line too long (handled by formatter)
-    "B008",  # do not perform function calls in argument defaults
-    "B904",  # raise without from inside except
+    "E501",
+    "B008",
+    "B904",
 ]
 
 [tool.ruff.lint.isort]
@@ -196,9 +190,9 @@ python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
-no_implicit_optional = true   # Strict: explicit Optional[T] required
-check_untyped_defs = true     # Strict: check untyped function definitions
-disallow_untyped_defs = false # Allow gradual adoption
+no_implicit_optional = true
+check_untyped_defs = true
+disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
 module = [
@@ -212,11 +206,6 @@ ignore_errors = true
 
 [tool.bandit]
 exclude_dirs = ["tests", "htmlcov", ".venv"]
-# B101: assert used
-# B108: hardcoded temp directory (acceptable for binary analysis tools)
-# B110: try_except_pass (used for graceful degradation in analysis)
-# B324: hashlib MD5 (used for file identification, not cryptographic purposes)
-# B404, B603, B607: subprocess warnings (required for binary tools)
 skips = ["B101", "B108", "B110", "B324", "B404", "B603", "B607"]
 
 [tool.pytest.ini_options]
