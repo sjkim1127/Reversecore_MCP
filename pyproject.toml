@@ -1,10 +1,39 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "reversecore-mcp"
 version = "2.1.0"
 description = "A security-first MCP server that empowers AI agents to perform automated reverse engineering, malware analysis, forensics, vulnerability research, and SAST — powered by Radare2, YARA, LIEF, Capstone, and more."
-readme = "README.md"
+readme = {file = "PYPI_README.md", content-type = "text/markdown"}
 requires-python = ">=3.10"
-license = {text = "MIT"}
+license = "MIT"
+authors = [
+    {name = "Kim Seongju"},
+]
+keywords = [
+    "mcp",
+    "model-context-protocol",
+    "reverse-engineering",
+    "malware-analysis",
+    "digital-forensics",
+    "vulnerability-research",
+    "radare2",
+    "yara",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Typing :: Typed",
+]
 dependencies = [
     # Core MCP server dependencies
     "mcp[cli]>=1.27.0",
@@ -39,6 +68,16 @@ dependencies = [
     "ROPgadget>=7.3",
 ]
 
+[project.urls]
+Homepage = "https://github.com/sjkim1127/Reversecore_MCP"
+Documentation = "https://github.com/sjkim1127/Reversecore_MCP#readme"
+Repository = "https://github.com/sjkim1127/Reversecore_MCP.git"
+Issues = "https://github.com/sjkim1127/Reversecore_MCP/issues"
+Changelog = "https://github.com/sjkim1127/Reversecore_MCP/releases"
+
+[project.scripts]
+reversecore-mcp = "reversecore_mcp.server:main"
+
 [project.optional-dependencies]
 # Binary analysis tools
 analysis = [
@@ -58,7 +97,6 @@ viz = [
     "networkx>=3.4.2,<3.5",
     "matplotlib>=3.8.0,<3.11",
 ]
-
 
 # CLI and utilities
 cli = [
@@ -116,6 +154,13 @@ dev = [
     "pip-tools>=7.4.0",
 ]
 
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["reversecore_mcp*"]
+
 [tool.ruff]
 target-version = "py310"
 line-length = 100
@@ -161,7 +206,7 @@ module = [
     "reversecore_mcp.dashboard.*",
     "reversecore_mcp.core.ghidra",
     "reversecore_mcp.core.ghidra_manager",
-    "reversecore_mcp.core.ghidra_helper"
+    "reversecore_mcp.core.ghidra_helper",
 ]
 ignore_errors = true
 
@@ -197,9 +242,3 @@ exclude_lines = [
     "raise NotImplementedError",
     "if TYPE_CHECKING:",
 ]
-
-[tool.setuptools.packages]
-find = {}
-
-[project.scripts]
-reversecore-mcp = "reversecore_mcp.server:main"
