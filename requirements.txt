@@ -435,7 +435,7 @@ pefile==2024.8.26
     #   qiling
     #   viv-utils
     #   volatility3
-pillow==10.4.0
+pillow==12.3.0
     # via
     #   reversecore-mcp (pyproject.toml)
     #   asciimatics
