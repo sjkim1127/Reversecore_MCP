@@ -4,7 +4,7 @@
 
 **Security-first Model Context Protocol server for reverse engineering, malware analysis, digital forensics, vulnerability research, and SAST.**
 
-Reversecore MCP gives MCP-compatible AI agents structured access to Radare2, r2ghidra, YARA, LIEF, Capstone, angr, Qiling, Volatility3, Scapy, and additional analysis engines. It is designed around explicit workspace boundaries, input validation, non-root containers, and security regression testing.
+Reversecore MCP gives MCP-compatible AI agents structured access to Radare2, r2ghidra, YARA, LIEF, Capstone, angr, Qiling harness generation, Volatility3, Scapy, and additional analysis engines. It is designed around explicit workspace boundaries, input validation, non-root containers, and security regression testing.
 
 ## Installation
 
@@ -17,18 +17,20 @@ docker run -i --rm \
   -v /absolute/path/to/samples:/app/workspace \
   -e REVERSECORE_WORKSPACE=/app/workspace \
   -e MCP_TRANSPORT=stdio \
-  ghcr.io/sjkim1127/reversecore_mcp:2.1.0
+  ghcr.io/sjkim1127/reversecore_mcp:3.0.2
 ```
 
 ### Python package
 
-Install the MCP server and all Python feature extras from PyPI:
+Install the MCP server and all supported Python feature extras from PyPI:
 
 ```bash
 pip install "reversecore-mcp[full]"
 ```
 
 Native programs such as Radare2, YARA, Graphviz, Binwalk, and The Sleuth Kit must be installed separately when using the Python package directly.
+
+> **Qiling isolation:** the server can generate Qiling/AFL harnesses, but Qiling is intentionally not installed by the `full` extra. Qiling 1.4.6 depends on a legacy Pillow line with known vulnerabilities. Execute generated harnesses only in a separate disposable sandbox; see `docs/EMULATION.md` in the repository.
 
 Run the stdio server with:
 
@@ -58,7 +60,7 @@ reversecore-mcp
 
 - Static analysis, disassembly, decompilation, cross-references, and CFG recovery
 - Malware triage, IOC extraction, YARA scanning, and MITRE ATT&CK mapping
-- Symbolic execution, emulation, fuzzing harness generation, and ROP analysis
+- Symbolic execution, emulation harness generation, fuzzing, and ROP analysis
 - Memory, disk, network, and host-artifact forensics
 - Python and C/C++ source-code security analysis
 - Structured evidence, session tracking, metrics, and report generation
