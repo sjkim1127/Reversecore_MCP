@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "reversecore-mcp"
-version = "2.1.0"
+version = "3.0.2"
 description = "A security-first MCP server that empowers AI agents to perform automated reverse engineering, malware analysis, forensics, vulnerability research, and SAST — powered by Radare2, YARA, LIEF, Capstone, and more."
 readme = {file = "PYPI_README.md", content-type = "text/markdown"}
 requires-python = ">=3.10"
