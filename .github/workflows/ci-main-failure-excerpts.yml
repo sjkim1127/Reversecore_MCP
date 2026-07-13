@@ -13,24 +13,19 @@ jobs:
     if: github.head_ref == 'ci/diagnose-main-6db0078'
     runs-on: ubuntu-latest
     steps:
-      - name: Collect failure excerpts
+      - name: Collect current pip-audit failure excerpt
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p diagnostics
           gh api -H "Accept: application/vnd.github+json" \
-            "/repos/${GITHUB_REPOSITORY}/actions/jobs/86658064522/logs" \
+            "/repos/${GITHUB_REPOSITORY}/actions/jobs/86807807265/logs" \
             > diagnostics/lint.log
-          gh api -H "Accept: application/vnd.github+json" \
-            "/repos/${GITHUB_REPOSITORY}/actions/jobs/86658187023/logs" \
-            > diagnostics/docker-e2e.log
-          grep -n -A80 -B40 -E "would reformat|reformatted|ruff format|MCP Server Integration|HTTP 403|403|Traceback|FAILED|ERROR|AssertionError" \
-            diagnostics/lint.log > diagnostics/lint-excerpt.txt || true
-          grep -n -A160 -B60 -E "MCP Server Integration|HTTP 403|403 Forbidden|Traceback|FAILED|ERROR|AssertionError|ConnectionError|status_code" \
-            diagnostics/docker-e2e.log > diagnostics/docker-e2e-excerpt.txt || true
-          tail -400 diagnostics/docker-e2e.log > diagnostics/docker-e2e-tail.txt
+          grep -n -A120 -B60 -E "reversecore-ci|Found [0-9]+ known vulnerabilities|Name +Version +ID|CVE-|PYSEC-|pip-audit|No known vulnerabilities|ERROR" \
+            diagnostics/lint.log > diagnostics/pip-audit-excerpt.txt || true
+          tail -500 diagnostics/lint.log > diagnostics/lint-tail.txt
       - uses: actions/upload-artifact@v6
         with:
-          name: main-ci-failure-excerpts
+          name: current-pip-audit-failure
           path: diagnostics/
           if-no-files-found: error
