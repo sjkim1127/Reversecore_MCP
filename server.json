@@ -22,8 +22,7 @@
       "identifier": "ghcr.io/sjkim1127/reversecore_mcp:3.0.2",
       "transport": {
         "type": "stdio"
-      },
-      "version": "3.0.2"
+      }
     }
   ]
 }
