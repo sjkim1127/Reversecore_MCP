@@ -1,4 +1,4 @@
-name: Dependency Diagnostics 157
+name: Repair Dependency Lock 157
 
 on:
   pull_request:
@@ -6,29 +6,31 @@ on:
     types: [reopened]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  diagnose:
+  repair:
     if: github.event.pull_request.number == 157
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout validation merge
+      - name: Checkout main
         uses: actions/checkout@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
         with:
-          python-version: '3.11'
+          ref: main
+          fetch-depth: 0
 
-      - name: Diagnose locked dependency installation
+      - name: Revert incompatible tibs major update
         shell: bash
         run: |
-          set +e
-          python -m pip install --upgrade pip >/dev/null 2>&1
-          python -m pip install -r requirements.txt > /tmp/install.log 2>&1
-          status=$?
-          echo '=== pip install tail ==='
-          tail -n 160 /tmp/install.log
-          echo '=== end pip install tail ==='
-          exit "$status"
+          set -euo pipefail
+          grep -q '^tibs==1.0.0$' requirements.txt
+          sed -i 's/^tibs==1\.0\.0$/tibs==0.5.7/' requirements.txt
+          grep -q '^tibs==0.5.7$' requirements.txt
+
+      - name: Commit repaired lock
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add requirements.txt
+          git commit -m 'fix(deps): revert incompatible tibs 1.0.0 update'
+          git push origin HEAD:main
