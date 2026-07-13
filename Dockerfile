@@ -52,11 +52,6 @@ RUN apt-get update \
     && apt-get purge -y --auto-remove gcc g++ make python3-dev libc-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# CI-only dependency policy package. Keeping it in the image makes the checked-in
-# requirements-dev.txt usable during in-container integration tests as well as on
-# the host runner without introducing a second dependency definition.
-COPY ci/pip_audit_policy/ /app/ci/pip_audit_policy/
-
 # Application source (invalidates on every code change)
 COPY scripts/            ./scripts/
 COPY reversecore_mcp/    ./reversecore_mcp/
