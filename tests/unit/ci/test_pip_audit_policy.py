@@ -5,6 +5,14 @@ from reversecore_pip_audit_policy import (
     apply_ci_policy,
 )
 
+CURRENT_PILLOW_ADVISORIES = {
+    "PYSEC-2026-2253",
+    "PYSEC-2026-2254",
+    "PYSEC-2026-2255",
+    "PYSEC-2026-2256",
+    "PYSEC-2026-2257",
+}
+
 
 def test_local_audit_remains_strict(monkeypatch):
     monkeypatch.delenv("CI", raising=False)
@@ -18,6 +26,8 @@ def test_ci_audit_adds_tracked_pillow_exceptions(monkeypatch):
 
     result = apply_ci_policy(["--ignore-vuln", PILLOW_TEMPORARY_EXCEPTIONS[0]])
 
+    assert CURRENT_PILLOW_ADVISORIES.issubset(PILLOW_TEMPORARY_EXCEPTIONS)
+    assert len(PILLOW_TEMPORARY_EXCEPTIONS) == len(set(PILLOW_TEMPORARY_EXCEPTIONS))
     for vulnerability_id in PILLOW_TEMPORARY_EXCEPTIONS:
         assert vulnerability_id in result
     assert result.count(PILLOW_TEMPORARY_EXCEPTIONS[0]) == 1
