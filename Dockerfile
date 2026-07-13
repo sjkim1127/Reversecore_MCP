@@ -24,6 +24,12 @@ ARG BASE_IMAGE=ghcr.io/sjkim1127/reversecore_mcp/base
 ARG BASE_TAG=latest
 FROM ${BASE_IMAGE}:${BASE_TAG}
 
+LABEL org.opencontainers.image.title="Reversecore MCP" \
+      org.opencontainers.image.description="Security-first MCP server for reverse engineering and malware analysis" \
+      org.opencontainers.image.source="https://github.com/sjkim1127/Reversecore_MCP" \
+      org.opencontainers.image.licenses="MIT" \
+      io.modelcontextprotocol.server.name="io.github.sjkim1127/reversecore-mcp"
+
 # ── Application code ─────────────────────────────────────────────────────────
 # Ordered from least-frequently-changed to most-frequently-changed
 # so Docker layer cache is invalidated as rarely as possible.
