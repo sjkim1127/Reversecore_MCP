@@ -695,7 +695,7 @@ sympy==1.14.0
     # via angr
 tenacity==9.1.4
     # via ida-hcli
-tibs==0.5.7
+tibs==1.0.0
     # via bitstring
 tinycss2==1.5.1
     # via
