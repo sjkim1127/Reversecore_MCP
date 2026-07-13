@@ -1,3 +1,4 @@
+# Validation branch trigger; the base workflow remains authoritative.
 name: Release Metadata Validation
 
 on:
