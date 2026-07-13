@@ -44,7 +44,7 @@ def test_dashboard() -> int:
     passed = 0
     failed = 0
 
-    # 1. Health endpoints
+    # 1. Public health endpoints
     health_tests = [
         ("/health", 200),
         ("/health/live", 200),
@@ -61,24 +61,33 @@ def test_dashboard() -> int:
             )
             failed += 1
 
-    # 2. Health content validation
+    # 2. Public health content validation. Detailed runtime metadata intentionally
+    # lives behind /health/details so the unauthenticated probe stays minimal.
     print("\n  🔍 Validating /health response content...")
     result = http_get("/health")
     try:
         data = json.loads(result["text"])
-        required_keys = {"status", "version", "timestamp", "dependencies"}
-        missing = required_keys - set(data.keys())
-        if not missing:
-            print(f"    ✅ All required keys present: {required_keys}")
+        if data == {"status": "alive"}:
+            print("    ✅ Minimal public health contract is valid")
             passed += 1
         else:
-            print(f"    ❌ Missing keys: {missing}")
+            print(f"    ❌ Unexpected /health payload: {data}")
             failed += 1
     except Exception as exc:
-        print(f"    ⚠️  Could not parse /health JSON: {exc}")
-        passed += 1  # Soft pass
+        print(f"    ❌ Could not parse /health JSON: {exc}")
+        failed += 1
 
-    # 3. Readiness content validation
+    # 3. Detailed health must not be exposed when the server has no configured API key.
+    print("\n  🔍 Validating protected /health/details endpoint...")
+    result = http_get("/health/details")
+    if result["status"] == 403:
+        print("    ✅ /health/details correctly requires configured authentication")
+        passed += 1
+    else:
+        print(f"    ❌ /health/details → HTTP {result.get('status', 0)}; expected 403")
+        failed += 1
+
+    # 4. Readiness content validation
     print("\n  🔍 Validating /health/ready response...")
     result = http_get("/health/ready")
     try:
@@ -90,10 +99,10 @@ def test_dashboard() -> int:
             print("    ❌ Missing 'ready' key")
             failed += 1
     except Exception as exc:
-        print(f"    ⚠️  Could not parse /health/ready JSON: {exc}")
-        passed += 1
+        print(f"    ❌ Could not parse /health/ready JSON: {exc}")
+        failed += 1
 
-    # 4. Metrics endpoint
+    # 5. Metrics endpoint
     print("\n  🔍 Testing /metrics...")
     result = http_get("/metrics")
     if result["ok"]:
@@ -108,7 +117,7 @@ def test_dashboard() -> int:
         print(f"  ❌ /metrics → HTTP {result.get('status', 0)}")
         failed += 1
 
-    # 5. Dashboard HTML
+    # 6. Dashboard HTML
     print("\n  🔍 Testing /dashboard...")
     result = http_get("/dashboard")
     if result["ok"] and "text/html" in result.get("content_type", ""):
@@ -123,7 +132,7 @@ def test_dashboard() -> int:
         print(f"  ❌ /dashboard → HTTP {result.get('status', 0)} (dashboard may not be installed)")
         failed += 1
 
-    # 6. Static files (if dashboard available)
+    # 7. Static files (if dashboard available)
     print("\n  🔍 Testing dashboard static files...")
     static_result = http_get("/dashboard/static")
     if static_result["ok"] or static_result.get("status") in (301, 302, 307, 308, 404):
