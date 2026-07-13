@@ -1,0 +1,92 @@
+name: Release Metadata Validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "pyproject.toml"
+      - "PYPI_README.md"
+      - "server.json"
+      - "Dockerfile"
+      - "reversecore_mcp/__init__.py"
+      - "reversecore_mcp/py.typed"
+      - "scripts/check_release_metadata.py"
+      - ".github/workflows/release*.yml"
+  push:
+    branches: [main]
+    paths:
+      - "pyproject.toml"
+      - "PYPI_README.md"
+      - "server.json"
+      - "Dockerfile"
+      - "reversecore_mcp/__init__.py"
+      - "reversecore_mcp/py.typed"
+      - "scripts/check_release_metadata.py"
+      - ".github/workflows/release*.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate package and registry metadata
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Validate synchronized release metadata
+        run: python scripts/check_release_metadata.py
+
+      - name: Install build validation tools
+        run: python -m pip install --upgrade build twine
+
+      - name: Build wheel and source distribution
+        run: python -m build
+
+      - name: Validate distribution metadata
+        run: python -m twine check dist/*
+
+      - name: Inspect wheel contents
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          wheels = list(Path("dist").glob("*.whl"))
+          if len(wheels) != 1:
+              raise SystemExit(f"expected one wheel, found {len(wheels)}")
+
+          with ZipFile(wheels[0]) as wheel:
+              names = set(wheel.namelist())
+              required = {
+                  "reversecore_mcp/__init__.py",
+                  "reversecore_mcp/server.py",
+                  "reversecore_mcp/py.typed",
+              }
+              missing = required - names
+              if missing:
+                  raise SystemExit(f"wheel is missing required files: {sorted(missing)}")
+
+              if not any(name.startswith("reversecore_mcp/tools/") for name in names):
+                  raise SystemExit("wheel does not contain the MCP tool packages")
+
+              entry_points_name = next(
+                  (name for name in names if name.endswith(".dist-info/entry_points.txt")),
+                  None,
+              )
+              if not entry_points_name:
+                  raise SystemExit("wheel does not contain console entry-point metadata")
+              entry_points = wheel.read(entry_points_name).decode("utf-8")
+              expected = "reversecore-mcp = reversecore_mcp.server:main"
+              if expected not in entry_points:
+                  raise SystemExit(f"missing console entry point: {expected}")
+
+          print(f"validated wheel: {wheels[0]}")
+          PY
