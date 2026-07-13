@@ -44,8 +44,14 @@ jobs:
       - name: Validate synchronized release metadata
         run: python scripts/check_release_metadata.py
 
-      - name: Install build validation tools
-        run: python -m pip install --upgrade build twine
+      - name: Install validation tools
+        run: python -m pip install --upgrade build twine check-jsonschema
+
+      - name: Validate official MCP Registry schema
+        run: |
+          check-jsonschema \
+            --schemafile https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json \
+            server.json
 
       - name: Build wheel and source distribution
         run: |
