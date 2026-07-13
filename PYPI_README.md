@@ -1,6 +1,7 @@
 # Reversecore MCP
 
 <!-- mcp-name: io.github.sjkim1127/reversecore-mcp -->
+<!-- validation-only: verify release metadata after security dependency remediation -->
 
 **Security-first Model Context Protocol server for reverse engineering, malware analysis, digital forensics, vulnerability research, and SAST.**
 
