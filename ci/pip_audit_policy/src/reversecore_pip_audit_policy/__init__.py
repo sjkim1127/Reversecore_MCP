@@ -1,9 +1,9 @@
 """Transparent CI policy wrapper around the upstream ``pip-audit`` CLI.
 
 The emulation extra currently pulls ``qiling==1.4.6`` and ``python-fx==0.4.0``,
-which constrain Pillow to versions below 11. The available security fixes require
-Pillow 12.1.1 or 12.2.0, so the affected advisories cannot yet be resolved in the
-unified all-extras CI environment.
+which constrain Pillow to versions below 11. Current security fixes require
+Pillow 12.3.0, so the affected advisories cannot yet be resolved in the unified
+all-extras CI environment.
 
 Only GitHub Actions/CI executions receive the temporary exceptions below. Local
 ``pip-audit`` invocations remain strict. Removal is tracked in repository issue
@@ -18,6 +18,11 @@ from collections.abc import Sequence
 
 PILLOW_TEMPORARY_EXCEPTIONS: tuple[str, ...] = (
     "PYSEC-2026-165",
+    "PYSEC-2026-2253",
+    "PYSEC-2026-2254",
+    "PYSEC-2026-2255",
+    "PYSEC-2026-2256",
+    "PYSEC-2026-2257",
     "CVE-2026-25990",
     "CVE-2026-40192",
     "CVE-2026-42310",
