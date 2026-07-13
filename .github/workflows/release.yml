@@ -82,6 +82,7 @@ jobs:
         with:
           packages-dir: dist/
           attestations: true
+          skip-existing: true  # re-runs won't fail if version already published
 
   publish-oci:
     name: Publish versioned OCI image
