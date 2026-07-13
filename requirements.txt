@@ -687,7 +687,7 @@ rich==15.0.0
     #   typer
 rich-click==1.9.8
     # via ida-hcli
-rich-rst==2.0.2
+rich-rst==2.1.0
     # via cyclopts
 ropgadget==7.7
     # via
