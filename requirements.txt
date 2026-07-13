@@ -614,7 +614,7 @@ referencing==0.37.0
     #   jsonschema
     #   jsonschema-path
     #   jsonschema-specifications
-reportlab==4.5.1
+reportlab==5.0.0
     # via
     #   svglib
     #   xhtml2pdf
