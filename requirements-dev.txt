@@ -8,8 +8,3 @@
 # extras. Keeping this file as a thin include prevents a second, stale lock from
 # overriding pinned runtime dependencies such as FastMCP during CI installs.
 -r requirements.txt
-
-# Install the transparent CI-only pip-audit policy wrapper. It delegates to the
-# official pip-audit CLI and adds only the temporary Pillow advisory exceptions
-# tracked in issue #146 when CI=true; local audits remain strict.
-./ci/pip_audit_policy
