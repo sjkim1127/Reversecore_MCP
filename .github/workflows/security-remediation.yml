@@ -1,0 +1,172 @@
+name: Security Dependency Remediation
+
+on:
+  push:
+    branches:
+      - security/pillow-qiling-isolation
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout remediation branch
+        uses: actions/checkout@v7
+        with:
+          ref: security/pillow-qiling-isolation
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        run: python -m pip install --upgrade uv
+
+      - name: Apply dependency isolation and security cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          root = Path('.')
+
+          pyproject = root / 'pyproject.toml'
+          text = pyproject.read_text(encoding='utf-8')
+          old_pillow = '    "pillow>=10.4.0,<11",'
+          new_pillow = '    "pillow>=12.3.0,<13",'
+          if old_pillow not in text:
+              raise SystemExit('expected Pillow declaration not found')
+          text = text.replace(old_pillow, new_pillow, 1)
+
+          old_emulation = '''emulation = [
+    "qiling>=1.4.6",
+    "python-afl>=0.7.3",
+]
+'''
+          new_emulation = '''emulation = [
+    # Qiling 1.4.6 pulls python-fx, which constrains Pillow below 11.
+    # Reversecore generates Qiling/AFL harnesses without importing Qiling at
+    # server runtime; execute generated harnesses in a separate sandbox.
+    "python-afl>=0.7.3",
+]
+'''
+          if old_emulation not in text:
+              raise SystemExit('expected emulation extra not found')
+          pyproject.write_text(text.replace(old_emulation, new_emulation, 1), encoding='utf-8')
+
+          req_dev = root / 'requirements-dev.txt'
+          text = req_dev.read_text(encoding='utf-8')
+          marker = '\n# Install the transparent CI-only pip-audit policy wrapper.'
+          if marker in text:
+              text = text.split(marker, 1)[0].rstrip() + '\n'
+          req_dev.write_text(text, encoding='utf-8')
+
+          dockerfile = root / 'Dockerfile'
+          text = dockerfile.read_text(encoding='utf-8')
+          policy_block = '''
+# CI-only dependency policy package. Keeping it in the image makes the checked-in
+# requirements-dev.txt usable during in-container integration tests as well as on
+# the host runner without introducing a second dependency definition.
+COPY ci/pip_audit_policy/ /app/ci/pip_audit_policy/
+'''
+          if policy_block not in text:
+              raise SystemExit('expected Docker audit policy block not found')
+          dockerfile.write_text(text.replace(policy_block, '\n', 1), encoding='utf-8')
+
+          pypi_readme = root / 'PYPI_README.md'
+          text = pypi_readme.read_text(encoding='utf-8')
+          anchor = 'Native programs such as Radare2, YARA, Graphviz, Binwalk, and The Sleuth Kit must be installed separately when using the Python package directly.\n'
+          note = '''Native programs such as Radare2, YARA, Graphviz, Binwalk, and The Sleuth Kit must be installed separately when using the Python package directly.
+
+> **Qiling isolation:** the server can generate Qiling/AFL harnesses, but Qiling is intentionally not installed by the `full` extra. Qiling 1.4.6 depends on a legacy Pillow line with known vulnerabilities. Execute generated harnesses only in a separate disposable sandbox; see `docs/EMULATION.md` in the repository.
+'''
+          if anchor not in text:
+              raise SystemExit('PyPI README insertion anchor not found')
+          pypi_readme.write_text(text.replace(anchor, note, 1), encoding='utf-8')
+
+          readme = root / 'README.md'
+          text = readme.read_text(encoding='utf-8')
+          anchor = '### Option 3 — Python (Local Development)\n'
+          note = '''> [!IMPORTANT]
+> Qiling is isolated from the normal and `full` Python installations because Qiling 1.4.6 pulls a legacy Pillow dependency. Reversecore still generates Qiling/AFL harnesses, but those harnesses must be executed in a separate disposable sandbox. See [Emulation runtime isolation](docs/EMULATION.md).
+
+### Option 3 — Python (Local Development)
+'''
+          if anchor not in text:
+              raise SystemExit('README insertion anchor not found')
+          readme.write_text(text.replace(anchor, note, 1), encoding='utf-8')
+
+          docs = root / 'docs' / 'EMULATION.md'
+          docs.write_text('''# Emulation runtime isolation
+
+Reversecore MCP can generate Qiling/AFL fuzzing harnesses without importing or executing Qiling inside the MCP server process.
+
+## Why Qiling is isolated
+
+Qiling 1.4.6 depends on `python-fx==0.4.0`, which constrains Pillow to versions below 11. Current Pillow security fixes require Pillow 12.3.0 or newer. Installing both stacks in one environment would either leave known vulnerabilities unresolved or make dependency resolution fail.
+
+For that reason:
+
+- the normal and `full` Reversecore installations use Pillow 12.3 or newer;
+- Qiling and `python-fx` are absent from the server lock file and release artifacts;
+- harness generation remains supported;
+- harness execution must happen in a separate disposable sandbox.
+
+## Executing a generated harness
+
+Use a dedicated VM or container with no credentials, no host network access, and only the target sample mounted read-only. Install the Qiling runtime according to the upstream Qiling documentation inside that isolated environment. Do not install Qiling into the Reversecore MCP server environment.
+
+Treat generated harnesses and analyzed binaries as hostile input. Prefer `--network=none`, a read-only root filesystem, dropped Linux capabilities, and a disposable filesystem for every run.
+
+When Qiling publishes a release compatible with the secure Pillow line, this isolation can be reconsidered after dependency and security testing.
+''', encoding='utf-8')
+
+          test = root / 'tests' / 'unit' / 'test_dependency_security.py'
+          test.write_text('''from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_unified_runtime_uses_secure_pillow_without_qiling() -> None:
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8")
+
+    assert '"pillow>=12.3.0,<13"' in pyproject
+    assert '"qiling>=' not in pyproject
+    assert "pillow==12.3.0" in requirements
+    assert "qiling==" not in requirements
+    assert "python-fx==" not in requirements
+''', encoding='utf-8')
+          PY
+
+          rm -rf ci/pip_audit_policy
+          rm -f tests/unit/ci/test_pip_audit_policy.py
+
+      - name: Regenerate unified lock
+        run: uv pip compile pyproject.toml --all-extras -o requirements.txt
+
+      - name: Verify remediation invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q '^pillow==12.3.0$' requirements.txt
+          ! grep -q '^qiling==' requirements.txt
+          ! grep -q '^python-fx==' requirements.txt
+          python scripts/check_release_metadata.py
+
+      - name: Commit generated remediation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'security(deps): isolate Qiling and upgrade Pillow'
+          git push origin HEAD:security/pillow-qiling-isolation
