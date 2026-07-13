@@ -1,0 +1,34 @@
+name: Dependency Diagnostics 157
+
+on:
+  pull_request:
+    branches: [main]
+    types: [reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    if: github.event.pull_request.number == 157
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout validation merge
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Diagnose locked dependency installation
+        shell: bash
+        run: |
+          set +e
+          python -m pip install --upgrade pip >/dev/null 2>&1
+          python -m pip install -r requirements.txt > /tmp/install.log 2>&1
+          status=$?
+          echo '=== pip install tail ==='
+          tail -n 160 /tmp/install.log
+          echo '=== end pip install tail ==='
+          exit "$status"
