@@ -767,7 +767,7 @@ watchdog==6.0.0
     # via mkdocs
 watchfiles==1.2.0
     # via fastmcp-slim
-wcwidth==0.2.14
+wcwidth==0.8.2
     # via prompt-toolkit
 webencodings==0.5.1
     # via
