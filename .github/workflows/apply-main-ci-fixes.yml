@@ -19,14 +19,15 @@ jobs:
       - name: Format middleware and mount CI policy package
         run: |
           python -m pip install --disable-pip-version-check ruff==0.15.21
-          ruff format reversecore_mcp/web/middleware.py
+          python -m ruff format reversecore_mcp/web/middleware.py
           python - <<'PY'
           from pathlib import Path
 
           path = Path('.github/workflows/main.yml')
           content = path.read_text()
-          anchor = '            -v ${{ github.workspace }}/requirements-dev.txt:/app/requirements-dev.txt \\\n'
-          addition = anchor + '            -v ${{ github.workspace }}/ci:/app/ci:ro \\\n'
+          workspace = '$' + '{{ github.workspace }}'
+          anchor = f'            -v {workspace}/requirements-dev.txt:/app/requirements-dev.txt \\\n'
+          addition = anchor + f'            -v {workspace}/ci:/app/ci:ro \\\n'
           if '/app/ci:ro' not in content:
               if anchor not in content:
                   raise SystemExit('requirements-dev mount anchor not found')
