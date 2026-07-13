@@ -49,22 +49,23 @@ jobs:
 
       - name: Validate official MCP Registry schema
         run: |
+          set -o pipefail
           check-jsonschema \
             --schemafile https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json \
-            server.json
+            server.json 2>&1 | tee schema-validation.log
 
       - name: Build wheel and source distribution
         run: |
           set -o pipefail
           python -m build 2>&1 | tee package-build.log
 
-      - name: Upload build diagnostics on failure
+      - name: Upload validation diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v6
         with:
-          name: package-build-diagnostics
-          path: package-build.log
-          if-no-files-found: error
+          name: release-validation-diagnostics
+          path: "*.log"
+          if-no-files-found: warn
           retention-days: 7
 
       - name: Validate distribution metadata
