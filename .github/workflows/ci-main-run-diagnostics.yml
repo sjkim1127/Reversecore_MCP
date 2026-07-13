@@ -1,0 +1,46 @@
+name: Main CI Run Diagnostics
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  collect:
+    if: github.head_ref == 'ci/diagnose-main-6db0078'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Collect main workflow run and job metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: 6db007836466b24e1eb25d87a408b19bc521a368
+        run: |
+          mkdir -p diagnostics
+          gh api --paginate "/repos/${GITHUB_REPOSITORY}/actions/runs?branch=main&per_page=100" \
+            > diagnostics/main-runs.json
+          python - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+
+          data = json.loads(Path('diagnostics/main-runs.json').read_text())
+          target = os.environ['TARGET_SHA']
+          runs = data.get('workflow_runs', [])
+          matches = [run for run in runs if run.get('head_sha') == target]
+          Path('diagnostics/matching-runs.json').write_text(json.dumps(matches, indent=2))
+          if not matches:
+              raise SystemExit('No main workflow run found for target SHA')
+          run = matches[0]
+          run_id = run['id']
+          subprocess.run([
+              'gh', 'api', f'/repos/{os.environ["GITHUB_REPOSITORY"]}/actions/runs/{run_id}/jobs?per_page=100'
+          ], check=True, stdout=open('diagnostics/jobs.json', 'w'))
+          print(f"run_id={run_id} status={run.get('status')} conclusion={run.get('conclusion')}")
+          PY
+      - uses: actions/upload-artifact@v6
+        with:
+          name: main-ci-run-diagnostics
+          path: diagnostics/
+          if-no-files-found: error
