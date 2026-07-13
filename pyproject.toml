@@ -56,7 +56,7 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "arq>=0.25.0",
     "redis>=5.0.0",
-    "pillow>=10.4.0,<11",
+    "pillow>=12.3.0,<13",
     "markdown>=3.6.0",
     "xhtml2pdf>=0.2.16",
     "numpy<2.3.0",
@@ -113,7 +113,9 @@ http = [
 ]
 
 emulation = [
-    "qiling>=1.4.6",
+    # Qiling 1.4.6 pulls python-fx, which constrains Pillow below 11.
+    # Reversecore generates Qiling/AFL harnesses without importing Qiling at
+    # server runtime; execute generated harnesses in a separate sandbox.
     "python-afl>=0.7.3",
 ]
 
