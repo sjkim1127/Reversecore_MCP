@@ -19,3 +19,6 @@ CVE-2026-42311 exp:2026-10-15
 
 # False positive secrets in third-party libraries (hcli / ida-hcli)
 jwt-token
+
+# liblzma5 / xz-utils DoS vulnerability in debian base image (CVE-2026-34743)
+CVE-2026-34743 exp:2026-10-15

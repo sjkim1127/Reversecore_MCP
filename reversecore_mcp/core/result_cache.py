@@ -9,6 +9,7 @@ from inspect import iscoroutinefunction
 
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import metrics_collector
+from reversecore_mcp.core.result import ToolSuccess
 from reversecore_mcp.tools.radare2.r2_db import get_cached_result, set_cached_result
 
 logger = get_logger(__name__)
@@ -86,7 +87,7 @@ def cache_tool_result(
             result = await func(*args, **kwargs)
 
             # Cache the result if successful
-            if isinstance(result, dict) and result.get("status") == "success":
+            if isinstance(result, ToolSuccess):
                 await set_cached_result(file_path, tool_name, cache_key, result, ttl)
 
             return result

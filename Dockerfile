@@ -45,7 +45,7 @@ COPY templates/  /app/templates/
 COPY requirements.txt    ./
 # hadolint ignore=DL3008,DL3013
 RUN apt-get update \
-    && apt-get install -y --only-upgrade curl libcurl3-gnutls libcurl4 libgraphite2-3 \
+    && apt-get install -y --no-install-recommends --only-upgrade curl libcurl3-gnutls libcurl4 libgraphite2-3 liblzma5 xz-utils \
     && apt-get install -y --no-install-recommends gcc g++ make python3-dev libc-dev \
     && pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt \

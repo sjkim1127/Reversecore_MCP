@@ -77,7 +77,7 @@ def get_pc_register(arch: str, bits: int | None = None) -> str | None:
     if normalized not in ARCH_REGISTRY:
         return None
 
-    return ARCH_REGISTRY[normalized]["pc"]
+    return str(ARCH_REGISTRY[normalized]["pc"])
 
 
 def get_sp_register(arch: str, bits: int | None = None) -> str | None:
@@ -86,4 +86,4 @@ def get_sp_register(arch: str, bits: int | None = None) -> str | None:
     if normalized not in ARCH_REGISTRY:
         return None
 
-    return ARCH_REGISTRY[normalized]["sp"]
+    return str(ARCH_REGISTRY[normalized]["sp"])
