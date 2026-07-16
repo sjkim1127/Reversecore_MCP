@@ -93,7 +93,13 @@ class Radare2ToolsPlugin(Plugin):
 
         return diagnosis
 
-    async def _get_or_create_session(self, file_path: str, auto_analyze: bool = False) -> R2Session:
+    async def _get_or_create_session(
+        self,
+        file_path: str,
+        auto_analyze: bool = False,
+        arch: str | None = None,
+        bits: int | None = None,
+    ) -> R2Session:
         """
         Get existing session or create new one with strict validation.
         Protected by lock to prevent race conditions.
@@ -129,7 +135,7 @@ class Radare2ToolsPlugin(Plugin):
                 # IMPORTANT: R2Session(file_path) does NOT open the file automatically.
                 # We must explicitly open it, otherwise all Radare2_* tools will fail
                 # with is_open == False (and Radare2_open_file always returns R2_OPEN_FAILED).
-                opened = await asyncio.to_thread(session.open, file_path)
+                opened = await asyncio.to_thread(session.open, file_path, arch, bits)
                 if not opened:
                     raise ValueError(session.last_error or "Failed to open file with r2pipe")
 
@@ -171,7 +177,9 @@ class Radare2ToolsPlugin(Plugin):
         # =====================================================================
 
         @mcp.tool()
-        async def Radare2_open_file(file_path: str) -> dict[str, Any]:
+        async def Radare2_open_file(
+            file_path: str, arch: str | None = None, bits: int | None = None
+        ) -> dict[str, Any]:
             """
             Opens a binary file with radare2 for analysis.
 
@@ -262,6 +270,8 @@ class Radare2ToolsPlugin(Plugin):
         async def Radare2_analyze(
             file_path: str,
             level: int = 2,
+            arch: str | None = None,
+            bits: int | None = None,
         ) -> dict[str, Any]:
             """
             Run binary analysis with optional depth level.
@@ -276,6 +286,8 @@ class Radare2ToolsPlugin(Plugin):
                     2 = aaaa (experimental, recommended default)
                     3 = aaaaa (deep, slow)
                     4 = aaaaaa (very deep, very slow)
+                arch: Optional architecture (e.g., 'mips', 'arm64', 'riscv', 'x86_64')
+                bits: Optional architecture bits (e.g., 32, 64)
 
             Returns:
                 Analysis result with function count
@@ -284,7 +296,7 @@ class Radare2ToolsPlugin(Plugin):
             if not isinstance(level, int) or level < 0 or level > 4:
                 return {"status": "error", "message": "level must be 0-4"}
 
-            session = await self._get_or_create_session(file_path)
+            session = await self._get_or_create_session(file_path, arch=arch, bits=bits)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 

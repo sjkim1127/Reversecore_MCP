@@ -7,51 +7,24 @@
     <p class="subtitle">{{ workspace }}</p>
 </div>
 
-<div class="stats-grid">
-    <div class="stat-card">
-        <span class="stat-value">{{ file_count }}</span>
-        <span class="stat-label">Files</span>
-    </div>
-    <div class="stat-card">
-        <span class="stat-value">0</span>
-        <span class="stat-label">Analyzed</span>
-    </div>
-    <div class="stat-card">
-        <span class="stat-value">0</span>
-        <span class="stat-label">IOCs Found</span>
+<div class="section">
+    <h3>📊 System Metrics</h3>
+    <div hx-get="/dashboard/api/metrics-fragment" hx-trigger="load, every 5s" hx-swap="innerHTML">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span class="stat-value">Loading...</span>
+                <span class="stat-label">System Metrics</span>
+            </div>
+        </div>
     </div>
 </div>
 
 <div class="section">
     <h3>📄 Files in Workspace</h3>
-
-    {% if files %}
-    <table class="file-table">
-        <thead>
-            <tr>
-                <th>Filename</th>
-                <th>Size</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for file in files %}
-            <tr>
-                <td class="filename">{{ file.name }}</td>
-                <td class="filesize">{{ (file.size / 1024)|round(1) }} KB</td>
-                <td class="actions">
-                    <a href="/dashboard/analysis/{{ file.name_raw | urlencode }}" class="btn btn-primary">Analyze</a>
-                    <a href="/dashboard/iocs/{{ file.name_raw | urlencode }}" class="btn btn-secondary">IOCs</a>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-    <div class="empty-state">
-        <p>No files in workspace yet.</p>
-        <p>Upload a binary using the MCP client or HTTP API.</p>
+    <div hx-get="/dashboard/api/files-fragment" hx-trigger="load, every 10s" hx-swap="innerHTML">
+        <div class="empty-state">
+            <p>Loading files...</p>
+        </div>
     </div>
-    {% endif %}
 </div>
 {% endblock %}

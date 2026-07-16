@@ -22,6 +22,7 @@ import asyncio
 import hashlib
 import os
 import sqlite3
+import time
 from pathlib import Path
 
 from reversecore_mcp.core import json_utils as json
@@ -66,6 +67,16 @@ CREATE TABLE IF NOT EXISTS types (
     definition  TEXT NOT NULL DEFAULT '',
     created_at  TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(binary_hash, name)
+);
+CREATE TABLE IF NOT EXISTS analysis_cache (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    binary_hash TEXT NOT NULL,
+    tool_name   TEXT NOT NULL,
+    cache_key   TEXT NOT NULL,
+    result_json TEXT NOT NULL,
+    created_at  REAL NOT NULL,
+    expires_at  REAL,
+    UNIQUE(binary_hash, cache_key)
 );
 """
 
@@ -422,3 +433,97 @@ async def r2_read_memory(
             "json_bytes": json_bytes,
         }
     )
+
+
+# ---------------------------------------------------------------------------
+# analysis_cache (ToolResult caching)
+# ---------------------------------------------------------------------------
+
+
+def _get_cached_result_sync(bh: str, cache_key: str) -> dict | None:
+    with _get_db_sync() as db:
+        cursor = db.execute(
+            "SELECT result_json FROM analysis_cache "
+            "WHERE binary_hash=? AND cache_key=? AND (expires_at IS NULL OR expires_at > ?)",
+            (bh, cache_key, time.time()),
+        )
+        row = cursor.fetchone()
+        if row:
+            try:
+                return json.loads(row["result_json"])
+            except json.JSONDecodeError:
+                return None
+        return None
+
+
+def _set_cached_result_sync(
+    bh: str, tool_name: str, cache_key: str, result_dict: dict, ttl: int | None = None
+) -> None:
+    now = time.time()
+    expires_at = now + ttl if ttl else None
+
+    with _get_db_sync() as db:
+        db.execute(
+            """
+            INSERT INTO analysis_cache (binary_hash, tool_name, cache_key, result_json, created_at, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(binary_hash, cache_key) DO UPDATE SET
+                result_json=excluded.result_json,
+                created_at=excluded.created_at,
+                expires_at=excluded.expires_at
+            """,
+            (bh, tool_name, cache_key, json.dumps(result_dict), now, expires_at),
+        )
+
+
+async def get_cached_result(file_path: str, cache_key: str) -> ToolResult | None:
+    """Retrieve a cached ToolResult if available and not expired."""
+    try:
+        bh = await asyncio.to_thread(_sha256, Path(file_path))
+        result_dict = await asyncio.to_thread(_get_cached_result_sync, bh, cache_key)
+        if result_dict:
+            return ToolResult(**result_dict)
+    except Exception as e:
+        logger.warning(f"Cache read error: {e}")
+    return None
+
+
+async def set_cached_result(
+    file_path: str, tool_name: str, cache_key: str, result: ToolResult, ttl: int | None = None
+) -> None:
+    """Save a ToolResult to the cache."""
+    try:
+        # Convert ToolResult (TypedDict) to dict
+        result_dict = dict(result)
+        bh = await asyncio.to_thread(_sha256, Path(file_path))
+        await asyncio.to_thread(_set_cached_result_sync, bh, tool_name, cache_key, result_dict, ttl)
+    except Exception as e:
+        logger.warning(f"Cache write error: {e}")
+
+
+async def invalidate_cache(file_path: str) -> int:
+    """Invalidate all cache entries for a given file."""
+
+    def _invalidate(bh: str) -> int:
+        with _get_db_sync() as db:
+            cursor = db.execute("DELETE FROM analysis_cache WHERE binary_hash=?", (bh,))
+            return cursor.rowcount
+
+    try:
+        bh = await asyncio.to_thread(_sha256, Path(file_path))
+        return await asyncio.to_thread(_invalidate, bh)
+    except Exception:
+        return 0
+
+
+def purge_expired_cache() -> int:
+    """Remove expired cache entries from the database (sync)."""
+    try:
+        with _get_db_sync() as db:
+            cursor = db.execute(
+                "DELETE FROM analysis_cache WHERE expires_at IS NOT NULL AND expires_at <= ?",
+                (time.time(),),
+            )
+            return cursor.rowcount
+    except Exception:
+        return 0

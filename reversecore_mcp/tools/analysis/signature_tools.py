@@ -24,6 +24,7 @@ from reversecore_mcp.core.r2_helpers import (
     parse_json_output as _parse_json_output,
 )
 from reversecore_mcp.core.result import ToolResult, failure, success
+from reversecore_mcp.core.result_cache import cache_tool_result
 from reversecore_mcp.core.security import validate_file_path
 from reversecore_mcp.core.validators import validate_tool_parameters
 
@@ -256,6 +257,9 @@ async def generate_signature(
 @log_execution(tool_name="generate_yara_rule")
 @track_metrics("generate_yara_rule")
 @handle_tool_errors
+@cache_tool_result(
+    "generate_yara_rule", ttl=43200, cache_kwargs=["rule_name", "author", "description", "mode"]
+)
 async def generate_yara_rule(
     file_path: str,
     function_address: str,

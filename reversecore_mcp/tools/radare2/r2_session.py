@@ -196,7 +196,7 @@ class R2Session:
         self._command_lock_obj = None
         self._command_lock_loop = None
 
-    def open(self, file_path: str) -> bool:
+    def open(self, file_path: str, arch: str | None = None, bits: int | None = None) -> bool:
         """Open a binary file with radare2."""
         if not R2PIPE_AVAILABLE:
             self.status = "error"
@@ -213,6 +213,13 @@ class R2Session:
             self._r2 = r2pipe.open(file_path)
             if not self._r2:
                 raise RuntimeError("r2pipe.open returned None")
+
+            if arch is not None:
+                from reversecore_mcp.core.arch_registry import get_arch_init_cmds
+
+                init_cmds = get_arch_init_cmds(arch, bits)
+                for init_cmd in init_cmds:
+                    self._r2.cmd(init_cmd)
 
             self.file_path = file_path
             self.status = "active"

@@ -27,6 +27,7 @@ from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.r2_helpers import execute_r2_command as _execute_r2_command
 from reversecore_mcp.core.result import ToolResult, failure, success
+from reversecore_mcp.core.result_cache import cache_tool_result
 from reversecore_mcp.core.security import validate_file_path
 from reversecore_mcp.core.validators import validate_address_format
 
@@ -76,6 +77,7 @@ async def _r2_run(
 @log_execution(tool_name="r2_decompile")
 @track_metrics("r2_decompile")
 @handle_tool_errors
+@cache_tool_result("r2_decompile", ttl=86400, cache_kwargs=["function_address"])
 async def r2_decompile(
     file_path: str,
     function_address: str,
@@ -145,6 +147,7 @@ async def r2_decompile(
 @log_execution(tool_name="r2_recover_structures")
 @track_metrics("r2_recover_structures")
 @handle_tool_errors
+@cache_tool_result("r2_recover_structures", ttl=86400, cache_kwargs=["function_address"])
 async def r2_recover_structures(
     file_path: str,
     function_address: str,

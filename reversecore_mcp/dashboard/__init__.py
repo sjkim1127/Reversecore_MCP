@@ -498,3 +498,80 @@ async def dashboard_report_delete(
         )
 
     return RedirectResponse(url="/dashboard/reports", status_code=303)
+
+
+# =============================================================================
+# HTMX Fragment Routes (Dynamic Updates)
+# =============================================================================
+
+
+@router.get("/api/metrics-fragment", response_class=HTMLResponse)
+async def metrics_fragment(request: Request):
+    """Return HTML fragment for system metrics."""
+    from reversecore_mcp.core.metrics import metrics_collector
+
+    raw_metrics = metrics_collector.get_metrics()
+
+    total_executions = 0
+    total_successes = 0
+    total_failures = 0
+
+    for _t, m in raw_metrics.get("tools", {}).items():
+        total_executions += m.get("executions", 0)
+        total_successes += m.get("successes", 0)
+        total_failures += m.get("failures", 0)
+
+    cache_metrics = raw_metrics.get("cache", {})
+    total_cache_hits = sum(m.get("hits", 0) for m in cache_metrics.values())
+    total_cache_misses = sum(m.get("misses", 0) for m in cache_metrics.values())
+
+    processed_metrics = {
+        "requests": {
+            "total": total_executions,
+            "success": total_successes,
+            "failed": total_failures,
+        },
+        "cache": {"hits": total_cache_hits, "misses": total_cache_misses},
+        "system": {
+            "memory_percent": 0,  # Placeholder or implement later
+            "cpu_percent": 0,
+        },
+        "r2_pool": {"cache_hits": 0, "cache_misses": 0},
+    }
+
+    return templates.TemplateResponse(
+        request,
+        "fragments/metrics.html",
+        {"metrics": processed_metrics},
+    )
+
+
+@router.get("/api/files-fragment", response_class=HTMLResponse)
+async def files_fragment(request: Request):
+    """Return HTML fragment for the file list."""
+    from reversecore_mcp.core.config import get_config
+
+    settings = get_config()
+    workspace = settings.workspace
+
+    files = []
+    if workspace.exists():
+        for f in workspace.iterdir():
+            if f.is_file() and not f.name.startswith("."):
+                stat = f.stat()
+                files.append(
+                    {
+                        "name": _sanitize_for_display(f.name, 255),
+                        "name_raw": f.name,
+                        "size": stat.st_size,
+                        "modified": stat.st_mtime,
+                    }
+                )
+
+    files.sort(key=lambda x: x["modified"], reverse=True)
+
+    return templates.TemplateResponse(
+        request,
+        "fragments/file_list.html",
+        {"files": files, "workspace": str(workspace)},
+    )

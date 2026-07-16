@@ -73,6 +73,14 @@ class R2EsilSimulator:
         # Write payload to memory
         self.r2.cmd(f"wx {hex_payload} @ {inject_addr}")
 
+        # Determine architecture and PC register once
+        info = self.r2.cmdj("iIj") or {}
+        arch = info.get("arch", "x86")
+        bits = info.get("bits", 64)
+        from reversecore_mcp.core.arch_registry import get_pc_register
+
+        pc_reg = get_pc_register(arch, bits) or "rip"
+
         # Step ESIL and monitor PC
         pc_history = []
         crashed = False
@@ -84,8 +92,8 @@ class R2EsilSimulator:
             if not regs or not isinstance(regs, dict):
                 continue
 
-            # Extract PC (rip for x86_64, eip for x86)
-            pc = regs.get("rip", regs.get("eip", 0))
+            # Extract PC dynamically based on architecture
+            pc = regs.get(pc_reg, 0)
             if pc:
                 pc_history.append(hex(pc))
 

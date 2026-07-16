@@ -2367,7 +2367,7 @@ def _schema_toolresult_pydantic_valid() -> tuple[bool, str]:
                 return False, "model_dump() missing 'status' key"
             return True, f"Pydantic model_dump OK: keys={list(d.keys())}"
         elif hasattr(r, "dict"):
-            d = r.dict()
+            d = r.model_dump()
             return True, f"Pydantic v1 dict() OK: keys={list(d.keys())}"
         else:
             return False, "ToolResult is not a Pydantic model (no model_dump/dict)"
@@ -2387,7 +2387,7 @@ def _schema_toolresult_json_serializable() -> tuple[bool, str]:
         if hasattr(r, "model_dump"):
             d = r.model_dump()
         elif hasattr(r, "dict"):
-            d = r.dict()
+            d = r.model_dump()
         else:
             d = {"status": r.status}
 

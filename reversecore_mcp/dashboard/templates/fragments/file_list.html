@@ -1,0 +1,28 @@
+{% if files %}
+<table class="file-table">
+    <thead>
+        <tr>
+            <th>Filename</th>
+            <th>Size</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for file in files %}
+        <tr>
+            <td class="filename">{{ file.name }}</td>
+            <td class="filesize">{{ (file.size / 1024)|round(1) }} KB</td>
+            <td class="actions">
+                <a href="/dashboard/analysis/{{ file.name_raw | urlencode }}" class="btn btn-primary">Analyze</a>
+                <a href="/dashboard/iocs/{{ file.name_raw | urlencode }}" class="btn btn-secondary">IOCs</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="empty-state">
+    <p>No files in workspace yet.</p>
+    <p>Upload a binary using the MCP client or HTTP API.</p>
+</div>
+{% endif %}

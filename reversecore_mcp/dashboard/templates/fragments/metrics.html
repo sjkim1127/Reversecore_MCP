@@ -1,0 +1,18 @@
+<div class="stats-grid">
+    <div class="stat-card">
+        <span class="stat-value">{{ metrics.requests.total }}</span>
+        <span class="stat-label">Total Requests</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-value">{{ metrics.r2_pool.cache_hits }}</span>
+        <span class="stat-label">R2 Pool Hits</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-value">{{ metrics.cache.hits }}</span>
+        <span class="stat-label">Result Cache Hits</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-value">{{ metrics.system.memory_percent }}%</span>
+        <span class="stat-label">Memory Usage</span>
+    </div>
+</div>
