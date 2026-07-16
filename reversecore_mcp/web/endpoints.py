@@ -241,7 +241,12 @@ async def upload_file(file: UploadFile = File(...)):
     def _secure_filename(filename: str) -> str:
         """Sanitize filename to prevent path traversal and injection."""
         filename = filename.replace("/", "_").replace("\\", "_")
+        # Strip path-traversal sequences: replace any run of dots longer than
+        # one with a single underscore so "../../etc" cannot sneak through.
+        filename = re.sub(r"\.{2,}", "_", filename)
         filename = re.sub(r"[^\w\-.]", "_", filename)
+        # Remove any leading dots that would hide the file on UNIX systems.
+        filename = filename.lstrip(".")
         if len(filename) > 200:
             name, ext = filename.rsplit(".", 1) if "." in filename else (filename, "")
             filename = name[:195] + ("." + ext if ext else "")

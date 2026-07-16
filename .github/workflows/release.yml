@@ -61,6 +61,24 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Generate SBOM — CycloneDX
+        uses: anchore/sbom-action@v0
+        with:
+          path: dist/
+          format: cyclonedx-json
+          artifact-name: reversecore-mcp-${{ github.ref_name }}.cdx.json
+          upload-artifact: true
+          upload-artifact-retention: 14
+
+      - name: Generate SBOM — SPDX
+        uses: anchore/sbom-action@v0
+        with:
+          path: dist/
+          format: spdx-json
+          artifact-name: reversecore-mcp-${{ github.ref_name }}.spdx.json
+          upload-artifact: true
+          upload-artifact-retention: 14
+
   publish-pypi:
     name: Publish package to PyPI
     needs: build
@@ -192,11 +210,23 @@ jobs:
           name: python-distributions
           path: dist/
 
-      - name: Create release and attach distributions
+      - name: Download CycloneDX SBOM
+        uses: actions/download-artifact@v7
+        with:
+          name: reversecore-mcp-${{ github.ref_name }}.cdx.json
+          path: sbom/
+
+      - name: Download SPDX SBOM
+        uses: actions/download-artifact@v7
+        with:
+          name: reversecore-mcp-${{ github.ref_name }}.spdx.json
+          path: sbom/
+
+      - name: Create release and attach distributions and SBOMs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" dist/* \
+          gh release create "${GITHUB_REF_NAME}" dist/* sbom/* \
             --repo "${GITHUB_REPOSITORY}" \
             --verify-tag \
             --generate-notes \

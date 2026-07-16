@@ -518,8 +518,21 @@ def main():
             )
             logger.info(f"Rate limiting enabled: {rate_limit}/minute")
         except ImportError:
+            _strict = os.getenv("REVERSECORE_RATE_LIMIT_STRICT", "").strip().lower() in {
+                "1",
+                "true",
+                "yes",
+                "on",
+            }
+            if _strict:
+                raise RuntimeError(
+                    "REVERSECORE_RATE_LIMIT_STRICT=true but slowapi is not installed. "
+                    "Install it with: pip install 'reversecore-mcp[http]'"
+                )
             logger.warning(
-                "slowapi not installed: Rate limiting is DISABLED. This is a security risk in production."
+                "slowapi not installed: Rate limiting is DISABLED. "
+                "Set REVERSECORE_RATE_LIMIT_STRICT=true to treat this as a fatal error, "
+                "or install with: pip install 'reversecore-mcp[http]'"
             )
         except Exception as e:
             logger.warning(f"Failed to setup rate limiting: {e}")
