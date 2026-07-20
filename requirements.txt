@@ -141,7 +141,7 @@ cssselect2==0.9.0
     # via svglib
 cxxfilt==0.3.0
     # via vivisect
-cxxheaderparser==1.9.0
+cxxheaderparser==1.9.2
     # via angr
 cycler==0.12.1
     # via matplotlib
