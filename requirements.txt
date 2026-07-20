@@ -424,7 +424,7 @@ pip==26.1.2
     #   pwntools
 pip-tools==7.5.3
     # via reversecore-mcp (pyproject.toml)
-platformdirs==4.10.0
+platformdirs==4.10.1
     # via
     #   black
     #   fastmcp-slim
