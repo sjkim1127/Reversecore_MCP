@@ -740,7 +740,7 @@ uefi-firmware==1.16
     # via cle
 uncalled-for==0.3.2
     # via fastmcp-slim
-unicorn==2.1.2
+unicorn==2.1.4
     # via pwntools
 unix-ar==0.2.1
     # via pwntools
