@@ -13,9 +13,10 @@
 [![CI/CD](https://github.com/sjkim1127/Reversecore_MCP/actions/workflows/main.yml/badge.svg)](https://github.com/sjkim1127/Reversecore_MCP/actions/workflows/main.yml)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-1520%20passed-brightgreen)](#testing)
-[![Coverage](https://img.shields.io/badge/coverage-82%25-green)](#testing)
-[![FastMCP](https://img.shields.io/badge/FastMCP-2.13+-purple)](https://github.com/jlowin/fastmcp)
+[![Tests](https://img.shields.io/badge/tests-1957%20passed-brightgreen)](#testing)
+[![Coverage](https://img.shields.io/badge/coverage-87%25-green)](#testing)
+[![FastMCP](https://img.shields.io/badge/FastMCP-3.4.4-purple)](https://github.com/jlowin/fastmcp)
+[![PyPI](https://img.shields.io/pypi/v/reversecore-mcp)](https://pypi.org/project/reversecore-mcp/)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io-blue)](https://github.com/sjkim1127/Reversecore_MCP/pkgs/container/reversecore_mcp)
 
 [![Watch the Demo](https://img.shields.io/badge/▶_Watch_Demo-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtu.be/wJGW2bp3c5A)
@@ -101,7 +102,7 @@ AI Client (Claude / Cursor / any MCP-compatible client)
 |---|---|
 | `core/config.py` | Centralized environment-aware configuration |
 | `core/security.py` | Input sanitization & path validation |
-| `core/validators.py` | File & binary path validators |
+| `core/validators.py` | File & binary path validators (TOCTOU-hardened) |
 | `core/r2_pool.py` | Thread-safe Radare2 connection pool |
 | `core/r2_helpers.py` | Structured Radare2 output utilities |
 | `core/metrics.py` | Per-tool execution times & error rates |
@@ -111,6 +112,8 @@ AI Client (Claude / Cursor / any MCP-compatible client)
 | `core/resilience.py` | Retry, circuit-breaker, timeout patterns |
 | `core/task_queue.py` | Background task queue (Redis + arq) |
 | `core/extension_registry.py` | Plugin/extension registration system |
+| `core/arch_registry.py` | Multi-architecture mapping (x86/ARM/RISC-V/MIPS → r2) |
+| `core/result_cache.py` | SHA256-based analysis result caching decorator |
 | `core/sast/` | Python AST scanner + C/C++ regex scanner |
 
 ---
@@ -162,6 +165,7 @@ AI Client (Claude / Cursor / any MCP-compatible client)
 | Tool | Backend | Description |
 |---|---|---|
 | `emulate_machine_code` | Radare2 ESIL | Register/memory-traced code emulation without running the binary |
+| `r2_esil_simulate` | Radare2 ESIL | Multi-architecture ESIL simulation with dynamic PC/SP register lookup |
 | `verify_path_and_get_args` | angr | Symbolic execution — prove path reachability and compute concrete inputs |
 | `generate_fuzzing_harness` | Qiling + AFL++ | Auto-generate a Qiling-based fuzzing harness targeting a specific function |
 | `diff_binaries` | Radare2 | Semantic binary diff to track patch changes between versions |
@@ -174,6 +178,7 @@ AI Client (Claude / Cursor / any MCP-compatible client)
 | `dormant_detector` | Radare2 + heuristics | Find hidden backdoors, orphan functions, time-bombs, and logic bombs |
 | `extract_iocs` | Regex + LIEF | Extract IPs, URLs, domains, hashes, registry keys, crypto addresses |
 | `run_yara` | YARA | YARA rule scanning with custom rule files and built-in rulesets |
+| `generate_yara_rule` | Radare2 + YARA | Generate YARA detection rules from binary signatures (cached) |
 | `adaptive_vaccine` | YARA + Radare2 | Generate detection YARA rules + binary patches to neutralize a threat |
 | `vulnerability_hunter` | Radare2 + analysis | Detect dangerous API patterns (strcpy, sprintf) and ROP gadget chains |
 
@@ -206,6 +211,9 @@ AI Client (Claude / Cursor / any MCP-compatible client)
 | `get_tool_metrics` | Per-tool call counts, mean execution times, and error rates |
 | `list_workspace` | List all files available in the analysis workspace |
 | `get_file_info` | Metadata for a specific workspace file (size, hash, type) |
+| `copy_to_workspace` | Copy a file into the analysis workspace for tool access |
+| `get_analysis_cache_stats` | View SHA256-based cache hit/miss statistics per tool |
+| `invalidate_analysis_cache` | Invalidate stale cached results for a specific binary |
 
 ---
 
@@ -227,7 +235,16 @@ Activate expert analysis modes by referencing these prompts in your AI client:
 
 ## Quick Start
 
-### Option 1 — Docker (Recommended)
+### Option 1 — PyPI (Simplest)
+
+```bash
+pip install reversecore-mcp
+reversecore-mcp
+```
+
+> **Prerequisites:** Radare2 must be installed on your system (`r2 --version`). YARA is installed automatically via `yara-python`.
+
+### Option 2 — Docker (Recommended for Production)
 
 The fastest way to get started with zero dependency installation:
 
@@ -239,7 +256,7 @@ docker run -i --rm \
   ghcr.io/sjkim1127/reversecore_mcp:latest
 ```
 
-### Option 2 — Build from Source
+### Option 3 — Build from Source
 
 ```bash
 git clone https://github.com/sjkim1127/Reversecore_MCP.git
@@ -253,14 +270,14 @@ docker compose --profile x86 up -d    # Intel/AMD
 docker compose --profile arm64 up -d  # Apple Silicon (M1/M2/M3)
 ```
 
-### Option 3 — Python (Local Development)
+### Option 4 — Python (Local Development)
 
 ```bash
 git clone https://github.com/sjkim1127/Reversecore_MCP.git
 cd Reversecore_MCP
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-python server.py
+python -m reversecore_mcp.server
 ```
 
 > **Prerequisites for local mode:** Radare2 must be installed on your system (`r2 --version`). YARA is installed automatically via `yara-python`.
@@ -286,7 +303,8 @@ If you run the server via Docker Compose (in the background), this mode uses sta
         "MCP_TRANSPORT=stdio",
         "reversecore-mcp-arm64",
         "python",
-        "server.py"
+        "-m",
+        "reversecore_mcp.server"
       ]
     }
   }
@@ -466,8 +484,8 @@ pytest tests/unit/test_cli_tools.py::TestRunFile::test_success -v
 ```
 
 **Test status:**
-- ✅ **1,520 unit tests** passing across Python 3.10 / 3.11 / 3.12
-- 📊 **82% code coverage** (80% minimum enforced in CI)
+- ✅ **1,957 unit tests** passing across Python 3.10 / 3.11 / 3.12
+- 📊 **87% code coverage** (80% minimum enforced in CI)
 - 🔒 Zero Bandit findings · No unreviewed vulnerabilities (pip-audit / container scans)
 - ⚡ Fully async test suite via `pytest-asyncio`
 
@@ -476,7 +494,7 @@ pytest tests/unit/test_cli_tools.py::TestRunFile::test_success -v
 ```bash
 ruff check reversecore_mcp/      # Lint (E, W, F, I, B, C4, UP rules)
 ruff format reversecore_mcp/     # Format
-mypy reversecore_mcp/            # Type check (0 errors across 87 files)
+mypy reversecore_mcp/            # Type check (0 errors across 108 files)
 bandit -r reversecore_mcp/       # Security scan (all severities)
 pip-audit                        # Dependency CVE scan
 ```
@@ -524,7 +542,7 @@ reversecore_mcp/
 │   ├── config.py              # Centralized configuration
 │   ├── exceptions.py          # Exception hierarchy (RCMCP-E* codes)
 │   ├── security.py            # Input sanitization & path validation
-│   ├── validators.py          # File & binary path validators
+│   ├── validators.py          # File & binary path validators (TOCTOU-hardened)
 │   ├── r2_pool.py             # Thread-safe Radare2 connection pool
 │   ├── r2_helpers.py          # Structured Radare2 output utilities
 │   ├── metrics.py             # Tool execution metrics
@@ -536,6 +554,8 @@ reversecore_mcp/
 │   ├── resilience.py          # Retry, circuit-breaker, timeout
 │   ├── task_queue.py          # Background task queue (Redis/arq)
 │   ├── extension_registry.py  # Plugin registration system
+│   ├── arch_registry.py       # Multi-arch mapping (x86/ARM/RISC-V/MIPS)
+│   ├── result_cache.py        # SHA256-based analysis result caching
 │   └── sast/                  # Python AST + C/C++ scanners
 │
 ├── tools/                     # MCP tool implementations
@@ -548,14 +568,15 @@ reversecore_mcp/
 │   │   ├── emulation_tools.py # ESIL emulation
 │   │   ├── fuzz_tools.py      # Fuzzing harness generator
 │   │   ├── symbolic_analysis.py # angr symbolic execution
-│   │   ├── signature_tools.py # Library signature matching
+│   │   ├── signature_tools.py # Library signature matching (cached)
 │   │   └── source_auditor.py  # SAST (Python + C/C++)
 │   │
 │   ├── radare2/               # Radare2 & decompilation
 │   │   ├── radare2_mcp_tools.py # Core r2 tool set
-│   │   ├── r2ghidra_tools.py  # Ghidra decompiler (r2ghidra)
+│   │   ├── r2ghidra_tools.py  # Ghidra decompiler (r2ghidra, cached)
 │   │   ├── r2_analysis.py     # Deep function analysis
-│   │   ├── r2_db.py           # SQLite annotation database
+│   │   ├── r2_db.py           # SQLite annotation + analysis cache DB
+│   │   ├── r2_esil_simulator.py # Multi-arch ESIL simulator
 │   │   └── r2_session.py      # Stateful analysis sessions
 │   │
 │   ├── malware/               # Threat detection & defense
@@ -574,6 +595,9 @@ reversecore_mcp/
 │   ├── report/                # Report generation
 │   └── common/                # File ops, server health
 │
+├── dashboard/                 # HTMX web dashboard
+│   ├── templates/             # Jinja2 templates + HTMX fragments
+│   └── static/                # htmx.min.js (local, CSP-compliant)
 ├── prompts/                   # AI reasoning prompts (5 modes)
 ├── resources.py               # Dynamic MCP resources
 └── server.py                  # FastMCP server entrypoint (50+ tools registered)
