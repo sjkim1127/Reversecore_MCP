@@ -1,0 +1,56 @@
+name: Pip Audit Diagnostic
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - pyproject.toml
+      - requirements.txt
+      - requirements-dev.txt
+      - .github/workflows/main.yml
+      - .github/workflows/pip-audit-diagnostic.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install dependency graph
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          pip install pip-audit
+      - name: Run pip-audit and capture output
+        run: |
+          set +e
+          pip-audit \
+            --ignore-vuln CVE-2025-69872 \
+            --ignore-vuln CVE-2026-1703 \
+            --ignore-vuln CVE-2026-3219 \
+            --ignore-vuln CVE-2026-6357 \
+            --ignore-vuln CVE-2026-0994 \
+            --ignore-vuln CVE-2024-6345 \
+            --ignore-vuln GHSA-2689-5p89-6j3j \
+            --ignore-vuln GHSA-hm2w-vr2p-hq7w \
+            --ignore-vuln PYSEC-2026-196 \
+            --ignore-vuln PYSEC-2025-49 \
+            > /tmp/pip-audit.log 2>&1
+          status=$?
+          cat /tmp/pip-audit.log
+          exit "$status"
+      - name: Upload pip-audit diagnostic
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: pip-audit-diagnostic
+          path: /tmp/pip-audit.log
+          if-no-files-found: error
