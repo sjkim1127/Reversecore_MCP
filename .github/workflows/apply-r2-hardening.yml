@@ -31,21 +31,53 @@ jobs:
         run: python -m pip install --disable-pip-version-check libcst ruff
 
       - name: Apply transformer
-        run: python scripts/apply_r2_hardening_refactor.py
-
-      - name: Format and validate generated source
         run: |
-          set -euo pipefail
+          mkdir -p artifacts
+          python scripts/apply_r2_hardening_refactor.py 2>&1 | tee artifacts/transformer.log
+
+      - name: Run Ruff fixes
+        run: |
+          set -o pipefail
           ruff check --fix reversecore_mcp/core/config.py \
             reversecore_mcp/tools/radare2/r2_analysis.py \
             reversecore_mcp/tools/radare2/radare2_mcp_tools.py \
-            tests/unit/tools/radare2/test_r2_runtime_hardening.py
+            tests/unit/tools/radare2/test_r2_runtime_hardening.py \
+            2>&1 | tee artifacts/ruff-check.log
+
+      - name: Format generated source
+        run: |
+          set -o pipefail
           ruff format reversecore_mcp/core/config.py \
             reversecore_mcp/tools/radare2/r2_analysis.py \
             reversecore_mcp/tools/radare2/radare2_mcp_tools.py \
+            tests/unit/tools/radare2/test_r2_runtime_hardening.py \
+            2>&1 | tee artifacts/ruff-format.log
+
+      - name: Compile generated source
+        run: |
+          set -o pipefail
+          python -m compileall -q reversecore_mcp \
+            tests/unit/tools/radare2/test_r2_runtime_hardening.py \
+            2>&1 | tee artifacts/compile.log
+
+      - name: Validate dependency separation
+        run: |
+          set -o pipefail
+          bash scripts/check-docker-requirements-sync.sh \
+            2>&1 | tee artifacts/dependency-check.log
+
+      - name: Upload refactor diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: r2-hardening-refactor-diagnostics
+          path: |
+            artifacts/
+            reversecore_mcp/core/config.py
+            reversecore_mcp/tools/radare2/r2_analysis.py
+            reversecore_mcp/tools/radare2/radare2_mcp_tools.py
             tests/unit/tools/radare2/test_r2_runtime_hardening.py
-          python -m compileall -q reversecore_mcp tests/unit/tools/radare2/test_r2_runtime_hardening.py
-          bash scripts/check-docker-requirements-sync.sh
+          if-no-files-found: warn
 
       - name: Commit generated refactor
         run: |
