@@ -179,8 +179,9 @@ ghp-import==2.1.0
     # via mkdocs
 gitdb==4.0.12
     # via gitpython
-gitpython==3.1.50
+gitpython==3.1.55
     # via
+    #   reversecore-mcp (pyproject.toml)
     #   angr
     #   mkdocs-git-revision-date-localized-plugin
 graphviz==0.21
@@ -453,8 +454,9 @@ py-cpuinfo==9.0.0
     # via pytest-benchmark
 py-key-value-aio==0.4.5
     # via fastmcp-slim
-pyasn1==0.6.3
+pyasn1==0.6.4
     # via
+    #   reversecore-mcp (pyproject.toml)
     #   pyasn1-modules
     #   vivisect
 pyasn1-modules==0.4.2
