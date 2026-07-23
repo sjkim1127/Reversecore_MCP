@@ -1,0 +1,50 @@
+name: Reorder Radare2 function validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/reorder_r2_function_detail_validation.py"
+      - ".github/workflows/reorder-r2-function-validation.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'refactor/runtime-r2-hardening'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Install formatting tools
+        run: python -m pip install --disable-pip-version-check ruff
+
+      - name: Reorder validation
+        run: python scripts/reorder_r2_function_detail_validation.py
+
+      - name: Validate generated source
+        run: |
+          set -euo pipefail
+          ruff check --fix reversecore_mcp/tools/radare2/radare2_mcp_tools.py
+          ruff format reversecore_mcp/tools/radare2/radare2_mcp_tools.py
+          python -m compileall -q reversecore_mcp/tools/radare2/radare2_mcp_tools.py
+
+      - name: Commit validation-order fix
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: validate radare2 function address before opening session"
+          git push origin HEAD:${{ github.head_ref }}
