@@ -1,5 +1,6 @@
 name: Docker Compose Validation
 
+# Validation-only workflow for Docker deployment configuration.
 on:
   push:
     branches: [main]
