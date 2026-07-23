@@ -39,9 +39,9 @@ x-reversecore-common: &reversecore-common
       limits:
         cpus: '2.0'
         memory: 4G
+        pids: 256
   security_opt:
     - no-new-privileges:true
-  pids_limit: 256
   init: true
   restart: unless-stopped
 
@@ -82,9 +82,12 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          pids: 128
     security_opt:
       - no-new-privileges:true
-    pids_limit: 128
     restart: unless-stopped
     profiles:
       - default
