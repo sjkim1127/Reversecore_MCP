@@ -390,7 +390,7 @@ class Radare2ToolsPlugin(Plugin):
                 return {"status": "error", "message": "Failed to open file"}
 
             await self._run_session_analyze(session, level)
-            func_count = await self._run_session_cmd(session, "aflc").strip()
+            func_count = (await self._run_session_cmd(session, "aflc")).strip()
 
             return {
                 "status": "success",
@@ -457,7 +457,7 @@ class Radare2ToolsPlugin(Plugin):
                 return {"status": "error", "message": "Failed to open file"}
 
             # Use validated expression
-            result = await self._run_session_cmd(session, f"?v {expression}").strip()
+            result = (await self._run_session_cmd(session, f"?v {expression}")).strip()
             return {
                 "status": "success",
                 "result": result,
@@ -574,8 +574,8 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
-            address = await self._run_session_cmd(session, "s").strip()
-            func_name = await self._run_session_cmd(session, "fd").strip()
+            address = (await self._run_session_cmd(session, "s")).strip()
+            func_name = (await self._run_session_cmd(session, "fd")).strip()
 
             return {
                 "status": "success",
@@ -608,7 +608,7 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
-            result = await self._run_session_cmd(session, f"afs @ {address}").strip()
+            result = (await self._run_session_cmd(session, f"afs @ {address}")).strip()
             return {"status": "success", "prototype": result}
 
         @mcp.tool()
@@ -1017,7 +1017,7 @@ class Radare2ToolsPlugin(Plugin):
             # attempt resolution via radare2's `?v` expression evaluator.
             resolved_address = address
             if not address.startswith("0x") and not address.lstrip("-").isdigit():
-                resolved = await self._run_session_cmd(session, f"?v {address}").strip()
+                resolved = (await self._run_session_cmd(session, f"?v {address}")).strip()
                 if resolved and resolved.startswith("0x"):
                     resolved_address = resolved
                     logger.debug("Resolved symbol '%s' -> %s", address, resolved_address)
@@ -1182,7 +1182,7 @@ class Radare2ToolsPlugin(Plugin):
             # axt returns an empty string when no xrefs exist, making it
             # impossible to distinguish "no xrefs" from an error. axtj
             # returns [] in that case, which is unambiguous.
-            raw = await self._run_session_cmd(session, f"axtj @ {address}").strip()
+            raw = (await self._run_session_cmd(session, f"axtj @ {address}")).strip()
             try:
                 import json as _json
 

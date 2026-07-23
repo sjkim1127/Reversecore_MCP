@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
+import re
 import threading
 import time
 from pathlib import Path
@@ -9,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from reversecore_mcp.core.exceptions import ValidationError
-from reversecore_mcp.tools.radare2 import r2_analysis
+from reversecore_mcp.tools.radare2 import r2_analysis, radare2_mcp_tools
 from reversecore_mcp.tools.radare2.radare2_mcp_tools import Radare2ToolsPlugin
 
 
@@ -101,3 +103,9 @@ async def test_extension_mutated_command_is_revalidated(monkeypatch) -> None:
         await r2_analysis._apply_validated_r2_pre_hooks("/safe/path", "iI")
 
     command_validator.assert_called_once_with("!sh")
+
+
+def test_awaited_session_results_are_materialized_before_string_methods() -> None:
+    source = inspect.getsource(radare2_mcp_tools)
+    unsafe_chain = re.compile(r"(?<!\()await self\._run_session_cmd\([^\n]+?\)\.[A-Za-z_]")
+    assert unsafe_chain.search(source) is None
