@@ -1,6 +1,6 @@
 # Reversecore_MCP — Application Image
 #
-# Inherits all pre-built tooling (YARA, radare2, Ghidra, JDK, Python venv)
+# Inherits all pre-built tooling (YARA, radare2, r2ghidra, Python venv)
 # from the base image. This stage ONLY adds application source code.
 #
 # Cold build time (code-only change): ~30–60 seconds
@@ -14,7 +14,7 @@
 # - Disassembly & Analysis: radare2 (pdf, afl, ii, iz, etc.)
 # - CFG Visualization: radare2 agfj + graphviz
 # - ESIL Emulation: radare2 aei/aeim/aes
-# - Smart Decompile: Ghidra DecompInterface (primary), radare2 pdc (fallback)
+# - Smart Decompile: r2ghidra (primary, no JVM) and radare2 pdc (fallback)
 # - YARA Rule Generation & Pattern Matching
 # - Multi-arch Disassembly: Capstone
 # - Binary Parsing: LIEF (PE/ELF/Mach-O)
@@ -61,7 +61,10 @@ USER appuser
 
 EXPOSE 8000
 
+# Stdio is the default transport and does not open a TCP listener. Treat it as
+# healthy immediately; in HTTP mode, verify that the configured port accepts a
+# local connection.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import socket; s=socket.socket(); s.connect(('localhost', 8000)); s.close()" || exit 1
+    CMD python -c "import os, socket; mode = os.getenv('MCP_TRANSPORT', 'stdio').lower(); mode == 'stdio' or socket.create_connection(('127.0.0.1', int(os.getenv('MCP_PORT', '8000'))), 5).close()" || exit 1
 
 CMD ["python", "-m", "reversecore_mcp.server"]
