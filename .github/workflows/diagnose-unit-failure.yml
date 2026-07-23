@@ -32,7 +32,7 @@ jobs:
         run: |
           mkdir -p artifacts
           set -o pipefail
-          # Stop at the first regression after the Radare2 validation-order fix.
+          # Stop at the first regression after correcting the invalid-address fixture.
           pytest tests --maxfail=1 --tb=long --no-cov -vv \
             2>&1 | tee artifacts/first-unit-failure.log
 
