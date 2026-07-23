@@ -1,0 +1,53 @@
+name: Docker Compose Validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - docker-compose.yml
+      - Dockerfile
+      - .env.example
+      - .github/workflows/compose-validation.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - docker-compose.yml
+      - Dockerfile
+      - .env.example
+      - .github/workflows/compose-validation.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-compose:
+    name: Validate Compose Profiles
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Validate default/x86 profile
+        env:
+          MCP_PORT: "8000"
+          MCP_API_KEY: ""
+        run: docker compose --profile x86 config --quiet
+
+      - name: Validate ARM64 profile
+        env:
+          MCP_PORT: "8000"
+          MCP_API_KEY: ""
+        run: docker compose --profile arm64 config --quiet
+
+      - name: Verify hardened network defaults
+        env:
+          MCP_PORT: "8000"
+          MCP_API_KEY: ""
+        run: |
+          docker compose --profile x86 config > /tmp/reversecore-compose.yml
+          grep -q 'host_ip: 127.0.0.1' /tmp/reversecore-compose.yml
+          if grep -A8 '^  redis:' /tmp/reversecore-compose.yml | grep -q 'published:'; then
+            echo 'Redis must not publish a host port.' >&2
+            exit 1
+          fi
