@@ -31,7 +31,10 @@ jobs:
         run: python -m pip install --disable-pip-version-check ruff
 
       - name: Apply await correction
-        run: python scripts/fix_r2_await_precedence.py
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          python scripts/fix_r2_await_precedence.py 2>&1 | tee artifacts/fix.log
 
       - name: Validate generated source
         run: |
@@ -47,6 +50,14 @@ jobs:
             echo "Unsafe await/member-access chain remains"
             exit 1
           fi
+
+      - name: Upload await-correction diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: r2-await-correction-diagnostics
+          path: artifacts/
+          if-no-files-found: warn
 
       - name: Commit corrected source
         run: |
