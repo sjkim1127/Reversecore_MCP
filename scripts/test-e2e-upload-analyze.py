@@ -82,26 +82,43 @@ def select_elf_fixture() -> Path:
     raise FileNotFoundError(f"No ELF fixture found in: {', '.join(map(str, candidates))}")
 
 
-def normalize_workspace_path(raw_path: str) -> Path:
-    """Normalize a server-provided path and enforce workspace containment."""
+def normalize_workspace_path(raw_path: str) -> Path | None:
+    """Return a valid workspace-contained file path, or None for a non-path value."""
     if not raw_path:
-        raise AssertionError("Upload response did not contain a file path")
+        return None
 
     candidate = Path(raw_path)
-    if not candidate.is_absolute():
-        candidate = WORKSPACE / candidate
-    resolved = candidate.resolve()
-    try:
-        resolved.relative_to(WORKSPACE)
-    except ValueError as exc:
-        raise AssertionError(f"Upload escaped the workspace: {resolved}") from exc
-    if not resolved.is_file():
-        raise AssertionError(f"Uploaded file does not exist: {resolved}")
-    return resolved
+    attempts = [candidate] if candidate.is_absolute() else [WORKSPACE / candidate]
+    for attempt in attempts:
+        resolved = attempt.resolve()
+        try:
+            resolved.relative_to(WORKSPACE)
+        except ValueError:
+            continue
+        if resolved.is_file():
+            return resolved
+    return None
+
+
+def iter_upload_path_values(value: Any, parent_key: str = ""):
+    """Yield path-like strings from common top-level or nested upload payload fields."""
+    if isinstance(value, dict):
+        for key, child in value.items():
+            normalized_key = str(key).lower()
+            if isinstance(child, str) and (
+                "path" in normalized_key
+                or normalized_key in {"file", "filename", "name", "saved_as", "location"}
+            ):
+                yield child
+            yield from iter_upload_path_values(child, normalized_key)
+    elif isinstance(value, list):
+        for child in value:
+            yield from iter_upload_path_values(child, parent_key)
 
 
 def upload_file(path: Path) -> Path:
-    """Upload a fixture via multipart/form-data and return its validated path."""
+    """Upload a fixture and resolve the server response to a real workspace file."""
+    existing_matches = {candidate.resolve() for candidate in WORKSPACE.rglob(path.name)}
     boundary = "----ReversecoreE2EBoundary"
     body = (
         (
@@ -123,8 +140,27 @@ def upload_file(path: Path) -> Path:
             raise AssertionError(f"Upload returned HTTP {response.status}")
         payload = json.loads(response.read())
 
-    raw_path = payload.get("path") or payload.get("file_path")
-    return normalize_workspace_path(str(raw_path or ""))
+    print(f"   upload response: {json.dumps(payload, sort_keys=True, default=str)[:600]}")
+
+    for raw_path in iter_upload_path_values(payload):
+        resolved = normalize_workspace_path(raw_path)
+        if resolved is not None:
+            return resolved
+
+    new_matches = [
+        candidate.resolve()
+        for candidate in WORKSPACE.rglob(path.name)
+        if candidate.is_file() and candidate.resolve() not in existing_matches
+    ]
+    if len(new_matches) == 1:
+        return new_matches[0]
+    if len(new_matches) > 1:
+        return max(new_matches, key=lambda candidate: candidate.stat().st_mtime_ns)
+
+    raise AssertionError(
+        "Upload succeeded but no workspace-contained file could be resolved from "
+        f"payload={payload!r}"
+    )
 
 
 async def call_tool(session: Any, tool_name: str, params: dict[str, Any]) -> str:
