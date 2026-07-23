@@ -698,7 +698,7 @@ class TestMcpToolsMocked:
         """Radare2_show_function_details should reject invalid address."""
         plugin = registered_plugin
         tool = plugin._tools["Radare2_show_function_details"]
-        result = await tool("/app/test.bin", address="invalid")
+        result = await tool("/app/test.bin", address="invalid;command")
         assert result["status"] == "error"
 
     @pytest.mark.asyncio
