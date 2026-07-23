@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import inspect
 import re
 import threading
@@ -102,6 +103,12 @@ async def test_session_capacity_evicts_least_recently_used_idle_session() -> Non
     assert newest.closed is False
     assert set(plugin._sessions) == {"newest"}
     assert plugin._file_to_session == {"/tmp/newest": "newest"}
+
+
+def test_legacy_r2_analysis_module_alias_resolves_to_implementation() -> None:
+    legacy_module = importlib.import_module("reversecore_mcp.tools.r2_analysis")
+    assert legacy_module is r2_analysis
+    assert legacy_module.trace_execution_path is r2_analysis.trace_execution_path
 
 
 @pytest.mark.asyncio
