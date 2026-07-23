@@ -1,4 +1,4 @@
-name: Diagnose first unit regression
+name: Diagnose remaining unit regressions
 
 on:
   pull_request:
@@ -10,9 +10,9 @@ permissions:
   contents: read
 
 jobs:
-  first-failure:
+  all-failures:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -28,18 +28,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run until first failure
+      - name: Run complete unit and integration suite
         run: |
           mkdir -p artifacts
           set -o pipefail
-          # Stop at the first regression after correcting the invalid-address fixture.
-          pytest tests --maxfail=1 --tb=long --no-cov -vv \
-            2>&1 | tee artifacts/first-unit-failure.log
+          pytest tests --tb=short --no-cov -q \
+            2>&1 | tee artifacts/all-unit-regressions.log
 
-      - name: Upload unit failure log
+      - name: Upload complete regression log
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: first-unit-failure-log
-          path: artifacts/first-unit-failure.log
+          name: all-unit-regressions-log
+          path: artifacts/all-unit-regressions.log
           if-no-files-found: error
