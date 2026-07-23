@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import os
 import shutil
+import time
 from typing import Any
 
 from fastmcp import FastMCP
@@ -25,7 +26,7 @@ from fastmcp import FastMCP
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
-from reversecore_mcp.core.exceptions import ValidationError
+from reversecore_mcp.core.exceptions import ToolExecutionError, ValidationError
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.plugin import Plugin
@@ -64,9 +65,92 @@ class Radare2ToolsPlugin(Plugin):
     description = "Radare2 binary analysis tools (r2mcp compatible)"
 
     def __init__(self):
+        settings = get_config()
         self._sessions: dict[str, R2Session] = {}  # session_id -> Session
         self._file_to_session: dict[str, str] = {}  # file_path -> session_id
-        self._lock = asyncio.Lock()  # Protects session creation race conditions
+        self._session_locks: dict[str, asyncio.Lock] = {}
+        self._session_last_used: dict[str, float] = {}
+        self._max_sessions = settings.r2_session_max
+        self._session_idle_ttl = settings.r2_session_idle_ttl
+        self._lock = asyncio.Lock()  # Protects session lifecycle mutations
+
+    def _touch_session(self, session_id: str) -> None:
+        self._session_last_used[session_id] = time.monotonic()
+
+    async def _run_session_cmd(self, session: R2Session, command: str) -> str:
+        """Serialize commands per r2pipe process and keep blocking I/O off the event loop."""
+        lock = self._session_locks.setdefault(session.session_id, asyncio.Lock())
+        async with lock:
+            if not session.is_open:
+                raise ToolExecutionError("Radare2 session is closed")
+            self._touch_session(session.session_id)
+            try:
+                return await asyncio.to_thread(session.cmd, command)
+            finally:
+                self._touch_session(session.session_id)
+
+    async def _run_session_analyze(self, session: R2Session, level: int) -> Any:
+        """Serialize blocking analysis for a session in a worker thread."""
+        lock = self._session_locks.setdefault(session.session_id, asyncio.Lock())
+        async with lock:
+            if not session.is_open:
+                raise ToolExecutionError("Radare2 session is closed")
+            self._touch_session(session.session_id)
+            try:
+                return await asyncio.to_thread(session.analyze, level)
+            finally:
+                self._touch_session(session.session_id)
+
+    async def _close_session_locked(self, session_id: str, *, wait: bool = True) -> bool:
+        """Close and remove a session while the lifecycle lock is held."""
+        session = self._sessions.get(session_id)
+        if session is None:
+            return True
+
+        session_lock = self._session_locks.setdefault(session_id, asyncio.Lock())
+        if session_lock.locked() and not wait:
+            return False
+
+        async with session_lock:
+            await asyncio.to_thread(session.close)
+
+        self._sessions.pop(session_id, None)
+        self._session_locks.pop(session_id, None)
+        self._session_last_used.pop(session_id, None)
+        for file_path, mapped_id in list(self._file_to_session.items()):
+            if mapped_id == session_id:
+                self._file_to_session.pop(file_path, None)
+        return True
+
+    async def _evict_stale_sessions_locked(self) -> None:
+        """Evict idle sessions and enforce a bounded persistent-session set."""
+        now = time.monotonic()
+        stale_ids = [
+            session_id
+            for session_id, last_used in self._session_last_used.items()
+            if now - last_used >= self._session_idle_ttl
+        ]
+        for session_id in stale_ids:
+            await self._close_session_locked(session_id, wait=False)
+
+        while len(self._sessions) >= self._max_sessions:
+            candidates = [
+                session_id
+                for session_id in self._sessions
+                if not (
+                    self._session_locks.get(session_id) and self._session_locks[session_id].locked()
+                )
+            ]
+            if not candidates:
+                raise ToolExecutionError(
+                    f"Radare2 session capacity reached ({self._max_sessions}); "
+                    "close a session or retry after an active command finishes"
+                )
+            oldest = min(
+                candidates,
+                key=lambda session_id: self._session_last_used.get(session_id, 0.0),
+            )
+            await self._close_session_locked(oldest, wait=False)
 
     def _diagnose_error(self, file_path: str, error: Exception) -> dict[str, Any]:
         """Diagnose why r2 failed to open a file."""
@@ -108,8 +192,8 @@ class Radare2ToolsPlugin(Plugin):
         try:
             validated_path = validate_file_path(file_path)
             file_path = str(validated_path)
-        except ValidationError:
-            return R2Session(file_path)
+        except ValidationError as exc:
+            raise ToolExecutionError(f"Invalid Radare2 file path: {file_path}") from exc
 
         async with self._lock:
             # 2. Check existing session (double-checked locking pattern)
@@ -118,11 +202,12 @@ class Radare2ToolsPlugin(Plugin):
                 if sid in self._sessions:
                     session = self._sessions[sid]
                     if session.is_open:
+                        self._session_locks.setdefault(sid, asyncio.Lock())
+                        self._touch_session(sid)
                         return session
-                    else:
-                        # Stale session, remove it
-                        del self._sessions[sid]
-                        del self._file_to_session[file_path]
+                    await self._close_session_locked(sid)
+
+            await self._evict_stale_sessions_locked()
 
             # 3. Create new session (blocking I/O wrapped in thread)
             try:
@@ -142,23 +227,23 @@ class Radare2ToolsPlugin(Plugin):
                 # 4. Store session
                 self._sessions[session.session_id] = session
                 self._file_to_session[file_path] = session.session_id
+                self._session_locks[session.session_id] = asyncio.Lock()
+                self._touch_session(session.session_id)
 
                 # 5. Auto analyze if requested
                 if auto_analyze:
                     # Async analysis call (assuming session.analyze is async or needs wrapping)
                     # For now, R2Session methods are sync, so we wrap them
-                    await asyncio.to_thread(session.cmd, "aaa")
+                    await self._run_session_cmd(session, "aaa")
 
                 return session
 
             except Exception as e:
                 logger.error(f"Failed to create R2 session for {file_path}: {e}")
                 # Raise exception instead of returning dummy session that may also fail
-                from reversecore_mcp.core.exceptions import ToolExecutionError
-
                 raise ToolExecutionError(f"Cannot open file with radare2: {file_path}") from e
 
-    def _ensure_analyzed(self, session: R2Session, level: int = 1) -> None:
+    async def _ensure_analyzed(self, session: R2Session, level: int = 1) -> None:
         """
         Ensure session has been analyzed at least once.
 
@@ -167,7 +252,13 @@ class Radare2ToolsPlugin(Plugin):
             level: Minimum analysis level required
         """
         if not session._analyzed:
-            session.analyze(level)
+            await self._run_session_analyze(session, level)
+
+    async def cleanup(self) -> None:
+        """Close every persistent Radare2 process during server shutdown."""
+        async with self._lock:
+            for session_id in list(self._sessions):
+                await self._close_session_locked(session_id)
 
     def register(self, mcp: FastMCP) -> None:
         """Register all Radare2 tools with the MCP server."""
@@ -245,10 +336,8 @@ class Radare2ToolsPlugin(Plugin):
                 # Check mapping
                 if abs_path in self._file_to_session:
                     sid = self._file_to_session[abs_path]
-                    if sid in self._sessions:
-                        self._sessions[sid].close()
-                        del self._sessions[sid]
-                    del self._file_to_session[abs_path]
+                    async with self._lock:
+                        await self._close_session_locked(sid)
                     return {
                         "status": "success",
                         "message": "File closed successfully",
@@ -300,8 +389,8 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
-            session.analyze(level)
-            func_count = session.cmd("aflc").strip()
+            await self._run_session_analyze(session, level)
+            func_count = await self._run_session_cmd(session, "aflc").strip()
 
             return {
                 "status": "success",
@@ -336,7 +425,7 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
-            result = session.cmd(command)
+            result = await self._run_session_cmd(session, command)
             return {"status": "success", "output": result}
 
         @mcp.tool()
@@ -368,7 +457,7 @@ class Radare2ToolsPlugin(Plugin):
                 return {"status": "error", "message": "Failed to open file"}
 
             # Use validated expression
-            result = session.cmd(f"?v {expression}").strip()
+            result = await self._run_session_cmd(session, f"?v {expression}").strip()
             return {
                 "status": "success",
                 "result": result,
@@ -401,8 +490,8 @@ class Radare2ToolsPlugin(Plugin):
                 return {"status": "error", "message": "Failed to open file"}
 
             # Ensure analysis is done (lazy - only if not already analyzed)
-            self._ensure_analyzed(session)
-            result = session.cmd("afl")
+            await self._ensure_analyzed(session)
+            result = await self._run_session_cmd(session, "afl")
 
             if only_named:
                 result = _filter_named_functions(result)
@@ -434,7 +523,7 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
-            result = session.cmd("aflm")
+            result = await self._run_session_cmd(session, "aflm")
             return {"status": "success", "output": result.strip()}
 
         @mcp.tool()
@@ -462,9 +551,9 @@ class Radare2ToolsPlugin(Plugin):
                     validate_address_format(address)
                 except ValidationError as e:
                     return {"status": "error", "message": str(e)}
-                result = session.cmd(f"afi @ {address}")
+                result = await self._run_session_cmd(session, f"afi @ {address}")
             else:
-                result = session.cmd("afi")
+                result = await self._run_session_cmd(session, "afi")
 
             return {"status": "success", "output": result}
 
@@ -485,8 +574,8 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
-            address = session.cmd("s").strip()
-            func_name = session.cmd("fd").strip()
+            address = await self._run_session_cmd(session, "s").strip()
+            func_name = await self._run_session_cmd(session, "fd").strip()
 
             return {
                 "status": "success",
@@ -519,7 +608,7 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
-            result = session.cmd(f"afs @ {address}").strip()
+            result = await self._run_session_cmd(session, f"afs @ {address}").strip()
             return {"status": "success", "prototype": result}
 
         @mcp.tool()
@@ -554,7 +643,7 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
-            session.cmd(f"afs {safe_prototype} @ {address}")
+            await self._run_session_cmd(session, f"afs {safe_prototype} @ {address}")
             return {"status": "success", "message": "Function prototype set"}
 
         # =====================================================================
@@ -578,8 +667,8 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
-            info = session.cmd("i")
-            headers = session.cmd("iH")
+            info = await self._run_session_cmd(session, "i")
+            headers = await self._run_session_cmd(session, "iH")
 
             return {
                 "status": "success",
@@ -604,8 +693,8 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
-            sections = session.cmd("iS")
-            segments = session.cmd("iSS")
+            sections = await self._run_session_cmd(session, "iS")
+            segments = await self._run_session_cmd(session, "iSS")
 
             return {
                 "status": "success",
@@ -634,7 +723,7 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
-            result = session.cmd("ii")
+            result = await self._run_session_cmd(session, "ii")
 
             if filter:
                 result = _filter_lines_by_regex(result, filter)
@@ -660,7 +749,7 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
-            result = session.cmd("is")
+            result = await self._run_session_cmd(session, "is")
 
             if filter:
                 result = _filter_lines_by_regex(result, filter)
@@ -684,7 +773,7 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
-            result = session.cmd("ie")
+            result = await self._run_session_cmd(session, "ie")
             return {"status": "success", "entrypoints": result}
 
         @mcp.tool()
@@ -704,7 +793,7 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
-            result = session.cmd("il")
+            result = await self._run_session_cmd(session, "il")
             return {"status": "success", "libraries": result}
 
         @mcp.tool()
@@ -733,7 +822,7 @@ class Radare2ToolsPlugin(Plugin):
             if page_size > MAX_PAGE_SIZE:
                 page_size = MAX_PAGE_SIZE
 
-            result = session.cmd("iz")
+            result = await self._run_session_cmd(session, "iz")
 
             if filter:
                 result = _filter_lines_by_regex(result, filter)
@@ -775,7 +864,7 @@ class Radare2ToolsPlugin(Plugin):
             if page_size > MAX_PAGE_SIZE:
                 page_size = MAX_PAGE_SIZE
 
-            result = session.cmd("izz")
+            result = await self._run_session_cmd(session, "izz")
 
             if filter:
                 result = _filter_lines_by_regex(result, filter)
@@ -812,7 +901,7 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
-            result = session.cmd("ic")
+            result = await self._run_session_cmd(session, "ic")
 
             if filter:
                 result = _filter_lines_by_regex(result, filter)
@@ -844,7 +933,7 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
-            result = session.cmd(f"ic {classname}")
+            result = await self._run_session_cmd(session, f"ic {classname}")
             return {"status": "success", "methods": result}
 
         # =====================================================================
@@ -887,7 +976,7 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
-            result = session.cmd(f"pd {num_instructions} @ {address}")
+            result = await self._run_session_cmd(session, f"pd {num_instructions} @ {address}")
             return {"status": "success", "disassembly": result}
 
         @mcp.tool()
@@ -928,7 +1017,7 @@ class Radare2ToolsPlugin(Plugin):
             # attempt resolution via radare2's `?v` expression evaluator.
             resolved_address = address
             if not address.startswith("0x") and not address.lstrip("-").isdigit():
-                resolved = session.cmd(f"?v {address}").strip()
+                resolved = await self._run_session_cmd(session, f"?v {address}").strip()
                 if resolved and resolved.startswith("0x"):
                     resolved_address = resolved
                     logger.debug("Resolved symbol '%s' -> %s", address, resolved_address)
@@ -936,7 +1025,7 @@ class Radare2ToolsPlugin(Plugin):
             if page_size > MAX_PAGE_SIZE:
                 page_size = MAX_PAGE_SIZE
 
-            result = session.cmd(f"pdf @ {resolved_address}")
+            result = await self._run_session_cmd(session, f"pdf @ {resolved_address}")
             paginated, has_more, next_cursor = _paginate_text(result, cursor, page_size)
 
             return {
@@ -983,7 +1072,7 @@ class Radare2ToolsPlugin(Plugin):
             if page_size > MAX_PAGE_SIZE:
                 page_size = MAX_PAGE_SIZE
 
-            result = session.cmd(f"pdc @ {address}")
+            result = await self._run_session_cmd(session, f"pdc @ {address}")
             paginated, has_more, next_cursor = _paginate_text(result, cursor, page_size)
 
             return {
@@ -1010,7 +1099,7 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
-            result = session.cmd("e cmd.pdc=?")
+            result = await self._run_session_cmd(session, "e cmd.pdc=?")
             return {"status": "success", "decompilers": result}
 
         @mcp.tool()
@@ -1032,7 +1121,7 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
-            available = session.cmd("e cmd.pdc=?")
+            available = await self._run_session_cmd(session, "e cmd.pdc=?")
 
             # Whitelist of allowed decompilers
             decompiler_map = {
@@ -1055,7 +1144,7 @@ class Radare2ToolsPlugin(Plugin):
                     "message": f"Decompiler {name} is not available",
                 }
 
-            session.cmd(f"e cmd.pdc={cmd_name}")
+            await self._run_session_cmd(session, f"e cmd.pdc={cmd_name}")
             return {"status": "success", "message": f"Decompiler set to {name}"}
 
         # =====================================================================
@@ -1093,7 +1182,7 @@ class Radare2ToolsPlugin(Plugin):
             # axt returns an empty string when no xrefs exist, making it
             # impossible to distinguish "no xrefs" from an error. axtj
             # returns [] in that case, which is unambiguous.
-            raw = session.cmd(f"axtj @ {address}").strip()
+            raw = await self._run_session_cmd(session, f"axtj @ {address}").strip()
             try:
                 import json as _json
 
@@ -1152,7 +1241,7 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
-            session.cmd(f"afn {name} @ {address}")
+            await self._run_session_cmd(session, f"afn {name} @ {address}")
             return {"status": "success", "message": f"Function renamed to {name}"}
 
         @mcp.tool()
@@ -1186,7 +1275,7 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
-            result = session.cmd(f"fr {name} {new_name} @ {address}")
+            result = await self._run_session_cmd(session, f"fr {name} {new_name} @ {address}")
             if result.strip():
                 return {"status": "error", "message": result}
             return {"status": "success", "message": f"Flag renamed to {new_name}"}
@@ -1226,7 +1315,7 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
-            session.cmd(f"CC {safe_message} @ {address}")
+            await self._run_session_cmd(session, f"CC {safe_message} @ {address}")
             return {"status": "success", "message": "Comment added"}
 
         # NOTE: Radare2_list_files and Radare2_run_javascript are REMOVED

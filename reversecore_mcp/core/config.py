@@ -184,6 +184,18 @@ class Settings(BaseSettings):
         le=300,
         description="Timeout for acquiring radare2 connection from pool",
     )
+    r2_session_max: int = Field(
+        default=8,
+        ge=1,
+        le=64,
+        description="Maximum number of persistent Radare2 file sessions",
+    )
+    r2_session_idle_ttl: int = Field(
+        default=900,
+        ge=30,
+        le=86_400,
+        description="Idle seconds before a Radare2 session is closed",
+    )
 
     # Ghidra configuration
     ghidra_max_projects: int = Field(
@@ -505,6 +517,14 @@ class Config:
     @property
     def r2_pool_timeout(self) -> int:
         return self._settings.r2_pool_timeout
+
+    @property
+    def r2_session_max(self) -> int:
+        return self._settings.r2_session_max
+
+    @property
+    def r2_session_idle_ttl(self) -> int:
+        return self._settings.r2_session_idle_ttl
 
     @property
     def ghidra_max_projects(self) -> int:
