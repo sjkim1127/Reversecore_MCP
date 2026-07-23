@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "scripts/apply_r2_hardening_refactor.py"
+      - "scripts/check-docker-requirements-sync.sh"
       - ".github/workflows/apply-r2-hardening.yml"
 
 permissions:
