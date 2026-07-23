@@ -44,15 +44,32 @@ _LAZY_MODULES: Final[dict[str, str]] = {
     "report_tools": "reversecore_mcp.tools.report.report_tools",
 }
 
+# Historical alias modules exposed stable ``__all__`` values. Preserve those
+# contracts even when the current implementation module does not define one.
+_LEGACY_EXPORTS: Final[dict[str, tuple[str, ...]]] = {
+    "patch_explainer": (
+        "explain_patch",
+        "_generate_explanation",
+        "_generate_diff_snippet",
+    ),
+    "report_tools": ("ReportTools",),
+}
+
 __all__ = list(_LAZY_MODULES)
 
 
 class _LegacyModuleAlias(ModuleType):
     """Lazy ``sys.modules`` alias for a historical flat tool-module path."""
 
-    def __init__(self, name: str, target_path: str) -> None:
+    def __init__(
+        self,
+        name: str,
+        target_path: str,
+        exports: tuple[str, ...] = (),
+    ) -> None:
         super().__init__(name)
         super().__setattr__("_target_path", target_path)
+        super().__setattr__("__all__", list(exports))
 
     def _load(self) -> ModuleType:
         module = import_module(self._target_path)
@@ -77,7 +94,11 @@ for _legacy_name, _target_path in _LAZY_MODULES.items():
     _legacy_path = f"{__name__}.{_legacy_name}"
     sys.modules.setdefault(
         _legacy_path,
-        _LegacyModuleAlias(_legacy_path, _target_path),
+        _LegacyModuleAlias(
+            _legacy_path,
+            _target_path,
+            _LEGACY_EXPORTS.get(_legacy_name, ()),
+        ),
     )
 
 
