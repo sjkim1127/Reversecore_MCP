@@ -11,70 +11,80 @@
 #   ./scripts/run-docker.sh        # Auto-detect architecture
 #   ./scripts/run-docker.sh x86    # Force x86
 #   ./scripts/run-docker.sh arm64  # Force ARM64
+#
+# Security defaults:
+# - The MCP HTTP port is bound to host loopback only.
+# - Redis is reachable only from the Compose network, not from the host.
+# - Containers run with no-new-privileges and bounded PID counts.
+
+x-reversecore-common: &reversecore-common
+  ports:
+    - "127.0.0.1:${MCP_PORT:-8000}:8000"
+  volumes:
+    - ./workspace:/app/workspace
+    - ./rules:/app/rules
+  environment:
+    - MCP_TRANSPORT=http
+    - MCP_HOST=0.0.0.0
+    - MCP_PORT=8000
+    - MCP_API_KEY=${MCP_API_KEY:-}
+    - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    - REDIS_URL=redis://redis:6379/0
+    - PYTHONDONTWRITEBYTECODE=1
+  depends_on:
+    redis:
+      condition: service_healthy
+  deploy:
+    resources:
+      limits:
+        cpus: '2.0'
+        memory: 4G
+  security_opt:
+    - no-new-privileges:true
+  pids_limit: 256
+  init: true
+  restart: unless-stopped
 
 services:
   # Default service for x86_64 (Intel/AMD/Linux)
   reversecore-mcp:
+    <<: *reversecore-common
     build:
       context: .
       dockerfile: Dockerfile
     image: reversecore-mcp:latest
     container_name: reversecore-mcp
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./workspace:/app/workspace
-      - ./rules:/app/rules
-    environment:
-      - MCP_TRANSPORT=http
-      - LOG_LEVEL=INFO
-      - REDIS_URL=redis://redis:6379/0
-    depends_on:
-      - redis
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 4G
-    restart: unless-stopped
     profiles:
       - default
       - x86
 
   # ARM64 service for Apple Silicon Macs
   reversecore-mcp-arm64:
+    <<: *reversecore-common
     build:
       context: .
       dockerfile: Dockerfile
     image: reversecore-mcp:arm64
     container_name: reversecore-mcp-arm64
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./workspace:/app/workspace
-      - ./rules:/app/rules
-    environment:
-      - MCP_TRANSPORT=http
-      - LOG_LEVEL=INFO
-      - REDIS_URL=redis://redis:6379/0
-    depends_on:
-      - redis
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 4G
-    restart: unless-stopped
     profiles:
       - arm64
       - macos
 
-  # Redis service shared for task queue and result caching
+  # Redis is shared by the task queue and result cache. It intentionally has no
+  # host port mapping; application containers reach it through the Compose network.
   redis:
     image: redis:7-alpine
     container_name: reversecore-redis
-    ports:
-      - "6379:6379"
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
     restart: unless-stopped
     profiles:
       - default
