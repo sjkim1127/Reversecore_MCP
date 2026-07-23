@@ -1,0 +1,39 @@
+name: Enable one-shot hardening generator
+
+on:
+  push:
+    branches:
+      - refactor/runtime-r2-hardening
+
+permissions:
+  contents: write
+
+jobs:
+  enable:
+    if: github.event.head_commit.message != 'chore: enable hardening generator execution'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: refactor/runtime-r2-hardening
+          fetch-depth: 0
+      - name: Enable generator and remove bootstrap workflow
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          generator = Path('.github/workflows/one-shot-runtime-r2-hardening.yml')
+          text = generator.read_text()
+          old = "if: github.actor == 'sjkim1127' && github.event.head_commit.message != 'refactor: harden runtime dependencies and radare2 sessions'"
+          new = "if: github.event.head_commit.message != 'refactor: harden runtime dependencies and radare2 sessions'"
+          if text.count(old) != 1:
+              raise RuntimeError('generator condition did not match expected content')
+          generator.write_text(text.replace(old, new, 1))
+          Path('.github/workflows/one-shot-enable-hardening.yml').unlink()
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: enable hardening generator execution"
+          git push origin HEAD:refactor/runtime-r2-hardening
