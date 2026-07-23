@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from reversecore_mcp.core.exceptions import ValidationError
+from reversecore_mcp.core.exceptions import ToolExecutionError, ValidationError
 from reversecore_mcp.tools.radare2.radare2_mcp_tools import (
     R2Session,
     Radare2ToolsPlugin,
@@ -327,15 +327,17 @@ class TestGetOrCreateSession:
         assert "sid-1" not in plugin._sessions
 
     @pytest.mark.asyncio
-    async def test_validation_error_returns_dummy_session(self):
-        """Should return dummy session on validation error."""
+    async def test_validation_error_fails_closed(self):
+        """Invalid paths must fail before a Radare2 process is created."""
         plugin = Radare2ToolsPlugin()
         with patch(
             "reversecore_mcp.tools.radare2.radare2_mcp_tools.validate_file_path",
             side_effect=ValidationError("invalid"),
         ):
-            result = await plugin._get_or_create_session("../../../etc/passwd")
-        assert isinstance(result, R2Session)
+            with pytest.raises(ToolExecutionError, match="Invalid Radare2 file path"):
+                await plugin._get_or_create_session("../../../etc/passwd")
+        assert plugin._sessions == {}
+        assert plugin._file_to_session == {}
 
 
 class TestMcpToolsMocked:
