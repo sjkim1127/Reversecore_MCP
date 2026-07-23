@@ -9,6 +9,8 @@ import subprocess
 
 import pytest
 
+EXTERNAL_TOOL_TIMEOUT = 15
+
 
 class TestOtoolAnalysis:
     """Test otool (macOS binary analysis tool)."""
@@ -38,7 +40,10 @@ class TestOtoolAnalysis:
 
         # Test otool -h (headers)
         result = subprocess.run(
-            ["otool", "-h", str(binary)], capture_output=True, text=True, timeout=5
+            ["otool", "-h", str(binary)],
+            capture_output=True,
+            text=True,
+            timeout=EXTERNAL_TOOL_TIMEOUT,
         )
         assert result.returncode == 0
         assert len(result.stdout) > 0
@@ -62,7 +67,10 @@ class TestOtoolAnalysis:
 
         # Test otool -l (load commands)
         result = subprocess.run(
-            ["otool", "-l", str(binary)], capture_output=True, text=True, timeout=5
+            ["otool", "-l", str(binary)],
+            capture_output=True,
+            text=True,
+            timeout=EXTERNAL_TOOL_TIMEOUT,
         )
         assert result.returncode == 0
         output = result.stdout.lower()
@@ -87,7 +95,10 @@ class TestOtoolAnalysis:
 
         # Test otool -L (libraries)
         result = subprocess.run(
-            ["otool", "-L", str(binary)], capture_output=True, text=True, timeout=5
+            ["otool", "-L", str(binary)],
+            capture_output=True,
+            text=True,
+            timeout=EXTERNAL_TOOL_TIMEOUT,
         )
         assert result.returncode == 0
         assert "libc" in result.stdout or "libc.dylib" in result.stdout or len(result.stdout) > 0
@@ -126,7 +137,7 @@ int main() {
 
         # Test nm -a (all symbols)
         result = subprocess.run(
-            ["nm", "-a", str(binary)], capture_output=True, text=True, timeout=5
+            ["nm", "-a", str(binary)], capture_output=True, text=True, timeout=EXTERNAL_TOOL_TIMEOUT
         )
         assert result.returncode == 0
         symbols = result.stdout.lower()
@@ -149,11 +160,16 @@ int main() {
         assert result.returncode == 0
 
         # Strip binary
-        subprocess.run(["strip", str(binary), "-o", str(binary_stripped)], timeout=5)
+        subprocess.run(
+            ["strip", str(binary), "-o", str(binary_stripped)], timeout=EXTERNAL_TOOL_TIMEOUT
+        )
 
         if binary_stripped.exists():
             result = subprocess.run(
-                ["nm", str(binary_stripped)], capture_output=True, text=True, timeout=5
+                ["nm", str(binary_stripped)],
+                capture_output=True,
+                text=True,
+                timeout=EXTERNAL_TOOL_TIMEOUT,
             )
             # nm should handle stripped binary gracefully
             assert result.returncode in (0, 1)
@@ -183,7 +199,7 @@ int main() { return 0; }
             ["nm", "-C", str(binary)],  # -C: demangle names
             capture_output=True,
             text=True,
-            timeout=5,
+            timeout=EXTERNAL_TOOL_TIMEOUT,
         )
         assert result.returncode == 0
 
@@ -359,7 +375,9 @@ class TestLddDependencyAnalysis:
         )
         assert result.returncode == 0
 
-        result = subprocess.run(["ldd", str(binary)], capture_output=True, text=True, timeout=5)
+        result = subprocess.run(
+            ["ldd", str(binary)], capture_output=True, text=True, timeout=EXTERNAL_TOOL_TIMEOUT
+        )
 
         if result.returncode == 0:
             # Should list libc
@@ -392,7 +410,10 @@ class TestReadelfAnalysis:
         assert result.returncode == 0
 
         result = subprocess.run(
-            ["readelf", "-h", str(binary)], capture_output=True, text=True, timeout=5
+            ["readelf", "-h", str(binary)],
+            capture_output=True,
+            text=True,
+            timeout=EXTERNAL_TOOL_TIMEOUT,
         )
 
         if result.returncode == 0:
@@ -416,7 +437,10 @@ class TestReadelfAnalysis:
         assert result.returncode == 0
 
         result = subprocess.run(
-            ["readelf", "-S", str(binary)], capture_output=True, text=True, timeout=5
+            ["readelf", "-S", str(binary)],
+            capture_output=True,
+            text=True,
+            timeout=EXTERNAL_TOOL_TIMEOUT,
         )
 
         if result.returncode == 0:
@@ -546,7 +570,7 @@ int main(int argc, char *argv[]) {
                 ["nm", "-a", str(test_binary)],
                 capture_output=True,
                 text=True,
-                timeout=5,
+                timeout=EXTERNAL_TOOL_TIMEOUT,
             )
             results["nm"] = result.returncode == 0
 
@@ -556,7 +580,7 @@ int main(int argc, char *argv[]) {
                 ["objdump", "-t", str(test_binary)],
                 capture_output=True,
                 text=True,
-                timeout=5,
+                timeout=EXTERNAL_TOOL_TIMEOUT,
             )
             results["objdump"] = result.returncode == 0
 
@@ -566,7 +590,7 @@ int main(int argc, char *argv[]) {
                 ["readelf", "-s", str(test_binary)],
                 capture_output=True,
                 text=True,
-                timeout=5,
+                timeout=EXTERNAL_TOOL_TIMEOUT,
             )
             results["readelf"] = result.returncode == 0
 
@@ -580,7 +604,10 @@ int main(int argc, char *argv[]) {
         # file
         if shutil.which("file"):
             result = subprocess.run(
-                ["file", str(test_binary)], capture_output=True, text=True, timeout=5
+                ["file", str(test_binary)],
+                capture_output=True,
+                text=True,
+                timeout=EXTERNAL_TOOL_TIMEOUT,
             )
             results["file"] = result.returncode == 0
 
@@ -590,7 +617,7 @@ int main(int argc, char *argv[]) {
                 ["otool", "-h", str(test_binary)],
                 capture_output=True,
                 text=True,
-                timeout=5,
+                timeout=EXTERNAL_TOOL_TIMEOUT,
             )
             results["otool"] = result.returncode == 0
 
@@ -600,7 +627,7 @@ int main(int argc, char *argv[]) {
                 ["readelf", "-h", str(test_binary)],
                 capture_output=True,
                 text=True,
-                timeout=5,
+                timeout=EXTERNAL_TOOL_TIMEOUT,
             )
             results["readelf"] = result.returncode == 0
 
@@ -617,7 +644,7 @@ int main(int argc, char *argv[]) {
                 ["file", "-b", str(test_binary)],
                 capture_output=True,
                 text=True,
-                timeout=5,
+                timeout=EXTERNAL_TOOL_TIMEOUT,
             )
             results["file"] = result.stdout.lower()
 
@@ -626,7 +653,7 @@ int main(int argc, char *argv[]) {
                 ["otool", "-h", str(test_binary)],
                 capture_output=True,
                 text=True,
-                timeout=5,
+                timeout=EXTERNAL_TOOL_TIMEOUT,
             )
             results["otool"] = result.stdout.lower()
 
