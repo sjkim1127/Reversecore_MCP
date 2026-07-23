@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Verify that the production image installs the runtime-only manifest and that
 # development tooling does not leak into the runtime dependency set.
+# Package matching supports optional extras such as mcp[cli].
 
 set -euo pipefail
 
