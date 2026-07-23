@@ -37,7 +37,7 @@ required_runtime=(
 )
 
 for package in "${required_runtime[@]}"; do
-    if ! grep -qiE "^[[:space:]]*${package}([<>=!~;[:space:]]|$)" "$runtime_manifest"; then
+    if ! grep -qiE "^[[:space:]]*${package}(\\[[^]]+\\])?([<>=!~;[:space:]]|$)" "$runtime_manifest"; then
         echo "❌ Runtime manifest is missing required package: $package"
         exit 1
     fi
@@ -45,7 +45,7 @@ done
 
 dev_only=(pytest black ruff mypy mkdocs pip-tools hypothesis)
 for package in "${dev_only[@]}"; do
-    if grep -qiE "^[[:space:]]*${package}([<>=!~;[:space:]]|$)" "$runtime_manifest"; then
+    if grep -qiE "^[[:space:]]*${package}(\\[[^]]+\\])?([<>=!~;[:space:]]|$)" "$runtime_manifest"; then
         echo "❌ Development dependency leaked into runtime manifest: $package"
         exit 1
     fi
