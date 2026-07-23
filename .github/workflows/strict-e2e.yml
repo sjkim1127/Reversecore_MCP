@@ -1,0 +1,206 @@
+name: Strict Docker E2E
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "reversecore_mcp/**"
+      - "scripts/test-mcp-docker-tools.py"
+      - "scripts/test-container-resilience.py"
+      - "scripts/test-e2e-upload-analyze.py"
+      - "Dockerfile"
+      - "Dockerfile.base"
+      - "requirements*.txt"
+      - "pyproject.toml"
+      - ".github/workflows/strict-e2e.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "reversecore_mcp/**"
+      - "scripts/test-mcp-docker-tools.py"
+      - "scripts/test-container-resilience.py"
+      - "scripts/test-e2e-upload-analyze.py"
+      - "Dockerfile"
+      - "Dockerfile.base"
+      - "requirements*.txt"
+      - "pyproject.toml"
+      - ".github/workflows/strict-e2e.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  YARA_VERSION: "4.3.1"
+  RADARE2_VERSION: "6.0.4"
+  BASE_TAG: "yara4.3.1-r2-6.0.4-r2ghidra-v3"
+
+jobs:
+  strict-e2e:
+    name: Strict Docker E2E and Restart Recovery
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Prepare deterministic fixtures
+        run: |
+          set -euo pipefail
+          mkdir -p tests/fixtures/workspace/binaries tests/fixtures/rules artifacts
+          cat > /tmp/reversecore-e2e.c <<'EOF'
+          #include <stdio.h>
+          int main(void) {
+              puts("Reversecore strict E2E fixture");
+              return 0;
+          }
+          EOF
+          gcc -O0 -g -o tests/fixtures/workspace/binaries/hello_x64 /tmp/reversecore-e2e.c
+          cp tests/fixtures/workspace/binaries/hello_x64 \
+             tests/fixtures/workspace/binaries/hello_x64_stripped
+          strip tests/fixtures/workspace/binaries/hello_x64_stripped
+          printf 'Hello World\nReversecore MCP strict E2E\n' \
+            > tests/fixtures/workspace/test_binary.bin
+          cp tests/fixtures/workspace/binaries/hello_x64 tests/fixtures/workspace/sample.elf
+          cat > tests/fixtures/rules/e2e_elf.yar <<'EOF'
+          rule Reversecore_E2E_ELF {
+              strings:
+                  $elf = { 7F 45 4C 46 }
+              condition:
+                  $elf at 0
+          }
+          EOF
+          chmod -R a+rwX tests/fixtures/workspace tests/fixtures/rules
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+        with:
+          driver: docker
+
+      - name: Build application image
+        run: |
+          set -euo pipefail
+          BASE_IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}/base"
+          echo "BASE_IMAGE=$BASE_IMAGE" >> "$GITHUB_ENV"
+          if ! docker pull "$BASE_IMAGE:${BASE_TAG}"; then
+            docker buildx build \
+              --load \
+              --target base \
+              --build-arg YARA_VERSION="$YARA_VERSION" \
+              --build-arg RADARE2_VERSION="$RADARE2_VERSION" \
+              -t "$BASE_IMAGE:${BASE_TAG}" \
+              -f Dockerfile.base .
+          fi
+          docker build \
+            --build-arg BASE_IMAGE="$BASE_IMAGE" \
+            --build-arg BASE_TAG="$BASE_TAG" \
+            -t reversecore-mcp:strict-e2e .
+
+      - name: Start MCP container
+        run: |
+          set -euo pipefail
+          docker run -d \
+            --name reversecore-strict-e2e \
+            --restart unless-stopped \
+            -p 8765:8000 \
+            -e MCP_TRANSPORT=http \
+            -e MCP_HOST=0.0.0.0 \
+            -e MCP_PORT=8000 \
+            -e LOG_LEVEL=WARNING \
+            -e REVERSECORE_WORKSPACE=/app/workspace \
+            -e REVERSECORE_READ_DIRS=/app/rules \
+            -v "$GITHUB_WORKSPACE/tests/fixtures/workspace:/app/workspace" \
+            -v "$GITHUB_WORKSPACE/tests/fixtures/rules:/app/rules:ro" \
+            reversecore-mcp:strict-e2e
+
+      - name: Wait for readiness
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 45); do
+            code=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+              http://127.0.0.1:8765/health || true)
+            if [ "$code" = "200" ]; then
+              echo "MCP server is ready"
+              exit 0
+            fi
+            echo "Readiness attempt $attempt/45: HTTP ${code:-000}"
+            sleep 2
+          done
+          docker logs reversecore-strict-e2e
+          exit 1
+
+      - name: Install strict probes in container
+        run: |
+          docker cp scripts/test-mcp-docker-tools.py \
+            reversecore-strict-e2e:/tmp/test-mcp-docker-tools.py
+          docker cp scripts/test-container-resilience.py \
+            reversecore-strict-e2e:/tmp/test-container-resilience.py
+          docker cp scripts/test-e2e-upload-analyze.py \
+            reversecore-strict-e2e:/tmp/test-e2e-upload-analyze.py
+
+      - name: Run strict core E2E probes
+        run: |
+          set -euo pipefail
+          docker exec reversecore-strict-e2e python /tmp/test-mcp-docker-tools.py
+          docker exec reversecore-strict-e2e python /tmp/test-container-resilience.py
+          docker exec reversecore-strict-e2e python /tmp/test-e2e-upload-analyze.py
+
+      - name: Restart container and verify recovery
+        run: |
+          set -euo pipefail
+          before=$(docker inspect --format '{{.State.StartedAt}}' reversecore-strict-e2e)
+          docker restart --time 10 reversecore-strict-e2e
+          after=$(docker inspect --format '{{.State.StartedAt}}' reversecore-strict-e2e)
+          if [ "$before" = "$after" ]; then
+            echo "Container start timestamp did not change after restart"
+            exit 1
+          fi
+
+          for attempt in $(seq 1 45); do
+            code=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+              http://127.0.0.1:8765/health || true)
+            if [ "$code" = "200" ]; then
+              echo "MCP server recovered after restart"
+              break
+            fi
+            if [ "$attempt" = "45" ]; then
+              docker logs reversecore-strict-e2e
+              exit 1
+            fi
+            sleep 2
+          done
+
+          docker exec reversecore-strict-e2e python /tmp/test-mcp-docker-tools.py
+          docker exec reversecore-strict-e2e python /tmp/test-container-resilience.py
+          docker exec reversecore-strict-e2e python /tmp/test-e2e-upload-analyze.py
+
+      - name: Collect E2E diagnostics
+        if: failure()
+        run: |
+          mkdir -p artifacts
+          docker logs reversecore-strict-e2e > artifacts/container.log 2>&1 || true
+          docker inspect reversecore-strict-e2e > artifacts/container-inspect.json 2>&1 || true
+          docker ps -a > artifacts/docker-ps.txt 2>&1 || true
+          curl -v http://127.0.0.1:8765/health > artifacts/health.txt 2>&1 || true
+          docker exec reversecore-strict-e2e ps aux > artifacts/processes.txt 2>&1 || true
+
+      - name: Upload E2E diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: strict-e2e-diagnostics
+          path: artifacts/
+          if-no-files-found: warn
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f reversecore-strict-e2e || true
