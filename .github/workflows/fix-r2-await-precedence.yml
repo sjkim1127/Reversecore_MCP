@@ -45,11 +45,20 @@ jobs:
             tests/unit/tools/radare2/test_r2_runtime_hardening.py
           python -m compileall -q reversecore_mcp/tools/radare2/radare2_mcp_tools.py \
             tests/unit/tools/radare2/test_r2_runtime_hardening.py
-          if grep -nE 'await self\._run_session_cmd\([^[:cntrl:]]+\)\.[A-Za-z_]' \
-            reversecore_mcp/tools/radare2/radare2_mcp_tools.py; then
-            echo "Unsafe await/member-access chain remains"
-            exit 1
-          fi
+          python - <<'PY'
+          import re
+          from pathlib import Path
+
+          source = Path(
+              "reversecore_mcp/tools/radare2/radare2_mcp_tools.py"
+          ).read_text()
+          unsafe = re.compile(
+              r"(?<!\()await self\._run_session_cmd\([^\n]+?\)\.[A-Za-z_]"
+          )
+          match = unsafe.search(source)
+          if match:
+              raise SystemExit(f"unsafe await/member-access chain remains: {match.group(0)}")
+          PY
 
       - name: Upload await-correction diagnostics
         if: failure()
