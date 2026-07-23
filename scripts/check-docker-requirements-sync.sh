@@ -1,48 +1,54 @@
 #!/usr/bin/env bash
-# Verify that packages installed in Dockerfile match requirements.txt
+# Verify that the production image installs the runtime-only manifest and that
+# development tooling does not leak into the runtime dependency set.
 
 set -euo pipefail
 
-echo "🔍 Checking Dockerfile vs requirements.txt sync..."
+runtime_manifest="requirements-runtime.txt"
+all_extras_lock="requirements.txt"
 
-# Check if Dockerfile installs from requirements.txt (preferred pattern)
-if grep -qE 'pip install.*-r requirements\.txt' Dockerfile; then
-    echo "✅ Dockerfile uses 'pip install -r requirements.txt' — all requirements.txt packages are installed"
-    exit 0
+echo "🔍 Checking Docker runtime dependency separation..."
+
+if ! grep -qE 'pip install.*-r requirements-runtime\.txt' Dockerfile; then
+    echo "❌ Dockerfile must install requirements-runtime.txt"
+    exit 1
 fi
 
-# Fallback: check explicit pip installs (legacy Dockerfile pattern)
-docker_pkgs=$(grep -oE 'pip install [^;]+' Dockerfile | grep -oE '\b[a-zA-Z0-9_-]+==[0-9.]+' | sort -u || true)
-
-# Extract pinned packages from requirements.txt
-req_pkgs=$(grep -E '^[a-zA-Z0-9_-]+==[0-9.]+' requirements.txt | sort -u || true)
-
-mismatch=0
-
-# Check Dockerfile packages exist in requirements.txt
-while IFS= read -r pkg; do
-    [ -z "$pkg" ] && continue
-    name=$(echo "$pkg" | cut -d= -f1)
-    if ! grep -qE "^${name}==" requirements.txt; then
-        echo "⚠️  $name (from Dockerfile) not found in requirements.txt"
-        mismatch=1
+for file in "$runtime_manifest" "$all_extras_lock"; do
+    if [ ! -s "$file" ]; then
+        echo "❌ Required dependency file is missing or empty: $file"
+        exit 1
     fi
-done <<< "$docker_pkgs"
+done
 
-# Check critical packages in requirements.txt exist in Dockerfile
-while IFS= read -r pkg; do
-    [ -z "$pkg" ] && continue
-    name=$(echo "$pkg" | cut -d= -f1)
-    if ! grep -qE "pip install .*${name}" Dockerfile; then
-        echo "⚠️  $name (from requirements.txt) not explicitly installed in Dockerfile"
-        mismatch=1
-    fi
-done <<< "$req_pkgs"
-
-if [ "$mismatch" -eq 0 ]; then
-    echo "✅ Dockerfile and requirements.txt are in sync"
-else
-    echo "⚠️  Some package mismatches found (informational)"
+if ! grep -qE '^-c requirements\.txt$' "$runtime_manifest"; then
+    echo "❌ Runtime manifest must constrain versions with requirements.txt"
+    exit 1
 fi
 
-exit 0
+required_runtime=(
+    mcp
+    fastmcp
+    fastapi
+    r2pipe
+    yara-python
+    lief
+    capstone
+)
+
+for package in "${required_runtime[@]}"; do
+    if ! grep -qiE "^[[:space:]]*${package}([<>=!~;[:space:]]|$)" "$runtime_manifest"; then
+        echo "❌ Runtime manifest is missing required package: $package"
+        exit 1
+    fi
+done
+
+dev_only=(pytest black ruff mypy mkdocs pip-tools hypothesis)
+for package in "${dev_only[@]}"; do
+    if grep -qiE "^[[:space:]]*${package}([<>=!~;[:space:]]|$)" "$runtime_manifest"; then
+        echo "❌ Development dependency leaked into runtime manifest: $package"
+        exit 1
+    fi
+done
+
+echo "✅ Docker installs runtime dependencies without development tooling"
