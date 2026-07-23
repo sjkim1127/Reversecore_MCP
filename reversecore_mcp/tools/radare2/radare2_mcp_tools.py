@@ -541,16 +541,18 @@ class Radare2ToolsPlugin(Plugin):
             Returns:
                 Detailed function information
             """
+            if address:
+                # Validate request parameters before opening an external process.
+                try:
+                    validate_address_format(address)
+                except ValidationError as e:
+                    return {"status": "error", "message": str(e)}
+
             session = await self._get_or_create_session(file_path)
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
             if address:
-                # Validate address format
-                try:
-                    validate_address_format(address)
-                except ValidationError as e:
-                    return {"status": "error", "message": str(e)}
                 result = await self._run_session_cmd(session, f"afi @ {address}")
             else:
                 result = await self._run_session_cmd(session, "afi")
