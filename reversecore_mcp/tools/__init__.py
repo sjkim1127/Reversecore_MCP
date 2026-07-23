@@ -48,7 +48,7 @@ __all__ = list(_LAZY_MODULES)
 
 
 class _LegacyModuleAlias(ModuleType):
-    """Lazy ``sys.modules`` alias for historical module import paths."""
+    """Lazy ``sys.modules`` alias for a historical flat tool-module path."""
 
     def __init__(self, name: str, target_path: str) -> None:
         super().__init__(name)
@@ -68,14 +68,17 @@ class _LegacyModuleAlias(ModuleType):
         return getattr(self._load(), name)
 
 
-# Older integrations and tests import/patch ``reversecore_mcp.tools.r2_analysis``.
-# Registering a lazy submodule alias avoids invoking third-party meta-path finders
-# for a path that no longer has a physical module, while preserving lazy imports.
-_LEGACY_R2_MODULE = f"{__name__}.r2_analysis"
-sys.modules.setdefault(
-    _LEGACY_R2_MODULE,
-    _LegacyModuleAlias(_LEGACY_R2_MODULE, _LAZY_MODULES["r2_analysis"]),
-)
+# Older integrations import and patch flat paths such as
+# ``reversecore_mcp.tools.static_analysis`` and ``...tools.r2_analysis``. These
+# modules now live in category packages. Registering aliases up front prevents
+# third-party meta-path finders from trying to resolve non-existent physical
+# modules while preserving lazy imports and optional dependency isolation.
+for _legacy_name, _target_path in _LAZY_MODULES.items():
+    _legacy_path = f"{__name__}.{_legacy_name}"
+    sys.modules.setdefault(
+        _legacy_path,
+        _LegacyModuleAlias(_legacy_path, _target_path),
+    )
 
 
 def __getattr__(name: str) -> ModuleType:
