@@ -16,6 +16,7 @@
 # - The MCP HTTP port is bound to host loopback only.
 # - Redis is reachable only from the Compose network, not from the host.
 # - Containers run with no-new-privileges and bounded PID counts.
+# - Workspace and read-only paths must exist and resolve at startup.
 
 x-reversecore-common: &reversecore-common
   ports:
@@ -30,6 +31,7 @@ x-reversecore-common: &reversecore-common
     - MCP_API_KEY=${MCP_API_KEY:-}
     - LOG_LEVEL=${LOG_LEVEL:-INFO}
     - REDIS_URL=redis://redis:6379/0
+    - REVERSECORE_STRICT_PATHS=true
     - PYTHONDONTWRITEBYTECODE=1
   depends_on:
     redis:
