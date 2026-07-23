@@ -150,9 +150,12 @@ jobs:
       - name: Run strict core E2E probes
         run: |
           set -euo pipefail
-          docker exec reversecore-strict-e2e python /tmp/test-mcp-docker-tools.py
-          docker exec reversecore-strict-e2e python /tmp/test-container-resilience.py
-          docker exec reversecore-strict-e2e python /tmp/test-e2e-upload-analyze.py
+          docker exec reversecore-strict-e2e python /tmp/test-mcp-docker-tools.py \
+            2>&1 | tee artifacts/pre-restart-mcp.log
+          docker exec reversecore-strict-e2e python /tmp/test-container-resilience.py \
+            2>&1 | tee artifacts/pre-restart-resilience.log
+          docker exec reversecore-strict-e2e python /tmp/test-e2e-upload-analyze.py \
+            2>&1 | tee artifacts/pre-restart-flow.log
 
       - name: Restart container and verify recovery
         run: |
@@ -179,9 +182,12 @@ jobs:
             sleep 2
           done
 
-          docker exec reversecore-strict-e2e python /tmp/test-mcp-docker-tools.py
-          docker exec reversecore-strict-e2e python /tmp/test-container-resilience.py
-          docker exec reversecore-strict-e2e python /tmp/test-e2e-upload-analyze.py
+          docker exec reversecore-strict-e2e python /tmp/test-mcp-docker-tools.py \
+            2>&1 | tee artifacts/post-restart-mcp.log
+          docker exec reversecore-strict-e2e python /tmp/test-container-resilience.py \
+            2>&1 | tee artifacts/post-restart-resilience.log
+          docker exec reversecore-strict-e2e python /tmp/test-e2e-upload-analyze.py \
+            2>&1 | tee artifacts/post-restart-flow.log
 
       - name: Collect E2E diagnostics
         if: failure()
@@ -190,8 +196,9 @@ jobs:
           docker logs reversecore-strict-e2e > artifacts/container.log 2>&1 || true
           docker inspect reversecore-strict-e2e > artifacts/container-inspect.json 2>&1 || true
           docker ps -a > artifacts/docker-ps.txt 2>&1 || true
+          docker top reversecore-strict-e2e -eo pid,ppid,user,stat,etime,args \
+            > artifacts/processes.txt 2>&1 || true
           curl -v http://127.0.0.1:8765/health > artifacts/health.txt 2>&1 || true
-          docker exec reversecore-strict-e2e ps aux > artifacts/processes.txt 2>&1 || true
 
       - name: Upload E2E diagnostics
         if: failure()
