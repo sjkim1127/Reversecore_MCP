@@ -14,8 +14,10 @@ TEST_FILE = ROOT / "tests/unit/tools/radare2/test_r2_runtime_hardening.py"
 
 def main() -> None:
     source = R2_TOOLS.read_text()
-    pattern = re.compile(r"await (self\._run_session_cmd\([^\n]+?\))\.strip\(\)")
-    corrected, count = pattern.subn(r"(await \1).strip()", source)
+    unsafe_pattern = re.compile(
+        r"(?<!\()await (self\._run_session_cmd\([^\n]+?\))\.strip\(\)"
+    )
+    corrected, count = unsafe_pattern.subn(r"(await \1).strip()", source)
     if count == 0:
         remaining = [
             line.strip()
@@ -25,7 +27,7 @@ def main() -> None:
         raise RuntimeError(
             "no await/member-access chains were corrected; candidates=" + repr(remaining)
         )
-    if pattern.search(corrected):
+    if unsafe_pattern.search(corrected):
         raise RuntimeError("unsafe await/member-access chain remains")
     R2_TOOLS.write_text(corrected)
 
@@ -41,7 +43,7 @@ def main() -> None:
             "from reversecore_mcp.tools.radare2 import r2_analysis, radare2_mcp_tools\n",
             1,
         )
-        tests += '''\n\ndef test_awaited_session_results_are_materialized_before_string_methods() -> None:\n    source = inspect.getsource(radare2_mcp_tools)\n    unsafe_chain = re.compile(\n        r"await self\\._run_session_cmd\\([^\\n]+?\\)\\.[A-Za-z_]"\n    )\n    assert unsafe_chain.search(source) is None\n'''
+        tests += '''\n\ndef test_awaited_session_results_are_materialized_before_string_methods() -> None:\n    source = inspect.getsource(radare2_mcp_tools)\n    unsafe_chain = re.compile(\n        r"(?<!\\()await self\\._run_session_cmd\\([^\\n]+?\\)\\.[A-Za-z_]"\n    )\n    assert unsafe_chain.search(source) is None\n'''
         TEST_FILE.write_text(tests)
 
     for path in (
