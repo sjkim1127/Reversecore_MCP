@@ -6,6 +6,9 @@ Individual plugins can still fail gracefully during registration when an
 optional dependency is unavailable.
 """
 
+from __future__ import annotations
+
+import sys
 from importlib import import_module
 from types import ModuleType
 from typing import Final
@@ -42,6 +45,37 @@ _LAZY_MODULES: Final[dict[str, str]] = {
 }
 
 __all__ = list(_LAZY_MODULES)
+
+
+class _LegacyModuleAlias(ModuleType):
+    """Lazy ``sys.modules`` alias for historical module import paths."""
+
+    def __init__(self, name: str, target_path: str) -> None:
+        super().__init__(name)
+        super().__setattr__("_target_path", target_path)
+
+    def _load(self) -> ModuleType:
+        module = import_module(self._target_path)
+        sys.modules[self.__name__] = module
+
+        parent_name, attribute = self.__name__.rsplit(".", 1)
+        parent = sys.modules.get(parent_name)
+        if parent is not None:
+            setattr(parent, attribute, module)
+        return module
+
+    def __getattr__(self, name: str):
+        return getattr(self._load(), name)
+
+
+# Older integrations and tests import/patch ``reversecore_mcp.tools.r2_analysis``.
+# Registering a lazy submodule alias avoids invoking third-party meta-path finders
+# for a path that no longer has a physical module, while preserving lazy imports.
+_LEGACY_R2_MODULE = f"{__name__}.r2_analysis"
+sys.modules.setdefault(
+    _LEGACY_R2_MODULE,
+    _LegacyModuleAlias(_LEGACY_R2_MODULE, _LAZY_MODULES["r2_analysis"]),
+)
 
 
 def __getattr__(name: str) -> ModuleType:
