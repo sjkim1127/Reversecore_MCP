@@ -83,7 +83,7 @@ def select_elf_fixture() -> Path:
 
 
 def normalize_workspace_path(raw_path: str) -> Path | None:
-    """Return a valid workspace-contained file path, or None for a non-path value."""
+    """Return a valid workspace-contained file path, including renamed uploads."""
     if not raw_path:
         return None
 
@@ -97,6 +97,19 @@ def normalize_workspace_path(raw_path: str) -> Path | None:
             continue
         if resolved.is_file():
             return resolved
+
+    # The upload API intentionally returns only a randomized filename while
+    # storing the file in a workspace subdirectory. Resolve it recursively but
+    # never allow a path outside the configured workspace.
+    basename = candidate.name
+    if basename:
+        matches = [
+            match.resolve()
+            for match in WORKSPACE.rglob(basename)
+            if match.is_file()
+        ]
+        if matches:
+            return max(matches, key=lambda match: match.stat().st_mtime_ns)
     return None
 
 
