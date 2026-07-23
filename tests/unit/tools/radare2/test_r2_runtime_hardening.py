@@ -77,6 +77,34 @@ async def test_idle_sessions_are_closed_and_removed() -> None:
 
 
 @pytest.mark.asyncio
+async def test_session_capacity_evicts_least_recently_used_idle_session() -> None:
+    plugin = Radare2ToolsPlugin()
+    oldest = FakeSession("oldest")
+    newest = FakeSession("newest")
+    now = time.monotonic()
+
+    for path, session, last_used in (
+        ("/tmp/oldest", oldest, now - 10),
+        ("/tmp/newest", newest, now - 1),
+    ):
+        plugin._sessions[session.session_id] = session
+        plugin._file_to_session[path] = session.session_id
+        plugin._session_locks[session.session_id] = asyncio.Lock()
+        plugin._session_last_used[session.session_id] = last_used
+
+    plugin._max_sessions = 2
+    plugin._session_idle_ttl = 1_000
+
+    async with plugin._lock:
+        await plugin._evict_stale_sessions_locked()
+
+    assert oldest.closed is True
+    assert newest.closed is False
+    assert set(plugin._sessions) == {"newest"}
+    assert plugin._file_to_session == {"/tmp/newest": "newest"}
+
+
+@pytest.mark.asyncio
 async def test_extension_mutated_path_is_revalidated(monkeypatch) -> None:
     registry = MagicMock()
     registry.run_r2_pre_hooks = AsyncMock(return_value=("/unsafe/path", "iI"))
