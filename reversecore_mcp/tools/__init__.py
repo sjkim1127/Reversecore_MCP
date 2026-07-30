@@ -6,6 +6,9 @@ Individual plugins can still fail gracefully during registration when an
 optional dependency is unavailable.
 """
 
+from __future__ import annotations
+
+import sys
 from importlib import import_module
 from types import ModuleType
 from typing import Final
@@ -41,7 +44,62 @@ _LAZY_MODULES: Final[dict[str, str]] = {
     "report_tools": "reversecore_mcp.tools.report.report_tools",
 }
 
+# Historical alias modules exposed stable ``__all__`` values. Preserve those
+# contracts even when the current implementation module does not define one.
+_LEGACY_EXPORTS: Final[dict[str, tuple[str, ...]]] = {
+    "patch_explainer": (
+        "explain_patch",
+        "_generate_explanation",
+        "_generate_diff_snippet",
+    ),
+    "report_tools": ("ReportTools",),
+}
+
 __all__ = list(_LAZY_MODULES)
+
+
+class _LegacyModuleAlias(ModuleType):
+    """Lazy ``sys.modules`` alias for a historical flat tool-module path."""
+
+    def __init__(
+        self,
+        name: str,
+        target_path: str,
+        exports: tuple[str, ...] = (),
+    ) -> None:
+        super().__init__(name)
+        super().__setattr__("_target_path", target_path)
+        super().__setattr__("__all__", list(exports))
+
+    def _load(self) -> ModuleType:
+        module = import_module(self._target_path)
+        sys.modules[self.__name__] = module
+
+        parent_name, attribute = self.__name__.rsplit(".", 1)
+        parent = sys.modules.get(parent_name)
+        if parent is not None:
+            setattr(parent, attribute, module)
+        return module
+
+    def __getattr__(self, name: str):
+        return getattr(self._load(), name)
+
+
+# Older integrations import and patch flat paths such as
+# ``reversecore_mcp.tools.static_analysis`` and ``...tools.r2_analysis``. These
+# modules now live in category packages. Registering aliases up front prevents
+# third-party meta-path finders from trying to resolve non-existent physical
+# modules while preserving lazy imports and optional dependency isolation.
+for _legacy_name, _target_path in _LAZY_MODULES.items():
+    _legacy_path = f"{__name__}.{_legacy_name}"
+    sys.modules.setdefault(
+        _legacy_path,
+        _LegacyModuleAlias(
+            _legacy_path,
+            _target_path,
+            _LEGACY_EXPORTS.get(_legacy_name, ()),
+        ),
+    )
 
 
 def __getattr__(name: str) -> ModuleType:

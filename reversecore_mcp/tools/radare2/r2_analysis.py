@@ -52,6 +52,13 @@ from reversecore_mcp.core.validators import (
 DEFAULT_TIMEOUT = get_config().default_tool_timeout
 
 
+async def _apply_validated_r2_pre_hooks(file_path: str, command: str) -> tuple[str, str]:
+    """Run extension pre-hooks, then reapply core path and command validation."""
+    registry = get_extension_registry()
+    hooked_path, hooked_command = await registry.run_r2_pre_hooks(file_path, command)
+    return str(validate_file_path(hooked_path)), validate_r2_command(hooked_command)
+
+
 @log_execution(tool_name="run_radare2")
 @track_metrics("run_radare2")
 @circuit_breaker("run_radare2", failure_threshold=5, recovery_timeout=60)
@@ -110,7 +117,7 @@ async def run_radare2(
     try:
         # ── Extension pre-hooks (may transform file_path / command) ──────────
         _registry = get_extension_registry()
-        validated_path, validated_command = await _registry.run_r2_pre_hooks(
+        validated_path, validated_command = await _apply_validated_r2_pre_hooks(
             str(validated_path), validated_command
         )
 

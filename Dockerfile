@@ -41,14 +41,17 @@ COPY resources/  /app/resources/
 COPY templates/  /app/templates/
 
 # Install current Debian security updates for packages inherited from the base
-# image, then install Python build dependencies and the locked Python stack.
-COPY requirements.txt    ./
+# image, then install only production/runtime Python dependencies. The complete
+# all-extras lock remains available as a constraints source so runtime versions
+# stay aligned with CI without installing pytest, linters, or documentation tools.
+COPY requirements.txt         ./
+COPY requirements-runtime.txt ./
 # hadolint ignore=DL3008,DL3013
 RUN apt-get update \
     && apt-get install -y --no-install-recommends --only-upgrade curl libcurl3-gnutls libcurl4 libgraphite2-3 liblzma5 xz-utils \
     && apt-get install -y --no-install-recommends gcc g++ make python3-dev libc-dev \
     && pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir -r requirements-runtime.txt \
     && apt-get purge -y --auto-remove gcc g++ make python3-dev libc-dev \
     && rm -rf /var/lib/apt/lists/*
 
