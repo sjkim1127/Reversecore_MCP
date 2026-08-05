@@ -6,6 +6,8 @@ import difflib
 import re
 from typing import Any
 
+__all__ = ["explain_patch", "_generate_explanation", "_generate_diff_snippet"]
+
 from fastmcp import Context
 
 from reversecore_mcp.core import json_utils as json

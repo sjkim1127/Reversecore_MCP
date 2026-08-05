@@ -7,6 +7,7 @@ providing high-level behavioral information like encryption, file deletion, etc.
 
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.logging_config import get_logger
+from reversecore_mcp.core.next_tool_hints import build_capa_hints, finalize_hints
 from reversecore_mcp.core.result import ToolSuccess, failure, success
 from reversecore_mcp.core.security import validate_file_path
 
@@ -174,8 +175,13 @@ async def run_capa(file_path: str, output_format: str = "summary"):
             ),
         }
 
+        # Build adaptive next-tool hints based on detected capabilities
+        cap_names = [c["name"] for c in result.get("capabilities", [])]
+        _hints = finalize_hints(build_capa_hints(file_path, cap_names))
+
         return success(
             data=result,
+            hints=_hints or None,
             message=message,
             high_risk_count=high_risk_count,
             mitre_count=len(result["mitre_attack"]),

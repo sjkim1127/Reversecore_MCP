@@ -65,6 +65,7 @@ class AnalysisToolsPlugin(Plugin):
             verify_path_and_get_args_tool,
         )
         from reversecore_mcp.tools.analysis.taint_analysis import taint_trace
+        from reversecore_mcp.tools.analysis.vt_lookup import vt_lookup
 
         # Register all tools
         mcp_server.tool(generate_advanced_yara_rule)
@@ -91,8 +92,9 @@ class AnalysisToolsPlugin(Plugin):
         mcp_server.tool(name="verify_path_and_get_args")(verify_path_and_get_args_tool)
         mcp_server.tool(analyze_patch_diff_auto)
         mcp_server.tool(taint_trace)
+        mcp_server.tool(vt_lookup)
 
-        logger.info(f"Registered {self.name} plugin with 26 analysis tools (unified)")
+        logger.info(f"Registered {self.name} plugin with 27 analysis tools (unified)")
 
 
 __all__ = ["AnalysisToolsPlugin"]

@@ -28,6 +28,7 @@ class TestToolSuccess:
             "status": "success",
             "data": "output",
             "metadata": {"key": "value"},
+            "recommended_next_tools": None,
         }
 
 

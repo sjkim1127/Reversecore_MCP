@@ -25,6 +25,7 @@ from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
+from reversecore_mcp.core.next_tool_hints import build_decompile_hints, finalize_hints
 from reversecore_mcp.core.r2_helpers import execute_r2_command as _execute_r2_command
 from reversecore_mcp.core.result import ToolResult, failure, success
 from reversecore_mcp.core.result_cache import cache_tool_result
@@ -128,12 +129,15 @@ async def r2_decompile(
             hint="Try running `r2 -AA binary -c 'pdg @ main'` locally to verify.",
         )
 
+    pseudo_c = output.strip()
+    hints = finalize_hints(build_decompile_hints(file_path, function_address, pseudo_c))
     res = success(
         {
             "function": function_address,
-            "pseudo_c": output.strip(),
+            "pseudo_c": pseudo_c,
             "decompiler": "r2ghidra",
-        }
+        },
+        hints=hints or None,
     )
     await set_cached_decompile(validated, function_address, res, use_ghidra=True)
     return res

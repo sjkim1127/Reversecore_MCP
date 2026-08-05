@@ -41,6 +41,8 @@ from reversecore_mcp.tools.report.session import (
 
 logger = logging.getLogger(__name__)
 
+__all__ = ["ReportTools"]
+
 
 class ReportTools:
     """

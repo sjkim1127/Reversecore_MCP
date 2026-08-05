@@ -9,6 +9,7 @@ from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
 from reversecore_mcp.core.metrics import track_metrics
+from reversecore_mcp.core.next_tool_hints import build_lief_hints, finalize_hints
 from reversecore_mcp.core.result import ToolResult, failure, success
 from reversecore_mcp.core.security import validate_file_path
 
@@ -390,11 +391,13 @@ def parse_binary_with_lief(file_path: str, format: str = "json") -> ToolResult:
         ),
     }
 
+    _hints = finalize_hints(build_lief_hints(file_path, sections_list))
+
     if format.lower() == "json":
-        return success(result_data)
+        return success(result_data, hints=_hints or None)
 
     formatted_text = _format_lief_output(result_data, format)
-    return success(formatted_text)
+    return success(formatted_text, hints=_hints or None)
 
 
 def _run_lief_in_process(

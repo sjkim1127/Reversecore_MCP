@@ -294,6 +294,20 @@ class Settings(BaseSettings):
         description="Non-root user for execution in Container Mode",
     )
 
+    # ------------------------------------------------------------------
+    # Threat Intelligence
+    # ------------------------------------------------------------------
+    vt_api_key: str = Field(
+        default="",
+        alias="REVERSECORE_VT_API_KEY",
+        description="VirusTotal API key for IOC reputation lookups (vt_lookup tool)",
+    )
+    vt_request_timeout: int = Field(
+        default=30,
+        alias="REVERSECORE_VT_TIMEOUT",
+        description="HTTP timeout for VirusTotal API requests in seconds",
+    )
+
     @field_validator("log_level")
     @classmethod
     def validate_log_level(cls, v: str) -> str:

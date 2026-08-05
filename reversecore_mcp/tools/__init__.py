@@ -23,6 +23,7 @@ _LAZY_MODULES: Final[dict[str, str]] = {
     "signature_tools": "reversecore_mcp.tools.analysis.signature_tools",
     "source_auditor": "reversecore_mcp.tools.analysis.source_auditor",
     "static_analysis": "reversecore_mcp.tools.analysis.static_analysis",
+    "vt_lookup": "reversecore_mcp.tools.analysis.vt_lookup",
     # Common tools
     "file_operations": "reversecore_mcp.tools.common.file_operations",
     "patch_explainer": "reversecore_mcp.tools.common.patch_explainer",

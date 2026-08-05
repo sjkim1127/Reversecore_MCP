@@ -7,6 +7,10 @@ from typing import Any, Literal, TypedDict
 from pydantic import BaseModel
 from typing_extensions import NotRequired
 
+# NextToolHint is defined here to avoid circular imports with core.next_tool_hints
+NextToolHint = dict[str, Any]
+"""Schema: {tool: str, reason: str, confidence: str, suggested_args: dict, priority: int}"""
+
 
 # TypedDict definitions for common tool result structures
 class FunctionInfo(TypedDict):
@@ -93,6 +97,12 @@ class ToolSuccess(BaseModel):
     status: Literal["success"] = "success"
     data: str | dict[str, Any]
     metadata: dict[str, Any] | None = None
+    recommended_next_tools: list[NextToolHint] | None = None
+    """Optional list of next-step tool hints for AI clients.
+
+    Each hint has: tool, reason, confidence (high/medium/low),
+    suggested_args, priority (1=highest).
+    """
 
 
 class ToolError(BaseModel):
@@ -108,9 +118,24 @@ class ToolError(BaseModel):
 ToolResult = ToolSuccess | ToolError
 
 
-def success(data: str | dict[str, Any], **metadata: Any) -> ToolSuccess:
-    """Create a ToolSuccess instance with optional metadata."""
-    return ToolSuccess(data=data, metadata=metadata or None)
+def success(
+    data: str | dict[str, Any],
+    *,
+    hints: list[NextToolHint] | None = None,
+    **metadata: Any,
+) -> ToolSuccess:
+    """Create a ToolSuccess instance with optional metadata and next-tool hints.
+
+    Args:
+        data: The primary result payload (string or dict).
+        hints: Optional list of NextToolHint dicts to guide AI follow-up.
+        **metadata: Additional key-value metadata attached to the result.
+    """
+    return ToolSuccess(
+        data=data,
+        metadata=metadata or None,
+        recommended_next_tools=hints or None,
+    )
 
 
 def failure(
