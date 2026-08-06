@@ -128,7 +128,7 @@ contourpy==1.3.2
     #   matplotlib
 coverage==7.15.0
     # via pytest-cov
-cryptography==49.0.0
+cryptography==50.0.0
     # via
     #   authlib
     #   joserfc
