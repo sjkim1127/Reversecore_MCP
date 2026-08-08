@@ -30,13 +30,13 @@ class AuditLogger:
     _instance = None
     _initialized: bool = False
 
-    def __new__(cls):
+    def __new__(cls) -> "AuditLogger":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
         return cls._instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         if self._initialized:
             return
 

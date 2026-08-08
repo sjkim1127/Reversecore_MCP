@@ -99,7 +99,7 @@ class BinaryMetadataCache:
         metrics_collector.record_cache_miss("binary_cache")
         return None
 
-    def set(self, file_path: str, key: str, value: Any):
+    def set(self, file_path: str, key: str, value: Any) -> None:
         """Set a specific metadata item for a file."""
         cache_key = self._get_cache_key(file_path)
 
@@ -121,7 +121,7 @@ class BinaryMetadataCache:
         self._cache[cache_key][key] = value
         logger.debug(f"Cached {key} for {file_path}")
 
-    def clear(self, file_path: str | None = None):
+    def clear(self, file_path: str | None = None) -> None:
         """Clear cache for a specific file or all files."""
         if file_path:
             key = self._get_cache_key(file_path)

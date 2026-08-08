@@ -91,16 +91,31 @@ class _LegacyModuleAlias(ModuleType):
 # modules now live in category packages. Registering aliases up front prevents
 # third-party meta-path finders from trying to resolve non-existent physical
 # modules while preserving lazy imports and optional dependency isolation.
+#
+# Implementation note: ``importlib.import_module(legacy_path)`` reads directly
+# from ``sys.modules``, so both the legacy and the canonical key must point to
+# the *same object* for ``is``-identity checks to pass.  We therefore try to
+# eagerly import the canonical module and register it under both keys; if the
+# canonical import fails (optional dependency missing) we fall back to a lazy
+# proxy that replaces itself on first attribute access.
 for _legacy_name, _target_path in _LAZY_MODULES.items():
     _legacy_path = f"{__name__}.{_legacy_name}"
-    sys.modules.setdefault(
-        _legacy_path,
-        _LegacyModuleAlias(
-            _legacy_path,
-            _target_path,
-            _LEGACY_EXPORTS.get(_legacy_name, ()),
-        ),
-    )
+    if _legacy_path in sys.modules:
+        # Already registered — ensure it matches the canonical if loaded.
+        if _target_path in sys.modules:
+            sys.modules[_legacy_path] = sys.modules[_target_path]
+        # else: leave the existing entry as-is
+    else:
+        try:
+            _canonical_mod = import_module(_target_path)
+            sys.modules[_legacy_path] = _canonical_mod
+        except ImportError:
+            # Optional dependency unavailable — use lazy proxy.
+            sys.modules[_legacy_path] = _LegacyModuleAlias(
+                _legacy_path,
+                _target_path,
+                _LEGACY_EXPORTS.get(_legacy_name, ()),
+            )
 
 
 def __getattr__(name: str) -> ModuleType:

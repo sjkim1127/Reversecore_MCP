@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from reversecore_mcp.core.next_tool_hints import (
+    build_autonomous_hunt_hints,
     build_capa_hints,
     build_decompile_hints,
     build_dormant_hints,
@@ -277,3 +278,158 @@ class TestFinalizeHints:
 
     def test_empty_input(self):
         assert finalize_hints([]) == []
+
+
+# ---------------------------------------------------------------------------
+# build_autonomous_hunt_hints
+# ---------------------------------------------------------------------------
+
+
+class TestBuildAutonomousHuntHints:
+    def test_no_results_no_hints(self):
+        """Empty pipeline → no hints."""
+        hints = build_autonomous_hunt_hints(
+            file_path="/ws/safe.elf",
+            confirmed_count=0,
+            poc_scripts=[],
+            rop_chains=[],
+            enable_fuzzing_was_off=False,
+            taint_paths_found=0,
+        )
+        assert hints == []
+
+    def test_confirmed_exploits_triggers_lief_and_report(self):
+        """Confirmed exploits → lief mitigation check + CVE report."""
+        hints = build_autonomous_hunt_hints(
+            file_path="/ws/vuln.elf",
+            confirmed_count=2,
+            poc_scripts=[{"poc": "script"}],
+            rop_chains=[],
+            enable_fuzzing_was_off=False,
+            taint_paths_found=0,
+        )
+        tools = {h["tool"] for h in hints}
+        assert "parse_binary_with_lief" in tools
+        assert "create_analysis_report" in tools
+        lief_hint = next(h for h in hints if h["tool"] == "parse_binary_with_lief")
+        assert lief_hint["confidence"] == "high"
+        assert lief_hint["priority"] == 1
+
+    def test_confirmed_exploits_report_severity_critical_threshold(self):
+        """3+ confirmed → severity=critical in report hint."""
+        hints = build_autonomous_hunt_hints(
+            file_path="/ws/vuln.elf",
+            confirmed_count=3,
+            poc_scripts=[],
+            rop_chains=[],
+        )
+        report_hint = next(h for h in hints if h["tool"] == "create_analysis_report")
+        assert report_hint["suggested_args"]["severity"] == "critical"
+
+    def test_confirmed_exploits_report_severity_high_threshold(self):
+        """< 3 confirmed → severity=high."""
+        hints = build_autonomous_hunt_hints(
+            file_path="/ws/vuln.elf",
+            confirmed_count=2,
+            poc_scripts=[],
+            rop_chains=[],
+        )
+        report_hint = next(h for h in hints if h["tool"] == "create_analysis_report")
+        assert report_hint["suggested_args"]["severity"] == "high"
+
+    def test_poc_without_rop_suggests_rop_chain(self):
+        """POC scripts exist but no ROP → suggest build_rop_chain."""
+        hints = build_autonomous_hunt_hints(
+            file_path="/ws/vuln.elf",
+            confirmed_count=0,
+            poc_scripts=[{"poc": "script1"}, {"poc": "script2"}],
+            rop_chains=[],
+        )
+        tools = {h["tool"] for h in hints}
+        assert "build_rop_chain" in tools
+        rop_hint = next(h for h in hints if h["tool"] == "build_rop_chain")
+        assert rop_hint["suggested_args"]["objective"] == "shell"
+        assert "2 POC" in rop_hint["reason"]
+
+    def test_rop_chains_without_confirmed_suggests_lief(self):
+        """ROP chains built but no confirmed vuln → lief to verify mitigations."""
+        hints = build_autonomous_hunt_hints(
+            file_path="/ws/vuln.elf",
+            confirmed_count=0,
+            poc_scripts=[],
+            rop_chains=[{"chain": "data"}],
+        )
+        tools = {h["tool"] for h in hints}
+        assert "parse_binary_with_lief" in tools
+
+    def test_fuzzing_disabled_with_no_confirmed_suggests_fuzzing(self):
+        """Fuzzing was off + nothing found → recommend AFL++ campaign."""
+        hints = build_autonomous_hunt_hints(
+            file_path="/ws/vuln.elf",
+            confirmed_count=0,
+            poc_scripts=[],
+            rop_chains=[],
+            enable_fuzzing_was_off=True,
+            taint_paths_found=0,
+        )
+        tools = {h["tool"] for h in hints}
+        assert "run_fuzzing_campaign" in tools
+        fuzz_hint = next(h for h in hints if h["tool"] == "run_fuzzing_campaign")
+        assert fuzz_hint["suggested_args"]["timeout"] == 300
+
+    def test_fuzzing_disabled_with_confirmed_does_not_suggest_fuzzing(self):
+        """Fuzzing off but something was confirmed → no need to fuzz."""
+        hints = build_autonomous_hunt_hints(
+            file_path="/ws/vuln.elf",
+            confirmed_count=2,
+            poc_scripts=[],
+            rop_chains=[],
+            enable_fuzzing_was_off=True,
+        )
+        tools = {h["tool"] for h in hints}
+        assert "run_fuzzing_campaign" not in tools
+
+    def test_taint_paths_without_confirmed_suggests_vuln_hunter(self):
+        """Taint paths found but nothing confirmed → static vuln scan."""
+        hints = build_autonomous_hunt_hints(
+            file_path="/ws/vuln.elf",
+            confirmed_count=0,
+            poc_scripts=[],
+            rop_chains=[],
+            taint_paths_found=5,
+        )
+        tools = {h["tool"] for h in hints}
+        assert "vulnerability_hunter" in tools
+        vh_hint = next(h for h in hints if h["tool"] == "vulnerability_hunter")
+        assert "5 taint" in vh_hint["reason"]
+
+    def test_taint_paths_with_confirmed_does_not_suggest_vuln_hunter(self):
+        """Taint paths + confirmed → no need for more static analysis."""
+        hints = build_autonomous_hunt_hints(
+            file_path="/ws/vuln.elf",
+            confirmed_count=1,
+            poc_scripts=[],
+            rop_chains=[],
+            taint_paths_found=3,
+        )
+        tools = {h["tool"] for h in hints}
+        assert "vulnerability_hunter" not in tools
+
+    def test_combined_scenario_confirmed_poc_no_rop(self):
+        """Realistic: confirmed + POC, no ROP → lief + report + rop_chain."""
+        hints = finalize_hints(
+            build_autonomous_hunt_hints(
+                file_path="/ws/vuln.elf",
+                confirmed_count=1,
+                poc_scripts=[{"poc": "s"}],
+                rop_chains=[],
+                enable_fuzzing_was_off=True,
+            )
+        )
+        tools = [h["tool"] for h in hints]
+        assert "parse_binary_with_lief" in tools
+        assert "create_analysis_report" in tools
+        assert "build_rop_chain" in tools
+        lief_idx = tools.index("parse_binary_with_lief")
+        report_idx = tools.index("create_analysis_report")
+        assert lief_idx < report_idx

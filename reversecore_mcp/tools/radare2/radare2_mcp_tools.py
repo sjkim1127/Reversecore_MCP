@@ -1191,7 +1191,10 @@ class Radare2ToolsPlugin(Plugin):
                 xrefs_list = _json.loads(raw) if raw else []
                 if not isinstance(xrefs_list, list):
                     xrefs_list = []
-            except Exception:
+            except Exception as exc:
+                logger.debug(
+                    "Failed to parse xref JSON for address %s — %s (raw=%.80s)", address, exc, raw
+                )
                 xrefs_list = []
 
             note = None

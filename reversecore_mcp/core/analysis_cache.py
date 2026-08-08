@@ -350,7 +350,7 @@ async def export_cache_by_hash(file_hash: str) -> dict:
     try:
         db_path = _init_sqlite_db()
 
-        def _read_all():
+        def _read_all() -> list[tuple]:
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
             cursor.execute(
@@ -396,7 +396,7 @@ async def import_cache_data(cache_data: dict) -> int:
     try:
         db_path = _init_sqlite_db()
 
-        def _write_all():
+        def _write_all() -> None:
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
             for entry in entries:
