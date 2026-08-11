@@ -4,6 +4,8 @@
 
 # Reversecore MCP
 
+[![MCP Toplist](https://mcptoplist.com/badge/io.github.sjkim1127%2Freversecore-mcp.svg)](https://mcptoplist.com/server/io.github.sjkim1127%2Freversecore-mcp)
+
 **AI-Powered Reverse Engineering & Security Analysis via Model Context Protocol**
 
 *An MCP server that gives AI assistants like Claude and Cursor the ability to perform reverse engineering, malware analysis, vulnerability research, digital forensics, and source code auditing through natural language.*
