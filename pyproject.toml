@@ -87,7 +87,7 @@ analysis = [
     "yara-python>=4.5.4",
     "r2pipe>=1.9.8",
     # Security floors for transitive dependencies used by angr/vivisect.
-    "gitpython>=3.1.51",
+    "gitpython>=3.1.59",
     "pyasn1>=0.6.4",
     "angr>=9.2.0,<=9.2.213",
     "flare-capa>=7.0.0",

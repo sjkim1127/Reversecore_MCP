@@ -128,7 +128,7 @@ contourpy==1.3.2
     #   matplotlib
 coverage==7.15.0
     # via pytest-cov
-cryptography==49.0.0
+cryptography==50.0.0
     # via
     #   authlib
     #   joserfc
@@ -179,7 +179,7 @@ ghp-import==2.1.0
     # via mkdocs
 gitdb==4.0.12
     # via gitpython
-gitpython==3.1.55
+gitpython==3.1.59
     # via
     #   reversecore-mcp (pyproject.toml)
     #   angr
@@ -520,7 +520,7 @@ pyparsing==3.3.2
     # via matplotlib
 pypcode==3.3.3
     # via angr
-pypdf==6.14.2
+pypdf==6.15.0
     # via xhtml2pdf
 pyperclip==1.11.0
     # via fastmcp-slim
