@@ -10,7 +10,7 @@ aiosmtplib==5.1.2
     # via reversecore-mcp (pyproject.toml)
 aiosqlite==0.22.1
     # via reversecore-mcp (pyproject.toml)
-angr==9.2.213
+angr==9.3.2
     # via reversecore-mcp (pyproject.toml)
 annotated-doc==0.0.4
     # via
