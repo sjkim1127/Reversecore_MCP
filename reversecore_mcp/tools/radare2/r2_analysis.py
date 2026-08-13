@@ -108,11 +108,6 @@ async def run_radare2(
         except OSError:
             pass
 
-    # If user explicitly requested analysis, handle it via caching
-    if "aaa" in validated_command or "aa" in validated_command:
-        # Remove explicit analysis commands as they are handled by _build_r2_cmd
-        validated_command = remove_analysis_commands(validated_command)
-
     # Use helper function to execute radare2 command
     try:
         # ── Extension pre-hooks (may transform file_path / command) ──────────
@@ -121,9 +116,19 @@ async def run_radare2(
             str(validated_path), validated_command
         )
 
+        # If user explicitly requested analysis, handle it via caching
+        if "aaa" in validated_command or "aa" in validated_command:
+            analysis_level = "aaa"
+            # Remove explicit analysis commands as they are handled by _build_r2_cmd
+            cleaned_command = remove_analysis_commands(validated_command)
+        else:
+            cleaned_command = validated_command
+
+        r2_cmds = [cleaned_command] if cleaned_command else []
+
         output, bytes_read = await _execute_r2_command(
             validated_path,
-            [validated_command],
+            r2_cmds,
             analysis_level=analysis_level,
             max_output_size=max_output_size,
             base_timeout=timeout,
