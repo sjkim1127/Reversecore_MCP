@@ -272,7 +272,7 @@ kiwisolver==1.5.0
     # via matplotlib
 librt==0.13.0
     # via mypy
-lief==0.17.6
+lief==1.0.0
     # via reversecore-mcp (pyproject.toml)
 limits==5.8.0
     # via slowapi
