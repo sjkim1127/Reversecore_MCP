@@ -69,6 +69,7 @@ jobs:
           artifact-name: reversecore-mcp-${{ github.ref_name }}.cdx.json
           upload-artifact: true
           upload-artifact-retention: 14
+          upload-release-assets: false
 
       - name: Generate SBOM — SPDX
         uses: anchore/sbom-action@v0
@@ -78,6 +79,7 @@ jobs:
           artifact-name: reversecore-mcp-${{ github.ref_name }}.spdx.json
           upload-artifact: true
           upload-artifact-retention: 14
+          upload-release-assets: false
 
   publish-pypi:
     name: Publish package to PyPI
@@ -230,4 +232,7 @@ jobs:
             --repo "${GITHUB_REPOSITORY}" \
             --verify-tag \
             --generate-notes \
-            --title "Reversecore MCP ${GITHUB_REF_NAME}"
+            --title "Reversecore MCP ${GITHUB_REF_NAME}" || \
+          gh release upload "${GITHUB_REF_NAME}" dist/* sbom/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --clobber
