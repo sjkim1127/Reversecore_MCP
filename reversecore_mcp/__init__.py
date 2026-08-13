@@ -6,4 +6,4 @@ CLI tools and libraries, enabling AI agents to perform reverse engineering
 tasks through natural language commands.
 """
 
-__version__ = "3.0.2"
+__version__ = "3.0.3"

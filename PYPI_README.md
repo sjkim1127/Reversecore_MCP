@@ -17,7 +17,7 @@ docker run -i --rm \
   -v /absolute/path/to/samples:/app/workspace \
   -e REVERSECORE_WORKSPACE=/app/workspace \
   -e MCP_TRANSPORT=stdio \
-  ghcr.io/sjkim1127/reversecore_mcp:3.0.2
+  ghcr.io/sjkim1127/reversecore_mcp:3.0.3
 ```
 
 ### Python package
