@@ -263,11 +263,17 @@ async def vt_lookup(
                         errors.append({"ioc": ioc, "error": "Invalid API key (HTTP 401)"})
                     elif resp.status_code == 429:
                         errors.append(
-                            {"ioc": ioc, "error": "VirusTotal rate limit exceeded (HTTP 429)"}
+                            {
+                                "ioc": ioc,
+                                "error": "VirusTotal rate limit exceeded (HTTP 429)",
+                            }
                         )
                     else:
                         errors.append(
-                            {"ioc": ioc, "error": f"VT API returned HTTP {resp.status_code}"}
+                            {
+                                "ioc": ioc,
+                                "error": f"VT API returned HTTP {resp.status_code}",
+                            }
                         )
                 except httpx.TimeoutException:
                     errors.append({"ioc": ioc, "error": f"Request timed out after {timeout}s"})

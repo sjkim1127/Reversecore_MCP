@@ -143,7 +143,10 @@ class TestExtractVerdict:
                 "first_submission_date": 1234567890,
                 "last_analysis_date": 1234567999,
                 "popular_threat_classification": {
-                    "popular_threat_name": [{"value": "eicar.test"}, {"value": "test.file"}]
+                    "popular_threat_name": [
+                        {"value": "eicar.test"},
+                        {"value": "test.file"},
+                    ]
                 },
             }
         }
@@ -223,7 +226,11 @@ class TestVtLookup:
         mock_response.json.return_value = {
             "data": {
                 "attributes": {
-                    "last_analysis_stats": {"malicious": 67, "suspicious": 0, "undetected": 5},
+                    "last_analysis_stats": {
+                        "malicious": 67,
+                        "suspicious": 0,
+                        "undetected": 5,
+                    },
                     "reputation": -50,
                     "meaningful_name": "eicar.exe",
                     "type_description": "PE32",

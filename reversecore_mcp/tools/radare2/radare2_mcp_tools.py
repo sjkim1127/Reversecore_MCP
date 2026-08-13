@@ -1193,7 +1193,10 @@ class Radare2ToolsPlugin(Plugin):
                     xrefs_list = []
             except Exception as exc:
                 logger.debug(
-                    "Failed to parse xref JSON for address %s — %s (raw=%.80s)", address, exc, raw
+                    "Failed to parse xref JSON for address %s — %s (raw=%.80s)",
+                    address,
+                    exc,
+                    raw,
                 )
                 xrefs_list = []
 

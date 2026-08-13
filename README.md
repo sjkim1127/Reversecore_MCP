@@ -18,6 +18,8 @@
 [![FastMCP](https://img.shields.io/badge/FastMCP-3.4.4-purple)](https://github.com/jlowin/fastmcp)
 [![PyPI](https://img.shields.io/pypi/v/reversecore-mcp)](https://pypi.org/project/reversecore-mcp/)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io-blue)](https://github.com/sjkim1127/Reversecore_MCP/pkgs/container/reversecore_mcp)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/sjkim1127/Reversecore_MCP/badge)](https://scorecard.dev/viewer/?uri=github.com/sjkim1127/Reversecore_MCP)
+[![HVTrust](https://hvtracker.net/badge/reversecore-mcp.svg)](https://hvtracker.net/agents/reversecore-mcp)
 
 [![Watch the Demo](https://img.shields.io/badge/▶_Watch_Demo-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtu.be/wJGW2bp3c5A)
 [![SafeSkill Verified](https://img.shields.io/badge/SafeSkill-93%2F100_Verified_Safe-brightgreen?style=for-the-badge)](https://safeskill.dev/scan/sjkim1127-reversecore-mcp)

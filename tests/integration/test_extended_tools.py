@@ -137,7 +137,10 @@ int main() {
 
         # Test nm -a (all symbols)
         result = subprocess.run(
-            ["nm", "-a", str(binary)], capture_output=True, text=True, timeout=EXTERNAL_TOOL_TIMEOUT
+            ["nm", "-a", str(binary)],
+            capture_output=True,
+            text=True,
+            timeout=EXTERNAL_TOOL_TIMEOUT,
         )
         assert result.returncode == 0
         symbols = result.stdout.lower()
@@ -161,7 +164,8 @@ int main() {
 
         # Strip binary
         subprocess.run(
-            ["strip", str(binary), "-o", str(binary_stripped)], timeout=EXTERNAL_TOOL_TIMEOUT
+            ["strip", str(binary), "-o", str(binary_stripped)],
+            timeout=EXTERNAL_TOOL_TIMEOUT,
         )
 
         if binary_stripped.exists():
@@ -376,7 +380,10 @@ class TestLddDependencyAnalysis:
         assert result.returncode == 0
 
         result = subprocess.run(
-            ["ldd", str(binary)], capture_output=True, text=True, timeout=EXTERNAL_TOOL_TIMEOUT
+            ["ldd", str(binary)],
+            capture_output=True,
+            text=True,
+            timeout=EXTERNAL_TOOL_TIMEOUT,
         )
 
         if result.returncode == 0:

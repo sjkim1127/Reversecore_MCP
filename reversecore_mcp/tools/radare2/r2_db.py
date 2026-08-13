@@ -489,7 +489,11 @@ async def get_cached_result(file_path: str, cache_key: str) -> ToolResult | None
 
 
 async def set_cached_result(
-    file_path: str, tool_name: str, cache_key: str, result: ToolResult, ttl: int | None = None
+    file_path: str,
+    tool_name: str,
+    cache_key: str,
+    result: ToolResult,
+    ttl: int | None = None,
 ) -> None:
     """Save a ToolResult to the cache."""
     try:

@@ -92,7 +92,10 @@ class TestLivenessEndpoint:
 
 class TestReadinessEndpoint:
     def test_ready_when_workspace_and_radare2_present(self, client, tmp_path):
-        with patch("reversecore_mcp.web.endpoints.shutil.which", return_value="/usr/bin/radare2"):
+        with patch(
+            "reversecore_mcp.web.endpoints.shutil.which",
+            return_value="/usr/bin/radare2",
+        ):
             r = client.get("/health/ready")
         assert r.status_code == 200
         assert r.json()["ready"] is True
@@ -111,7 +114,8 @@ class TestReadinessEndpoint:
         mock_cfg.workspace = tmp_path / "nonexistent"
         with patch("reversecore_mcp.web.endpoints.get_config", return_value=mock_cfg):
             with patch(
-                "reversecore_mcp.web.endpoints.shutil.which", return_value="/usr/bin/radare2"
+                "reversecore_mcp.web.endpoints.shutil.which",
+                return_value="/usr/bin/radare2",
             ):
                 with TestClient(app, raise_server_exceptions=False) as c:
                     r = c.get("/health/ready")
@@ -192,7 +196,10 @@ class TestUploadEndpoint:
 
     def test_upload_success(self, client):
         with (
-            patch("reversecore_mcp.web.endpoints._validate_file_magic", new_callable=AsyncMock),
+            patch(
+                "reversecore_mcp.web.endpoints._validate_file_magic",
+                new_callable=AsyncMock,
+            ),
             patch("reversecore_mcp.web.endpoints.audit_logger"),
             patch("reversecore_mcp.web.endpoints.invalidate_path_cache"),
         ):
@@ -227,7 +234,11 @@ class TestUploadEndpoint:
                     r = c.post(
                         "/upload",
                         files={
-                            "file": ("big.bin", io.BytesIO(b"A" * 100), "application/octet-stream")
+                            "file": (
+                                "big.bin",
+                                io.BytesIO(b"A" * 100),
+                                "application/octet-stream",
+                            )
                         },
                     )
         assert r.status_code == 413
@@ -248,7 +259,10 @@ class TestUploadEndpoint:
 
     def test_upload_sanitizes_path_traversal_filename(self, client):
         with (
-            patch("reversecore_mcp.web.endpoints._validate_file_magic", new_callable=AsyncMock),
+            patch(
+                "reversecore_mcp.web.endpoints._validate_file_magic",
+                new_callable=AsyncMock,
+            ),
             patch("reversecore_mcp.web.endpoints.audit_logger"),
             patch("reversecore_mcp.web.endpoints.invalidate_path_cache"),
         ):

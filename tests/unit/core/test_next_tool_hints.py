@@ -228,7 +228,13 @@ class TestBuildVulnHunterHints:
         assert "generate_poc_exploit" in tools
 
     def test_buffer_overflow_triggers_rop(self):
-        findings = [{"severity": "high", "vulnerability_type": "buffer_overflow", "cwe": "CWE-120"}]
+        findings = [
+            {
+                "severity": "high",
+                "vulnerability_type": "buffer_overflow",
+                "cwe": "CWE-120",
+            }
+        ]
         hints = build_vuln_hunter_hints("/workspace/bof.elf", findings)
         tools = [h["tool"] for h in hints]
         assert "build_rop_chain" in tools

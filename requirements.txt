@@ -80,7 +80,7 @@ cachetools==7.1.4
     #   py-key-value-aio
 caio==0.9.25
     # via aiofile
-capstone==5.0.9
+capstone==5.0.6
     # via
     #   reversecore-mcp (pyproject.toml)
     #   angr

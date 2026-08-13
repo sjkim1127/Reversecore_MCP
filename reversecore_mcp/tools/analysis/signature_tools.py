@@ -258,7 +258,9 @@ async def generate_signature(
 @track_metrics("generate_yara_rule")
 @handle_tool_errors
 @cache_tool_result(
-    "generate_yara_rule", ttl=43200, cache_kwargs=["rule_name", "author", "description", "mode"]
+    "generate_yara_rule",
+    ttl=43200,
+    cache_kwargs=["rule_name", "author", "description", "mode"],
 )
 async def generate_yara_rule(
     file_path: str,

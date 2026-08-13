@@ -1,5 +1,9 @@
-"""LIEF (Library to Instrument Executable Formats) parsing tools for binary analysis."""
-
+import atexit
+import concurrent.futures
+import copy
+import threading
+from collections import OrderedDict
+from concurrent.futures.process import BrokenProcessPool
 from itertools import islice
 from typing import Any
 
@@ -12,6 +16,72 @@ from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.next_tool_hints import build_lief_hints, finalize_hints
 from reversecore_mcp.core.result import ToolResult, failure, success
 from reversecore_mcp.core.security import validate_file_path
+
+
+class _LIEFResultCache:
+    """Thread-safe in-memory LRU cache for parsed LIEF metadata."""
+
+    def __init__(self, maxsize: int = 32):
+        self._maxsize = maxsize
+        self._cache: OrderedDict[tuple[str, int, int], dict[str, Any]] = OrderedDict()
+        self._lock = threading.Lock()
+
+    def get(self, key: tuple[str, int, int]) -> dict[str, Any] | None:
+        with self._lock:
+            if key in self._cache:
+                self._cache.move_to_end(key)
+                return self._cache[key]
+            return None
+
+    def set(self, key: tuple[str, int, int], value: dict[str, Any]) -> None:
+        with self._lock:
+            if key in self._cache:
+                self._cache.move_to_end(key)
+            self._cache[key] = value
+            if len(self._cache) > self._maxsize:
+                self._cache.popitem(last=False)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._cache.clear()
+
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._cache)
+
+
+_lief_cache = _LIEFResultCache(maxsize=32)
+
+_lief_pool: concurrent.futures.ProcessPoolExecutor | None = None
+_lief_pool_lock = threading.Lock()
+
+
+def _get_lief_pool() -> concurrent.futures.ProcessPoolExecutor:
+    """Get or create the shared ProcessPoolExecutor for LIEF isolation."""
+    global _lief_pool
+    with _lief_pool_lock:
+        if _lief_pool is None:
+            _lief_pool = concurrent.futures.ProcessPoolExecutor(max_workers=1)
+        return _lief_pool
+
+
+def _reset_lief_pool(shutdown_old: bool = True) -> None:
+    """Reset the shared ProcessPoolExecutor after a crash or timeout."""
+    global _lief_pool
+    with _lief_pool_lock:
+        if _lief_pool is not None:
+            if shutdown_old:
+                try:
+                    _lief_pool.shutdown(wait=False, cancel_futures=True)
+                except Exception:
+                    pass
+            _lief_pool = None
+
+
+@atexit.register
+def _cleanup_lief_pool() -> None:
+    """Clean shutdown of the shared process pool on interpreter exit."""
+    _reset_lief_pool(shutdown_old=True)
 
 
 def _extract_sections(binary: Any) -> list[dict[str, Any]]:
@@ -304,51 +374,68 @@ def parse_binary_with_lief(file_path: str, format: str = "json") -> ToolResult:
         max_exports = 100
         max_sections = None  # No limit
 
-    # Isolate potentially dangerous LIEF parsing in a separate process
-    # This protects the main server from C++ level crashes (segfaults) in the LIEF library
-    import concurrent.futures
-    from concurrent.futures.process import BrokenProcessPool
+    cache_key = (
+        str(validated_path),
+        validated_path.stat().st_mtime_ns,
+        file_size,
+    )
+    cached_result = _lief_cache.get(cache_key)
 
-    try:
-        # Use ProcessPoolExecutor to run parsing in a separate process
-        executor = concurrent.futures.ProcessPoolExecutor(max_workers=1)
-        future = executor.submit(
-            _run_lief_in_process,
-            str(validated_path),
-            max_imports,
-            max_exports,
-            max_sections,
-        )
-
-        # Wait for result with timeout
+    if cached_result is not None:
+        result_data = copy.deepcopy(cached_result)
+    else:
         try:
-            result_data = future.result(timeout=60)  # 60s timeout for LIEF
-            executor.shutdown(wait=True)
-        except concurrent.futures.TimeoutError:
-            try:
-                for p in list(executor._processes.values()):
-                    p.terminate()
-                    p.join(timeout=1.0)
-            except Exception:  # nosec B110
-                pass
-            executor.shutdown(wait=False, cancel_futures=True)
-            return failure(
-                "TIMEOUT",
-                "LIEF parsing timed out (possible hang in C++ library)",
+            executor = _get_lief_pool()
+            future = executor.submit(
+                _run_lief_in_process,
+                str(validated_path),
+                max_imports,
+                max_exports,
+                max_sections,
             )
-        except BrokenProcessPool:
-            executor.shutdown(wait=False)
-            return failure(
-                "CRASH_DETECTED",
-                "LIEF parser crashed (segmentation fault detected). Analysis aborted safely.",
-                hint="The file may be malformed intentionally to crash analysis tools.",
-            )
-        except Exception as e:
-            executor.shutdown(wait=False)
-            return failure("LIEF_ERROR", f"LIEF failed to parse binary: {e}")
 
-    except Exception as e:
-        return failure("EXECUTION_ERROR", f"Failed to run LIEF isolation: {e}")
+            # Wait for result with timeout
+            try:
+                result_data = future.result(timeout=60)  # 60s timeout for LIEF
+                _lief_cache.set(cache_key, result_data)
+            except concurrent.futures.TimeoutError:
+                try:
+                    if hasattr(executor, "_processes") and executor._processes:
+                        for p in list(executor._processes.values()):
+                            p.terminate()
+                            p.join(timeout=1.0)
+                except Exception:  # nosec B110
+                    pass
+                try:
+                    executor.shutdown(wait=False, cancel_futures=True)
+                except Exception:
+                    pass
+                _reset_lief_pool(shutdown_old=False)
+                return failure(
+                    "TIMEOUT",
+                    "LIEF parsing timed out (possible hang in C++ library)",
+                )
+            except BrokenProcessPool:
+                try:
+                    executor.shutdown(wait=False)
+                except Exception:
+                    pass
+                _reset_lief_pool(shutdown_old=False)
+                return failure(
+                    "CRASH_DETECTED",
+                    "LIEF parser crashed (segmentation fault detected). Analysis aborted safely.",
+                    hint="The file may be malformed intentionally to crash analysis tools.",
+                )
+            except Exception as e:
+                try:
+                    executor.shutdown(wait=False)
+                except Exception:
+                    pass
+                _reset_lief_pool(shutdown_old=False)
+                return failure("LIEF_ERROR", f"LIEF failed to parse binary: {e}")
+
+        except Exception as e:
+            return failure("EXECUTION_ERROR", f"Failed to run LIEF isolation: {e}")
 
     # P2: Add warning if extraction was limited
     if extraction_warning:

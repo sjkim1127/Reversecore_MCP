@@ -9,7 +9,8 @@ from typing import Any
 from starlette.responses import JSONResponse
 
 ASGIApp = Callable[
-    [dict[str, Any], Callable[..., Awaitable[Any]], Callable[..., Awaitable[Any]]], Awaitable[None]
+    [dict[str, Any], Callable[..., Awaitable[Any]], Callable[..., Awaitable[Any]]],
+    Awaitable[None],
 ]
 
 

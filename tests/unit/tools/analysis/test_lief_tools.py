@@ -54,6 +54,18 @@ if not hasattr(lief.PE, "LoadConfigurationV1"):
     lief.PE.LoadConfigurationV1 = LoadConfigurationV1
 
 
+@pytest.fixture(autouse=True)
+def reset_lief_state():
+    """Reset LIEF cache and shared pool before and after every test."""
+    from reversecore_mcp.tools.analysis.lief_tools import _lief_cache, _reset_lief_pool
+
+    _lief_cache.clear()
+    _reset_lief_pool(shutdown_old=False)
+    yield
+    _lief_cache.clear()
+    _reset_lief_pool(shutdown_old=False)
+
+
 class TestExtractSections:
     """Tests for _extract_sections."""
 
@@ -639,7 +651,11 @@ class TestParseBinaryWithLief:
         mock_executor.shutdown.assert_called_once_with(wait=False, cancel_futures=True)
 
     def test_shutdown_on_success(self, tmp_path):
-        from reversecore_mcp.tools.analysis.lief_tools import parse_binary_with_lief
+        from reversecore_mcp.tools.analysis.lief_tools import (
+            _cleanup_lief_pool,
+            _reset_lief_pool,
+            parse_binary_with_lief,
+        )
 
         test_file = tmp_path / "test.exe"
         test_file.write_bytes(b"MZ" + b"\x00" * 100)
@@ -655,10 +671,17 @@ class TestParseBinaryWithLief:
             return_value=test_file,
         ):
             with patch("concurrent.futures.ProcessPoolExecutor", return_value=mock_executor):
-                result = parse_binary_with_lief(str(test_file))
+                result1 = parse_binary_with_lief(str(test_file))
+                # Second call should hit the cache without invoking submit again
+                result2 = parse_binary_with_lief(str(test_file))
 
-        assert result.status == "success"
-        mock_executor.shutdown.assert_called_once_with(wait=True)
+        assert result1.status == "success"
+        assert result2.status == "success"
+        assert mock_executor.submit.call_count == 1
+
+        # Test clean shutdown
+        _cleanup_lief_pool()
+        _reset_lief_pool()
 
     def test_shutdown_on_broken_pool(self, tmp_path):
         from reversecore_mcp.tools.analysis.lief_tools import parse_binary_with_lief
@@ -827,3 +850,51 @@ class TestLiefToolsExtraCoverage:
         assert result.error_code == "TIMEOUT"
         mock_process.terminate.assert_called_once()
         mock_executor.shutdown.assert_called_once_with(wait=False, cancel_futures=True)
+
+
+class TestLIEFResultCache:
+    """Unit tests for _LIEFResultCache."""
+
+    def test_cache_set_and_get(self):
+        from reversecore_mcp.tools.analysis.lief_tools import _LIEFResultCache
+
+        cache = _LIEFResultCache(maxsize=2)
+        key1 = ("/path/to/bin1", 1000, 500)
+        data1 = {"format": "ELF", "sections": []}
+
+        assert cache.get(key1) is None
+        cache.set(key1, data1)
+        assert cache.get(key1) == data1
+        assert len(cache) == 1
+
+    def test_cache_lru_eviction(self):
+        from reversecore_mcp.tools.analysis.lief_tools import _LIEFResultCache
+
+        cache = _LIEFResultCache(maxsize=2)
+        k1 = ("/bin1", 1, 10)
+        k2 = ("/bin2", 2, 20)
+        k3 = ("/bin3", 3, 30)
+
+        cache.set(k1, {"id": 1})
+        cache.set(k2, {"id": 2})
+
+        # Access k1 to make k2 the least recently used
+        assert cache.get(k1) == {"id": 1}
+
+        # Add k3, which should evict k2
+        cache.set(k3, {"id": 3})
+
+        assert cache.get(k1) == {"id": 1}
+        assert cache.get(k2) is None
+        assert cache.get(k3) == {"id": 3}
+        assert len(cache) == 2
+
+    def test_cache_clear(self):
+        from reversecore_mcp.tools.analysis.lief_tools import _LIEFResultCache
+
+        cache = _LIEFResultCache(maxsize=5)
+        cache.set(("/bin1", 1, 10), {"data": "test"})
+        assert len(cache) == 1
+        cache.clear()
+        assert len(cache) == 0
+        assert cache.get(("/bin1", 1, 10)) is None

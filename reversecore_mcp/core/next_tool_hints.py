@@ -477,7 +477,14 @@ def build_vuln_hunter_hints(
         for f in findings
         if any(
             kw in str(f).lower()
-            for kw in ("buffer_overflow", "stack_overflow", "bof", "cwe-120", "cwe-121", "cwe-122")
+            for kw in (
+                "buffer_overflow",
+                "stack_overflow",
+                "bof",
+                "cwe-120",
+                "cwe-121",
+                "cwe-122",
+            )
         )
     ]
 
