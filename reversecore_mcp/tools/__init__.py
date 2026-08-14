@@ -27,6 +27,8 @@ _LAZY_MODULES: Final[dict[str, str]] = {
     # Common tools
     "file_operations": "reversecore_mcp.tools.common.file_operations",
     "patch_explainer": "reversecore_mcp.tools.common.patch_explainer",
+    # Deobfuscation tools
+    "deobfuscation_tools": "reversecore_mcp.tools.deobfuscation",
     # Forensics tools
     "artifact": "reversecore_mcp.tools.forensics.artifact",
     "disk": "reversecore_mcp.tools.forensics.disk",
