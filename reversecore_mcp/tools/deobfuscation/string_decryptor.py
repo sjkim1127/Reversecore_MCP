@@ -12,7 +12,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.r2_helpers import calculate_dynamic_timeout, parse_json_output
@@ -90,7 +89,6 @@ def _extract_printable_strings(raw_bytes: bytes, min_len: int = 4) -> list[dict[
     return results
 
 
-@log_execution(tool_name="deobfuscate_strings")
 @track_metrics(tool_name="deobfuscate_strings")
 async def deobfuscate_strings_impl(
     file_path: str,
