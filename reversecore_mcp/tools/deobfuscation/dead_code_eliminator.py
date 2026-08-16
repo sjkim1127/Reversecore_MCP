@@ -65,9 +65,7 @@ async def _run_r2_command(file_path: str | Path, command: str, timeout: int = 30
     from reversecore_mcp.core.execution import execute_subprocess_async
 
     cmd = ["radare2", "-q", "-0", "-c", f"e scr.color=0; {command}", str(file_path)]
-    stdout, stderr, code = await execute_subprocess_async(cmd, timeout=timeout)
-    if code != 0 and not stdout:
-        logger.warning(f"radare2 exited with code {code}: {stderr}")
+    stdout, _ = await execute_subprocess_async(cmd, timeout=timeout)
     return stdout
 
 

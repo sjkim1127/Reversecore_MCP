@@ -86,7 +86,7 @@ async def triage_crash(
     try:
         cmd = ["gdb", "--batch", "--quiet", "-x", gdb_script_path, str(valid_bin)]
 
-        stdout, stderr = await execute_subprocess_async(cmd, timeout=timeout)
+        stdout, _ = await execute_subprocess_async(cmd, timeout=timeout)
 
         # Parse GDB output
         if "---CRASH_INFO_START---" not in stdout:
@@ -103,7 +103,7 @@ async def triage_crash(
                 return failure(
                     "GDB_ERROR",
                     "Failed to get crash info from GDB.",
-                    details={"stdout": stdout[-1000:], "stderr": stderr},
+                    details={"stdout": stdout[-1000:]},
                 )
 
         crash_info = _parse_gdb_output(stdout)

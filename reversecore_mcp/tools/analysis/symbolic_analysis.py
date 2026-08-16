@@ -68,7 +68,7 @@ async def verify_path_and_get_args(
         cmd.extend(["--avoid-addrs", avoid_str])
 
     try:
-        stdout, stderr = await execute_subprocess_async(cmd, timeout=timeout)
+        stdout, _ = await execute_subprocess_async(cmd, timeout=timeout)
 
         if stdout:
             try:
@@ -81,9 +81,6 @@ async def verify_path_and_get_args(
                     "satisfiable": False,
                     "error": "Invalid output format from worker",
                 }
-
-        if stderr:
-            logger.error(f"angr worker stderr: {stderr}")
 
         return {"satisfiable": False, "error": "No output from worker"}
 
