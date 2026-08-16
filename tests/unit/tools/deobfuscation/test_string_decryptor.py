@@ -68,12 +68,17 @@ class TestStringDecryptor:
 
     @pytest.mark.asyncio
     async def test_invalid_path_raises_validation_error(self):
-        with pytest.raises(ValidationError):
-            await deobfuscate_strings_impl("/non/existent/path/sample.bin")
+        """Ensure ValidationError propagates when the path does not exist in workspace."""
+        with patch(
+            "reversecore_mcp.tools.deobfuscation.string_decryptor.validate_file_path",
+            side_effect=ValidationError("Invalid file path"),
+        ):
+            with pytest.raises(ValidationError):
+                await deobfuscate_strings_impl("/non/existent/path/sample.bin")
 
     @pytest.mark.asyncio
     async def test_invalid_path_via_tool_wrapper(self):
-        res = await deobfuscate_strings("/non/existent/path/sample.bin")
+        res = await deobfuscate_strings("/non/existent/__no_such_file_xyzabc__.bin")
         assert res.status == "error"
 
     @pytest.mark.asyncio
