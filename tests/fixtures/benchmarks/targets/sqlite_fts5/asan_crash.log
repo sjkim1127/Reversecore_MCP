@@ -1,0 +1,12 @@
+==12345==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x60200000efb0 at pc 0x0000004a1234 bp 0x7fffffffd0e0 sp 0x7fffffffd0d8
+READ of size 4 at 0x60200000efb0 thread T0
+    #0 0x4a1233 in fts5UnicodeTokenize fts5_unicode2.c:124
+    #1 0x4a2345 in sqlite3Fts5Tokenize fts5.c:5678
+    #2 0x4a3456 in fts5GetTokenizerModule fts5.c:1234
+SUMMARY: AddressSanitizer: heap-buffer-overflow fts5_unicode2.c:124 in fts5UnicodeTokenize
+Shadow bytes around the buggy address:
+  0x0c047fff9df0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x0c047fff9e00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+=>0x0c047fff9e10: 00 00 00 00 00 00 00 00 00 00[fa]fa fa fa fa fa
+Shadow byte legend:
+  fa: heap left redzone

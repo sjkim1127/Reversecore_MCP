@@ -1,0 +1,14 @@
+==34567==ERROR: AddressSanitizer: heap-use-after-free on address 0x614000008250 at pc 0x00000061d2e3 bp 0x7fffffffd2e0 sp 0x7fffffffd2d8
+READ of size 8 at 0x614000008250 thread T0
+    #0 0x61d2e2 in xmlParseAttValueComplex parser.c:3890
+    #1 0x61e3f3 in xmlParseAttribute parser.c:4012
+    #2 0x61f404 in xmlParseStartTag parser.c:5123
+SUMMARY: AddressSanitizer: heap-use-after-free parser.c:3890 in xmlParseAttValueComplex
+freed by thread T0 here:
+    #0 0x4ec5a1 in free asan_malloc.c:90
+    #1 0x61c1b2 in xmlFreeDoc tree.c:1234
+Shadow bytes around the buggy address:
+  0x0c227fff0fe0: fa fa fa fa fa fa fa fa fd fd fd fd fd fd fd fa
+=>0x0c227fff0ff0: fa fa fa fa fa fa fa fa fd fd fd fd[fd]fd fa fa
+Shadow byte legend:
+  fd: heap left redzone (freed)

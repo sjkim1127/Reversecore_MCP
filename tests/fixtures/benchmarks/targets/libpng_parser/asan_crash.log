@@ -1,0 +1,11 @@
+==23456==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x60400001a8b0 at pc 0x00000052a1b2 bp 0x7fffffffd1e0 sp 0x7fffffffd1d8
+WRITE of size 8 at 0x60400001a8b0 thread T0
+    #0 0x52a1b1 in png_handle_eXIf pngrutil.c:452
+    #1 0x52b234 in png_read_info png.c:789
+    #2 0x52c345 in png_read_png png.c:2345
+SUMMARY: AddressSanitizer: heap-buffer-overflow pngrutil.c:452 in png_handle_eXIf
+Shadow bytes around the buggy address:
+  0x0c087ffff510: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+=>0x0c087ffff520: 00 00 00 00 00 00 00 00 00 00[fa]fa fa fa fa fa
+Shadow byte legend:
+  fa: heap left redzone

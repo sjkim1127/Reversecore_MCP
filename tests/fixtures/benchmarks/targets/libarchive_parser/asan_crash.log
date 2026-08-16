@@ -1,0 +1,13 @@
+==45678==ERROR: AddressSanitizer: attempting double-free on 0x602000006bc0 at pc 0x00000071a2b3 bp 0x7fffffffd3e0 sp 0x7fffffffd3d8
+    #0 0x71a2b2 in rar_free_codes archive_read_support_format_rar.c:482
+    #1 0x71b3c3 in rar_read_data archive_read_support_format_rar.c:890
+    #2 0x71c4d4 in _ar_read_data_block archive_read.c:234
+SUMMARY: AddressSanitizer: double-free archive_read_support_format_rar.c:482 in rar_free_codes
+previously allocated by thread T0 here:
+    #0 0x4ec5a1 in malloc asan_malloc.c:60
+    #1 0x71a1a1 in rar_alloc_codes archive_read_support_format_rar.c:456
+Shadow bytes around the buggy address:
+  0x0c047fff4d70: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+=>0x0c047fff4d80: fa fa fa fa fa fa fa fa[fa]fa fa fa fa fa fa fa
+Shadow byte legend:
+  fa: heap left redzone

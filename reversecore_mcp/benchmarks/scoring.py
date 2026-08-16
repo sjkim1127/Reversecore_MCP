@@ -119,9 +119,13 @@ class ScoringEngine:
         )
 
         fuzz_stats = tool_output.get("fuzzing_stats", {})
-        crashes_detected = (
-            int(fuzz_stats.get("crashes_detected", 0)) if isinstance(fuzz_stats, dict) else 0
-        )
+        if isinstance(fuzz_stats, dict):
+            try:
+                crashes_detected = int(fuzz_stats.get("crashes_detected", 0) or 0)
+            except (ValueError, TypeError):
+                crashes_detected = 0
+        else:
+            crashes_detected = 0
 
         # True positive evaluation
         is_tp = bool(crashes_detected > 0 or tool_output.get("cwe_id") or triaged.get("cwe_id"))
