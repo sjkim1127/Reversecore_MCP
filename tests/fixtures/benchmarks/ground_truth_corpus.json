@@ -1,0 +1,197 @@
+{
+  "version": "1.0",
+  "description": "Benchmark Ground-Truth Corpus for Automated Vulnerability Discovery and Verification",
+  "targets": [
+    {
+      "target_id": "sqlite3_fts5_unicode",
+      "target_name": "SQLite FTS5 Unicode Tokenizer Heap Buffer Overflow",
+      "category": "database_engine",
+      "real_world_library": "SQLite FTS5",
+      "target_version": "3.31.0",
+      "cve_reference": "CVE-2019-19645",
+      "vulnerability_class": "heap_buffer_overflow",
+      "cwe_id": "CWE-122",
+      "cwe_name": "Heap-based Buffer Overflow",
+      "faulting_symbol": "fts5UnicodeTokenize",
+      "source_file": "fts5_unicode2.c",
+      "source_line": 124,
+      "expected_memory_access_type": "WRITE_OOB",
+      "expected_access_size": 4,
+      "cvss": {
+        "base_score_min": 8.0,
+        "base_score_max": 9.8,
+        "expected_score": 8.8,
+        "severity": "HIGH",
+        "expected_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H",
+        "tolerated_vectors": [
+          "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+        ]
+      },
+      "fixtures": {
+        "vulnerable_source": "targets/sqlite_fts5/vulnerable.c",
+        "patched_source": "targets/sqlite_fts5/patched.c",
+        "patch_diff": "targets/sqlite_fts5/patch.diff",
+        "harness_c": "targets/sqlite_fts5/harness.c",
+        "asan_crash_log": "targets/sqlite_fts5/asan_crash.log",
+        "valid_seed_corpus": "targets/sqlite_fts5/seed_valid.bin",
+        "raw_crash_poc": "targets/sqlite_fts5/poc_raw.bin",
+        "minimized_poc": "targets/sqlite_fts5/poc_minimized.bin",
+        "dictionary_path": "targets/sqlite_fts5/dictionary.dict"
+      },
+      "raw_poc_size_bytes": 39,
+      "minimized_poc_target_bytes": 6,
+      "expected_minimization_ratio_min": 0.8,
+      "dictionary_tokens": [
+        "tokenize",
+        "unicode61",
+        "fts5",
+        "SELECT",
+        "\\xff\\xfe"
+      ],
+      "max_time_to_crash_seconds": 30
+    },
+    {
+      "target_id": "libpng_eXIf_int_overflow",
+      "target_name": "LibPNG EXIF Chunk Integer Overflow to Heap OOB Write",
+      "category": "image_parser",
+      "real_world_library": "LibPNG",
+      "target_version": "1.6.35",
+      "cve_reference": "CVE-2018-13785",
+      "vulnerability_class": "integer_overflow",
+      "cwe_id": "CWE-190",
+      "cwe_name": "Integer Overflow or Wraparound",
+      "faulting_symbol": "png_handle_eXIf",
+      "source_file": "pngrutil.c",
+      "source_line": 452,
+      "expected_memory_access_type": "WRITE_OOB",
+      "expected_access_size": 8,
+      "cvss": {
+        "base_score_min": 8.0,
+        "base_score_max": 9.8,
+        "expected_score": 8.8,
+        "severity": "HIGH",
+        "expected_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H",
+        "tolerated_vectors": [
+          "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+        ]
+      },
+      "fixtures": {
+        "vulnerable_source": "targets/libpng_parser/vulnerable.c",
+        "patched_source": "targets/libpng_parser/patched.c",
+        "patch_diff": "targets/libpng_parser/patch.diff",
+        "harness_c": "targets/libpng_parser/harness.c",
+        "asan_crash_log": "targets/libpng_parser/asan_crash.log",
+        "valid_seed_corpus": "targets/libpng_parser/seed_valid.bin",
+        "raw_crash_poc": "targets/libpng_parser/poc_raw.bin",
+        "minimized_poc": "targets/libpng_parser/poc_minimized.bin",
+        "dictionary_path": "targets/libpng_parser/dictionary.dict"
+      },
+      "raw_poc_size_bytes": 69,
+      "minimized_poc_target_bytes": 16,
+      "expected_minimization_ratio_min": 0.7,
+      "dictionary_tokens": [
+        "\\x89PNG\\r\\n\\x1a\\n",
+        "IHDR",
+        "eXIf",
+        "IDAT",
+        "IEND"
+      ],
+      "max_time_to_crash_seconds": 30
+    },
+    {
+      "target_id": "libxml2_entity_uaf",
+      "target_name": "LibXML2 Entity Expansion Use-After-Free",
+      "category": "xml_parser",
+      "real_world_library": "LibXML2",
+      "target_version": "2.9.4",
+      "cve_reference": "CVE-2022-2309",
+      "vulnerability_class": "use_after_free",
+      "cwe_id": "CWE-416",
+      "cwe_name": "Use After Free",
+      "faulting_symbol": "xmlParseAttValueComplex",
+      "source_file": "parser.c",
+      "source_line": 3890,
+      "expected_memory_access_type": "UAF_WRITE",
+      "expected_access_size": 8,
+      "cvss": {
+        "base_score_min": 8.0,
+        "base_score_max": 9.8,
+        "expected_score": 8.8,
+        "severity": "HIGH",
+        "expected_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H",
+        "tolerated_vectors": [
+          "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+        ]
+      },
+      "fixtures": {
+        "vulnerable_source": "targets/libxml2_parser/vulnerable.c",
+        "patched_source": "targets/libxml2_parser/patched.c",
+        "patch_diff": "targets/libxml2_parser/patch.diff",
+        "harness_c": "targets/libxml2_parser/harness.c",
+        "asan_crash_log": "targets/libxml2_parser/asan_crash.log",
+        "valid_seed_corpus": "targets/libxml2_parser/seed_valid.bin",
+        "raw_crash_poc": "targets/libxml2_parser/poc_raw.bin",
+        "minimized_poc": "targets/libxml2_parser/poc_minimized.bin",
+        "dictionary_path": "targets/libxml2_parser/dictionary.dict"
+      },
+      "raw_poc_size_bytes": 115,
+      "minimized_poc_target_bytes": 59,
+      "expected_minimization_ratio_min": 0.45,
+      "dictionary_tokens": [
+        "<!DOCTYPE",
+        "<!ENTITY",
+        "SYSTEM",
+        "PUBLIC",
+        "<?xml"
+      ],
+      "max_time_to_crash_seconds": 30
+    },
+    {
+      "target_id": "libarchive_rar_double_free",
+      "target_name": "LibArchive RAR Format Corrupt Huffman Tree Double Free",
+      "category": "archive_parser",
+      "real_world_library": "LibArchive",
+      "target_version": "3.3.2",
+      "cve_reference": "CVE-2019-18408",
+      "vulnerability_class": "double_free",
+      "cwe_id": "CWE-415",
+      "cwe_name": "Double Free",
+      "faulting_symbol": "rar_free_codes",
+      "source_file": "archive_read_support_format_rar.c",
+      "source_line": 482,
+      "expected_memory_access_type": "DOUBLE_FREE",
+      "expected_access_size": 0,
+      "cvss": {
+        "base_score_min": 7.5,
+        "base_score_max": 8.8,
+        "expected_score": 8.1,
+        "severity": "HIGH",
+        "expected_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:H/A:H",
+        "tolerated_vectors": [
+          "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:H"
+        ]
+      },
+      "fixtures": {
+        "vulnerable_source": "targets/libarchive_parser/vulnerable.c",
+        "patched_source": "targets/libarchive_parser/patched.c",
+        "patch_diff": "targets/libarchive_parser/patch.diff",
+        "harness_c": "targets/libarchive_parser/harness.c",
+        "asan_crash_log": "targets/libarchive_parser/asan_crash.log",
+        "valid_seed_corpus": "targets/libarchive_parser/seed_valid.bin",
+        "raw_crash_poc": "targets/libarchive_parser/poc_raw.bin",
+        "minimized_poc": "targets/libarchive_parser/poc_minimized.bin",
+        "dictionary_path": "targets/libarchive_parser/dictionary.dict"
+      },
+      "raw_poc_size_bytes": 68,
+      "minimized_poc_target_bytes": 12,
+      "expected_minimization_ratio_min": 0.75,
+      "dictionary_tokens": [
+        "Rar!\\x1a\\x07\\x00",
+        "ustar",
+        "PK\\x03\\x04",
+        "7z\\xbc\\xaf\\x27\\x1c"
+      ],
+      "max_time_to_crash_seconds": 30
+    }
+  ]
+}

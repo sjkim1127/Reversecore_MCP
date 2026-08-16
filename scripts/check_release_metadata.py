@@ -107,9 +107,7 @@ def validate_release_metadata(tag: str | None = None) -> list[str]:
 
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
     label_pattern = re.compile(
-        r'io\.modelcontextprotocol\.server\.name\s*=\s*"?'
-        + re.escape(MCP_NAME)
-        + r'"?'
+        r'io\.modelcontextprotocol\.server\.name\s*=\s*"?' + re.escape(MCP_NAME) + r'"?'
     )
     if not label_pattern.search(dockerfile):
         errors.append("Dockerfile is missing the MCP Registry ownership label")

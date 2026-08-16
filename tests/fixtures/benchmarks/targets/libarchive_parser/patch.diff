@@ -1,0 +1,12 @@
+--- a/archive_read_support_format_rar.c
++++ b/archive_read_support_format_rar.c
+@@ -20,6 +20,8 @@
+ void rar_free_codes(struct rar *rar) {
+     if (!rar) return;
+     if (rar->tree_nodes != NULL) {
+         free(rar->tree_nodes);
++        /* PATCH: Immediately NULL dangling pointer to prevent double-free */
++        rar->tree_nodes = NULL;
++        rar->tree_size = 0;
+     }
+ }

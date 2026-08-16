@@ -1,0 +1,48 @@
+{
+  "target_id": "libxml2_entity_uaf",
+  "target_name": "LibXML2 Entity Expansion Use-After-Free",
+  "category": "xml_parser",
+  "real_world_library": "LibXML2",
+  "target_version": "2.9.4",
+  "cve_reference": "CVE-2022-2309",
+  "vulnerability_class": "use_after_free",
+  "cwe_id": "CWE-416",
+  "cwe_name": "Use After Free",
+  "faulting_symbol": "xmlParseAttValueComplex",
+  "source_file": "parser.c",
+  "source_line": 3890,
+  "expected_memory_access_type": "UAF_WRITE",
+  "expected_access_size": 8,
+  "cvss": {
+    "base_score_min": 8.0,
+    "base_score_max": 9.8,
+    "expected_score": 8.8,
+    "severity": "HIGH",
+    "expected_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H",
+    "tolerated_vectors": [
+      "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+    ]
+  },
+  "fixtures": {
+    "vulnerable_source": "targets/libxml2_parser/vulnerable.c",
+    "patched_source": "targets/libxml2_parser/patched.c",
+    "patch_diff": "targets/libxml2_parser/patch.diff",
+    "harness_c": "targets/libxml2_parser/harness.c",
+    "asan_crash_log": "targets/libxml2_parser/asan_crash.log",
+    "valid_seed_corpus": "targets/libxml2_parser/seed_valid.bin",
+    "raw_crash_poc": "targets/libxml2_parser/poc_raw.bin",
+    "minimized_poc": "targets/libxml2_parser/poc_minimized.bin",
+    "dictionary_path": "targets/libxml2_parser/dictionary.dict"
+  },
+  "raw_poc_size_bytes": 115,
+  "minimized_poc_target_bytes": 59,
+  "expected_minimization_ratio_min": 0.45,
+  "dictionary_tokens": [
+    "<!DOCTYPE",
+    "<!ENTITY",
+    "SYSTEM",
+    "PUBLIC",
+    "<?xml"
+  ],
+  "max_time_to_crash_seconds": 30
+}

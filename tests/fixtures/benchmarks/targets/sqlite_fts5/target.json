@@ -1,0 +1,48 @@
+{
+  "target_id": "sqlite3_fts5_unicode",
+  "target_name": "SQLite FTS5 Unicode Tokenizer Heap Buffer Overflow",
+  "category": "database_engine",
+  "real_world_library": "SQLite FTS5",
+  "target_version": "3.31.0",
+  "cve_reference": "CVE-2019-19645",
+  "vulnerability_class": "heap_buffer_overflow",
+  "cwe_id": "CWE-122",
+  "cwe_name": "Heap-based Buffer Overflow",
+  "faulting_symbol": "fts5UnicodeTokenize",
+  "source_file": "fts5_unicode2.c",
+  "source_line": 124,
+  "expected_memory_access_type": "WRITE_OOB",
+  "expected_access_size": 4,
+  "cvss": {
+    "base_score_min": 8.0,
+    "base_score_max": 9.8,
+    "expected_score": 8.8,
+    "severity": "HIGH",
+    "expected_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H",
+    "tolerated_vectors": [
+      "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+    ]
+  },
+  "fixtures": {
+    "vulnerable_source": "targets/sqlite_fts5/vulnerable.c",
+    "patched_source": "targets/sqlite_fts5/patched.c",
+    "patch_diff": "targets/sqlite_fts5/patch.diff",
+    "harness_c": "targets/sqlite_fts5/harness.c",
+    "asan_crash_log": "targets/sqlite_fts5/asan_crash.log",
+    "valid_seed_corpus": "targets/sqlite_fts5/seed_valid.bin",
+    "raw_crash_poc": "targets/sqlite_fts5/poc_raw.bin",
+    "minimized_poc": "targets/sqlite_fts5/poc_minimized.bin",
+    "dictionary_path": "targets/sqlite_fts5/dictionary.dict"
+  },
+  "raw_poc_size_bytes": 39,
+  "minimized_poc_target_bytes": 6,
+  "expected_minimization_ratio_min": 0.8,
+  "dictionary_tokens": [
+    "tokenize",
+    "unicode61",
+    "fts5",
+    "SELECT",
+    "\\xff\\xfe"
+  ],
+  "max_time_to_crash_seconds": 30
+}

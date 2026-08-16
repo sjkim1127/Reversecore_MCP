@@ -56,3 +56,4 @@ vendor/
 site/
 docs/test-results/
 /workspace/
+.agents/

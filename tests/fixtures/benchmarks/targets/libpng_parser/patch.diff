@@ -1,0 +1,15 @@
+--- a/pngrutil.c
++++ b/pngrutil.c
+@@ -35,9 +35,15 @@
+ void png_handle_eXIf(png_structrp png_ptr, png_inforp info_ptr, png_uint_32 length) {
+-    /* BUG (Line 452): Integer overflow in allocation size computation.
+-     * When length == 0xFFFFFFFF, length + 1 overflows to 0, causing malloc(0)
+-     * which allocates minimal heap chunk, followed by large OOB write.
+-     */
++    /* PATCH: Prevent integer overflow and enforce maximum chunk size */
++    if (length > PNG_UINT_31_MAX - 1 || length > MAX_EXIF_SIZE) {
++        png_ptr->error_flag = 1;
++        return;
++    }
++
+     png_bytep exif_buf = (png_bytep)malloc(length + 1);

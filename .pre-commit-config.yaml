@@ -16,7 +16,9 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
+        exclude: '\.(bin|dat|raw|diff)$'
       - id: end-of-file-fixer
+        exclude: '\.(bin|dat|raw)$'
       - id: check-yaml
       - id: check-json
       - id: check-added-large-files

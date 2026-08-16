@@ -63,7 +63,9 @@ async def test_resilience() -> int:
         counts = await asyncio.gather(*(mcp_session_probe(i) for i in range(MCP_SESSIONS)))
         print(f"   MCP tool counts: {counts}")
         if len(set(counts)) != 1:
-            raise AssertionError(f"Concurrent MCP sessions observed inconsistent registries: {counts}")
+            raise AssertionError(
+                f"Concurrent MCP sessions observed inconsistent registries: {counts}"
+            )
 
         print("⏱️  Measuring health endpoint latency...")
         started = time.perf_counter()

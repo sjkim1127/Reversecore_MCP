@@ -1,0 +1,48 @@
+{
+  "target_id": "libpng_eXIf_int_overflow",
+  "target_name": "LibPNG EXIF Chunk Integer Overflow to Heap OOB Write",
+  "category": "image_parser",
+  "real_world_library": "LibPNG",
+  "target_version": "1.6.35",
+  "cve_reference": "CVE-2018-13785",
+  "vulnerability_class": "integer_overflow",
+  "cwe_id": "CWE-190",
+  "cwe_name": "Integer Overflow or Wraparound",
+  "faulting_symbol": "png_handle_eXIf",
+  "source_file": "pngrutil.c",
+  "source_line": 452,
+  "expected_memory_access_type": "WRITE_OOB",
+  "expected_access_size": 8,
+  "cvss": {
+    "base_score_min": 8.0,
+    "base_score_max": 9.8,
+    "expected_score": 8.8,
+    "severity": "HIGH",
+    "expected_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H",
+    "tolerated_vectors": [
+      "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+    ]
+  },
+  "fixtures": {
+    "vulnerable_source": "targets/libpng_parser/vulnerable.c",
+    "patched_source": "targets/libpng_parser/patched.c",
+    "patch_diff": "targets/libpng_parser/patch.diff",
+    "harness_c": "targets/libpng_parser/harness.c",
+    "asan_crash_log": "targets/libpng_parser/asan_crash.log",
+    "valid_seed_corpus": "targets/libpng_parser/seed_valid.bin",
+    "raw_crash_poc": "targets/libpng_parser/poc_raw.bin",
+    "minimized_poc": "targets/libpng_parser/poc_minimized.bin",
+    "dictionary_path": "targets/libpng_parser/dictionary.dict"
+  },
+  "raw_poc_size_bytes": 69,
+  "minimized_poc_target_bytes": 16,
+  "expected_minimization_ratio_min": 0.7,
+  "dictionary_tokens": [
+    "\\x89PNG\\r\\n\\x1a\\n",
+    "IHDR",
+    "eXIf",
+    "IDAT",
+    "IEND"
+  ],
+  "max_time_to_crash_seconds": 30
+}

@@ -1,0 +1,20 @@
+--- a/fts5_unicode2.c
++++ b/fts5_unicode2.c
+@@ -35,9 +35,14 @@
+-    while (i < nText) {
++    while (i < nText && out_idx < MAX_TOKENS) {
+         uint32_t code = pText[i++];
+-        /* BUG (Line 124): Missing upper bound check on code category lookup offset.
+-         * If code + (pText[i] >> 2) >= CATEGORY_TABLE_SIZE, it reads/writes OOB.
+-         */
+-        uint32_t cat_val = g_unicode_categories[code + (pText[i] >> 2)];
+-        pOutput[out_idx++] = cat_val;
++        uint32_t offset = (i < nText) ? (pText[i] >> 2) : 0;
++        /* PATCH: Validate category table index boundaries */
++        if (code + offset >= CATEGORY_TABLE_SIZE) {
++            code = UNICODE_REPLACEMENT_CHAR;
++        } else {
++            code = g_unicode_categories[code + offset];
++        }
++        pOutput[out_idx++] = code;
+     }

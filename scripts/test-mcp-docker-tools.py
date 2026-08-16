@@ -119,7 +119,9 @@ async def main() -> int:
                     await session.call_tool("run_file", {"file_path": str(target)}), "run_file"
                 )
                 if "elf" not in file_text.lower():
-                    raise AssertionError(f"run_file did not identify ELF content: {file_text[:300]}")
+                    raise AssertionError(
+                        f"run_file did not identify ELF content: {file_text[:300]}"
+                    )
                 print(f"✅ run_file identified ELF: {file_text[:160]}")
 
                 strings_text = require_success(

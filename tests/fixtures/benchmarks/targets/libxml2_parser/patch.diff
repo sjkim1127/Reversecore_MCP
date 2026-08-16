@@ -1,0 +1,18 @@
+--- a/parser.c
++++ b/parser.c
+@@ -48,9 +48,11 @@
+ xmlChar *xmlParseAttValueComplex(xmlParserCtxtPtr ctxt, int *attlen, int normalize) {
+     if (!ctxt || !ctxt->input) return NULL;
+
+     xmlEntityPtr ent = xmlGetDocEntity(ctxt->myDoc, ctxt->input->cur);
+     if (ent != NULL) {
+-        /* Releases current input stream */
+-        xmlFreeInputStream(ctxt->input);
+-        ctxt->input->consumed += ent->length;
++        /* PATCH: Properly unlink and pop input before entity expansion */
++        xmlPopInput(ctxt);
++        if (ctxt->input != NULL) {
++            ctxt->input->consumed += ent->length;
++        }
+         return ent->content;
+     }

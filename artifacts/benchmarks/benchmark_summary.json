@@ -1,0 +1,19 @@
+{
+  "total_targets": 4,
+  "discovered_count": 3,
+  "missed_count": 0,
+  "error_count": 0,
+  "discovery_rate_tpr_pct": 75.0,
+  "mean_time_to_crash_seconds": 0.0,
+  "avg_throughput_exec_per_sec": 0.0,
+  "avg_poc_reduction_pct": 0.0,
+  "cwe_exact_match_rate_pct": 0.0,
+  "cwe_hierarchical_match_rate_pct": 0.0,
+  "cvss_mean_absolute_error": 0.0,
+  "cvss_tolerance_match_rate_pct": 0.0,
+  "severity_concordance_rate_pct": 0.0,
+  "class_breakdown": {},
+  "target_results": [],
+  "execution_timestamp": "2026-08-16T00:40:18.302168+00:00",
+  "total_duration_seconds": 0.0
+}
