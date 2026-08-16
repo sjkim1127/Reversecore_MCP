@@ -53,7 +53,7 @@ class TestApiHashResolver:
             "reversecore_mcp.core.execution.execute_subprocess_async",
             new_callable=AsyncMock,
         ) as mock_exec:
-            mock_exec.return_value = ("stdout_data", "stderr_data", 1)
+            mock_exec.return_value = ("stdout_data", 0)
             out = await _run_r2_command(test_bin, "i", timeout=5)
             assert out == "stdout_data"
 
