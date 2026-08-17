@@ -1,0 +1,7 @@
+{
+  "target_id": "ffmpeg_hevc",
+  "cve": "CVE-2022-3341",
+  "faulting_symbol": "hevc_parse_slice_header",
+  "source_file": "hevc_ps.c",
+  "source_line": 1247
+}

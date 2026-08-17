@@ -519,8 +519,11 @@ class TestAdversarialCorpusLoader:
         assert len(res_ws) == len(targets)  # Whitespace alone is ignored like 'all'
 
         res_case = loader.filter_targets(targets, vulnerability_class_filter="HEAP_BUFFER_OVERFLOW")
-        assert len(res_case) == 1
-        assert res_case[0].target_id == "sqlite3_fts5_unicode"
+        # Expanded corpus has 2 heap_buffer_overflow targets: sqlite3_fts5_unicode + zlib_inflate_heap_oob
+        assert len(res_case) == 2
+        res_case_ids = {t.target_id for t in res_case}
+        assert "sqlite3_fts5_unicode" in res_case_ids
+        assert "zlib_inflate_heap_oob" in res_case_ids
 
         # None / empty list of targets
         assert loader.filter_targets([], target_filter="sqlite") == []

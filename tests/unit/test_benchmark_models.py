@@ -598,7 +598,7 @@ class TestCorpusLoader:
         """Test loading master corpus from default fixtures path."""
         loader = CorpusLoader(FIXTURES_DIR)
         targets = loader.load_corpus()
-        assert len(targets) == 4
+        assert len(targets) == 10
 
         target_ids = {t.target_id for t in targets}
         expected_ids = {
@@ -606,6 +606,13 @@ class TestCorpusLoader:
             "libpng_eXIf_int_overflow",
             "libxml2_entity_uaf",
             "libarchive_rar_double_free",
+            # 6 targets added in corpus expansion
+            "openssl_bn_infinite_loop",
+            "zlib_inflate_heap_oob",
+            "curl_cookie_leak_info",
+            "ffmpeg_hevc_oob_read",
+            "php_spl_type_confusion",
+            "expat_entity_int_overflow",
         }
         assert target_ids == expected_ids
 
@@ -646,10 +653,12 @@ class TestCorpusLoader:
         assert len(res_416) == 1
         assert res_416[0].target_id == "libxml2_entity_uaf"
 
-        # Normalized query without prefix
+        # Normalized query without prefix — CWE-190 now has 2 targets: libpng + expat
         res_190 = loader.filter_targets(targets, cwe_filter="190")
-        assert len(res_190) == 1
-        assert res_190[0].target_id == "libpng_eXIf_int_overflow"
+        assert len(res_190) == 2
+        res_190_ids = {t.target_id for t in res_190}
+        assert "libpng_eXIf_int_overflow" in res_190_ids
+        assert "expat_entity_int_overflow" in res_190_ids
 
         # Non-matching CWE
         res_none = loader.filter_targets(targets, cwe_filter="CWE-79")
@@ -704,8 +713,8 @@ class TestCorpusLoader:
         loader = CorpusLoader(FIXTURES_DIR)
         summary = loader.validate_corpus_integrity()
         assert summary["valid"] is True
-        assert summary["total_targets"] == 4
-        assert len(summary["target_details"]) == 4
+        assert summary["total_targets"] == 10
+        assert len(summary["target_details"]) == 10
 
     def test_load_target_from_json_error(self, tmp_path):
         """Test load_target_from_json raises FileNotFoundError when file does not exist."""
@@ -718,7 +727,7 @@ class TestCorpusLoader:
         loader = CorpusLoader(FIXTURES_DIR)
         summary = loader.validate_corpus_integrity(base_dir=tmp_path)
         assert summary["valid"] is False
-        assert summary["total_targets"] == 4
+        assert summary["total_targets"] == 10
         assert any(d["all_fixtures_present"] is False for d in summary["target_details"])
 
     def test_load_corpus_error_handling(self, tmp_path):

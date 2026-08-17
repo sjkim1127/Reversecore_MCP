@@ -43,12 +43,13 @@ class TestBenchmarkRunner:
         """Test full benchmark suite execution across all targets in mock mode."""
         scorecard = await runner_mock.run_suite("all", "all")
 
-        assert scorecard.total_targets == 4
-        assert scorecard.discovered_count == 4
+        # Corpus now contains 10 targets after expansion
+        assert scorecard.total_targets == 10
+        assert scorecard.discovered_count == 10
         assert scorecard.discovery_rate_tpr_pct == 100.0
         assert scorecard.cwe_exact_match_rate_pct == 100.0
         assert scorecard.cvss_tolerance_match_rate_pct == 100.0
-        assert len(scorecard.target_results) == 4
+        assert len(scorecard.target_results) == 10
 
     @pytest.mark.asyncio
     async def test_run_suite_with_target_filter(self, runner_mock: BenchmarkRunner) -> None:
@@ -63,6 +64,7 @@ class TestBenchmarkRunner:
         """Test suite filtering by CWE ID."""
         scorecard = await runner_mock.run_suite(cwe_filter="CWE-122")
 
+        # CWE-122 targets in the expanded corpus: sqlite3_fts5_unicode only
         assert scorecard.total_targets == 1
         assert scorecard.target_results[0].ground_truth_cwe == "CWE-122"
 
@@ -162,8 +164,9 @@ class TestBenchmarkRunner:
         options = ExecutionOptions(mock_mode=True, parallel_workers=2)
         scorecard = await runner_mock.run_suite(options=options)
 
-        assert scorecard.total_targets == 4
-        assert scorecard.discovered_count == 4
+        # Corpus now contains 10 targets after expansion
+        assert scorecard.total_targets == 10
+        assert scorecard.discovered_count == 10
 
     @pytest.mark.asyncio
     async def test_options_normalization_dict(self, runner_mock: BenchmarkRunner) -> None:

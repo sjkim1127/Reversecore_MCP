@@ -1,0 +1,9 @@
+--- a/libavcodec/hevc_ps.c
++++ b/libavcodec/hevc_ps.c
+@@ -1244,6 +1244,11 @@ static int hevc_parse_slice_header(HEVCContext *s, HEVCNAL *nal)
+     sh->slice_segment_address = get_ue_golomb(&s->HEVClc->gb);
++    /* CVE-2022-3341: validate address against picture dimensions */
++    if (sh->slice_segment_address >= s->ps.sps->ctb_width * s->ps.sps->ctb_height) {
++        av_log(s->avctx, AV_LOG_ERROR, "slice_segment_address out of range\n");
++        return AVERROR_INVALIDDATA;
++    }

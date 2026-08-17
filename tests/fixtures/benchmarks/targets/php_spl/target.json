@@ -1,0 +1,7 @@
+{
+  "target_id": "php_spl",
+  "cve": "CVE-2022-31625",
+  "faulting_symbol": "spl_dllist_object_free_storage",
+  "source_file": "ext/spl/spl_dllist.c",
+  "source_line": 316
+}

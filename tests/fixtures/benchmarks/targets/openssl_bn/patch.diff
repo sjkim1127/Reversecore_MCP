@@ -1,0 +1,13 @@
+--- a/crypto/bn/bn_sqrt.c
++++ b/crypto/bn/bn_sqrt.c
+@@ -228,6 +228,12 @@ BIGNUM *BN_mod_sqrt(BIGNUM *in, const BIGNUM *a, const BIGNUM *p, BN_CTX *ctx)
+     }
+ 
++    /* CVE-2022-0778 fix: verify p is prime before iteration */
++    int is_prime = BN_check_prime(p, ctx, NULL);
++    if (!is_prime) {
++        BNerr(BN_F_BN_MOD_SQRT, BN_R_NOT_A_PRIME);
++        goto end;
++    }
++
+     if (BN_is_zero(A) || BN_is_one(A)) {

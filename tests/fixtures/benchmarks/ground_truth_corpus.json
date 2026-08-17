@@ -1,5 +1,5 @@
 {
-  "version": "1.0",
+  "version": "1.1",
   "description": "Benchmark Ground-Truth Corpus for Automated Vulnerability Discovery and Verification",
   "targets": [
     {
@@ -190,6 +190,294 @@
         "ustar",
         "PK\\x03\\x04",
         "7z\\xbc\\xaf\\x27\\x1c"
+      ],
+      "max_time_to_crash_seconds": 30
+    },
+    {
+      "target_id": "openssl_bn_infinite_loop",
+      "target_name": "OpenSSL BN_mod_sqrt Infinite Loop via Crafted Certificate",
+      "category": "cryptographic_library",
+      "real_world_library": "OpenSSL",
+      "target_version": "3.0.1",
+      "cve_reference": "CVE-2022-0778",
+      "vulnerability_class": "infinite_loop",
+      "cwe_id": "CWE-835",
+      "cwe_name": "Loop with Unreachable Exit Condition (Infinite Loop)",
+      "faulting_symbol": "BN_mod_sqrt",
+      "source_file": "bn_sqrt.c",
+      "source_line": 231,
+      "expected_memory_access_type": "NONE",
+      "expected_access_size": 0,
+      "cvss": {
+        "base_score_min": 7.0,
+        "base_score_max": 7.5,
+        "expected_score": 7.5,
+        "severity": "HIGH",
+        "expected_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+        "tolerated_vectors": [
+          "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H"
+        ]
+      },
+      "fixtures": {
+        "vulnerable_source": "targets/openssl_bn/vulnerable.c",
+        "patched_source": "targets/openssl_bn/patched.c",
+        "patch_diff": "targets/openssl_bn/patch.diff",
+        "harness_c": "targets/openssl_bn/harness.c",
+        "asan_crash_log": "targets/openssl_bn/asan_crash.log",
+        "valid_seed_corpus": "targets/openssl_bn/seed_valid.bin",
+        "raw_crash_poc": "targets/openssl_bn/poc_raw.bin",
+        "minimized_poc": "targets/openssl_bn/poc_minimized.bin",
+        "dictionary_path": "targets/openssl_bn/dictionary.dict"
+      },
+      "raw_poc_size_bytes": 512,
+      "minimized_poc_target_bytes": 64,
+      "expected_minimization_ratio_min": 0.85,
+      "dictionary_tokens": [
+        "-----BEGIN CERTIFICATE-----",
+        "SEQUENCE",
+        "INTEGER",
+        "BIT STRING",
+        "ECParameters"
+      ],
+      "max_time_to_crash_seconds": 30
+    },
+    {
+      "target_id": "zlib_inflate_heap_oob",
+      "target_name": "zlib inflateGetHeader Heap Buffer Overflow via Crafted gzip Stream",
+      "category": "compression_library",
+      "real_world_library": "zlib",
+      "target_version": "1.2.11",
+      "cve_reference": "CVE-2022-37434",
+      "vulnerability_class": "heap_buffer_overflow",
+      "cwe_id": "CWE-787",
+      "cwe_name": "Out-of-bounds Write",
+      "faulting_symbol": "inflateGetHeader",
+      "source_file": "inflate.c",
+      "source_line": 848,
+      "expected_memory_access_type": "WRITE_OOB",
+      "expected_access_size": 1,
+      "cvss": {
+        "base_score_min": 8.0,
+        "base_score_max": 9.8,
+        "expected_score": 9.8,
+        "severity": "CRITICAL",
+        "expected_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+        "tolerated_vectors": [
+          "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:H"
+        ]
+      },
+      "fixtures": {
+        "vulnerable_source": "targets/zlib_inflate/vulnerable.c",
+        "patched_source": "targets/zlib_inflate/patched.c",
+        "patch_diff": "targets/zlib_inflate/patch.diff",
+        "harness_c": "targets/zlib_inflate/harness.c",
+        "asan_crash_log": "targets/zlib_inflate/asan_crash.log",
+        "valid_seed_corpus": "targets/zlib_inflate/seed_valid.bin",
+        "raw_crash_poc": "targets/zlib_inflate/poc_raw.bin",
+        "minimized_poc": "targets/zlib_inflate/poc_minimized.bin",
+        "dictionary_path": "targets/zlib_inflate/dictionary.dict"
+      },
+      "raw_poc_size_bytes": 48,
+      "minimized_poc_target_bytes": 10,
+      "expected_minimization_ratio_min": 0.75,
+      "dictionary_tokens": [
+        "\\x1f\\x8b",
+        "\\x08",
+        "FNAME",
+        "FCOMMENT",
+        "FEXTRA"
+      ],
+      "max_time_to_crash_seconds": 30
+    },
+    {
+      "target_id": "curl_cookie_leak_info",
+      "target_name": "cURL HTTP Cookie Header Information Disclosure via Header Injection",
+      "category": "network_client",
+      "real_world_library": "cURL",
+      "target_version": "7.83.0",
+      "cve_reference": "CVE-2022-27776",
+      "vulnerability_class": "information_exposure",
+      "cwe_id": "CWE-200",
+      "cwe_name": "Exposure of Sensitive Information to an Unauthorized Actor",
+      "faulting_symbol": "Curl_http_output_auth",
+      "source_file": "http.c",
+      "source_line": 728,
+      "expected_memory_access_type": "READ_OOB",
+      "expected_access_size": 4096,
+      "cvss": {
+        "base_score_min": 6.0,
+        "base_score_max": 7.5,
+        "expected_score": 6.5,
+        "severity": "MEDIUM",
+        "expected_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:N/A:N",
+        "tolerated_vectors": [
+          "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:N/A:N"
+        ]
+      },
+      "fixtures": {
+        "vulnerable_source": "targets/curl_cookie/vulnerable.c",
+        "patched_source": "targets/curl_cookie/patched.c",
+        "patch_diff": "targets/curl_cookie/patch.diff",
+        "harness_c": "targets/curl_cookie/harness.c",
+        "asan_crash_log": "targets/curl_cookie/asan_crash.log",
+        "valid_seed_corpus": "targets/curl_cookie/seed_valid.bin",
+        "raw_crash_poc": "targets/curl_cookie/poc_raw.bin",
+        "minimized_poc": "targets/curl_cookie/poc_minimized.bin",
+        "dictionary_path": "targets/curl_cookie/dictionary.dict"
+      },
+      "raw_poc_size_bytes": 128,
+      "minimized_poc_target_bytes": 22,
+      "expected_minimization_ratio_min": 0.80,
+      "dictionary_tokens": [
+        "Cookie:",
+        "Authorization:",
+        "Location:",
+        "Set-Cookie:",
+        "GET / HTTP/1.1"
+      ],
+      "max_time_to_crash_seconds": 30
+    },
+    {
+      "target_id": "ffmpeg_hevc_oob_read",
+      "target_name": "FFmpeg HEVC Bitstream NULL Dereference Out-of-Bounds Read",
+      "category": "multimedia_codec",
+      "real_world_library": "FFmpeg",
+      "target_version": "5.1",
+      "cve_reference": "CVE-2022-3341",
+      "vulnerability_class": "out_of_bounds_read",
+      "cwe_id": "CWE-125",
+      "cwe_name": "Out-of-bounds Read",
+      "faulting_symbol": "hevc_parse_slice_header",
+      "source_file": "hevc_ps.c",
+      "source_line": 1247,
+      "expected_memory_access_type": "READ_OOB",
+      "expected_access_size": 4,
+      "cvss": {
+        "base_score_min": 5.0,
+        "base_score_max": 7.5,
+        "expected_score": 5.5,
+        "severity": "MEDIUM",
+        "expected_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:N/A:L",
+        "tolerated_vectors": [
+          "CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:U/C:L/I:N/A:L"
+        ]
+      },
+      "fixtures": {
+        "vulnerable_source": "targets/ffmpeg_hevc/vulnerable.c",
+        "patched_source": "targets/ffmpeg_hevc/patched.c",
+        "patch_diff": "targets/ffmpeg_hevc/patch.diff",
+        "harness_c": "targets/ffmpeg_hevc/harness.c",
+        "asan_crash_log": "targets/ffmpeg_hevc/asan_crash.log",
+        "valid_seed_corpus": "targets/ffmpeg_hevc/seed_valid.bin",
+        "raw_crash_poc": "targets/ffmpeg_hevc/poc_raw.bin",
+        "minimized_poc": "targets/ffmpeg_hevc/poc_minimized.bin",
+        "dictionary_path": "targets/ffmpeg_hevc/dictionary.dict"
+      },
+      "raw_poc_size_bytes": 256,
+      "minimized_poc_target_bytes": 48,
+      "expected_minimization_ratio_min": 0.80,
+      "dictionary_tokens": [
+        "\\x00\\x00\\x01",
+        "\\x26\\x01",
+        "HEVC",
+        "NAL",
+        "\\x40\\x01"
+      ],
+      "max_time_to_crash_seconds": 30
+    },
+    {
+      "target_id": "php_spl_type_confusion",
+      "target_name": "PHP SPL SplDoublyLinkedList Uninitialized Pointer Type Confusion",
+      "category": "scripting_engine",
+      "real_world_library": "PHP",
+      "target_version": "8.1.5",
+      "cve_reference": "CVE-2022-31625",
+      "vulnerability_class": "type_confusion",
+      "cwe_id": "CWE-763",
+      "cwe_name": "Release of Invalid Pointer or Reference",
+      "faulting_symbol": "spl_dllist_object_free_storage",
+      "source_file": "ext/spl/spl_dllist.c",
+      "source_line": 316,
+      "expected_memory_access_type": "UAF_READ",
+      "expected_access_size": 8,
+      "cvss": {
+        "base_score_min": 7.5,
+        "base_score_max": 9.8,
+        "expected_score": 9.8,
+        "severity": "CRITICAL",
+        "expected_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+        "tolerated_vectors": [
+          "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H"
+        ]
+      },
+      "fixtures": {
+        "vulnerable_source": "targets/php_spl/vulnerable.c",
+        "patched_source": "targets/php_spl/patched.c",
+        "patch_diff": "targets/php_spl/patch.diff",
+        "harness_c": "targets/php_spl/harness.c",
+        "asan_crash_log": "targets/php_spl/asan_crash.log",
+        "valid_seed_corpus": "targets/php_spl/seed_valid.bin",
+        "raw_crash_poc": "targets/php_spl/poc_raw.bin",
+        "minimized_poc": "targets/php_spl/poc_minimized.bin",
+        "dictionary_path": "targets/php_spl/dictionary.dict"
+      },
+      "raw_poc_size_bytes": 87,
+      "minimized_poc_target_bytes": 14,
+      "expected_minimization_ratio_min": 0.82,
+      "dictionary_tokens": [
+        "SplDoublyLinkedList",
+        "SplStack",
+        "SplQueue",
+        "unserialize",
+        "serialize"
+      ],
+      "max_time_to_crash_seconds": 30
+    },
+    {
+      "target_id": "expat_entity_int_overflow",
+      "target_name": "Expat storeRawNames Integer Overflow to Heap Buffer Overflow",
+      "category": "xml_parser",
+      "real_world_library": "Expat",
+      "target_version": "2.4.4",
+      "cve_reference": "CVE-2022-25315",
+      "vulnerability_class": "integer_overflow",
+      "cwe_id": "CWE-190",
+      "cwe_name": "Integer Overflow or Wraparound",
+      "faulting_symbol": "storeRawNames",
+      "source_file": "xmlparse.c",
+      "source_line": 2653,
+      "expected_memory_access_type": "WRITE_OOB",
+      "expected_access_size": 8,
+      "cvss": {
+        "base_score_min": 8.0,
+        "base_score_max": 9.8,
+        "expected_score": 9.8,
+        "severity": "CRITICAL",
+        "expected_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+        "tolerated_vectors": [
+          "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:H"
+        ]
+      },
+      "fixtures": {
+        "vulnerable_source": "targets/expat_entity/vulnerable.c",
+        "patched_source": "targets/expat_entity/patched.c",
+        "patch_diff": "targets/expat_entity/patch.diff",
+        "harness_c": "targets/expat_entity/harness.c",
+        "asan_crash_log": "targets/expat_entity/asan_crash.log",
+        "valid_seed_corpus": "targets/expat_entity/seed_valid.bin",
+        "raw_crash_poc": "targets/expat_entity/poc_raw.bin",
+        "minimized_poc": "targets/expat_entity/poc_minimized.bin",
+        "dictionary_path": "targets/expat_entity/dictionary.dict"
+      },
+      "raw_poc_size_bytes": 95,
+      "minimized_poc_target_bytes": 18,
+      "expected_minimization_ratio_min": 0.80,
+      "dictionary_tokens": [
+        "<?xml",
+        "<!ENTITY",
+        "xmlns",
+        "UTF-8",
+        "ISO-8859-1"
       ],
       "max_time_to_crash_seconds": 30
     }

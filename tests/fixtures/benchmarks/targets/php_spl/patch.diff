@@ -1,0 +1,11 @@
+--- a/ext/spl/spl_dllist.c
++++ b/ext/spl/spl_dllist.c
+@@ -313,7 +313,10 @@ static void spl_dllist_object_free_storage(zend_object *object)
+     spl_dllist_object *intern = spl_dllist_from_obj(object);
+-    spl_ptr_llist_destroy(intern->llist);
++    /* CVE-2022-31625: guard against uninitialized llist pointer */
++    if (intern->llist) {
++        spl_ptr_llist_destroy(intern->llist);
++        intern->llist = NULL;
++    }
+     zend_object_std_dtor(&intern->std);

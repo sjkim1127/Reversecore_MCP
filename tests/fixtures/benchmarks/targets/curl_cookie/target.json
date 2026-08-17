@@ -1,0 +1,7 @@
+{
+  "target_id": "curl_cookie",
+  "cve": "CVE-2022-27776",
+  "faulting_symbol": "Curl_http_output_auth",
+  "source_file": "http.c",
+  "source_line": 728
+}

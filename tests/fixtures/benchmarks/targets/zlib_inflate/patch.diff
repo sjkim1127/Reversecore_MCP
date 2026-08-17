@@ -1,0 +1,9 @@
+--- a/inflate.c
++++ b/inflate.c
+@@ -845,7 +845,8 @@ int ZEXPORT inflateGetHeader(z_streamp strm, gz_headerp head)
+             if (head->extra != NULL) {
+-                copy = state->length;
++                copy = state->length;
++                if (copy > head->extra_max - state->head->extra_off)
++                    copy = head->extra_max - state->head->extra_off;
+                 if (copy > have) copy = have;

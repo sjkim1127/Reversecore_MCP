@@ -1,0 +1,7 @@
+{
+  "target_id": "openssl_bn",
+  "cve": "CVE-2022-0778",
+  "faulting_symbol": "BN_mod_sqrt",
+  "source_file": "bn_sqrt.c",
+  "source_line": 231
+}

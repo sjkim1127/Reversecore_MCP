@@ -1,0 +1,7 @@
+{
+  "target_id": "expat_entity",
+  "cve": "CVE-2022-25315",
+  "faulting_symbol": "storeRawNames",
+  "source_file": "xmlparse.c",
+  "source_line": 2653
+}

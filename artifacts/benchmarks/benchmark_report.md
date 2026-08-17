@@ -1,6 +1,6 @@
 # 🎯 Reversecore_MCP CVE Discovery Benchmark Evaluation Report
 
-**Generated:** 2026-08-16T01:55:47.032646+00:00
+**Generated:** 2026-08-17T01:03:49.922192+00:00
 **Duration:** 0.00s
 **Total Targets:** 4
 **Overall Discovery Rate (TPR):** 75.0%

@@ -1,0 +1,10 @@
+--- a/lib/xmlparse.c
++++ b/lib/xmlparse.c
+@@ -2650,7 +2650,11 @@ static XML_Bool storeRawNames(XML_Parser parser)
+     TAG *tag = parser->m_tagStack;
+-    int bufSize = (tag->rawNameLength + 1) * sizeof(XML_Char);
++    /* CVE-2022-25315: use size_t to prevent integer overflow */
++    if (tag->rawNameLength > (SIZE_MAX / sizeof(XML_Char)) - 1)
++        return XML_FALSE;
++    size_t bufSize = ((size_t)tag->rawNameLength + 1) * sizeof(XML_Char);
+     if (!poolGrow(&parser->m_tempPool))

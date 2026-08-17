@@ -207,7 +207,7 @@ class TestBenchmarkRunnerConcurrencyAdversarial:
         assert results[1].total_targets >= 1, "CWE-416 (LibXML2 UAF) must match at least 1 target"
         assert results[2].total_targets >= 1, "CWE-190 (LibPNG IntOv) must match at least 1 target"
         assert results[3].total_targets >= 0, "CWE-125 (no corpus target) returns 0 — acceptable"
-        assert results[4].total_targets == 4, "'all' filter must match all 4 corpus targets"
+        assert results[4].total_targets == 10, "all filter must match all 10 corpus targets"
 
 
 # ============================================================================

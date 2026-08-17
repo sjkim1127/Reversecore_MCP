@@ -1,0 +1,7 @@
+{
+  "target_id": "zlib_inflate",
+  "cve": "CVE-2022-37434",
+  "faulting_symbol": "inflateGetHeader",
+  "source_file": "inflate.c",
+  "source_line": 848
+}

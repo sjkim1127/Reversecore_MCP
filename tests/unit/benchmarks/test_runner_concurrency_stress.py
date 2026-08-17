@@ -210,7 +210,7 @@ class TestBenchmarkRunnerConcurrencyStress:
         assert results[0].total_targets >= 1
         assert results[1].total_targets >= 1
         assert results[2].total_targets >= 1
-        assert results[3].total_targets == 4
+        assert results[3].total_targets == 10
 
 
 class TestBenchmarkRunnerTimeoutStress:
@@ -388,6 +388,31 @@ class TestBenchmarkRunnerFilterStress:
             create_synthetic_target(
                 "curl_oob_read", cwe_id="CWE-125", vulnerability_class="out_of_bounds_read"
             ),
+            # 6 additional targets added during corpus expansion
+            create_synthetic_target(
+                "openssl_bn_infinite_loop", cwe_id="CWE-835", vulnerability_class="infinite_loop"
+            ),
+            create_synthetic_target(
+                "zlib_inflate_heap_oob",
+                cwe_id="CWE-787",
+                vulnerability_class="heap_buffer_overflow",
+            ),
+            create_synthetic_target(
+                "curl_cookie_leak_info",
+                cwe_id="CWE-200",
+                vulnerability_class="information_exposure",
+            ),
+            create_synthetic_target(
+                "ffmpeg_hevc_oob_read", cwe_id="CWE-125", vulnerability_class="out_of_bounds_read"
+            ),
+            create_synthetic_target(
+                "php_spl_type_confusion", cwe_id="CWE-763", vulnerability_class="type_confusion"
+            ),
+            create_synthetic_target(
+                "expat_entity_int_overflow",
+                cwe_id="CWE-190",
+                vulnerability_class="integer_overflow",
+            ),
         ]
         runner = BenchmarkRunner(mock_mode=True)
         runner.corpus_loader.load_corpus = MagicMock(return_value=targets)
@@ -413,15 +438,15 @@ class TestBenchmarkRunnerFilterStress:
     async def test_empty_filters(self, corpus_runner: BenchmarkRunner) -> None:
         """Test that empty string and empty lists return all targets."""
         res_empty_str = await corpus_runner.run_suite(target_filter="", cwe_filter="")
-        assert res_empty_str.total_targets == 4
+        assert res_empty_str.total_targets == 10
 
         res_empty_list = await corpus_runner.run_suite(target_filter=[], cwe_filter=[])
-        assert res_empty_list.total_targets == 4
+        assert res_empty_list.total_targets == 10
 
         res_ws_list = await corpus_runner.run_suite(
             target_filter=["", "   "], cwe_filter=["", "   "]
         )
-        assert res_ws_list.total_targets == 4
+        assert res_ws_list.total_targets == 10
 
     @pytest.mark.asyncio
     async def test_wildcard_and_case_insensitive_filters(
@@ -429,7 +454,7 @@ class TestBenchmarkRunnerFilterStress:
     ) -> None:
         """Test wildcard 'ALL' in various casings and case-insensitive substring filters."""
         res_all_upper = await corpus_runner.run_suite(target_filter="ALL", cwe_filter="ALL")
-        assert res_all_upper.total_targets == 4
+        assert res_all_upper.total_targets == 10
 
         res_sub = await corpus_runner.run_suite(target_filter="SQLITE")
         assert res_sub.total_targets == 1
