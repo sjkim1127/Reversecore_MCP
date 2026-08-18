@@ -66,7 +66,8 @@ int main() {
 
         pie_path = BINARIES_DIR / "pie_x64"
         subprocess.run(
-            ["gcc", "-fPIE", "-pie", "-o", str(pie_path), str(c_src)], capture_output=True
+            ["gcc", "-fPIE", "-pie", "-o", str(pie_path), str(c_src)],
+            capture_output=True,
         )
 
         vuln_c = BINARIES_DIR / "vuln.c"

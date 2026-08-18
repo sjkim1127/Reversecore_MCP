@@ -309,6 +309,14 @@ class ExecutionOptions(BaseModel):
         default=False,
         description="Run with mock providers without external binary dependencies",
     )
+    auto_fallback: bool = Field(
+        default=True,
+        description="Automatically fallback to mock fixtures if live toolchains are absent or fail",
+    )
+    clang_path: str | None = Field(
+        default=None,
+        description="Custom path to Clang compiler",
+    )
     enable_angr: bool = Field(default=True, description="Enable angr concolic execution")
     verbose: bool = Field(default=False, description="Enable verbose logging")
 

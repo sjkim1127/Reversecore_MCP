@@ -80,7 +80,8 @@ class TestCveHuntPipeline:
     @pytest.mark.asyncio
     async def test_hunt_cve_pipeline_success(self, workspace_file):
         target_h = workspace_file(
-            "test_target.h", content=b"int parse_archive(const uint8_t *data, size_t size);"
+            "test_target.h",
+            content=b"int parse_archive(const uint8_t *data, size_t size);",
         )
         sample_bin = workspace_file("sample.bin", content=b"PK\x03\x04testpayload")
 
@@ -144,7 +145,8 @@ class TestCveHuntPipeline:
     @pytest.mark.asyncio
     async def test_hunt_cve_pipeline_with_custom_crash_log_and_fallback(self, workspace_file):
         target_h = workspace_file(
-            "test_target2.h", content=b"int parse_stream(const uint8_t *data, size_t size);"
+            "test_target2.h",
+            content=b"int parse_stream(const uint8_t *data, size_t size);",
         )
 
         mock_harness_res = success(

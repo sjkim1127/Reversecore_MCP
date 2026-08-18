@@ -46,7 +46,7 @@ async def test_pcap_analyze_success(tmp_pcap):
         tcp_mock = MagicMock()
         tcp_mock.dport = 80
         tcp_mock.sport = 50000 + i
-        pkt.__getitem__ = lambda _, key, ip=ip_mock, tcp=tcp_mock: ip if key == "IP" else tcp
+        pkt.__getitem__ = lambda _, key, ip=ip_mock, tcp=tcp_mock: (ip if key == "IP" else tcp)
         mock_pkts.append(pkt)
 
     with patch("reversecore_mcp.tools.forensics.network._import_scapy") as mock_scapy_import:
@@ -129,7 +129,7 @@ async def test_pcap_list_connections_success(tmp_pcap):
         tcp_mock = MagicMock()
         tcp_mock.sport = 50000
         tcp_mock.dport = dport
-        pkt.__getitem__ = lambda _, key, ip=ip_mock, tcp=tcp_mock: ip if key == "IP" else tcp
+        pkt.__getitem__ = lambda _, key, ip=ip_mock, tcp=tcp_mock: (ip if key == "IP" else tcp)
         mock_pkts.append(pkt)
 
     with patch("reversecore_mcp.tools.forensics.network._import_scapy") as mock_scapy_import:
@@ -228,7 +228,7 @@ async def test_pcap_extract_c2_no_beacons(tmp_pcap):
         tcp_mock = MagicMock()
         tcp_mock.dport = 443
         tcp_mock.sport = 50000
-        pkt.__getitem__ = lambda _, key, ip=ip_mock, tcp=tcp_mock: ip if key == "IP" else tcp
+        pkt.__getitem__ = lambda _, key, ip=ip_mock, tcp=tcp_mock: (ip if key == "IP" else tcp)
         mock_pkts.append(pkt)
 
     with patch("reversecore_mcp.tools.forensics.network._import_scapy") as mock_scapy_import:
@@ -273,7 +273,7 @@ async def test_pcap_extract_c2_suspicious_port(tmp_pcap):
         tcp_mock = MagicMock()
         tcp_mock.dport = 4444  # Known suspicious port
         tcp_mock.sport = 55000
-        pkt.__getitem__ = lambda _, key, ip=ip_mock, tcp=tcp_mock: ip if key == "IP" else tcp
+        pkt.__getitem__ = lambda _, key, ip=ip_mock, tcp=tcp_mock: (ip if key == "IP" else tcp)
         mock_pkts.append(pkt)
 
     with patch("reversecore_mcp.tools.forensics.network._import_scapy") as mock_scapy_import:
@@ -302,7 +302,7 @@ async def test_pcap_reconstruct_stream_no_match(tmp_pcap):
     tcp_mock = MagicMock()
     tcp_mock.sport = 9999
     tcp_mock.dport = 8080
-    pkt.__getitem__ = lambda _, key, ip=ip_mock, tcp=tcp_mock: ip if key == "IP" else tcp
+    pkt.__getitem__ = lambda _, key, ip=ip_mock, tcp=tcp_mock: (ip if key == "IP" else tcp)
 
     with patch("reversecore_mcp.tools.forensics.network._import_scapy") as mock_scapy_import:
         mock_scapy = MagicMock()
@@ -528,7 +528,7 @@ async def test_pcap_extract_dns_uncovered_paths(tmp_pcap):
 
     dns_r.an = rr_a
 
-    pkt_resp.__getitem__.side_effect = lambda key: dns_r if key == "DNS" else MagicMock()
+    pkt_resp.__getitem__.side_effect = lambda key: (dns_r if key == "DNS" else MagicMock())
 
     with patch("reversecore_mcp.tools.forensics.network._import_scapy") as mock_scapy_import:
         mock_sc = MagicMock()
@@ -685,13 +685,13 @@ async def test_pcap_extract_dns_parse_errors(tmp_pcap):
     pkt_query = MagicMock()
     pkt_query.haslayer = lambda lyr: lyr in ("DNS", "IP")
     dns_q = BadDNSQuery()
-    pkt_query.__getitem__.side_effect = lambda key: dns_q if key == "DNS" else MagicMock()
+    pkt_query.__getitem__.side_effect = lambda key: (dns_q if key == "DNS" else MagicMock())
 
     # DNS Response raising exception during an layer access
     pkt_resp = MagicMock()
     pkt_resp.haslayer = lambda lyr: lyr == "DNS"
     dns_r = BadDNSResponse()
-    pkt_resp.__getitem__.side_effect = lambda key: dns_r if key == "DNS" else MagicMock()
+    pkt_resp.__getitem__.side_effect = lambda key: (dns_r if key == "DNS" else MagicMock())
 
     with patch("reversecore_mcp.tools.forensics.network._import_scapy") as mock_scapy_import:
         mock_sc = MagicMock()

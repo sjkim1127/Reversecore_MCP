@@ -102,7 +102,8 @@ async def main() -> int:
                 print(f"✅ Registered tools: {len(tool_names)}; required core tools present")
 
                 health_text = require_success(
-                    await session.call_tool("get_server_health", {}), "get_server_health"
+                    await session.call_tool("get_server_health", {}),
+                    "get_server_health",
                 )
                 print(f"✅ get_server_health: {health_text[:160]}")
 
@@ -116,7 +117,8 @@ async def main() -> int:
                 print(f"✅ list_workspace contains {target.name}")
 
                 file_text = require_success(
-                    await session.call_tool("run_file", {"file_path": str(target)}), "run_file"
+                    await session.call_tool("run_file", {"file_path": str(target)}),
+                    "run_file",
                 )
                 if "elf" not in file_text.lower():
                     raise AssertionError(
@@ -126,7 +128,8 @@ async def main() -> int:
 
                 strings_text = require_success(
                     await session.call_tool(
-                        "run_strings", {"file_path": str(strings_target), "min_length": 4}
+                        "run_strings",
+                        {"file_path": str(strings_target), "min_length": 4},
                     ),
                     "run_strings",
                 )

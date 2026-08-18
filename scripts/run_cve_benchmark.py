@@ -69,9 +69,30 @@ def parse_args(args: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--mock",
+        "--mock-mode",
+        dest="mock",
         action="store_true",
         default=False,
         help="Run in offline mock evaluation mode.",
+    )
+    parser.add_argument(
+        "--live",
+        dest="live",
+        action="store_true",
+        default=False,
+        help="Force live execution mode with dynamic compiler/sanitizer.",
+    )
+    parser.add_argument(
+        "--clang-path",
+        type=str,
+        default=None,
+        help="Custom path to Clang compiler executable.",
+    )
+    parser.add_argument(
+        "--no-fallback",
+        action="store_true",
+        default=False,
+        help="Disable automatic fallback to mock fixtures if live execution fails.",
     )
     parser.add_argument(
         "--timeout",
@@ -151,16 +172,25 @@ async def async_main(args: argparse.Namespace) -> int:
             return 1
 
     # 2. Configure Benchmark Runner
+    mock_mode = False
+    if args.mock:
+        mock_mode = True
+    elif args.live:
+        mock_mode = False
+
     options = ExecutionOptions(
         fuzz_duration_seconds=args.fuzz_duration,
+        parallel_workers=args.parallel,
         concurrency=args.parallel,
         timeout_seconds=args.timeout,
-        mock_mode=args.mock,
+        mock_mode=mock_mode,
+        auto_fallback=not args.no_fallback,
+        clang_path=args.clang_path,
         category_filter=args.category or "all",
     )
     runner = BenchmarkRunner(
         corpus_dir=corpus_path,
-        mock_mode=args.mock,
+        mock_mode=mock_mode,
         timeout_per_target=args.timeout,
     )
 

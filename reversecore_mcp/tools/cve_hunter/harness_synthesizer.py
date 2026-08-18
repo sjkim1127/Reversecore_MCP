@@ -136,7 +136,16 @@ def parse_header_for_parser_functions(header_content: str) -> list[dict[str, Any
         name_lower = func_name.lower()
         if any(
             kw in name_lower
-            for kw in ["parse", "decode", "read", "load", "unpack", "process", "open", "decompress"]
+            for kw in [
+                "parse",
+                "decode",
+                "read",
+                "load",
+                "unpack",
+                "process",
+                "open",
+                "decompress",
+            ]
         ):
             score += 40
         if any(
@@ -152,7 +161,14 @@ def parse_header_for_parser_functions(header_content: str) -> list[dict[str, Any
         )
         has_size_param = any(
             t in params_lower
-            for t in ["size_t", "int size", "int len", "unsigned int", "uint32_t", "size"]
+            for t in [
+                "size_t",
+                "int size",
+                "int len",
+                "unsigned int",
+                "uint32_t",
+                "size",
+            ]
         )
 
         if has_buffer_param and has_size_param:
@@ -213,7 +229,15 @@ def generate_libfuzzer_harness(
                 call_args.append("(uint8_t *)Data")
         elif any(
             t in p_lower
-            for t in ["size_t", "int size", "int len", "unsigned int", "uint32_t", "length", "size"]
+            for t in [
+                "size_t",
+                "int size",
+                "int len",
+                "unsigned int",
+                "uint32_t",
+                "length",
+                "size",
+            ]
         ):
             call_args.append("Size")
         elif "int *" in p_lower or "size_t *" in p_lower:

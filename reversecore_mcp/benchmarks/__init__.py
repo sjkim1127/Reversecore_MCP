@@ -6,6 +6,11 @@ async benchmark runner, and report generators for automated 0-Day/N-Day vulnerab
 
 from __future__ import annotations
 
+from reversecore_mcp.benchmarks.capabilities import (
+    CapabilityDetector,
+    ToolchainCapabilities,
+    detect_capabilities,
+)
 from reversecore_mcp.benchmarks.corpus_loader import CorpusLoader
 from reversecore_mcp.benchmarks.models import (
     BenchmarkScorecardSummary,
@@ -45,6 +50,7 @@ __all__ = [
     "CVSSGroundTruth",
     "CWE_NAMES",
     "CWE_PARENTS",
+    "CapabilityDetector",
     "CorpusLoader",
     "ExecutionOptions",
     "FixturePaths",
@@ -54,7 +60,9 @@ __all__ = [
     "TargetDef",
     "TargetEvaluationResult",
     "TargetGroundTruth",
+    "ToolchainCapabilities",
     "calculate_cwe_taxonomic_score",
+    "detect_capabilities",
     "get_cwe_ancestors",
     "get_cwe_children",
     "get_cwe_descendants",

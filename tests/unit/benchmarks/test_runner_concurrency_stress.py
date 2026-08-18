@@ -179,7 +179,9 @@ class TestBenchmarkRunnerConcurrencyStress:
             assert scorecard.discovered_count == 100
 
     @pytest.mark.asyncio
-    async def test_concurrency_validation_rejects_zero_or_negative_workers(self) -> None:
+    async def test_concurrency_validation_rejects_zero_or_negative_workers(
+        self,
+    ) -> None:
         """Verify ExecutionOptions schema validation rejects parallel_workers < 1."""
         runner = BenchmarkRunner(mock_mode=True)
 
@@ -377,20 +379,28 @@ class TestBenchmarkRunnerFilterStress:
     def corpus_runner(self) -> BenchmarkRunner:
         targets = [
             create_synthetic_target(
-                "sqlite3_fts5_unicode", cwe_id="CWE-122", vulnerability_class="heap_buffer_overflow"
+                "sqlite3_fts5_unicode",
+                cwe_id="CWE-122",
+                vulnerability_class="heap_buffer_overflow",
             ),
             create_synthetic_target(
-                "libpng_eXIf_int_overflow", cwe_id="CWE-190", vulnerability_class="integer_overflow"
+                "libpng_eXIf_int_overflow",
+                cwe_id="CWE-190",
+                vulnerability_class="integer_overflow",
             ),
             create_synthetic_target(
                 "cjson_uaf_iter", cwe_id="CWE-416", vulnerability_class="use_after_free"
             ),
             create_synthetic_target(
-                "curl_oob_read", cwe_id="CWE-125", vulnerability_class="out_of_bounds_read"
+                "curl_oob_read",
+                cwe_id="CWE-125",
+                vulnerability_class="out_of_bounds_read",
             ),
             # 6 additional targets added during corpus expansion
             create_synthetic_target(
-                "openssl_bn_infinite_loop", cwe_id="CWE-835", vulnerability_class="infinite_loop"
+                "openssl_bn_infinite_loop",
+                cwe_id="CWE-835",
+                vulnerability_class="infinite_loop",
             ),
             create_synthetic_target(
                 "zlib_inflate_heap_oob",
@@ -403,10 +413,14 @@ class TestBenchmarkRunnerFilterStress:
                 vulnerability_class="information_exposure",
             ),
             create_synthetic_target(
-                "ffmpeg_hevc_oob_read", cwe_id="CWE-125", vulnerability_class="out_of_bounds_read"
+                "ffmpeg_hevc_oob_read",
+                cwe_id="CWE-125",
+                vulnerability_class="out_of_bounds_read",
             ),
             create_synthetic_target(
-                "php_spl_type_confusion", cwe_id="CWE-763", vulnerability_class="type_confusion"
+                "php_spl_type_confusion",
+                cwe_id="CWE-763",
+                vulnerability_class="type_confusion",
             ),
             create_synthetic_target(
                 "expat_entity_int_overflow",
@@ -473,7 +487,12 @@ class TestBenchmarkRunnerFilterStress:
     ) -> None:
         """Test target list containing mixed valid and invalid IDs."""
         res = await corpus_runner.run_suite(
-            target_filter=["sqlite3_fts5_unicode", "non_existent_target", "curl_oob_read", ""]
+            target_filter=[
+                "sqlite3_fts5_unicode",
+                "non_existent_target",
+                "curl_oob_read",
+                "",
+            ]
         )
         assert res.total_targets == 2
         matched_ids = {r.target_id for r in res.target_results}

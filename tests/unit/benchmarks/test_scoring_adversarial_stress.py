@@ -221,13 +221,23 @@ class TestExecutionTimeAndThroughput:
     @pytest.mark.parametrize(
         "elapsed,executions,expected_time,expected_throughput",
         [
-            (0.0, 1000, 0.001, 0.0),  # elapsed <= 0 -> throughput 0.0, safe_elapsed 0.001
+            (
+                0.0,
+                1000,
+                0.001,
+                0.0,
+            ),  # elapsed <= 0 -> throughput 0.0, safe_elapsed 0.001
             (-5.0, 500, 0.001, 0.0),  # negative elapsed -> throughput 0.0
             (-1e-6, 100, 0.001, 0.0),  # negative microsecond
             (0.0001, 1000, 0.001, 1000000.0),  # positive sub-millisecond
             (0.5, 1000, 0.5, 2000.0),  # standard fast run
             (2.0, 0, 2.0, 0.0),  # 0 executions -> throughput 0.0
-            (1e9, 1000, 1e9, 0.0),  # 1 billion seconds -> throughput round(1000/1e9, 1) = 0.0
+            (
+                1e9,
+                1000,
+                1e9,
+                0.0,
+            ),  # 1 billion seconds -> throughput round(1000/1e9, 1) = 0.0
             (0.001, 10**6, 0.001, 10**9),  # 1M execs in 1ms -> 1B exec/s
         ],
     )
@@ -357,26 +367,80 @@ class TestCWETaxonomyScoring:
             ("CWE-190", "190", 1.0, True, True),
             ("CWE-787", "CWE_787", 1.0, True, True),
             # Direct Parent / Child (0.75)
-            ("CWE-122", "CWE-787", 0.75, False, True),  # Heap Overflow -> Out-of-bounds Write
-            ("CWE-787", "CWE-122", 0.75, False, True),  # Out-of-bounds Write -> Heap Overflow
-            ("CWE-121", "CWE-787", 0.75, False, True),  # Stack Overflow -> Out-of-bounds Write
+            (
+                "CWE-122",
+                "CWE-787",
+                0.75,
+                False,
+                True,
+            ),  # Heap Overflow -> Out-of-bounds Write
+            (
+                "CWE-787",
+                "CWE-122",
+                0.75,
+                False,
+                True,
+            ),  # Out-of-bounds Write -> Heap Overflow
+            (
+                "CWE-121",
+                "CWE-787",
+                0.75,
+                False,
+                True,
+            ),  # Stack Overflow -> Out-of-bounds Write
             ("CWE-125", "CWE-119", 0.75, False, True),  # OOB Read -> Buffer Bounds
             ("CWE-126", "CWE-125", 0.75, False, True),  # Buffer Over-read -> OOB Read
             ("CWE-416", "CWE-672", 0.75, False, True),  # UAF -> Expired Resource
-            ("CWE-415", "CWE-672", 0.75, False, True),  # Double Free -> Expired Resource
+            (
+                "CWE-415",
+                "CWE-672",
+                0.75,
+                False,
+                True,
+            ),  # Double Free -> Expired Resource
             ("CWE-415", "CWE-761", 0.75, False, True),  # Double Free -> Free Non-Heap
-            ("CWE-190", "CWE-682", 0.75, False, True),  # Integer Overflow -> Calculation Error
+            (
+                "CWE-190",
+                "CWE-682",
+                0.75,
+                False,
+                True,
+            ),  # Integer Overflow -> Calculation Error
             ("CWE-79", "CWE-707", 0.75, False, True),  # XSS -> Neutralization
             # Multi-Hop Ancestors (0.50)
             ("CWE-122", "CWE-119", 0.50, False, True),  # CWE-122 -> CWE-787 -> CWE-119
-            ("CWE-122", "CWE-664", 0.50, False, True),  # CWE-122 -> ... -> CWE-664 (Root)
+            (
+                "CWE-122",
+                "CWE-664",
+                0.50,
+                False,
+                True,
+            ),  # CWE-122 -> ... -> CWE-664 (Root)
             ("CWE-126", "CWE-119", 0.50, False, True),  # CWE-126 -> CWE-125 -> CWE-119
             ("CWE-126", "CWE-664", 0.50, False, True),  # CWE-126 -> ... -> CWE-664
             ("CWE-416", "CWE-664", 0.50, False, True),  # CWE-416 -> CWE-672 -> CWE-664
             # Siblings / Shared Ancestor (0.50)
-            ("CWE-122", "CWE-121", 0.50, False, True),  # Heap Overflow vs Stack Overflow
-            ("CWE-122", "CWE-125", 0.50, False, True),  # OOB Write vs OOB Read (via CWE-119)
-            ("CWE-416", "CWE-415", 0.50, False, True),  # UAF vs Double Free (via CWE-672)
+            (
+                "CWE-122",
+                "CWE-121",
+                0.50,
+                False,
+                True,
+            ),  # Heap Overflow vs Stack Overflow
+            (
+                "CWE-122",
+                "CWE-125",
+                0.50,
+                False,
+                True,
+            ),  # OOB Write vs OOB Read (via CWE-119)
+            (
+                "CWE-416",
+                "CWE-415",
+                0.50,
+                False,
+                True,
+            ),  # UAF vs Double Free (via CWE-672)
             ("CWE-190", "CWE-191", 0.50, False, True),  # Int Overflow vs Int Underflow
             # Completely Unrelated Weaknesses (0.0)
             ("CWE-122", "CWE-79", 0.0, False, False),  # Memory corruption vs XSS
@@ -443,7 +507,13 @@ class TestCVSSScoringAndTolerance:
             (8.8, 9.31, 0.5, 0.51, False),  # Outside upper boundary
             (8.8, 8.29, 0.5, 0.51, False),  # Outside lower boundary
             (10.0, 0.0, 0.5, 10.0, False),  # Maximum divergence
-            (10.0, 0.0, 10.0, 10.0, False),  # Pred 0.0 fails even with max tol if GT > 0
+            (
+                10.0,
+                0.0,
+                10.0,
+                10.0,
+                False,
+            ),  # Pred 0.0 fails even with max tol if GT > 0
             (0.0, 0.0, 0.5, 0.0, True),  # GT 0.0 and Pred 0.0 passes
             (5.555, 5.551, 0.01, 0.0, True),  # Precision delta rounded to 2 decimals
             (7.5, 7.8, 0.2, 0.3, False),  # Stricter tolerance
@@ -509,17 +579,29 @@ class TestCVSSScoringAndTolerance:
         # Tolerance passes: delta 0.2 (yes), delta 0.4 (yes), delta 0.9 (no) -> 2/3 = 66.7%
         res1 = engine.evaluate_target(
             base_target,
-            {"cwe_id": "CWE-122", "cvss_v31_score": 8.6, "fuzzing_stats": {"crashes_detected": 1}},
+            {
+                "cwe_id": "CWE-122",
+                "cvss_v31_score": 8.6,
+                "fuzzing_stats": {"crashes_detected": 1},
+            },
             elapsed_time=1.0,
         )
         res2 = engine.evaluate_target(
             base_target,
-            {"cwe_id": "CWE-122", "cvss_v31_score": 9.2, "fuzzing_stats": {"crashes_detected": 1}},
+            {
+                "cwe_id": "CWE-122",
+                "cvss_v31_score": 9.2,
+                "fuzzing_stats": {"crashes_detected": 1},
+            },
             elapsed_time=1.0,
         )
         res3 = engine.evaluate_target(
             base_target,
-            {"cwe_id": "CWE-122", "cvss_v31_score": 7.9, "fuzzing_stats": {"crashes_detected": 1}},
+            {
+                "cwe_id": "CWE-122",
+                "cvss_v31_score": 7.9,
+                "fuzzing_stats": {"crashes_detected": 1},
+            },
             elapsed_time=1.0,
         )
 
@@ -747,7 +829,10 @@ class TestHighVolumePerformanceStress:
                         "cwe_id": "CWE-122",
                         "cvss_v31_score": 8.8,
                         "cvss_severity": "HIGH",
-                        "fuzzing_stats": {"executions": 1000 + i, "crashes_detected": 1},
+                        "fuzzing_stats": {
+                            "executions": 1000 + i,
+                            "crashes_detected": 1,
+                        },
                         "minimized_input_size_bytes": 20,
                     },
                     elapsed_time=1.0 + (i % 10),

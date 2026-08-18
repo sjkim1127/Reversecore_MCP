@@ -308,6 +308,25 @@ class Settings(BaseSettings):
         description="HTTP timeout for VirusTotal API requests in seconds",
     )
 
+    # ------------------------------------------------------------------
+    # Benchmark & Live Fuzzing Configuration
+    # ------------------------------------------------------------------
+    mock_mode: bool = Field(
+        default=False,
+        alias="REVERSECORE_MOCK_MODE",
+        description="Enable offline mock benchmark mode",
+    )
+    clang_path: str = Field(
+        default="",
+        alias="REVERSECORE_CLANG_PATH",
+        description="Custom Clang compiler path",
+    )
+    enable_live_fuzzing: bool = Field(
+        default=True,
+        alias="REVERSECORE_ENABLE_LIVE_FUZZING",
+        description="Enable live Clang/ASan execution when toolchain is detected",
+    )
+
     @field_validator("log_level")
     @classmethod
     def validate_log_level(cls, v: str) -> str:
@@ -393,6 +412,9 @@ class Config:
         sandbox_memory_limit: str | None = None,
         sandbox_pids_limit: int | None = None,
         sandbox_user: str | None = None,
+        mock_mode: bool | None = None,
+        clang_path: str | None = None,
+        enable_live_fuzzing: bool | None = None,
     ):
         """Initialize Config with optional Settings instance or individual values.
 
@@ -444,6 +466,12 @@ class Config:
                 env_overrides["sandbox_pids_limit"] = sandbox_pids_limit
             if sandbox_user is not None:
                 env_overrides["sandbox_user"] = sandbox_user
+            if mock_mode is not None:
+                env_overrides["mock_mode"] = mock_mode
+            if clang_path is not None:
+                env_overrides["clang_path"] = clang_path
+            if enable_live_fuzzing is not None:
+                env_overrides["enable_live_fuzzing"] = enable_live_fuzzing
 
             if env_overrides:
                 self._settings = Settings(**env_overrides)
@@ -583,6 +611,18 @@ class Config:
     @property
     def sandbox_user(self) -> str:
         return self._settings.sandbox_user
+
+    @property
+    def mock_mode(self) -> bool:
+        return self._settings.mock_mode
+
+    @property
+    def clang_path(self) -> str:
+        return self._settings.clang_path
+
+    @property
+    def enable_live_fuzzing(self) -> bool:
+        return self._settings.enable_live_fuzzing
 
     @classmethod
     def from_env(cls) -> Config:

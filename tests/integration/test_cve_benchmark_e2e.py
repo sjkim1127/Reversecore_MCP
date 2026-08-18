@@ -500,13 +500,14 @@ class TestMultiTargetSuiteBenchmarkE2E:
     async def test_t4_e2e_05_full_multitarget_benchmark_suite_execution(
         self, mock_benchmark_runner: BenchmarkRunner
     ):
-        """Execute full benchmark suite across all 4 targets simultaneously."""
+        """Execute full benchmark suite across all targets simultaneously."""
         summary: BenchmarkScorecardSummary = await mock_benchmark_runner.run_suite(
             target_filter="all", cwe_filter="all"
         )
 
-        assert summary.total_targets == 4
-        assert summary.discovered_count == 4
+        all_targets = mock_benchmark_runner.corpus_loader.load_corpus()
+        assert summary.total_targets == len(all_targets)
+        assert summary.discovered_count == len(all_targets)
         assert summary.missed_count == 0
         assert summary.error_count == 0
         assert summary.discovery_rate_tpr_pct == 100.0
@@ -518,14 +519,9 @@ class TestMultiTargetSuiteBenchmarkE2E:
         assert summary.cvss_tolerance_match_rate_pct == 100.0
         assert summary.severity_concordance_rate_pct == 100.0
 
-        # Assert all 4 target IDs are present in individual results
+        # Assert all target IDs are present in individual results
         target_ids = {r.target_id for r in summary.target_results}
-        expected_ids = {
-            "sqlite3_fts5_unicode",
-            "libpng_eXIf_int_overflow",
-            "libxml2_entity_uaf",
-            "libarchive_rar_double_free",
-        }
+        expected_ids = {t.target_id for t in all_targets}
         assert target_ids == expected_ids
 
     async def test_t4_e2e_05_class_stratification_completeness(
@@ -649,14 +645,14 @@ class TestCICDContinuousEvaluationModeE2E:
         assert summary_file.exists()
 
         data = json.loads(summary_file.read_text(encoding="utf-8"))
-        assert data["total_targets"] == 4
-        assert data["discovered_count"] == 4
+        assert data["total_targets"] >= 4
+        assert data["discovered_count"] == data["total_targets"]
         assert data["missed_count"] == 0
         assert data["error_count"] == 0
         assert data["discovery_rate_tpr_pct"] == 100.0
         assert isinstance(data["class_breakdown"], dict)
         assert isinstance(data["target_results"], list)
-        assert len(data["target_results"]) == 4
+        assert len(data["target_results"]) == data["total_targets"]
 
         # Validate target_result fields in JSON
         for r in data["target_results"]:
@@ -881,10 +877,10 @@ class TestArtifactAndVendorAdvisoryExportE2E:
         json_str = BenchmarkReporter.to_json(summary, indent=2)
 
         data = json.loads(json_str)
-        assert data["total_targets"] == 4
-        assert data["discovered_count"] == 4
+        assert data["total_targets"] == summary.total_targets
+        assert data["discovered_count"] == summary.discovered_count
         assert data["discovery_rate_tpr_pct"] == 100.0
-        assert len(data["target_results"]) == 4
+        assert len(data["target_results"]) == summary.total_targets
 
     async def test_t4_e2e_08_reporter_save_reports_formats(
         self, mock_benchmark_runner: BenchmarkRunner, tmp_path: Path
