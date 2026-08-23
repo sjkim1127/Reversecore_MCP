@@ -10,7 +10,6 @@ Storage backend: SQLite with FTS5 for full-text search.
 
 from __future__ import annotations
 
-import json
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -19,6 +18,7 @@ from typing import Any
 
 import aiosqlite
 
+from reversecore_mcp.core import json_utils as json
 from reversecore_mcp.core.logging_config import get_logger
 
 logger = get_logger(__name__)

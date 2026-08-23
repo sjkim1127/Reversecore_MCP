@@ -5,12 +5,12 @@ Provides a tamper-evident record of security-critical actions (uploads, patches,
 Logs are written to a separate file (audit.json) to distinguish from operational logs.
 """
 
-import json
 import logging
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
+from reversecore_mcp.core import json_utils as json
 from reversecore_mcp.core.config import get_config
 
 

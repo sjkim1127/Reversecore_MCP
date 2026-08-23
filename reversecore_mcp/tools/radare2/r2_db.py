@@ -31,7 +31,13 @@ from reversecore_mcp.core.error_handling import handle_tool_errors
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.r2_helpers import execute_r2_command as _execute_r2_command
-from reversecore_mcp.core.result import ToolResult, failure, success
+from reversecore_mcp.core.result import (
+    ToolError,
+    ToolResult,
+    ToolSuccess,
+    failure,
+    success,
+)
 from reversecore_mcp.core.security import validate_file_path
 
 logger = get_logger(__name__)
@@ -482,7 +488,9 @@ async def get_cached_result(file_path: str, cache_key: str) -> ToolResult | None
         bh = await asyncio.to_thread(_sha256, Path(file_path))
         result_dict = await asyncio.to_thread(_get_cached_result_sync, bh, cache_key)
         if result_dict:
-            return ToolResult(**result_dict)
+            if result_dict.get("status") == "error":
+                return ToolError(**result_dict)
+            return ToolSuccess(**result_dict)
     except Exception as e:
         logger.warning(f"Cache read error: {e}")
     return None
@@ -497,8 +505,10 @@ async def set_cached_result(
 ) -> None:
     """Save a ToolResult to the cache."""
     try:
-        # Convert ToolResult (TypedDict) to dict
-        result_dict = dict(result)
+        if hasattr(result, "model_dump"):
+            result_dict = result.model_dump()
+        else:
+            result_dict = dict(result)
         bh = await asyncio.to_thread(_sha256, Path(file_path))
         await asyncio.to_thread(_set_cached_result_sync, bh, tool_name, cache_key, result_dict, ttl)
     except Exception as e:

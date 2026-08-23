@@ -162,7 +162,7 @@ _ZTIMyClass
             result = await diff_tools.diff_binaries(str(file_a), str(file_b))
 
             assert result.status == "success"
-            data = json.loads(result.data)
+            data = result.data if isinstance(result.data, dict) else json.loads(result.data)
             assert data["similarity"] == 0.95
             assert len(data["changes"]) == 1
             assert data["changes"][0]["type"] == "code_change"
@@ -188,7 +188,7 @@ _ZTIMyClass
             result = await diff_tools.match_libraries(str(test_file))
 
             assert result.status == "success"
-            data = json.loads(result.data)
+            data = result.data if isinstance(result.data, dict) else json.loads(result.data)
             assert data["total_functions"] == 2
             assert data["library_functions"] == 1
             assert data["user_functions"] == 1

@@ -1,93 +1,129 @@
-# Project: Reversecore_MCP Local Benchmark Suite Hardening
+# Project: Reversecore_MCP Optimization and Enhancement
 
 ## Architecture
-Reversecore_MCP benchmark framework provides automated evaluation for vulnerability discovery, dynamic ASan crash triage, CVSS scoring, and PoC minimization across 10 real-world CVE targets.
+Reversecore_MCP is an enterprise-grade Model Context Protocol (MCP) server for AI-powered binary analysis, reverse engineering, and vulnerability research.
 
 ```
-                    ┌──────────────────────────────────────────────┐
-                    │               BenchmarkRunner                │
-                    │   (reversecore_mcp/benchmarks/runner.py)     │
-                    └──────────────────────┬───────────────────────┘
-                                           │
-                        [Capability & Options Evaluation]
-                                           │
-                  ┌────────────────────────┴────────────────────────┐
-                  ▼                                                 ▼
-   ┌──────────────────────────────┐                 ┌──────────────────────────────┐
-   │    Live Dynamic Pipeline     │                 │   Deterministic Mock Pipeline│
-   │   - ToolchainCapabilities    │                 │   - ground_truth_corpus.json │
-   │   - LiveTargetCompilerRunner │                 │   - fixture asan_crash.log   │
-   │   - Clang ASan Compilation   │                 │   - fixture raw/min PoCs     │
-   │   - Real Crash Reproduction  │                 │   - Zero external dependency │
-   │   - triage_asan_log()        │                 │                              │
-   │   - Delta-debug Minimization │                 │                              │
-   └──────────────┬───────────────┘                 └──────────────┬───────────────┘
-                  │                                                │
-                  └────────────────────────┬───────────────────────┘
-                                           ▼
-                    ┌──────────────────────────────────────────────┐
-                    │                ScoringEngine                 │
-                    │   - Exact & Taxonomic CWE (DAG Distance)     │
-                    │   - CVSS v3.1 Delta & Tolerance Score        │
-                    │   - Time-to-Crash (TTC) & Throughput         │
-                    │   - PoC Minimization Byte Reduction %        │
-                    └──────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                      Client Layer                           │
+│   (Claude Desktop, Cursor, Custom HTTP/SSE AI Agents)       │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+               ┌───────────────┴───────────────┐
+               ▼                               ▼
+    [ stdio Transport ]             [ HTTP / SSE Transport ]
+    - JSON-RPC over stdin/stdout    - FastAPI Root App (:8000)
+    - FastMCP stdio_server()        - Mounted at /mcp (/mcp/sse, /mcp/messages/)
+    - Stderr Logging Isolation      - Auth: APIKeyAuthMiddleware
+                                    - Security: LoopbackOnly, SecHeaders
+                                    - Rate Limiting: SafeSlowAPIMiddleware
+               └───────────────┬───────────────┘
+                               ▼
+            ┌────────────────────────────────────┐
+            │       FastMCP Server Instance      │
+            │   (Lifespan, Tools, Resources,     │
+            │       Prompts, Extensions)         │
+            ├────────────────────────────────────┤
+            │  - Prompts Engine (23+ RE Prompts) │
+            │  - Dynamic Resources Engine        │
+            │  - Token-Efficient Schemas & Pagination
+            │  - orjson High-Speed Serialization │
+            └────────────────────────────────────┘
 ```
 
 ## Feature Inventory
 | # | Feature | Description | Milestone | Source |
 |---|---------|-------------|-----------|--------|
-| F1 | `ToolchainCapabilities` & Probing | Safe, cached probing of `clang`, ASan/UBSan, LibFuzzer, Docker, AFL++ with timeout containment | M1 | R2 / Survey 2 |
-| F2 | Config & CLI Option Precedence | Support for `--mock`, `--mock-mode`, `--live`, `--clang-path`, `REVERSECORE_MOCK_MODE`, and settings hierarchy | M1 | R2 / Survey 2 |
-| F3 | Live Target Compilation | Dynamic compilation of C target harnesses (`vulnerable.c` + `harness.c` + driver) with `-fsanitize=address,undefined` | M2 | R1 / Survey 1,3 |
-| F4 | Live Crash Reproduction & ASan Triage | Subprocess execution of compiled target with PoC input, capturing ASan traces and parsing with `triage_asan_log` | M2 | R1, R3 / Survey 3 |
-| F5 | Monotonic TTC Measurement | High-resolution wall-clock Time-To-Crash measurement using `time.perf_counter()` | M2 | R3 / Survey 3 |
-| F6 | Live PoC Minimization & Ratio Verification | Delta-debugging minimization against live binary and calculation of byte reduction percentage | M2 | R3 / Survey 3 |
-| F7 | Graceful Hybrid Fallback Engine | Clean fallback to mock fixture evaluation when compiler is absent, disabled, or target compilation fails | M1, M2 | R2 / Survey 1,2 |
-| F8 | Integration Suite Sync & 10-Target Consistency | Update test assertions to 10 targets, ensure 100% test pass rate across unit and integration tests | M2, M3 | Survey 1,2 |
-| F9 | Opaque-Box E2E Testing Suite (Tiers 1-4) | Comprehensive test suite covering features F1-F8, boundary conditions, cross-feature combinations, and CLI scenarios | M3 | R1, R2, R3 |
-| F10 | Adversarial Coverage & Forensic Audit (Tier 5) | Adversarial stress testing, edge-case validation, and independent forensic integrity verification | M4 | Quality Gate |
+| 1 | FastMCP stdio & SSE Transport Hardening | Robust initialization, stdio stderr logging isolation, SSE stream lifecycle, and clean lifespan delegation under FastAPI. | M1 | R1 Requirement & Survey 1 |
+| 2 | Standardized Progress Reporting Context | Fix untyped `ctx=None` in `file_operations.py`, ensure proper `Context` type hints across tools for transparent schema suppression and `notifications/progress` streaming. | M1 | R1 Requirement & Survey 1 |
+| 3 | Dynamic Resource Routing & Path Validation | Secure parameterized URI template routing with path traversal protection in `_get_workspace_path` and MIME type metadata. | M1 | R1 Requirement & Survey 1 |
+| 4 | Prompt Registration & Audit Mode Fix | Register `source_code_audit_mode` in `prompts/__init__.py` and ensure 100% of defined prompts are registered and discoverable. | M2 | R2 Requirement & Survey 2 |
+| 5 | Advanced Reasoning Prompts | Implement `vulnerability_triage_mode` (ASan/CWE/CVSS v3.1), `exploit_analysis_mode` (mitigations, ROP, pwntools), and `malware_deobfuscation_mode` (API hashing, string decrypt, dead code). | M2 | R2 Requirement & Survey 2 |
+| 6 | Expanded Dynamic Context Resources | Add `metadata`, `func/{address}/xrefs`, `func/{address}/context`, `memory_map`, `signatures`, `imports`, and `exports` resources in `resources.py` with MIME types. | M2 | R2 Requirement & Survey 2 |
+| 7 | Core Result Model & Pagination Standardization | Add `PaginationMeta` to `core/result.py`, standardize return types across `radare2_mcp_tools.py` using `ToolResult`. | M3 | R3 Requirement & Survey 3 |
+| 8 | Double-Serialization Elimination | Eliminate `success(json.dumps(data, indent=2))` anti-patterns across `diff_tools.py`, `lief_tools.py`, etc., passing structured native dicts/models directly. | M3 | R3 Requirement & Survey 3 |
+| 9 | High-Speed `orjson` Standardization | Migrate all remaining stdlib `import json` calls to `from reversecore_mcp.core import json_utils as json`. | M3 | R3 Requirement & Survey 3 |
+| 10 | Smart Pagination & Token Efficiency | Implement compact tuple schemas for disassembly (`format="compact"`), windowed decompilation (`line_offset`, `max_lines`), bounded xref grouping, and summarized diffs (achieving 40-80% token reduction). | M3 | R3 Requirement & Survey 3 |
+| 11 | Protocol-Level Integration Tests | End-to-end transport tests verifying stdio, SSE streams, dynamic resource template resolution via `Client`, and progress streaming. | M4 | R1/R2/R3 & Survey 1/2/3 |
+| 12 | Serialization & Token Efficiency Benchmarks | Quantitative micro-benchmarks in `tests/performance/test_performance_regression.py` measuring `orjson` throughput, sub-millisecond serialization, and token reduction. | M4 | R3 & Acceptance Criteria |
+| 13 | Full Suite Passing, Coverage & Code Quality | Pass 100% pytest suite, coverage >= 54%, `ruff check` 0 errors, `black --target-version py312` 0 formatting issues. | M4 | Acceptance Criteria |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| 1 | M1: Toolchain Auto-Detection & Config | `capabilities.py`, `config.py`, `models.py`, `scripts/run_cve_benchmark.py`, `tests/unit/benchmarks/test_capabilities.py` | none | DONE |
-| 2 | M2: Dynamic Compilation, Live Execution & Fallback | `compiler_runner.py`, `runner.py`, integration test fixes, live crash reproduction | M1 | DONE |
-| 3 | M3: E2E Testing Suite | Multi-tier test suite (`TEST_INFRA.md`, `TEST_READY.md`, tests) | M2 | DONE |
-| 4 | M4: Adversarial Hardening & Forensic Audit | Adversarial tests, code formatting, gate check, forensic audit | M3 | DONE |
+| M1 | FastMCP Protocol & Connection Architecture Hardening | Features 1, 2, 3: Transport stability (stdio/SSE), lifespan delegation, progress reporting context annotations, resource security validation. | Survey Complete | DONE |
+| M2 | Advanced Reasoning Prompts & Dynamic Context Resources | Features 4, 5, 6: Register `source_code_audit_mode`, add 3 specialized prompts, add 6 dynamic resources with MIME types and unit tests. | M1 | DONE |
+| M3 | Output Schema Optimization & Token Efficiency | Features 7, 8, 9, 10: Standardize `result.py` + `PaginationMeta`, eliminate double-serialization, migrate to `orjson`, compact disasm/decompile/xrefs/diff schemas. | M1, M2 | DONE |
+| M4 | E2E Testing, Benchmarks, Adversarial Hardening (Tier 5) & Quality Gate | Features 11, 12, 13: Protocol-level tests, serialization benchmarks, Tier 5 adversarial tests, Ruff/Black py312 validation, coverage >= 54%. | M1, M2, M3 | DONE |
 
 ## Interface Contracts
 
-### `capabilities.py` ↔ `runner.py` / `config.py`
-- `detect_capabilities(force_refresh: bool = False, clang_path_override: str | None = None) -> ToolchainCapabilities`
-- `ToolchainCapabilities`:
-  * `clang_available: bool`
-  * `clang_path: Path | None`
-  * `clang_version: str | None`
-  * `asan_supported: bool`
-  * `ubsan_supported: bool`
-  * `libfuzzer_supported: bool`
-  * `live_fuzzing_ready: bool` (property: `clang_available and asan_supported`)
-  * `full_libfuzzer_ready: bool` (property: `live_fuzzing_ready and libfuzzer_supported`)
+### FastMCP Server & Transport
+- Server instance: `reversecore_mcp.server.mcp` (FastMCP 2.14.7+)
+- Stdio transport: `mcp.run(transport="stdio")` with stdout reserved exclusively for JSON-RPC 2.0.
+- HTTP transport: Root FastAPI app running `mcp.http_app(transport="sse")` mounted at `/mcp` with `mcp._lifespan_manager()` delegated in `app_lifespan`.
+- Context injection: Any tool declaring `ctx: Context | None = None` receives injected `fastmcp.Context` for `ctx.report_progress(progress, total)` and `ctx.info/warning/error(msg)`.
 
-### `compiler_runner.py` ↔ `runner.py`
-- `class LiveTargetCompilerRunner`:
-  * `async compile_target(target: TargetGroundTruth, clang_path: Path | None = None, work_dir: Path | None = None) -> Path | None`
-  * `async execute_live_target(target: TargetGroundTruth, compiled_bin: Path, poc_payload: bytes, timeout_seconds: float) -> tuple[int, str, float]` (returns `(returncode, stderr, elapsed_ttc)`)
-  * `async run_live_poc_minimization(target: TargetGroundTruth, compiled_bin: Path, raw_poc: bytes) -> tuple[bytes, float]` (returns `(minimized_bytes, reduction_ratio)`)
+### Dynamic Context Resources (`reversecore://...`)
+- `reversecore://{filename}/metadata` -> Markdown table of architecture, bits, hashes, mitigations, packer info (`mime_type="text/markdown"`).
+- `reversecore://{filename}/func/{address}/xrefs` -> Markdown list/table of callers and callees bounded at 30 items (`mime_type="text/markdown"`).
+- `reversecore://{filename}/func/{address}/context` -> Prototype, local variables, recovered structs, and complexity metrics (`mime_type="text/markdown"`).
+- `reversecore://{filename}/memory_map` -> Section table, offsets, virtual size, permissions, and entropy (`mime_type="text/markdown"`).
+- `reversecore://{filename}/signatures` -> Matched YARA, CAPA, FLIRT, and dormant indicators (`mime_type="text/markdown"`).
+- `reversecore://{filename}/imports` / `exports` -> DLL/library grouped symbols with security indicators (`mime_type="text/markdown"`).
 
-### `runner.py` ↔ `ScoringEngine`
-- `BenchmarkRunner.run_target(target_id: str, options: ExecutionOptions | None = None) -> TargetEvaluationResult`
-- Returns validated `TargetEvaluationResult` containing CWE prediction, CVSS score, TTC, PoC reduction ratio, status (`DISCOVERED`).
+### Core Result Models & Pagination (`reversecore_mcp/core/result.py`)
+```python
+class PaginationMeta(BaseModel):
+    has_more: bool = False
+    next_cursor: str | None = None
+    total_items: int | None = None
+    page: int = 1
+    page_size: int = 100
+    truncated: bool = False
+
+class ToolSuccess(BaseModel):
+    status: Literal["success"] = "success"
+    data: Any
+    metadata: dict[str, Any] | None = None
+    pagination: PaginationMeta | None = None
+    recommended_next_tools: list[NextToolHint] | None = None
+```
 
 ## Code Layout
-- `reversecore_mcp/benchmarks/capabilities.py`: Toolchain detection & capability probing
-- `reversecore_mcp/benchmarks/compiler_runner.py`: Dynamic C compilation, ASan execution, and live minimization
-- `reversecore_mcp/benchmarks/runner.py`: Orchestrator linking capabilities, compiler runner, and mock pipeline
-- `reversecore_mcp/benchmarks/models.py`: Pydantic data models & `ExecutionOptions`
-- `reversecore_mcp/core/config.py`: Centralized configuration settings
-- `scripts/run_cve_benchmark.py`: CLI benchmark runner
-- `tests/unit/benchmarks/`: Unit test suite
-- `tests/integration/`: Integration test suite
-- `TEST_INFRA.md`: Comprehensive test infrastructure documentation
-- `TEST_READY.md`: Quick-start test execution and readiness guide
+```
+reversecore_mcp/
+├── core/
+│   ├── config.py             # Configuration settings
+│   ├── decorators.py         # Function logging/metrics decorators
+│   ├── error_handling.py     # Centralized tool error handling
+│   ├── exceptions.py         # Exception hierarchy
+│   ├── json_utils.py         # High-speed orjson serialization utilities
+│   ├── result.py             # ToolSuccess, ToolError, PaginationMeta, TypedDicts
+│   ├── security.py           # Path sanitization and workspace boundary guards
+│   └── validators.py         # Parameter and binary validation
+├── prompts/
+│   ├── __init__.py           # Prompt registry (register_prompts)
+│   ├── common.py             # General RE prompts
+│   ├── cve_research.py       # Taint, heap, fuzzing, CVE pipeline prompts
+│   ├── exploit_prompts.py    # (New) exploit_analysis_mode
+│   ├── malware.py            # Unpacking, C2, ransomware, full analysis
+│   ├── deobfuscation_prompts.py # (New) malware_deobfuscation_mode
+│   ├── security.py           # Vuln hunter, patch analysis, source_code_audit
+│   ├── triage_prompts.py     # (New) vulnerability_triage_mode
+│   └── server_health.py      # Health check and catalog prompts
+├── resources.py              # Static and dynamic MCP virtual resources
+├── server.py                 # FastMCP server, lifespan, HTTP/SSE transports, auth
+├── tools/
+│   ├── analysis/             # LIEF, diffs, static analysis, crash triage
+│   ├── common/               # File operations, patch explainer
+│   ├── deobfuscation/        # String decrypt, API hash resolver, dead code eliminator
+│   ├── malware/              # Vaccine, dormant detector, ROP builder, PoC generator
+│   ├── radare2/              # Disassembly, decompilation (r2ghidra), xrefs, emulation
+│   └── report/               # Report and VEX generation
+tests/
+├── conftest.py               # Shared fixtures and workspace setup
+├── unit/                     # Unit test suites (core, prompts, tools)
+├── integration/              # Integration and protocol-level tests
+└── performance/              # Performance regression and serialization SLA benchmarks
+```

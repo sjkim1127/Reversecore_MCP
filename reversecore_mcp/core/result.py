@@ -91,12 +91,24 @@ class ErrorDetails(TypedDict, total=False):
     timeout_seconds: int
 
 
+class PaginationMeta(BaseModel):
+    """Metadata describing pagination and bounding status."""
+
+    has_more: bool = False
+    next_cursor: str | None = None
+    total_items: int | None = None
+    page: int = 1
+    page_size: int = 100
+    truncated: bool = False
+
+
 class ToolSuccess(BaseModel):
     """Represents a successful tool invocation."""
 
     status: Literal["success"] = "success"
-    data: str | dict[str, Any]
+    data: Any
     metadata: dict[str, Any] | None = None
+    pagination: PaginationMeta | None = None
     recommended_next_tools: list[NextToolHint] | None = None
     """Optional list of next-step tool hints for AI clients.
 
@@ -119,21 +131,24 @@ ToolResult = ToolSuccess | ToolError
 
 
 def success(
-    data: str | dict[str, Any],
+    data: Any,
     *,
+    pagination: PaginationMeta | None = None,
     hints: list[NextToolHint] | None = None,
     **metadata: Any,
 ) -> ToolSuccess:
-    """Create a ToolSuccess instance with optional metadata and next-tool hints.
+    """Create a ToolSuccess instance with optional metadata, pagination, and next-tool hints.
 
     Args:
-        data: The primary result payload (string or dict).
+        data: The primary result payload (string, dict, list, etc.).
+        pagination: Optional PaginationMeta information for paginated/windowed responses.
         hints: Optional list of NextToolHint dicts to guide AI follow-up.
         **metadata: Additional key-value metadata attached to the result.
     """
     return ToolSuccess(
         data=data,
         metadata=metadata or None,
+        pagination=pagination,
         recommended_next_tools=hints or None,
     )
 

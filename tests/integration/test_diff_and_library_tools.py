@@ -1,5 +1,6 @@
 """Integration tests for diff_binaries and match_libraries tools."""
 
+import json
 import subprocess
 
 import pytest
@@ -34,12 +35,7 @@ class TestDiffBinaries:
         result = await diff_tools.diff_binaries(str(sample_binary_path), str(sample_binary_path))
 
         assert result.status == "success"
-        assert isinstance(result.data, str)
-
-        # Parse JSON output
-        import json
-
-        data = json.loads(result.data)
+        data = json.loads(result.data) if isinstance(result.data, str) else result.data
 
         # Similarity should be 1.0 or very close for identical files
         assert "similarity" in data
@@ -61,9 +57,7 @@ class TestDiffBinaries:
         assert result.status in ["success", "error"]
 
         if result.status == "success":
-            import json
-
-            data = json.loads(result.data)
+            data = json.loads(result.data) if isinstance(result.data, str) else result.data
             assert data["function_specific"] is True
 
     @pytest.mark.asyncio
@@ -137,12 +131,7 @@ class TestMatchLibraries:
         result = await diff_tools.match_libraries(str(sample_binary_path))
 
         assert result.status == "success"
-        assert isinstance(result.data, str)
-
-        # Parse JSON output
-        import json
-
-        data = json.loads(result.data)
+        data = json.loads(result.data) if isinstance(result.data, str) else result.data
 
         # Check expected fields
         assert "total_functions" in data
@@ -218,9 +207,7 @@ class TestMatchLibraries:
         assert result.status in ["success", "error"]
 
         if result.status == "success":
-            import json
-
-            data = json.loads(result.data)
+            data = json.loads(result.data) if isinstance(result.data, str) else result.data
             assert data["signature_db_used"] == str(sig_file)
 
     @pytest.mark.asyncio

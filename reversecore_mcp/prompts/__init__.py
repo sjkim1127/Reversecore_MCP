@@ -9,6 +9,8 @@ from reversecore_mcp.prompts.cve_research import (
     patch_diff_auto_mode,
     taint_analysis_mode,
 )
+from reversecore_mcp.prompts.deobfuscation_prompts import malware_deobfuscation_mode
+from reversecore_mcp.prompts.exploit_prompts import exploit_analysis_mode
 from reversecore_mcp.prompts.game import game_analysis_mode
 from reversecore_mcp.prompts.malware import (
     apt_hunting_mode,
@@ -27,12 +29,45 @@ from reversecore_mcp.prompts.security import (
     crypto_analysis_mode,
     firmware_analysis_mode,
     patch_analysis_mode,
+    source_code_audit_mode,
     vulnerability_research_mode,
 )
 from reversecore_mcp.prompts.server_health import (
     server_health_check_mode,
     server_tool_catalog_mode,
 )
+from reversecore_mcp.prompts.triage_prompts import vulnerability_triage_mode
+
+__all__ = [
+    "apt_hunting_mode",
+    "autonomous_vuln_hunt_mode",
+    "basic_analysis_mode",
+    "c2_extraction_mode",
+    "code_similarity_mode",
+    "crypto_analysis_mode",
+    "cve_discovery_pipeline_mode",
+    "exploit_analysis_mode",
+    "firmware_analysis_mode",
+    "full_analysis_mode",
+    "fuzzing_mode",
+    "game_analysis_mode",
+    "heap_exploit_mode",
+    "malware_analysis_mode",
+    "malware_defense_mode",
+    "malware_deobfuscation_mode",
+    "patch_analysis_mode",
+    "patch_diff_auto_mode",
+    "ransomware_triage_mode",
+    "register_prompts",
+    "report_generation_mode",
+    "server_health_check_mode",
+    "server_tool_catalog_mode",
+    "source_code_audit_mode",
+    "taint_analysis_mode",
+    "unpacking_mode",
+    "vulnerability_research_mode",
+    "vulnerability_triage_mode",
+]
 
 
 def register_prompts(mcp: FastMCP):
@@ -54,6 +89,7 @@ def register_prompts(mcp: FastMCP):
     mcp.prompt("c2_extraction_mode")(c2_extraction_mode)
     mcp.prompt("ransomware_triage_mode")(ransomware_triage_mode)
     mcp.prompt("code_similarity_mode")(code_similarity_mode)
+    mcp.prompt("malware_deobfuscation_mode")(malware_deobfuscation_mode)
 
     # Security Research Prompts
     mcp.prompt("patch_analysis_mode")(patch_analysis_mode)
@@ -62,6 +98,8 @@ def register_prompts(mcp: FastMCP):
     mcp.prompt("vulnerability_research_mode")(vulnerability_research_mode)
     mcp.prompt("vulnerability_hunter_mode")(vulnerability_research_mode)
     mcp.prompt("autonomous_vuln_hunt_mode")(autonomous_vuln_hunt_mode)
+    mcp.prompt("source_code_audit_mode")(source_code_audit_mode)
+    mcp.prompt("vulnerability_triage_mode")(vulnerability_triage_mode)
 
     # CVE Research & Exploit Development Prompts
     mcp.prompt("taint_analysis_mode")(taint_analysis_mode)
@@ -69,6 +107,7 @@ def register_prompts(mcp: FastMCP):
     mcp.prompt("fuzzing_mode")(fuzzing_mode)
     mcp.prompt("patch_diff_auto_mode")(patch_diff_auto_mode)
     mcp.prompt("cve_discovery_pipeline_mode")(cve_discovery_pipeline_mode)
+    mcp.prompt("exploit_analysis_mode")(exploit_analysis_mode)
 
     # Game Analysis Prompts
     mcp.prompt("game_analysis_mode")(game_analysis_mode)

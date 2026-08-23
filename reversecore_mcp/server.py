@@ -155,14 +155,23 @@ async def server_lifespan(server: FastMCP) -> AsyncGenerator[None, None]:
 
     from reversecore_mcp.core.task_queue import close_arq_pool
 
-    await close_arq_pool()
+    try:
+        await close_arq_pool()
+    except Exception as e:
+        logger.debug(f"Error closing ARQ pool: {e}")
 
     from reversecore_mcp.core.analysis_cache import close_redis
 
-    await close_redis()
+    try:
+        await close_redis()
+    except Exception as e:
+        logger.debug(f"Error closing Redis: {e}")
 
     # Stop Resource Manager
-    await resource_manager.stop()
+    try:
+        await resource_manager.stop()
+    except Exception as e:
+        logger.debug(f"Error stopping Resource Manager: {e}")
 
     # Close AI Memory Store
     from reversecore_mcp.core.memory import get_memory_store
@@ -401,7 +410,7 @@ def main():
 
     transport = settings.mcp_transport.lower()
 
-    if transport == "http":
+    if transport in ("http", "sse", "streamable-http"):
         # HTTP transport mode for network-based AI agents
         import uvicorn
         from fastapi import FastAPI
@@ -446,9 +455,6 @@ def main():
             lifespan=app_lifespan,
         )
 
-        # Enforce Security Headers
-        app.add_middleware(SecurityHeadersMiddleware)
-
         # Container health probes may be external, but all other unauthenticated
         # traffic must still originate from the container loopback interface.
         if use_loopback_guard:
@@ -457,6 +463,9 @@ def main():
         # Enforce API Key globally if set (including on mounted sub-apps)
         if api_key:
             app.add_middleware(APIKeyAuthMiddleware, api_key=api_key)
+
+        # Enforce Security Headers outermost so all responses (including 401/403 auth errors) carry headers
+        app.add_middleware(SecurityHeadersMiddleware)
 
         app.mount("/mcp", mcp_app)
         app.include_router(web_router)
@@ -503,7 +512,9 @@ def main():
 
                 async def __call__(self, scope, receive, send):
                     path = scope.get("path", "")
-                    if scope["type"] == "http" and (path == "/mcp/sse" or path == "/mcp/sse/"):
+                    if scope["type"] == "http" and (
+                        path == "/mcp/sse" or path == "/mcp/sse/" or path.startswith("/mcp/sse")
+                    ):
                         await self.app(scope, receive, send)
                     else:
                         await self.slowapi_middleware(scope, receive, send)

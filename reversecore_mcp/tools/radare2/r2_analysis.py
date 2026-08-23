@@ -41,7 +41,7 @@ from reversecore_mcp.core.r2_helpers import (
     strip_address_prefixes as _strip_address_prefixes,
 )
 from reversecore_mcp.core.resilience import circuit_breaker
-from reversecore_mcp.core.result import ToolResult, failure, success
+from reversecore_mcp.core.result import PaginationMeta, ToolResult, failure, success
 from reversecore_mcp.core.security import validate_file_path
 from reversecore_mcp.core.validators import (
     _ADDRESS_PATTERN,  # OPTIMIZATION: Import pre-compiled pattern instead of duplicating
@@ -882,6 +882,7 @@ async def analyze_xrefs(
     file_path: str,
     address: str,
     xref_type: str = "all",
+    limit: int = 50,
     timeout: int = DEFAULT_TIMEOUT,
     ctx: Context | None = None,
 ) -> ToolResult:
@@ -904,6 +905,7 @@ async def analyze_xrefs(
         file_path: Path to the binary file (must be in workspace)
         address: Function or address to analyze (e.g., 'main', '0x401000', 'sym.decrypt')
         xref_type: Type of cross-references to show: 'all', 'to', 'from' (default: 'all')
+        limit: Maximum number of xref entries to return per direction (default: 50)
         timeout: Execution timeout in seconds (default: 300)
         ctx: FastMCP Context for progress reporting (auto-injected)
 
@@ -1022,14 +1024,52 @@ async def analyze_xrefs(
                 # Skip lines that don't contain valid JSON
                 continue
 
+        # Group callers by function
+        callers_by_function: dict[str, list[str]] = {}
+        for item in xrefs_to:
+            func_name = (
+                item.get("fcn_name")
+                or item.get("name")
+                or (
+                    hex(item["fcn_addr"])
+                    if isinstance(item.get("fcn_addr"), int)
+                    else item.get("fcn_addr")
+                )
+                or "unknown"
+            )
+            addr_from = (
+                hex(item["from"])
+                if isinstance(item.get("from"), int)
+                else (item.get("from") or item.get("addr") or "")
+            )
+            callers_by_function.setdefault(str(func_name), []).append(str(addr_from))
+
+        total_refs_to = len(xrefs_to)
+        total_refs_from = len(xrefs_from)
+        bounded_xrefs_to = xrefs_to[:limit] if (limit and limit > 0) else xrefs_to
+        bounded_xrefs_from = xrefs_from[:limit] if (limit and limit > 0) else xrefs_from
+        truncated = (total_refs_to > len(bounded_xrefs_to)) or (
+            total_refs_from > len(bounded_xrefs_from)
+        )
+
+        pagination = PaginationMeta(
+            has_more=truncated,
+            total_items=total_refs_to + total_refs_from,
+            page_size=limit if limit > 0 else (total_refs_to + total_refs_from),
+            truncated=truncated,
+        )
+
         # 6. Format results
         result = {
             "address": address,
             "xref_type": xref_type,
-            "xrefs_to": xrefs_to,
-            "xrefs_from": xrefs_from,
-            "total_refs_to": len(xrefs_to),
-            "total_refs_from": len(xrefs_from),
+            "xrefs_to": bounded_xrefs_to,
+            "xrefs_from": bounded_xrefs_from,
+            "callers_by_function": callers_by_function,
+            "total_refs_to": total_refs_to,
+            "total_refs_from": total_refs_from,
+            "limit": limit,
+            "truncated": truncated,
         }
 
         # Add human-readable summary
@@ -1049,6 +1089,7 @@ async def analyze_xrefs(
         # 7. Return structured result
         return success(
             result,
+            pagination=pagination,
             bytes_read=bytes_read,
             address=address,
             xref_type=xref_type,

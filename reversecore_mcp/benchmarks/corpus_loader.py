@@ -8,12 +8,12 @@ the physical presence and integrity of all fixture files.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
 from reversecore_mcp.benchmarks.models import TargetGroundTruth
 from reversecore_mcp.benchmarks.taxonomy import normalize_cwe_id
+from reversecore_mcp.core import json_utils as json
 
 
 class CorpusLoader:
@@ -46,8 +46,8 @@ class CorpusLoader:
         if not path.exists():
             raise FileNotFoundError(f"Corpus registry file not found: {path}")
 
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
+        with open(path, "rb") as f:
+            data = json.loads(f.read())
 
         if isinstance(data, dict) and "targets" in data:
             raw_targets = data["targets"]
@@ -79,8 +79,8 @@ class CorpusLoader:
         p = Path(target_json_path)
         if not p.exists():
             raise FileNotFoundError(f"Target JSON file not found: {p}")
-        with open(p, encoding="utf-8") as f:
-            data = json.load(f)
+        with open(p, "rb") as f:
+            data = json.loads(f.read())
         return TargetGroundTruth.model_validate(data)
 
     def filter_targets(

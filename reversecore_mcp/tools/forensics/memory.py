@@ -10,6 +10,7 @@ import subprocess  # nosec B404
 from pathlib import Path
 from typing import Any
 
+from reversecore_mcp.core import json_utils as json
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
 from reversecore_mcp.core.logging_config import get_logger
@@ -77,8 +78,6 @@ def _run_vol3(dump_path: str, plugin: str, extra_args: list[str] | None = None) 
             logger.warning("Volatility3 non-zero exit (%d): %s", result.returncode, stderr)
         else:
             raise RuntimeError(f"Volatility3 error (exit {result.returncode}): {stderr}")
-
-    import json
 
     output = result.stdout.strip()
     if not output:

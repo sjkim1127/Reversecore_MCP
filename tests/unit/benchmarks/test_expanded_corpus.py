@@ -90,13 +90,19 @@ EXPECTED_VULN_CLASSES = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Helper
-# ---------------------------------------------------------------------------
-
-
 def _run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    """Run an async coroutine safely handling event loop lifecycle."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop is not None and loop.is_running():
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(asyncio.run, coro).result()
+    return asyncio.run(coro)
 
 
 # ---------------------------------------------------------------------------

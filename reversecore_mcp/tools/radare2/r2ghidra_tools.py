@@ -27,7 +27,14 @@ from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.next_tool_hints import build_decompile_hints, finalize_hints
 from reversecore_mcp.core.r2_helpers import execute_r2_command as _execute_r2_command
-from reversecore_mcp.core.result import ToolResult, failure, success
+from reversecore_mcp.core.result import (
+    PaginationMeta,
+    ToolError,
+    ToolResult,
+    ToolSuccess,
+    failure,
+    success,
+)
 from reversecore_mcp.core.result_cache import cache_tool_result
 from reversecore_mcp.core.security import validate_file_path
 from reversecore_mcp.core.validators import validate_address_format
@@ -78,30 +85,38 @@ async def _r2_run(
 @log_execution(tool_name="r2_decompile")
 @track_metrics("r2_decompile")
 @handle_tool_errors
-@cache_tool_result("r2_decompile", ttl=86400, cache_kwargs=["function_address"])
+@cache_tool_result(
+    "r2_decompile",
+    ttl=86400,
+    cache_kwargs=["function_address", "line_offset", "max_lines"],
+)
 async def r2_decompile(
     file_path: str,
     function_address: str,
+    line_offset: int = 0,
+    max_lines: int = 200,
     timeout: int = DEFAULT_TIMEOUT,
 ) -> ToolResult:
     """Decompile a binary function to pseudo-C using the r2ghidra plugin.
 
     Uses the ``pdg`` command which invokes the embedded Ghidra decompiler
     engine inside radare2 — no separate Ghidra or JDK installation required.
+    Includes smart line windowing and function summary header for token efficiency.
 
     Args:
         file_path: Path to the binary (must be inside the workspace).
         function_address: Function to decompile — name (``main``) or hex address
             (``0x401000``).
+        line_offset: Starting line offset for windowed output (default: 0).
+        max_lines: Maximum number of lines to return (default: 200).
         timeout: Maximum execution time in seconds (default 300).
 
     Returns:
-        ToolResult with ``pseudo_c`` string on success.
+        ToolResult with windowed ``pseudo_c`` string, summary header, and pagination metadata.
 
     Example:
-        >>> result = await r2_decompile("/workspace/sample.exe", "main")
-        >>> print(result.content[0]["text"])
-        '{"pseudo_c": "int main(int argc, char **argv) { ... }"}'
+        >>> result = await r2_decompile("/workspace/sample.exe", "main", line_offset=0, max_lines=50)
+        >>> print(result.data["pseudo_c"])
     """
     err = _validate_addr(function_address)
     if err:
@@ -110,37 +125,108 @@ async def r2_decompile(
 
     # Check cache first
     cached_res = await get_cached_decompile(validated, function_address, use_ghidra=True)
+    pseudo_c: str | None = None
+    meta: dict = {}
     if cached_res is not None:
-        return cached_res
+        if isinstance(cached_res, ToolSuccess):
+            if isinstance(cached_res.data, dict):
+                pseudo_c = cached_res.data.get("full_pseudo_c") or cached_res.data.get("pseudo_c")
+            elif isinstance(cached_res.data, str):
+                pseudo_c = cached_res.data
+            if cached_res.metadata:
+                meta.update(cached_res.metadata)
+        elif isinstance(cached_res, ToolError):
+            return cached_res
 
-    cmds = [
-        f"s {function_address}",
-        "pdg",  # r2ghidra decompile command
-    ]
+    if pseudo_c is None:
+        cmds = [
+            f"s {function_address}",
+            "pdg",  # r2ghidra decompile command
+        ]
 
-    output, _ = await _r2_run(validated, cmds, timeout=timeout)
+        output, _ = await _r2_run(validated, cmds, timeout=timeout)
 
-    if not output or output.strip().startswith("ERROR"):
-        return failure(
-            "DECOMPILE_ERROR",
-            f"r2ghidra failed to decompile '{function_address}'. "
-            "Ensure r2ghidra plugin is installed (`r2pm -ci r2ghidra`) and the "
-            "function address is valid.",
-            hint="Try running `r2 -AA binary -c 'pdg @ main'` locally to verify.",
+        if not output or output.strip().startswith("ERROR"):
+            return failure(
+                "DECOMPILE_ERROR",
+                f"r2ghidra failed to decompile '{function_address}'. "
+                "Ensure r2ghidra plugin is installed (`r2pm -ci r2ghidra`) and the "
+                "function address is valid.",
+                hint="Try running `r2 -AA binary -c 'pdg @ main'` locally to verify.",
+            )
+
+        pseudo_c = output.strip()
+
+        # Cache the full unwindowed result in database cache for subsequent offset queries
+        full_cached_res = success(
+            {
+                "function": function_address,
+                "pseudo_c": pseudo_c,
+                "full_pseudo_c": pseudo_c,
+                "decompiler": "r2ghidra",
+            }
         )
+        await set_cached_decompile(validated, function_address, full_cached_res, use_ghidra=True)
 
-    pseudo_c = output.strip()
-    hints = finalize_hints(build_decompile_hints(file_path, function_address, pseudo_c))
-    res = success(
+    lines = pseudo_c.splitlines()
+    total_lines = len(lines)
+
+    # Extract function signature from first non-comment line
+    signature = ""
+    for raw_line in lines:
+        l_str = raw_line.strip()
+        if l_str and not l_str.startswith("//") and not l_str.startswith("/*"):
+            signature = l_str
+            break
+    if not signature and lines:
+        signature = lines[0].strip()
+
+    start_line = max(0, line_offset)
+    effective_max = max_lines if max_lines > 0 else total_lines
+    end_line = start_line + effective_max
+    window_lines = lines[start_line:end_line]
+    windowed_pseudo_c = "\n".join(window_lines)
+    has_more = end_line < total_lines
+    next_line_offset = end_line if has_more else None
+
+    pagination = PaginationMeta(
+        has_more=has_more,
+        next_cursor=str(next_line_offset) if next_line_offset is not None else None,
+        total_items=total_lines,
+        page=(start_line // effective_max) + 1 if effective_max > 0 else 1,
+        page_size=effective_max,
+        truncated=has_more,
+    )
+
+    summary_header = {
+        "function": function_address,
+        "signature": signature,
+        "total_lines": total_lines,
+        "window_lines": (
+            f"{start_line + 1}-{min(end_line, total_lines)}"
+            if total_lines > 0 and start_line < total_lines
+            else "0-0"
+        ),
+    }
+
+    hints = finalize_hints(build_decompile_hints(file_path, function_address, windowed_pseudo_c))
+    return success(
         {
             "function": function_address,
-            "pseudo_c": pseudo_c,
+            "summary": summary_header,
+            "pseudo_c": windowed_pseudo_c,
+            "full_pseudo_c": pseudo_c,
             "decompiler": "r2ghidra",
+            "line_offset": start_line,
+            "max_lines": effective_max,
+            "total_lines": total_lines,
+            "has_more": has_more,
+            "next_line_offset": next_line_offset,
         },
+        pagination=pagination,
         hints=hints or None,
+        **meta,
     )
-    await set_cached_decompile(validated, function_address, res, use_ghidra=True)
-    return res
 
 
 # ---------------------------------------------------------------------------

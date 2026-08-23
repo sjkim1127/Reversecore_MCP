@@ -8,10 +8,10 @@ VEX JSON documents based on vulnerability analysis results.
 from __future__ import annotations
 
 import datetime
-import json
 import uuid
 from typing import Any
 
+from reversecore_mcp.core import json_utils as json
 from reversecore_mcp.core.logging_config import get_logger
 
 logger = get_logger(__name__)

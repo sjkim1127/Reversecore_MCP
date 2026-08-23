@@ -1,7 +1,7 @@
-import json
 import re
 from typing import Any
 
+from reversecore_mcp.core import json_utils as json
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
 from reversecore_mcp.core.exceptions import ValidationError

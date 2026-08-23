@@ -685,3 +685,625 @@ class TestDynamicResources:
         with patch("reversecore_mcp.tools.r2_analysis.run_radare2", return_value=mock_result):
             result = await func_list("test.exe")
             assert "Error listing functions" in result
+
+    @pytest.mark.asyncio
+    async def test_get_binary_metadata_success(self, mock_mcp):
+        """Test binary metadata resource success."""
+        registered_funcs = {}
+
+        def capture_resource(uri, **kwargs):
+            def decorator(func):
+                registered_funcs[uri] = func
+                return func
+
+            return decorator
+
+        mock_mcp.resource = capture_resource
+        register_resources(mock_mcp)
+
+        metadata_func = registered_funcs.get("reversecore://{filename}/metadata")
+        info_func = registered_funcs.get("reversecore://{filename}/info")
+        assert metadata_func is not None
+        assert info_func is not None
+
+        mock_lief_res = Mock()
+        mock_lief_res.status = "success"
+        mock_lief_res.data = {
+            "format": "ELF",
+            "entry_point": "0x401000",
+            "mitigations": {"nx": True, "pie": True, "canary": False, "relro": "Full"},
+            "sections": [{"name": ".text"}],
+        }
+
+        mock_packer_res = Mock()
+        mock_packer_res.status = "success"
+        mock_packer_res.data = {
+            "file_type": "ELF64",
+            "arch": "x64",
+            "packer": "UPX",
+            "compiler": "GCC",
+        }
+
+        mock_hashes = {
+            "md5": "d41d8cd98f00b204e9800998ecf8427e",
+            "sha1": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "ssdeep": "N/A",
+        }
+
+        with (
+            patch(
+                "reversecore_mcp.resources._get_workspace_path",
+                return_value="/workspace/sample.elf",
+            ),
+            patch(
+                "reversecore_mcp.resources._calculate_file_hashes",
+                return_value=mock_hashes,
+            ),
+            patch(
+                "reversecore_mcp.tools.analysis.lief_tools.parse_binary_with_lief",
+                return_value=mock_lief_res,
+            ),
+            patch(
+                "reversecore_mcp.tools.analysis.die_tools.detect_packer",
+                return_value=mock_packer_res,
+            ),
+        ):
+            result = await metadata_func("sample.elf")
+            assert "# 📋 Binary Metadata: sample.elf" in result
+            assert "ELF" in result
+            assert "0x401000" in result
+            assert "UPX" in result
+            assert "GCC" in result
+            assert "d41d8cd98f00b204e9800998ecf8427e" in result
+
+            info_result = await info_func("sample.elf")
+            assert "# 📋 Binary Metadata: sample.elf" in info_result
+
+    @pytest.mark.asyncio
+    async def test_get_binary_metadata_error(self, mock_mcp):
+        """Test binary metadata resource error handling."""
+        registered_funcs = {}
+
+        def capture_resource(uri, **kwargs):
+            def decorator(func):
+                registered_funcs[uri] = func
+                return func
+
+            return decorator
+
+        mock_mcp.resource = capture_resource
+        register_resources(mock_mcp)
+
+        metadata_func = registered_funcs.get("reversecore://{filename}/metadata")
+        assert metadata_func is not None
+
+        with patch(
+            "reversecore_mcp.resources._get_workspace_path",
+            side_effect=Exception("File not found"),
+        ):
+            result = await metadata_func("missing.bin")
+            assert "Error extracting metadata" in result
+
+    @pytest.mark.asyncio
+    async def test_get_function_xrefs_success(self, mock_mcp):
+        """Test function xrefs resource success."""
+        registered_funcs = {}
+
+        def capture_resource(uri, **kwargs):
+            def decorator(func):
+                registered_funcs[uri] = func
+                return func
+
+            return decorator
+
+        mock_mcp.resource = capture_resource
+        register_resources(mock_mcp)
+
+        xrefs_func = registered_funcs.get("reversecore://{filename}/func/{address}/xrefs")
+        assert xrefs_func is not None
+
+        mock_res = Mock()
+        mock_res.status = "success"
+        mock_res.data = {
+            "xrefs_to": [{"from": "0x401050", "type": "call", "fcn_name": "entry0"}],
+            "xrefs_from": [{"addr": "0x401200", "type": "call", "fcn_name": "printf"}],
+            "total_refs_to": 1,
+            "total_refs_from": 1,
+        }
+
+        with (
+            patch(
+                "reversecore_mcp.resources._get_workspace_path",
+                return_value="/workspace/test.exe",
+            ),
+            patch(
+                "reversecore_mcp.tools.radare2.r2_analysis.analyze_xrefs",
+                return_value=mock_res,
+            ),
+        ):
+            result = await xrefs_func("test.exe", "main")
+            assert "# 🔄 Cross-References: test.exe @ main" in result
+            assert "0x401050" in result
+            assert "entry0" in result
+            assert "0x401200" in result
+            assert "printf" in result
+
+    @pytest.mark.asyncio
+    async def test_get_function_xrefs_error(self, mock_mcp):
+        """Test function xrefs resource error handling."""
+        registered_funcs = {}
+
+        def capture_resource(uri, **kwargs):
+            def decorator(func):
+                registered_funcs[uri] = func
+                return func
+
+            return decorator
+
+        mock_mcp.resource = capture_resource
+        register_resources(mock_mcp)
+
+        xrefs_func = registered_funcs.get("reversecore://{filename}/func/{address}/xrefs")
+        assert xrefs_func is not None
+
+        mock_res = Mock()
+        mock_res.status = "error"
+        mock_res.message = "Invalid address"
+
+        with (
+            patch(
+                "reversecore_mcp.resources._get_workspace_path",
+                return_value="/workspace/test.exe",
+            ),
+            patch(
+                "reversecore_mcp.tools.radare2.r2_analysis.analyze_xrefs",
+                return_value=mock_res,
+            ),
+        ):
+            result = await xrefs_func("test.exe", "invalid_addr")
+            assert "Error analyzing cross-references" in result
+
+    @pytest.mark.asyncio
+    async def test_get_function_context_success(self, mock_mcp):
+        """Test function context resource success."""
+        registered_funcs = {}
+
+        def capture_resource(uri, **kwargs):
+            def decorator(func):
+                registered_funcs[uri] = func
+                return func
+
+            return decorator
+
+        mock_mcp.resource = capture_resource
+        register_resources(mock_mcp)
+
+        ctx_func = registered_funcs.get("reversecore://{filename}/func/{address}/context")
+        assert ctx_func is not None
+
+        mock_fn_res = Mock()
+        mock_fn_res.status = "success"
+        mock_fn_res.data = {
+            "name": "sym.decrypt",
+            "offset": "0x401120",
+            "size": 128,
+            "complexity": 4,
+            "nbbs": 3,
+            "edges": 4,
+            "signature": "int sym.decrypt(char *buf, int len)",
+            "calltype": "cdecl",
+        }
+
+        mock_struct_res = Mock()
+        mock_struct_res.status = "success"
+        mock_struct_res.data = {
+            "structures": [{"name": "key_ptr", "type": "char *", "offset": "-0x8", "size": 8}]
+        }
+
+        with (
+            patch(
+                "reversecore_mcp.resources._get_workspace_path",
+                return_value="/workspace/test.exe",
+            ),
+            patch(
+                "reversecore_mcp.resources.r2_analyze_function",
+                return_value=mock_fn_res,
+            ),
+            patch(
+                "reversecore_mcp.resources.r2_recover_structures",
+                return_value=mock_struct_res,
+            ),
+        ):
+            result = await ctx_func("test.exe", "0x401120")
+            assert "# 🧩 Function Context: test.exe @ 0x401120" in result
+            assert "int sym.decrypt(char *buf, int len)" in result
+            assert "Cyclomatic Complexity**: 4" in result
+            assert "key_ptr" in result
+
+    @pytest.mark.asyncio
+    async def test_get_function_context_error(self, mock_mcp):
+        """Test function context resource error handling."""
+        registered_funcs = {}
+
+        def capture_resource(uri, **kwargs):
+            def decorator(func):
+                registered_funcs[uri] = func
+                return func
+
+            return decorator
+
+        mock_mcp.resource = capture_resource
+        register_resources(mock_mcp)
+
+        ctx_func = registered_funcs.get("reversecore://{filename}/func/{address}/context")
+        assert ctx_func is not None
+
+        mock_fn_res = Mock()
+        mock_fn_res.status = "error"
+        mock_fn_res.message = "Function not found"
+
+        with (
+            patch(
+                "reversecore_mcp.resources._get_workspace_path",
+                return_value="/workspace/test.exe",
+            ),
+            patch(
+                "reversecore_mcp.resources.r2_analyze_function",
+                return_value=mock_fn_res,
+            ),
+            patch(
+                "reversecore_mcp.resources.r2_recover_structures",
+                return_value=Mock(status="error"),
+            ),
+        ):
+            result = await ctx_func("test.exe", "invalid_func")
+            assert "Error analyzing function" in result
+
+    @pytest.mark.asyncio
+    async def test_get_memory_map_success(self, mock_mcp):
+        """Test memory map resource success."""
+        registered_funcs = {}
+
+        def capture_resource(uri, **kwargs):
+            def decorator(func):
+                registered_funcs[uri] = func
+                return func
+
+            return decorator
+
+        mock_mcp.resource = capture_resource
+        register_resources(mock_mcp)
+
+        mem_func = registered_funcs.get("reversecore://{filename}/memory_map")
+        sec_func = registered_funcs.get("reversecore://{filename}/sections")
+        assert mem_func is not None
+        assert sec_func is not None
+
+        mock_lief_res = Mock()
+        mock_lief_res.status = "success"
+        mock_lief_res.data = {
+            "sections": [
+                {
+                    "name": ".text",
+                    "virtual_address": "0x401000",
+                    "size": 4096,
+                    "entropy": 6.2,
+                },
+                {
+                    "name": ".upx0",
+                    "virtual_address": "0x402000",
+                    "size": 8192,
+                    "entropy": 7.85,
+                },
+            ]
+        }
+
+        with (
+            patch(
+                "reversecore_mcp.resources._get_workspace_path",
+                return_value="/workspace/test.exe",
+            ),
+            patch(
+                "reversecore_mcp.tools.analysis.lief_tools.parse_binary_with_lief",
+                return_value=mock_lief_res,
+            ),
+        ):
+            result = await mem_func("test.exe")
+            assert "# 🗺️ Memory Map & Section Table: test.exe" in result
+            assert ".text" in result
+            assert ".upx0" in result
+            assert "High Entropy (>7.0)" in result
+
+            sec_result = await sec_func("test.exe")
+            assert "# 🗺️ Memory Map & Section Table: test.exe" in sec_result
+
+    @pytest.mark.asyncio
+    async def test_get_memory_map_error(self, mock_mcp):
+        """Test memory map resource error handling."""
+        registered_funcs = {}
+
+        def capture_resource(uri, **kwargs):
+            def decorator(func):
+                registered_funcs[uri] = func
+                return func
+
+            return decorator
+
+        mock_mcp.resource = capture_resource
+        register_resources(mock_mcp)
+
+        mem_func = registered_funcs.get("reversecore://{filename}/memory_map")
+        assert mem_func is not None
+
+        mock_lief_res = Mock()
+        mock_lief_res.status = "error"
+        mock_lief_res.message = "Failed to parse ELF headers"
+
+        with (
+            patch(
+                "reversecore_mcp.resources._get_workspace_path",
+                return_value="/workspace/test.exe",
+            ),
+            patch(
+                "reversecore_mcp.tools.analysis.lief_tools.parse_binary_with_lief",
+                return_value=mock_lief_res,
+            ),
+        ):
+            result = await mem_func("test.exe")
+            assert "Error parsing sections" in result
+
+    @pytest.mark.asyncio
+    async def test_get_signatures_report_success(self, mock_mcp):
+        """Test threat signatures report resource success."""
+        registered_funcs = {}
+
+        def capture_resource(uri, **kwargs):
+            def decorator(func):
+                registered_funcs[uri] = func
+                return func
+
+            return decorator
+
+        mock_mcp.resource = capture_resource
+        register_resources(mock_mcp)
+
+        sig_func = registered_funcs.get("reversecore://{filename}/signatures")
+        assert sig_func is not None
+
+        mock_yara = Mock()
+        mock_yara.status = "success"
+        mock_yara.data = {"matches": [{"rule": "Ransomware_LockBit", "tags": ["ransomware"]}]}
+
+        mock_capa = Mock()
+        mock_capa.status = "success"
+        mock_capa.data = {
+            "capabilities": ["encrypt data using AES"],
+            "mitre_attack": ["T1486 Data Encrypted for Impact"],
+        }
+
+        mock_dd = Mock()
+        mock_dd.status = "success"
+        mock_dd.data = {
+            "orphan_functions": [{"name": "hidden_shellcode"}],
+            "suspicious_logic": [],
+        }
+
+        with (
+            patch(
+                "reversecore_mcp.resources._get_workspace_path",
+                return_value="/workspace/malware.exe",
+            ),
+            patch(
+                "reversecore_mcp.tools.malware.yara_tools.run_yara",
+                return_value=mock_yara,
+            ),
+            patch(
+                "reversecore_mcp.tools.analysis.capa_tools.run_capa",
+                return_value=mock_capa,
+            ),
+            patch(
+                "reversecore_mcp.tools.malware.dormant_detector.dormant_detector",
+                return_value=mock_dd,
+            ),
+        ):
+            result = await sig_func("malware.exe")
+            assert "# 🛡️ Threat Signatures & Capabilities: malware.exe" in result
+            assert "Ransomware_LockBit" in result
+            assert "encrypt data using AES" in result
+            assert "T1486" in result
+            assert "orphan function" in result
+
+    @pytest.mark.asyncio
+    async def test_get_signatures_report_error(self, mock_mcp):
+        """Test threat signatures report error handling."""
+        registered_funcs = {}
+
+        def capture_resource(uri, **kwargs):
+            def decorator(func):
+                registered_funcs[uri] = func
+                return func
+
+            return decorator
+
+        mock_mcp.resource = capture_resource
+        register_resources(mock_mcp)
+
+        sig_func = registered_funcs.get("reversecore://{filename}/signatures")
+        assert sig_func is not None
+
+        with patch(
+            "reversecore_mcp.resources._get_workspace_path",
+            side_effect=Exception("Disk read error"),
+        ):
+            result = await sig_func("corrupt.bin")
+            assert "Error extracting signatures" in result
+
+    @pytest.mark.asyncio
+    async def test_get_imports_success_and_sensitive_tagging(self, mock_mcp):
+        """Test imports resource with API sensitivity classification."""
+        registered_funcs = {}
+
+        def capture_resource(uri, **kwargs):
+            def decorator(func):
+                registered_funcs[uri] = func
+                return func
+
+            return decorator
+
+        mock_mcp.resource = capture_resource
+        register_resources(mock_mcp)
+
+        imports_func = registered_funcs.get("reversecore://{filename}/imports")
+        assert imports_func is not None
+
+        mock_r2_res = Mock()
+        mock_r2_res.status = "success"
+        mock_r2_res.data = (
+            '[{"libname": "kernel32.dll", "name": "VirtualAllocEx"}, '
+            '{"libname": "kernel32.dll", "name": "LoadLibraryA"}, '
+            '{"libname": "ws2_32.dll", "name": "connect"}]'
+        )
+
+        with (
+            patch(
+                "reversecore_mcp.resources._get_workspace_path",
+                return_value="/workspace/sample.exe",
+            ),
+            patch(
+                "reversecore_mcp.tools.radare2.r2_analysis.run_radare2",
+                return_value=mock_r2_res,
+            ),
+        ):
+            result = await imports_func("sample.exe")
+            assert "# 📥 Imported Libraries & Functions: sample.exe" in result
+            assert "kernel32.dll" in result
+            assert "VirtualAllocEx" in result
+            assert "[!] Process Injection" in result
+            assert "LoadLibraryA" in result
+            assert "[!] Dynamic Loading" in result
+            assert "ws2_32.dll" in result
+            assert "[!] Network/C2" in result
+
+    @pytest.mark.asyncio
+    async def test_get_imports_empty(self, mock_mcp):
+        """Test imports resource when binary has no imports."""
+        registered_funcs = {}
+
+        def capture_resource(uri, **kwargs):
+            def decorator(func):
+                registered_funcs[uri] = func
+                return func
+
+            return decorator
+
+        mock_mcp.resource = capture_resource
+        register_resources(mock_mcp)
+
+        imports_func = registered_funcs.get("reversecore://{filename}/imports")
+        assert imports_func is not None
+
+        mock_r2_res = Mock()
+        mock_r2_res.status = "success"
+        mock_r2_res.data = "[]"
+
+        mock_lief_res = Mock()
+        mock_lief_res.status = "success"
+        mock_lief_res.data = {"imports": []}
+
+        with (
+            patch(
+                "reversecore_mcp.resources._get_workspace_path",
+                return_value="/workspace/sample.exe",
+            ),
+            patch(
+                "reversecore_mcp.tools.radare2.r2_analysis.run_radare2",
+                return_value=mock_r2_res,
+            ),
+            patch(
+                "reversecore_mcp.tools.analysis.lief_tools.parse_binary_with_lief",
+                return_value=mock_lief_res,
+            ),
+        ):
+            result = await imports_func("sample.exe")
+            assert "No imported functions found" in result
+
+    @pytest.mark.asyncio
+    async def test_get_exports_success(self, mock_mcp):
+        """Test exports resource success."""
+        registered_funcs = {}
+
+        def capture_resource(uri, **kwargs):
+            def decorator(func):
+                registered_funcs[uri] = func
+                return func
+
+            return decorator
+
+        mock_mcp.resource = capture_resource
+        register_resources(mock_mcp)
+
+        exports_func = registered_funcs.get("reversecore://{filename}/exports")
+        assert exports_func is not None
+
+        mock_r2_res = Mock()
+        mock_r2_res.status = "success"
+        mock_r2_res.data = '[{"ordinal": 1, "vaddr": "0x10001234", "name": "ExportedFunction"}]'
+
+        with (
+            patch(
+                "reversecore_mcp.resources._get_workspace_path",
+                return_value="/workspace/sample.dll",
+            ),
+            patch(
+                "reversecore_mcp.tools.radare2.r2_analysis.run_radare2",
+                return_value=mock_r2_res,
+            ),
+        ):
+            result = await exports_func("sample.dll")
+            assert "# 📤 Exported Symbols: sample.dll" in result
+            assert "ExportedFunction" in result
+            assert "0x10001234" in result
+
+    @pytest.mark.asyncio
+    async def test_get_exports_empty(self, mock_mcp):
+        """Test exports resource when binary has no exports."""
+        registered_funcs = {}
+
+        def capture_resource(uri, **kwargs):
+            def decorator(func):
+                registered_funcs[uri] = func
+                return func
+
+            return decorator
+
+        mock_mcp.resource = capture_resource
+        register_resources(mock_mcp)
+
+        exports_func = registered_funcs.get("reversecore://{filename}/exports")
+        assert exports_func is not None
+
+        mock_r2_res = Mock()
+        mock_r2_res.status = "success"
+        mock_r2_res.data = "[]"
+
+        mock_lief_res = Mock()
+        mock_lief_res.status = "success"
+        mock_lief_res.data = {"exports": []}
+
+        with (
+            patch(
+                "reversecore_mcp.resources._get_workspace_path",
+                return_value="/workspace/sample.exe",
+            ),
+            patch(
+                "reversecore_mcp.tools.radare2.r2_analysis.run_radare2",
+                return_value=mock_r2_res,
+            ),
+            patch(
+                "reversecore_mcp.tools.analysis.lief_tools.parse_binary_with_lief",
+                return_value=mock_lief_res,
+            ),
+        ):
+            result = await exports_func("sample.exe")
+            assert "No exported symbols found in binary" in result

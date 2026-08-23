@@ -3,6 +3,8 @@
 import shutil
 from pathlib import Path
 
+from fastmcp import Context
+
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
@@ -318,7 +320,7 @@ def create_directory(directory_path: str) -> ToolResult:
 async def scan_workspace(
     file_patterns: list[str] | None = None,
     timeout: int = 600,
-    ctx=None,
+    ctx: Context | None = None,
 ) -> ToolResult:
     """
     Batch scan all files in the workspace using multiple tools in parallel.

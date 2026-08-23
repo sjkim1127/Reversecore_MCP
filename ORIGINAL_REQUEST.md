@@ -1,30 +1,28 @@
 # Original User Request
 
-## Initial Request — 2026-08-18T00:47:50Z
+## Initial Request — 2026-08-22T20:31:23+09:00
 
-Strengthen and harden the local benchmark suite for Reversecore_MCP by enhancing live dynamic fuzzing, Clang/ASan instrumented execution, crash reproduction, and automated PoC minimization pipelines alongside robust mock test harnesses with hybrid auto-detection.
+You are the Project Orchestrator (teamwork_preview_orchestrator) for Reversecore_MCP optimization and enhancement.
 
-Working directory: `/Users/sjkim1127/Reversecore_MCP`
-Integrity mode: development
+Your working directory is: `/Users/sjkim1127/Reversecore_MCP/.agents/orchestrator_1`
+Project root: `/Users/sjkim1127/Reversecore_MCP`
+Original user request file: `/Users/sjkim1127/Reversecore_MCP/.agents/ORIGINAL_REQUEST.md`
 
-## Requirements
+Requirements:
+1. R1. FastMCP Protocol & Connection Architecture Hardening:
+   - Enhance FastMCP server transport stability (stdio & SSE), dynamic resource URI routing/templates, progress reporting, and connection lifecycle handling.
+2. R2. Advanced Reasoning Prompts & Context Resources:
+   - Expand and refine reverse engineering prompts (`reversecore_mcp/prompts.py`) and dynamic context resources (`reversecore_mcp/resources.py`) for specialized workflows (vulnerability triage, exploit analysis, malware deobfuscation, patch diffing).
+3. R3. Output Schema Optimization & Token Efficiency:
+   - Optimize tool return schemas and JSON serialization for large binary analysis outputs (disassembly chunks, decompilation, xref graphs), introducing smart pagination/summarization to conserve LLM context window while preserving critical technical details.
 
-### R1. Live Dynamic Execution & Fuzzing Pipeline Integration
-Enhance the live execution runner in the benchmark framework (`BenchmarkRunner`) to support real Clang ASan/UBSan compilation, LibFuzzer/AFL++ execution, and dynamic crash detection against ground-truth target harnesses.
+Acceptance Criteria:
+- FastMCP server successfully initializes and handles stdio and SSE transport protocols cleanly.
+- Dynamic resources and specialized reverse engineering prompts are correctly registered, accessible, and validated with test suites.
+- Tool return schemas correctly implement structured, token-efficient formats without loss of semantic analysis fidelity.
+- Quantitative serialization benchmarks demonstrate high-speed JSON serialization (e.g. using `orjson`).
+- Large disassembly/decompilation outputs achieve measurable token/size reduction through smart summarization/pagination compared to raw unformatted dumps.
+- Full test suite (`pytest tests/unit/ tests/integration/`) maintains 100% pass rate with zero regressions (coverage >= 54%).
+- Code quality checks (`ruff check`, `black --target-version py312`) pass with 0 errors and 0 formatting issues.
 
-### R2. Capability Auto-Detection & Graceful Fallback
-Implement an automated capability detector that verifies whether required toolchains (`clang`, `libFuzzer`, ASan runtime) are present on the host/Docker environment. When available, execute live fuzzing/crash triage; when unavailable, cleanly fallback to deterministic mock/fixture evaluation without crashing or failing tests.
-
-### R3. Dynamic Crash Reproduction & PoC Minimization Verification
-Verify that live executions properly capture ASan stack traces, extract faulting symbols, calculate Time-To-Crash (TTC), verify memory access violations, and measure PoC minimization ratios.
-
-## Acceptance Criteria
-
-### Live & Hybrid Execution Verification
-- [ ] Automated toolchain detection accurately identifies local compiler capabilities (`clang`, sanitizers).
-- [ ] At least one real C target (e.g., `sqlite3_fts5_unicode` or `expat_entity_int_overflow`) successfully compiles with ASan and reproduces a genuine crash/memory violation when Clang is available.
-- [ ] Graceful fallback operates seamlessly without test failures when toolchains are absent or disabled (`--mock-mode`).
-
-### Test Suite & Performance Integrity
-- [ ] Full existing test suite (`pytest tests/unit/ tests/integration/`) maintains 100% pass rate with zero regressions across all 10 CVE targets.
-- [ ] All code quality standards (`ruff check`, `black --target-version py312`) pass without warnings or format issues.
+Please maintain your `plan.md`, `progress.md`, and `BRIEFING.md` inside your working directory (`/Users/sjkim1127/Reversecore_MCP/.agents/orchestrator_1/`). Dispatch specialist subagents as needed, monitor progress, synthesize results, ensure thorough test coverage and benchmarks, and notify me when complete.

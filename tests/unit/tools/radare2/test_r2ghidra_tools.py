@@ -144,6 +144,46 @@ class TestR2Decompile:
             assert res2.metadata.get("cache_hit") is True
             assert res2.data["pseudo_c"] == "int main() { return 0; }"
 
+    @pytest.mark.asyncio
+    async def test_decompilation_pagination_from_cache(
+        self, mock_r2_run, mock_validate_file_path, patched_config
+    ):
+        """r2_decompile performs line windowing from full cached result on different offsets."""
+        from reversecore_mcp.tools.radare2.r2ghidra_tools import r2_decompile
+
+        workspace_dir = patched_config.workspace
+        test_file = workspace_dir / "test_pagination.elf"
+        test_file.write_bytes(b"dummy elf content pagination")
+        mock_validate_file_path.return_value = test_file
+
+        full_code = "line 1\nline 2\nline 3\nline 4\nline 5\n"
+        mock_r2_run.return_value = (full_code, len(full_code))
+
+        with patch("reversecore_mcp.core.analysis_cache.get_redis_client", return_value=None):
+            # 1. First invocation: page 1 (lines 0-2)
+            res1 = await r2_decompile(str(test_file), "main", line_offset=0, max_lines=2)
+            assert res1.status == "success"
+            assert mock_r2_run.call_count == 1
+            assert res1.data["pseudo_c"] == "line 1\nline 2"
+            assert res1.data["summary"]["window_lines"] == "1-2"
+            assert res1.data["total_lines"] == 5
+            assert res1.data["has_more"] is True
+
+            # 2. Second invocation: page 2 (lines 2-4) should slice from cached full code without calling r2 again
+            res2 = await r2_decompile(str(test_file), "main", line_offset=2, max_lines=2)
+            assert res2.status == "success"
+            assert mock_r2_run.call_count == 1  # No additional r2 call
+            assert res2.metadata.get("cache_hit") is True
+            assert res2.data["pseudo_c"] == "line 3\nline 4"
+            assert res2.data["summary"]["window_lines"] == "3-4"
+            assert res2.data["total_lines"] == 5
+
+            # 3. Third invocation: offset beyond total lines
+            res3 = await r2_decompile(str(test_file), "main", line_offset=10, max_lines=2)
+            assert res3.status == "success"
+            assert res3.data["pseudo_c"] == ""
+            assert res3.data["summary"]["window_lines"] == "0-0"
+
 
 # ---------------------------------------------------------------------------
 # r2_recover_structures tests

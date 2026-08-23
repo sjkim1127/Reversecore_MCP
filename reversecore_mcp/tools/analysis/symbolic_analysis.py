@@ -7,10 +7,10 @@ as a separate process to prevent OOM issues and event loop blocking in the main 
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
+from reversecore_mcp.core import json_utils as json
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
 from reversecore_mcp.core.execution import execute_subprocess_async

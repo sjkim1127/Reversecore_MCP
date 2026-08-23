@@ -5,12 +5,22 @@ from pathlib import Path
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
+from reversecore_mcp.core.config import get_config
+from reversecore_mcp.core.security import get_workspace_config
 from reversecore_mcp.tools.analysis.die_tools import detect_packer_deep
 
 # Import the target tools
 from reversecore_mcp.tools.analysis.lief_tools import parse_binary_with_lief
 from reversecore_mcp.tools.analysis.static_analysis import run_strings
 from reversecore_mcp.tools.malware.yara_tools import run_yara
+
+
+def _get_fuzz_workspace() -> Path:
+    try:
+        return get_workspace_config().workspace_dir
+    except Exception:
+        return get_config().workspace
+
 
 # -----------------------------------------------------------------------------
 # Hypothesis Profiles Configuration
@@ -51,7 +61,7 @@ def test_fuzz_parse_binary_with_lief(binary_data):
     input is highly malformed. This ensures our Python wrapper doesn't crash
     the entire MCP server.
     """
-    workspace = Path(os.environ["REVERSECORE_WORKSPACE"])
+    workspace = _get_fuzz_workspace()
     test_file = workspace / "fuzz_lief.bin"
     test_file.write_bytes(binary_data)
 
@@ -69,7 +79,7 @@ def test_fuzz_detect_packer_deep(binary_data):
     """
     Fuzz the Deep Packer Detection (Detect It Easy / diec).
     """
-    workspace = Path(os.environ["REVERSECORE_WORKSPACE"])
+    workspace = _get_fuzz_workspace()
     test_file = workspace / "fuzz_die.bin"
     test_file.write_bytes(binary_data)
 
@@ -87,7 +97,7 @@ def test_fuzz_run_yara(binary_data):
     Fuzz the YARA scanner by passing malformed binaries.
     (Note: This fuzzes the binary being scanned, not the YARA rule syntax itself).
     """
-    workspace = Path(os.environ["REVERSECORE_WORKSPACE"])
+    workspace = _get_fuzz_workspace()
     test_file = workspace / "fuzz_yara.bin"
     test_file.write_bytes(binary_data)
 
@@ -104,7 +114,7 @@ def test_fuzz_run_strings(binary_data):
     """
     Fuzz the strings extraction tool.
     """
-    workspace = Path(os.environ["REVERSECORE_WORKSPACE"])
+    workspace = _get_fuzz_workspace()
     test_file = workspace / "fuzz_strings.bin"
     test_file.write_bytes(binary_data)
 

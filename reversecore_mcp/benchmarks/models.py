@@ -7,12 +7,13 @@ and benchmark execution options.
 
 from __future__ import annotations
 
-import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from reversecore_mcp.core import json_utils as json
 
 
 class CVSSGroundTruth(BaseModel):

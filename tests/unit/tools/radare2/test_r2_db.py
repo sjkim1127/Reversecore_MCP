@@ -271,3 +271,71 @@ class TestR2ReadMemory:
 
         result = await r2_read_memory("/workspace/test.elf", "0x401000", 0)
         assert result.status == "error"
+
+
+# ---------------------------------------------------------------------------
+# get_cached_result / set_cached_result
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestR2DbCaching:
+    """Tests for result caching layer in r2_db."""
+
+    @pytest.mark.asyncio
+    async def test_cache_success_roundtrip(self, mock_validate_file_path, patch_db_path):
+        """ToolSuccess can be saved to and retrieved from cache."""
+        from reversecore_mcp.core.result import ToolSuccess, success
+        from reversecore_mcp.tools.radare2.r2_db import (
+            get_cached_result,
+            set_cached_result,
+        )
+
+        test_result = success({"disasm": "mov eax, 1", "count": 1})
+        await set_cached_result(
+            str(mock_validate_file_path),
+            "test_tool",
+            "cache_key_1",
+            test_result,
+            ttl=3600,
+        )
+
+        cached = await get_cached_result(str(mock_validate_file_path), "cache_key_1")
+        assert cached is not None
+        assert isinstance(cached, ToolSuccess)
+        assert cached.status == "success"
+        assert cached.data == {"disasm": "mov eax, 1", "count": 1}
+
+    @pytest.mark.asyncio
+    async def test_cache_error_roundtrip(self, mock_validate_file_path, patch_db_path):
+        """ToolError can be saved to and retrieved from cache."""
+        from reversecore_mcp.core.result import ToolError, failure
+        from reversecore_mcp.tools.radare2.r2_db import (
+            get_cached_result,
+            set_cached_result,
+        )
+
+        test_error = failure("DISASM_ERROR", "Failed to disassemble address", hint="Check offset")
+        await set_cached_result(
+            str(mock_validate_file_path),
+            "test_tool",
+            "cache_key_err",
+            test_error,
+            ttl=3600,
+        )
+
+        cached = await get_cached_result(str(mock_validate_file_path), "cache_key_err")
+        assert cached is not None
+        assert isinstance(cached, ToolError)
+        assert cached.status == "error"
+        assert cached.error_code == "DISASM_ERROR"
+        assert cached.message == "Failed to disassemble address"
+        assert cached.hint == "Check offset"
+
+    @pytest.mark.asyncio
+    async def test_cache_miss_returns_none(self, mock_validate_file_path, patch_db_path):
+        """Non-existent cache key returns None."""
+        from reversecore_mcp.tools.radare2.r2_db import get_cached_result
+
+        cached = await get_cached_result(str(mock_validate_file_path), "non_existent_key")
+        assert cached is None

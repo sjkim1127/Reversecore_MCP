@@ -23,6 +23,7 @@ from typing import Any
 
 from fastmcp import FastMCP
 
+from reversecore_mcp.core import json_utils as json
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
@@ -985,6 +986,7 @@ class Radare2ToolsPlugin(Plugin):
         async def Radare2_disassemble_function(
             file_path: str,
             address: str,
+            format: str = "compact",
             cursor: str | None = None,
             page_size: int = DEFAULT_PAGE_SIZE,
         ) -> dict[str, Any]:
@@ -998,6 +1000,8 @@ class Radare2ToolsPlugin(Plugin):
                     function/symbol names (e.g. 'main', 'sym.secret_backdoor',
                     'sym.process_request'). Symbol names are automatically
                     resolved to their virtual address before disassembly.
+                format: Output format - 'compact' (compact instruction tuples [addr, mnemonic, ops, comment])
+                    or 'raw' (raw visual text output). Default: 'compact'.
                 cursor: Pagination cursor
                 page_size: Number of lines per page
 
@@ -1027,11 +1031,61 @@ class Radare2ToolsPlugin(Plugin):
             if page_size > MAX_PAGE_SIZE:
                 page_size = MAX_PAGE_SIZE
 
+            if format == "compact":
+                raw_json = (
+                    await self._run_session_cmd(session, f"pdfj @ {resolved_address}")
+                ).strip()
+                ops = []
+                try:
+                    parsed_json = json.loads(raw_json) if raw_json else {}
+                    if isinstance(parsed_json, dict):
+                        ops = parsed_json.get("ops", [])
+                except Exception as exc:
+                    logger.debug("Failed to parse pdfj JSON: %s", exc)
+
+                if ops:
+                    instruction_tuples = []
+                    for op in ops:
+                        addr_val = op.get("offset")
+                        addr_str = (
+                            hex(addr_val) if isinstance(addr_val, int) else str(addr_val or "")
+                        )
+                        mnemonic = op.get("mnemonic", "")
+                        operands = op.get("operands", "")
+                        if not mnemonic:
+                            disasm_str = op.get("disasm") or op.get("opcode") or ""
+                            parts = disasm_str.split(None, 1)
+                            mnemonic = parts[0] if parts else ""
+                            operands = parts[1] if len(parts) > 1 else ""
+                        comment = op.get("comment") or op.get("ptr_comment") or ""
+                        instruction_tuples.append([addr_str, mnemonic, operands, comment])
+
+                    cursor_offset = int(cursor) if cursor and cursor.isdigit() else 0
+                    limit = page_size if page_size > 0 else 100
+                    total_instructions = len(instruction_tuples)
+                    end_offset = cursor_offset + limit
+                    paginated_ops = instruction_tuples[cursor_offset:end_offset]
+                    has_more = end_offset < total_instructions
+                    next_cursor = str(end_offset) if has_more else None
+
+                    return {
+                        "status": "success",
+                        "format": "compact",
+                        "address_requested": address,
+                        "address_resolved": resolved_address,
+                        "total_instructions": total_instructions,
+                        "instructions": paginated_ops,
+                        "disassembly": paginated_ops,
+                        "has_more": has_more,
+                        "next_cursor": next_cursor,
+                    }
+
             result = await self._run_session_cmd(session, f"pdf @ {resolved_address}")
             paginated, has_more, next_cursor = _paginate_text(result, cursor, page_size)
 
             return {
                 "status": "success",
+                "format": "raw",
                 "address_requested": address,
                 "address_resolved": resolved_address,
                 "disassembly": paginated,
@@ -1043,6 +1097,8 @@ class Radare2ToolsPlugin(Plugin):
         async def Radare2_decompile_function(
             file_path: str,
             address: str,
+            line_offset: int = 0,
+            max_lines: int = 200,
             cursor: str | None = None,
             page_size: int = DEFAULT_PAGE_SIZE,
         ) -> dict[str, Any]:
@@ -1050,16 +1106,18 @@ class Radare2ToolsPlugin(Plugin):
             Show C-like pseudocode of the function at the given address.
 
             Use this to inspect code in a function. Do not run multiple times
-            on the same offset.
+            on the same offset. Includes smart line windowing and function summary header.
 
             Args:
                 file_path: Path to the binary file
                 address: Address of the function to decompile
-                cursor: Pagination cursor
-                page_size: Number of lines per page
+                line_offset: Starting line offset for windowed pseudocode (default: 0)
+                max_lines: Maximum lines of pseudocode per window (default: 200)
+                cursor: Legacy pagination cursor (overridden by line_offset if provided)
+                page_size: Legacy page size (overridden by max_lines if provided)
 
             Returns:
-                Decompiled pseudocode with pagination
+                Decompiled pseudocode with summary header and pagination
             """
             # Validate address
             try:
@@ -1071,17 +1129,55 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
-            if page_size > MAX_PAGE_SIZE:
-                page_size = MAX_PAGE_SIZE
-
             result = await self._run_session_cmd(session, f"pdc @ {address}")
-            paginated, has_more, next_cursor = _paginate_text(result, cursor, page_size)
+            lines = result.splitlines()
+            total_lines = len(lines)
+
+            # Determine offset and limit
+            if cursor is not None and cursor.isdigit() and line_offset == 0:
+                offset = int(cursor)
+                limit = min(page_size, MAX_PAGE_SIZE) if page_size > 0 else 200
+            else:
+                offset = max(0, line_offset)
+                limit = min(max_lines, MAX_PAGE_SIZE) if max_lines > 0 else 200
+
+            # Function summary header
+            signature = ""
+            for raw_line in lines:
+                l_str = raw_line.strip()
+                if l_str and not l_str.startswith("//") and not l_str.startswith("/*"):
+                    signature = l_str
+                    break
+            if not signature and lines:
+                signature = lines[0].strip()
+
+            end_offset = offset + limit
+            window_lines = lines[offset:end_offset]
+            paginated = "\n".join(window_lines)
+            has_more = end_offset < total_lines
+            next_cursor = str(end_offset) if has_more else None
+            next_line_offset = end_offset if has_more else None
+
+            summary_header = {
+                "signature": signature,
+                "total_lines": total_lines,
+                "window_lines": (
+                    f"{offset + 1}-{min(end_offset, total_lines)}"
+                    if total_lines > 0 and offset < total_lines
+                    else "0-0"
+                ),
+            }
 
             return {
                 "status": "success",
+                "summary": summary_header,
                 "decompiled": paginated,
+                "line_offset": offset,
+                "max_lines": limit,
+                "total_lines": total_lines,
                 "has_more": has_more,
                 "next_cursor": next_cursor,
+                "next_line_offset": next_line_offset,
             }
 
         @mcp.tool()
@@ -1157,6 +1253,7 @@ class Radare2ToolsPlugin(Plugin):
         async def Radare2_xrefs_to(
             file_path: str,
             address: str,
+            limit: int = 50,
         ) -> dict[str, Any]:
             """
             Find all code references TO the specified address.
@@ -1164,9 +1261,10 @@ class Radare2ToolsPlugin(Plugin):
             Args:
                 file_path: Path to the binary file
                 address: Address to check for cross-references (hex or symbol name)
+                limit: Maximum number of xrefs to return (default: 50)
 
             Returns:
-                Structured list of xrefs with xref_count field.
+                Structured list of xrefs with callers_by_function and xref_count.
                 xref_count=0 means NO callers exist (not an error).
                 Each xref entry contains: from, type, opcode, ref.
             """
@@ -1186,9 +1284,7 @@ class Radare2ToolsPlugin(Plugin):
             # returns [] in that case, which is unambiguous.
             raw = (await self._run_session_cmd(session, f"axtj @ {address}")).strip()
             try:
-                import json as _json
-
-                xrefs_list = _json.loads(raw) if raw else []
+                xrefs_list = json.loads(raw) if raw else []
                 if not isinstance(xrefs_list, list):
                     xrefs_list = []
             except Exception as exc:
@@ -1199,6 +1295,28 @@ class Radare2ToolsPlugin(Plugin):
                     raw,
                 )
                 xrefs_list = []
+
+            # Group callers by function
+            callers_by_function: dict[str, list[str]] = {}
+            for item in xrefs_list:
+                func_name = (
+                    item.get("fcn_name")
+                    or item.get("name")
+                    or (
+                        hex(item["fcn_addr"])
+                        if isinstance(item.get("fcn_addr"), int)
+                        else item.get("fcn_addr")
+                    )
+                    or "unknown"
+                )
+                addr_from = (
+                    hex(item["from"])
+                    if isinstance(item.get("from"), int)
+                    else (item.get("from") or item.get("addr") or "")
+                )
+                callers_by_function.setdefault(str(func_name), []).append(str(addr_from))
+
+            bounded_xrefs = xrefs_list[:limit] if (limit and limit > 0) else xrefs_list
 
             note = None
             if not xrefs_list:
@@ -1213,7 +1331,11 @@ class Radare2ToolsPlugin(Plugin):
                 "status": "success",
                 "address": address,
                 "xref_count": len(xrefs_list),
-                "xrefs": xrefs_list,
+                "total_items": len(xrefs_list),
+                "has_more": len(xrefs_list) > len(bounded_xrefs),
+                "limit": limit,
+                "xrefs": bounded_xrefs,
+                "callers_by_function": callers_by_function,
                 "note": note,
             }
 

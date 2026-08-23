@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import functools
 import hashlib
-import json
 from inspect import iscoroutinefunction
 
+from reversecore_mcp.core import json_utils as json
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import metrics_collector
 from reversecore_mcp.core.result import ToolSuccess
@@ -66,7 +66,8 @@ def cache_tool_result(
 
             # Serialize and hash the relevant kwargs
             try:
-                sorted_json = json.dumps(key_dict, sort_keys=True)
+                sorted_dict = dict(sorted(key_dict.items()))
+                sorted_json = json.dumps(sorted_dict)
             except TypeError:
                 logger.warning(f"Cache bypassed for {tool_name}: kwargs not JSON serializable")
                 return await func(*args, **kwargs)

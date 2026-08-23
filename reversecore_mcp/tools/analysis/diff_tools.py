@@ -24,7 +24,7 @@ from reversecore_mcp.core.r2_helpers import (
 from reversecore_mcp.core.r2_helpers import (
     parse_json_output as _parse_json_output,
 )
-from reversecore_mcp.core.result import ToolResult, failure, success
+from reversecore_mcp.core.result import PaginationMeta, ToolResult, failure, success
 from reversecore_mcp.core.security import validate_file_path
 from reversecore_mcp.core.validators import validate_tool_parameters
 
@@ -73,6 +73,9 @@ async def diff_binaries(
     file_path_a: str,
     file_path_b: str,
     function_name: str | None = None,
+    page: int = 1,
+    page_size: int = 20,
+    top_n: int = 20,
     max_output_size: int = 10_000_000,
     timeout: int = DEFAULT_TIMEOUT,
 ) -> ToolResult:
@@ -115,20 +118,22 @@ async def diff_binaries(
     Output Format:
         {
           "similarity": 0.95,
+          "summary": {
+            "similarity_score": 0.95,
+            "total_changes": 2,
+            "added_blocks": 1,
+            "removed_blocks": 0,
+            "code_changes": 1,
+            "control_flow_changes": 0
+          },
           "function_specific": false,
           "changes": [
-            {
-              "address": "0x401050",
-              "type": "code_change",
-              "description": "Instruction changed from JNZ to JZ"
-            },
             {
               "address": "0x401080",
               "type": "new_block",
               "description": "Added security check"
             }
-          ],
-          "total_changes": 2
+          ]
         }
     """
     # Validate both file paths
@@ -238,17 +243,48 @@ async def diff_binaries(
                 }
             )
 
+        # Build structured changes summary
+        summary = {
+            "similarity_score": similarity,
+            "total_changes": len(changes),
+            "added_blocks": sum(1 for c in changes if c.get("type") == "new_block"),
+            "removed_blocks": sum(1 for c in changes if c.get("type") == "removed_block"),
+            "code_changes": sum(1 for c in changes if c.get("type") == "code_change"),
+            "control_flow_changes": sum(
+                1 for c in changes if c.get("type") == "control_flow_change"
+            ),
+        }
+
+        # Apply pagination on changes
+        effective_page_size = page_size if page_size > 0 else (top_n if top_n > 0 else 20)
+        effective_page = page if page > 0 else 1
+        start_idx = (effective_page - 1) * effective_page_size
+        end_idx = start_idx + effective_page_size
+        paginated_changes = changes[start_idx:end_idx]
+        has_more = end_idx < len(changes)
+
+        pagination = PaginationMeta(
+            has_more=has_more,
+            next_cursor=str(effective_page + 1) if has_more else None,
+            total_items=len(changes),
+            page=effective_page,
+            page_size=effective_page_size,
+            truncated=has_more,
+        )
+
         # Build result
         result_data = {
             "similarity": similarity,
+            "summary": summary,
             "function_specific": bool(function_name),
-            "changes": changes,
+            "changes": paginated_changes,
             "total_changes": len(changes),
             "raw_output": (output if len(output) < 5000 else output[:5000] + "... (truncated)"),
         }
 
         return success(
-            json.dumps(result_data, indent=2),
+            result_data,
+            pagination=pagination,
             bytes_read=bytes_read,
             similarity=similarity,
             total_changes=len(changes),
@@ -623,7 +659,7 @@ async def match_libraries(
             )
 
         return success(
-            json.dumps(result_data, indent=2),
+            result_data,
             bytes_read=bytes_read,
             total_functions=total_functions,
             library_functions=library_count,
