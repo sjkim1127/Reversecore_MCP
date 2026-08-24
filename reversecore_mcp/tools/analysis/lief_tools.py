@@ -16,6 +16,13 @@ from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.next_tool_hints import build_lief_hints, finalize_hints
 from reversecore_mcp.core.result import ToolResult, failure, success
 from reversecore_mcp.core.security import validate_file_path
+from reversecore_mcp.tools.analysis.die_tools import (
+    calculate_shannon_entropy,
+    detect_section_anomalies,
+    get_entropy_category,
+    inspect_binary_overlay,
+    is_standard_section_name,
+)
 
 
 class _LIEFResultCache:
@@ -85,18 +92,55 @@ def _cleanup_lief_pool() -> None:
 
 
 def _extract_sections(binary: Any) -> list[dict[str, Any]]:
-    """Extract section information from binary."""
+    """Extract enhanced section information from binary."""
     if not hasattr(binary, "sections") or not binary.sections:
         return []
-    return [
-        {
-            "name": section.name,
-            "virtual_address": hex(section.virtual_address),
-            "size": section.size,
-            "entropy": (round(section.entropy, 2) if hasattr(section, "entropy") else None),
-        }
-        for section in binary.sections
-    ]
+
+    sections = []
+    format_name = str(getattr(binary, "format", "")).split(".")[-1].upper()
+
+    for section in binary.sections:
+        name = getattr(section, "name", "")
+        v_addr = getattr(section, "virtual_address", 0)
+        size = getattr(section, "size", 0)
+        v_size = getattr(section, "virtual_size", size)
+        entropy = getattr(section, "entropy", None)
+        offset = getattr(section, "offset", 0)
+
+        is_writable = False
+        is_executable = False
+        if hasattr(section, "has_characteristic"):
+            try:
+                import lief
+
+                is_writable = section.has_characteristic(lief.PE.SECTION_CHARACTERISTICS.MEM_WRITE)
+                is_executable = section.has_characteristic(
+                    lief.PE.SECTION_CHARACTERISTICS.MEM_EXECUTE
+                )
+            except Exception:
+                pass
+        elif hasattr(section, "flags"):
+            is_writable = bool(section.flags & 0x1)
+            is_executable = bool(section.flags & 0x4)
+
+        is_std = is_standard_section_name(name, format_name)
+
+        sections.append(
+            {
+                "name": name,
+                "virtual_address": (hex(v_addr) if isinstance(v_addr, int) else str(v_addr)),
+                "size": size,
+                "virtual_size": v_size,
+                "raw_size": size,
+                "raw_offset": offset,
+                "entropy": round(entropy, 2) if entropy is not None else None,
+                "is_writable": is_writable,
+                "is_executable": is_executable,
+                "is_standard_name": is_std,
+            }
+        )
+
+    return sections
 
 
 def _extract_mitigations(binary: Any) -> dict[str, Any]:
@@ -280,6 +324,25 @@ def _format_lief_output(result: dict[str, Any], format: str) -> str:
     if result.get("entry_point"):
         lines.append(f"Entry Point: {result['entry_point']}")
 
+    entropy_info = result.get("entropy")
+    if entropy_info and isinstance(entropy_info, dict):
+        lines.append(
+            f"Entropy: {entropy_info.get('overall_file')} ({entropy_info.get('category')})"
+        )
+
+    overlay_info = result.get("overlay")
+    if overlay_info and isinstance(overlay_info, dict) and overlay_info.get("has_overlay"):
+        ratio = overlay_info.get("ratio", 0.0) or 0.0
+        lines.append(
+            f"Overlay: {overlay_info.get('payload_type')} ({overlay_info.get('size')} bytes, {ratio * 100:.1f}%)"
+        )
+
+    anomalies = result.get("section_anomalies")
+    if anomalies and isinstance(anomalies, list):
+        lines.append(f"\nSection Anomalies ({len(anomalies)}):")
+        for a in anomalies[:5]:
+            lines.append(f"  - [{a.get('severity', '').upper()}] {a.get('description')}")
+
     mitigations = result.get("mitigations")
     if mitigations:
         lines.append("\nExploit Mitigations:")
@@ -294,8 +357,11 @@ def _format_lief_output(result: dict[str, Any], format: str) -> str:
         for i, section in enumerate(sections):
             if i >= 20:
                 break
+            wx_flag = (
+                " [W+X]" if section.get("is_writable") and section.get("is_executable") else ""
+            )
             lines.append(
-                f"  - {section['name']}: VA={section['virtual_address']}, Size={section['size']}"
+                f"  - {section['name']}: VA={section['virtual_address']}, Size={section['size']}{wx_flag}"
             )
 
     imported_funcs = result.get("imported_functions")
@@ -494,6 +560,8 @@ def _run_lief_in_process(
     Worker function to run LIEF parsing in a separate process.
     Must be a standalone function (not closure) to be picklable.
     """
+    from pathlib import Path
+
     import lief
 
     try:
@@ -522,5 +590,47 @@ def _run_lief_in_process(
     # Extract symbols
     symbols = _extract_symbols(binary, max_imports=max_imports, max_exports=max_exports)
     result_data.update(symbols)
+
+    # Calculate file entropy, anomalies, and overlay
+    try:
+        file_bytes = Path(file_path).read_bytes()
+        overall_entropy = calculate_shannon_entropy(file_bytes)
+        entropy_cat = get_entropy_category(overall_entropy)
+
+        ep_val = None
+        if result_data.get("entry_point"):
+            try:
+                ep_val = int(result_data["entry_point"], 16)
+            except ValueError:
+                ep_val = None
+
+        section_anomalies = detect_section_anomalies(
+            sections=result_data.get("sections", []),
+            entrypoint=ep_val,
+            file_size=len(file_bytes),
+            format_type=result_data.get("format", "pe"),
+        )
+
+        max_extent = 0
+        for s in result_data.get("sections", []):
+            off = s.get("raw_offset", 0) or 0
+            sz = s.get("raw_size", 0) or 0
+            if (off + sz) > max_extent:
+                max_extent = off + sz
+
+        overlay_info = inspect_binary_overlay(
+            file_path=Path(file_path),
+            data=file_bytes,
+            binary_info={"physical_extent": max_extent},
+        )
+
+        result_data["entropy"] = {
+            "overall_file": overall_entropy,
+            "category": entropy_cat,
+        }
+        result_data["section_anomalies"] = section_anomalies
+        result_data["overlay"] = overlay_info
+    except Exception:
+        pass
 
     return result_data

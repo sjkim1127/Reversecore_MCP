@@ -387,6 +387,75 @@ def build_dormant_hints(
             }
         )
 
+    # Suggest anti-analysis scanning
+    hints.append(
+        {
+            "tool": "detect_anti_analysis",
+            "reason": (
+                f"Binary contains {len(orphan_functions)} orphan function(s). "
+                "Run detect_anti_analysis to check for anti-debugging, timing evasion, or VM detection tricks."
+            ),
+            "confidence": "high",
+            "suggested_args": {"file_path": file_path},
+            "priority": 2,
+        }
+    )
+
+    return hints
+
+
+def build_anti_analysis_hints(
+    file_path: str,
+    evasion_score: int,
+    findings: list[dict[str, Any]],
+    neutralization_plan: list[dict[str, Any]],
+) -> list[NextToolHint]:
+    """Generate hints based on detect_anti_analysis output.
+
+    Triggers:
+    - Neutralization patches available → adaptive_vaccine
+    - Evasive score > 30 → dormant_detector
+    """
+    hints: list[NextToolHint] = []
+
+    if neutralization_plan:
+        first_finding = findings[0] if findings else {}
+        hints.append(
+            {
+                "tool": "adaptive_vaccine",
+                "reason": (
+                    f"Found {len(neutralization_plan)} actionable anti-analysis neutralization patch(es). "
+                    "Apply adaptive_vaccine to generate binary patches or YARA signatures."
+                ),
+                "confidence": "high",
+                "suggested_args": {
+                    "threat_report": {
+                        "function": first_finding.get("function", "evasive_stub"),
+                        "address": first_finding.get("address", "0x0"),
+                        "instruction": first_finding.get("instruction_sequence", "anti-analysis"),
+                        "reason": f"Anti-Analysis evasion detected (Score: {evasion_score})",
+                    },
+                    "action": "both",
+                    "file_path": file_path,
+                },
+                "priority": 1,
+            }
+        )
+
+    if evasion_score > 30:
+        hints.append(
+            {
+                "tool": "dormant_detector",
+                "reason": (
+                    f"Evasion score is {evasion_score} ({len(findings)} findings). "
+                    "Run dormant_detector to identify hidden logic bombs or dormant execution paths."
+                ),
+                "confidence": "medium",
+                "suggested_args": {"file_path": file_path},
+                "priority": 2,
+            }
+        )
+
     return hints
 
 

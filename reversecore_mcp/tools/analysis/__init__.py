@@ -51,6 +51,7 @@ class AnalysisToolsPlugin(Plugin):
             analyze_patch_diff_auto,
         )
         from reversecore_mcp.tools.analysis.signature_tools import (
+            generate_enhanced_yara_rule,
             generate_signature,
             generate_yara_rule,
         )
@@ -76,6 +77,7 @@ class AnalysisToolsPlugin(Plugin):
         mcp_server.tool(parse_binary_with_lief)
         mcp_server.tool(generate_signature)
         mcp_server.tool(generate_yara_rule)
+        mcp_server.tool(generate_enhanced_yara_rule)
         mcp_server.tool(run_strings)
         mcp_server.tool(run_binwalk)
         mcp_server.tool(run_binwalk_extract)
