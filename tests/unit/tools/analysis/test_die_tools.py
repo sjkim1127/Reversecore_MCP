@@ -384,6 +384,16 @@ class TestHeuristicScoringEngine:
 class TestSyntheticPackerFixtures:
     """End-to-end tests validating detection on synthetic packer fixtures."""
 
+    @pytest.fixture(autouse=True)
+    def bypass_path_validation(self):
+        """Bypass workspace path validation so fixture files are always accessible
+        regardless of REVERSECORE_WORKSPACE set by other tests in the full suite."""
+        with patch(
+            "reversecore_mcp.tools.analysis.die_tools.validate_file_path",
+            side_effect=lambda p, **kw: Path(p),
+        ):
+            yield
+
     @pytest.mark.asyncio
     async def test_synthetic_upx(self):
         upx_path = FIXTURES_DIR / "synthetic_upx.exe"
