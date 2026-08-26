@@ -272,7 +272,7 @@ async def _cleanup_old_files():
                     # Check mtime
                     if now - st.st_mtime > retention_seconds:
                         # Only delete files that are clearly temporary or uploaded
-                        # This is a safety measure to avoid deleting user's important files
+                        # This is a safety measure to avoid deleting user's important binary files
                         # Match UUID-prefixed uploads (8 hex chars followed by underscore)
                         is_uuid_upload = bool(re.match(r"^[0-9a-f]{8}_", p.name))
                         # Match temp files (.tmp suffix or .r2_* prefix for radare2)
@@ -439,20 +439,20 @@ def main():
                     )
                     host = "127.0.0.1"
 
-        mcp_app = mcp.http_app(transport="sse")
-
-        # Wrap initialization in FastAPI lifespan
-        @asynccontextmanager
-        async def app_lifespan(app: FastAPI):
-            async with mcp._lifespan_manager():
-                yield
+        # Legacy SSE remains opt-in; HTTP and streamable-http use FastMCP's
+        # default Streamable HTTP transport. The inner path must be "/" because
+        # this ASGI app is mounted by FastAPI at "/mcp" below.
+        if transport == "sse":
+            mcp_app = mcp.http_app(transport="sse")
+        else:
+            mcp_app = mcp.http_app(path="/")
 
         app = FastAPI(
             title="Reversecore_MCP",
             docs_url="/docs",
             redoc_url="/redoc",
             openapi_url="/openapi.json",
-            lifespan=app_lifespan,
+            lifespan=mcp_app.lifespan,
         )
 
         # Container health probes may be external, but all other unauthenticated
@@ -486,6 +486,7 @@ def main():
             allow_credentials=allow_creds,
             allow_methods=["*"],
             allow_headers=["*"],
+            expose_headers=["mcp-session-id"],
         )
 
         # Mount dashboard
