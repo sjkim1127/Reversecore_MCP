@@ -1,14 +1,48 @@
 """Static analysis tools package.
 
-Provides a unified AnalysisToolsPlugin that registers all analysis-related tools.
+Provides a unified AnalysisToolsPlugin that registers all analysis-related tools
+while keeping resource-facing modules lazy. This lets the base wheel import the
+server without requiring optional analysis dependencies such as LIEF.
 """
 
-from typing import Any
+from importlib import import_module
+from types import ModuleType
+from typing import Any, Final
 
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.plugin import Plugin
 
 logger = get_logger(__name__)
+
+
+class _LazyModule(ModuleType):
+    """Module proxy that imports its target on first attribute access."""
+
+    def __init__(self, module_path: str) -> None:
+        super().__init__(module_path)
+        self._module_path = module_path
+
+    def _load(self) -> ModuleType:
+        module = import_module(self._module_path)
+        globals()[self._module_path.rsplit(".", 1)[-1]] = module
+        return module
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._load(), name)
+
+
+# ``reversecore_mcp.resources`` imports these modules at server import time.
+# Keep them as proxies so optional analysis extras are only required when the
+# corresponding resource is actually used.
+_LAZY_RESOURCE_MODULES: Final[dict[str, str]] = {
+    "capa_tools": "reversecore_mcp.tools.analysis.capa_tools",
+    "die_tools": "reversecore_mcp.tools.analysis.die_tools",
+    "lief_tools": "reversecore_mcp.tools.analysis.lief_tools",
+    "static_analysis": "reversecore_mcp.tools.analysis.static_analysis",
+}
+
+for _name, _module_path in _LAZY_RESOURCE_MODULES.items():
+    globals()[_name] = _LazyModule(_module_path)
 
 
 class AnalysisToolsPlugin(Plugin):
@@ -99,4 +133,4 @@ class AnalysisToolsPlugin(Plugin):
         logger.info(f"Registered {self.name} plugin with 27 analysis tools (unified)")
 
 
-__all__ = ["AnalysisToolsPlugin"]
+__all__ = ["AnalysisToolsPlugin", *_LAZY_RESOURCE_MODULES]
