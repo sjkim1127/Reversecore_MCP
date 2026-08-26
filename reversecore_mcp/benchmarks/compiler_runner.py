@@ -75,6 +75,7 @@ class LiveTargetCompilerRunner:
             Path to compiled executable binary, or None if compilation fails.
         """
         # 1. Resolve Clang compiler executable
+        clang_bin: Path | None
         if clang_path:
             clang_bin = Path(clang_path).expanduser().resolve()
         else:
