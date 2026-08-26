@@ -2,303 +2,34 @@ name: Apply security alert remediations
 
 on:
   push:
-    branches: [fix/security-alerts]
+    branches:
+      - "fix/security-alerts"
 
 permissions:
   contents: write
 
 jobs:
   apply:
-    if: github.event.head_commit.message != 'fix: remediate security scanning alerts'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout remediation branch
+        uses: actions/checkout@v7
         with:
-          ref: fix/security-alerts
+          ref: "fix/security-alerts"
           fetch-depth: 0
 
-      - name: Apply focused remediations
-        shell: bash
+      - name: Apply repository patch
+        run: python scripts/apply_security_fixes.py
+
+      - name: Validate generated fixtures and Python syntax
         run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-          import re
-
-          def replace_once(path: str, old: str, new: str) -> None:
-              p = Path(path)
-              text = p.read_text()
-              if old not in text:
-                  raise SystemExit(f"expected text not found in {path}")
-              p.write_text(text.replace(old, new, 1))
-
-          report = Path("reversecore_mcp/tools/report/report_tools.py")
-          text = report.read_text()
-          old = '''    async def get_report(self, report_id: str) -> dict:
-              """Retrieve a generated report"""
-              # Prevent path traversal
-              clean_report_id = Path(report_id).name
-              report_path = self.output_dir / f"{clean_report_id}.md"
-
-              if not report_path.exists():
-                  # 리포트 목록 반환
-                  reports = [f.stem for f in self.output_dir.glob("*.md")]
-                  return {
-                      "success": False,
-                      "error": f"Report not found: {report_id}",
-                      "available_reports": reports,
-                  }
-
-              async with aiofiles.open(report_path, encoding="utf-8") as f:
-                  content = await f.read()
-'''
-          new = '''    async def get_report(self, report_id: str) -> dict:
-              """Retrieve a generated report without deriving a filesystem path from user input."""
-              if (
-                  not report_id
-                  or len(report_id) > 128
-                  or not report_id.isascii()
-                  or not all(ch.isalnum() or ch in "_-" for ch in report_id)
-              ):
-                  return {
-                      "success": False,
-                      "error": "Invalid report ID",
-                      "available_reports": [f.stem for f in self.output_dir.glob("*.md")],
-                  }
-
-              # Build the lookup exclusively from files already contained in output_dir.
-              # report_id is used only as a dictionary key, never as part of a path expression.
-              reports_by_id = {f.stem: f for f in self.output_dir.glob("*.md")}
-              report_path = reports_by_id.get(report_id)
-              if report_path is None:
-                  return {
-                      "success": False,
-                      "error": f"Report not found: {report_id}",
-                      "available_reports": sorted(reports_by_id),
-                  }
-
-              async with aiofiles.open(report_path, encoding="utf-8") as f:
-                  content = await f.read()
-'''
-          if old not in text:
-              raise SystemExit("get_report block not found")
-          report.write_text(text.replace(old, new, 1))
-
-          tests = Path("tests/unit/tools/report/test_report_tools.py")
-          text = tests.read_text()
-          anchor = '''    @pytest.mark.asyncio
-              async def test_list_reports(self, rt):
-'''
-          added = '''    @pytest.mark.asyncio
-              @pytest.mark.parametrize(
-                  "report_id",
-                  ["../secret", "../../etc/passwd", "/tmp/report", "nested/report", "nested\\\\report"],
-              )
-              async def test_get_report_rejects_path_like_ids(self, rt, report_id):
-                  """User-controlled report IDs must never become filesystem paths."""
-                  outside = rt.output_dir.parent / "secret.md"
-                  outside.write_text("sensitive")
-                  result = await rt.get_report(report_id)
-                  assert result["success"] is False
-                  assert result["error"] == "Invalid report ID"
-
-'''
-          # The literals above are indented for YAML; normalize their Python indentation.
-          anchor = anchor.replace("              ", "    ")
-          added = added.replace("              ", "    ")
-          if anchor not in text:
-              raise SystemExit("test insertion anchor not found")
-          tests.write_text(text.replace(anchor, added + anchor, 1))
-
-          gitignore = Path(".gitignore")
-          text = gitignore.read_text()
-          ignore_block = '''
-
-# Generated binary test fixtures (recreated by scripts/generate-ci-fixtures.py)
-/scratch/binaries/
-/tests/fixtures/dummy.bin
-/tests/fixtures/smoke_test_elf
-/tests/fixtures/synthetic_evasion/*.exe
-/tests/fixtures/synthetic_packers/*.exe
-/tests/fixtures/synthetic_packers/synthetic_clean_elf
-/tests/fixtures/workspace/binaries/
-'''
-          if "# Generated binary test fixtures" not in text:
-              gitignore.write_text(text.rstrip() + ignore_block + "\n")
-
-          replace_once("requirements.txt", "pip==26.1.2", "pip==26.2")
-
-          # Restrict default GITHUB_TOKEN permissions. Jobs that publish keep explicit grants.
-          p = Path(".github/workflows/main.yml")
-          text = p.read_text()
-          if "\npermissions: read-all\n" not in text:
-              text = text.replace(
-                  "\n# ── Computed globals",
-                  "\npermissions: read-all\n\n# ── Computed globals",
-                  1,
-              )
-          text, count = re.subn(
-              r"(docker-verification:\n.*?permissions:\n\s+contents: read\n\s+)packages: write",
-              r"\1packages: read",
-              text,
-              count=1,
-              flags=re.S,
-          )
-          if count != 1:
-              raise SystemExit("docker-verification package permission block not found")
-          # Ensure generated fixtures are available before the Docker build context is consumed.
-          marker = "      - name: Build app Docker image\n"
-          if "Generate repository test fixtures" not in text:
-              text = text.replace(
-                  marker,
-                  "      - name: Generate repository test fixtures\n        run: python3 scripts/generate-ci-fixtures.py\n\n" + marker,
-                  1,
-              )
-          p.write_text(text)
-
-          for workflow, marker in [
-              (".github/workflows/release.yml", "concurrency:"),
-              (".github/workflows/pages.yml", "jobs:"),
-              (".github/workflows/nightly-fuzz.yml", "jobs:"),
-          ]:
-              p = Path(workflow)
-              text = p.read_text()
-              if "\npermissions: read-all\n" not in text:
-                  text = text.replace(f"\n{marker}", f"\npermissions: read-all\n\n{marker}", 1)
-              p.write_text(text)
-
-          conftest = Path("tests/conftest.py")
-          text = conftest.read_text()
-          old_import = "import subprocess  # noqa: E402\n\nimport pytest  # noqa: E402\n"
-          new_import = '''import subprocess  # noqa: E402
-          import sys  # noqa: E402
-
-          # Binary fixtures are generated from source instead of committed to Git.
-          _repo_root = Path(__file__).resolve().parent.parent
-          subprocess.run(
-              [sys.executable, str(_repo_root / "scripts" / "generate-ci-fixtures.py")],
-              cwd=_repo_root,
-              check=True,
-          )
-
-          import pytest  # noqa: E402
-          '''.replace("          ", "")
-          if "generate-ci-fixtures.py" not in text:
-              if old_import not in text:
-                  raise SystemExit("conftest import anchor not found")
-              text = text.replace(old_import, new_import, 1)
-              # pathlib is required by the generated-fixture bootstrap.
-              text = text.replace("import tempfile\n", "import tempfile\nfrom pathlib import Path\n", 1)
-          conftest.write_text(text)
-
-          generator = Path("scripts/generate-ci-fixtures.py")
-          generator.write_text('''#!/usr/bin/env python3
-          """Recreate deterministic binary fixtures from source during tests/CI."""
-
-          from __future__ import annotations
-
-          import base64
-          import runpy
-          import subprocess
-          import sys
-          from pathlib import Path
-
-          ROOT = Path(__file__).resolve().parent.parent
-          FIXTURES = ROOT / "tests" / "fixtures"
-          SMOKE_ELF_B64 = (
-              "f0VMRgIBAQAAAAAAAAAAAAIAPgABAAAAeABAAAAAAABAAAAAAAAAAAAAAAAA"
-              "AAAAAAAAAEAAOAABAEAAAAAAAAEAAAAFAAAAAAAAAAAAAAAAAEAAAAAAAAAA"
-              "QAAAAAAAhAAAAAAAAACEAAAAAAAAAAAQAAAAAAAASMfAPAAAAEgx/w8F"
-          )
-
-          def main() -> None:
-              smoke = FIXTURES / "smoke_test_elf"
-              smoke.write_bytes(base64.b64decode(SMOKE_ELF_B64))
-              smoke.chmod(0o755)
-
-              packers = runpy.run_path(str(FIXTURES / "synthetic_packers" / "generate_fixtures.py"))
-              packers["generate_all_fixtures"]()
-
-              evasion = runpy.run_path(str(FIXTURES / "synthetic_evasion" / "generate_fixtures.py"))
-              evasion["generate_fixtures"](FIXTURES / "synthetic_evasion")
-
-              binaries = FIXTURES / "workspace" / "binaries"
-              if not (binaries / "hello_x64").exists():
-                  subprocess.run(
-                      [sys.executable, str(ROOT / "scripts" / "fetch_test_binaries.py")],
-                      cwd=ROOT,
-                      check=True,
-                  )
-
-              pe_dir = binaries / "pe"
-              if not (pe_dir / "minimal_x86.exe").exists() or not (pe_dir / "minimal_x64.exe").exists():
-                  pe = runpy.run_path(str(ROOT / "scripts" / "generate-pe-and-large-binaries.py"))
-                  pe["PEBinaryGenerator"]().generate_all_pe_binaries()
-
-          if __name__ == "__main__":
-              main()
-          '''.replace("          ", ""))
-          generator.chmod(0o755)
-
-          scorecard = Path("scorecard.yml")
-          scorecard.write_text('''# Maintainer context for checks whose remaining signal is intentional.
-          annotations:
-            - checks:
-                - code-review
-              reasons:
-                - reason: not-applicable # Sole-maintainer workflow; self-approval would not add security value.
-            - checks:
-                - token-permissions
-              reasons:
-                - reason: remediated # Default token is read-only; release creation still requires contents: write.
-            - checks:
-                - vulnerabilities
-              reasons:
-                - reason: not-applicable # angr hard-pins Capstone 5.0.6; the advisory requires CAPSTONE_X86_REDUCE, unlike PyPI wheels.
-          '''.replace("          ", ""))
-          PY
-
-          # Remove generated binary artifacts from source control. They are recreated by the generator.
-          binary_paths=(
-            scratch/binaries/hello_x64
-            tests/fixtures/dummy.bin
-            tests/fixtures/smoke_test_elf
-            tests/fixtures/synthetic_evasion/clean_reference.exe
-            tests/fixtures/synthetic_evasion/synthetic_combined_evasion.exe
-            tests/fixtures/synthetic_evasion/synthetic_cpuid_vm.exe
-            tests/fixtures/synthetic_evasion/synthetic_opaque_seh.exe
-            tests/fixtures/synthetic_evasion/synthetic_peb_debug.exe
-            tests/fixtures/synthetic_evasion/synthetic_rdtsc_timing.exe
-            tests/fixtures/synthetic_packers/synthetic_authenticode.exe
-            tests/fixtures/synthetic_packers/synthetic_clean_elf
-            tests/fixtures/synthetic_packers/synthetic_clean_pe.exe
-            tests/fixtures/synthetic_packers/synthetic_confuserex.exe
-            tests/fixtures/synthetic_packers/synthetic_pyinstaller.exe
-            tests/fixtures/synthetic_packers/synthetic_upx.exe
-            tests/fixtures/synthetic_packers/synthetic_vmprotect.exe
-            tests/fixtures/workspace/binaries/hello_x64
-            tests/fixtures/workspace/binaries/hello_x64_stripped
-            tests/fixtures/workspace/binaries/pe/mingw_x86.exe
-            tests/fixtures/workspace/binaries/pe/minimal_x64.exe
-            tests/fixtures/workspace/binaries/pe/minimal_x86.exe
-            tests/fixtures/workspace/binaries/pie_x64
-            tests/fixtures/workspace/binaries/vuln_x64
-            tests/fixtures/workspace/binaries/vuln_x64_stripped
-          )
-          for path in "${binary_paths[@]}"; do
-            if git ls-files --error-unmatch "$path" >/dev/null 2>&1; then
-              git rm -f "$path"
-            fi
-          done
-
-          rm .github/workflows/apply-security-fixes.yml
-
-          # Validate the focused Python changes before committing.
           python scripts/generate-ci-fixtures.py
           python -m compileall -q reversecore_mcp/tools/report/report_tools.py tests/conftest.py scripts/generate-ci-fixtures.py
 
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+      - name: Commit remediation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m 'fix: remediate security scanning alerts'
+          git commit -m "fix: remediate security scanning alerts"
           git push origin HEAD:fix/security-alerts
