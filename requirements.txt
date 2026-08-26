@@ -418,7 +418,7 @@ pillow==12.3.0
     #   reportlab
     #   svglib
     #   xhtml2pdf
-pip==26.1.2
+pip==26.2
     # via
     #   ida-hcli
     #   pip-tools

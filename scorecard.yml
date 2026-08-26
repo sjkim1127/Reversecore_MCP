@@ -1,0 +1,14 @@
+# Maintainer context for checks whose remaining signal is intentional.
+annotations:
+  - checks:
+      - code-review
+    reasons:
+      - reason: not-applicable # Sole-maintainer workflow; self-approval adds no security value.
+  - checks:
+      - token-permissions
+    reasons:
+      - reason: remediated # Default token is read-only; release creation still needs contents: write.
+  - checks:
+      - vulnerabilities
+    reasons:
+      - reason: not-applicable # angr pins Capstone 5.0.6; the CVE requires CAPSTONE_X86_REDUCE, unlike PyPI wheels.
