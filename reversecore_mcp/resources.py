@@ -4,7 +4,7 @@ from collections import deque
 from collections.abc import Callable
 from functools import wraps
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from fastmcp import FastMCP
 
@@ -190,14 +190,14 @@ def _get_workspace_path(filename: str) -> str:
     return str(resolved_path)
 
 
-def _register_resource(mcp: FastMCP, uri: str, mime_type: str | None = None) -> Any:
-    """Register resource with FastMCP, gracefully handling mocks without kwargs."""
+def _register_resource(mcp: FastMCP, uri: str, mime_type: str | None = None) -> DecoratorType:
+    """Register resource with FastMCP while preserving the wrapped callable type."""
     try:
         if mime_type is not None:
-            return mcp.resource(uri, mime_type=mime_type)
-        return mcp.resource(uri)
+            return cast(DecoratorType, mcp.resource(uri, mime_type=mime_type))
+        return cast(DecoratorType, mcp.resource(uri))
     except TypeError:
-        return mcp.resource(uri)
+        return cast(DecoratorType, mcp.resource(uri))
 
 
 def register_resources(mcp: FastMCP):
