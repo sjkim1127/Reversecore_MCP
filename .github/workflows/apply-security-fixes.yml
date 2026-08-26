@@ -19,7 +19,7 @@ jobs:
           fetch-depth: 0
 
       - name: Apply repository patch
-        run: python scripts/apply_security_fixes.py
+        run: python scripts/apply_nonworkflow_security_fixes.py
 
       - name: Validate generated fixtures and Python syntax
         run: |
