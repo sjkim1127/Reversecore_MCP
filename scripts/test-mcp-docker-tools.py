@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL", "http://127.0.0.1:8000/mcp/sse")
+MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL", "http://127.0.0.1:8000/mcp")
 REQUIRED_TOOLS = frozenset(
     {
         "get_server_health",
@@ -79,7 +79,7 @@ async def main() -> int:
     """Connect to the server and prove registry and core tools actually work."""
     try:
         from mcp import ClientSession
-        from mcp.client.sse import sse_client
+        from mcp.client.streamable_http import streamable_http_client
     except ImportError as exc:
         print(f"❌ mcp library is required for E2E verification: {exc}")
         return 1
@@ -90,7 +90,7 @@ async def main() -> int:
         if not strings_target.is_file():
             raise FileNotFoundError(f"Missing strings fixture: {strings_target}")
 
-        async with sse_client(MCP_SERVER_URL) as (read, write):
+        async with streamable_http_client(MCP_SERVER_URL) as (read, write, _):
             async with ClientSession(read, write) as session:
                 await session.initialize()
 
