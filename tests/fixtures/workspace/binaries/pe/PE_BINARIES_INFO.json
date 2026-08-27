@@ -8,11 +8,5 @@
     "size": 160,
     "arch": "x64",
     "path": "tests/fixtures/workspace/binaries/pe/minimal_x64.exe"
-  },
-  "mingw_x86.exe": {
-    "size": 124616,
-    "arch": "x86",
-    "path": "tests/fixtures/workspace/binaries/pe/mingw_x86.exe",
-    "compiler": "MinGW"
   }
 }

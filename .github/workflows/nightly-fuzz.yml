@@ -6,6 +6,8 @@ on:
     - cron: '0 0 * * *'
   workflow_dispatch: # Allow manual trigger
 
+permissions: read-all
+
 jobs:
   deep-fuzz:
     name: Hypothesis Deep Fuzz (DAST)

@@ -319,6 +319,19 @@ class TestReportGeneration:
         assert "not found" in result["error"].lower()
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "report_id",
+        ["../secret", "../../etc/passwd", "/tmp/report", "nested/report", "nested\\report"],
+    )
+    async def test_get_report_rejects_path_like_ids(self, rt, report_id):
+        """Path-like report IDs must never be interpreted as filesystem paths."""
+        outside = rt.output_dir.parent / "secret.md"
+        outside.write_text("sensitive")
+        result = await rt.get_report(report_id)
+        assert result["success"] is False
+        assert result["error"] == "Invalid report ID"
+
+    @pytest.mark.asyncio
     async def test_list_reports(self, rt):
         """Should list generated reports."""
         template = rt.template_dir / "full_analysis.md"

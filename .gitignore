@@ -57,3 +57,13 @@ site/
 docs/test-results/
 /workspace/
 .agents/
+
+# Generated binary test fixtures (recreated by scripts/generate-ci-fixtures.py)
+/scratch/binaries/
+/tests/fixtures/dummy.bin
+/tests/fixtures/smoke_test_elf
+/tests/fixtures/synthetic_evasion/*.exe
+/tests/fixtures/synthetic_packers/*.exe
+/tests/fixtures/synthetic_packers/synthetic_clean_elf
+/tests/fixtures/workspace/binaries/
+

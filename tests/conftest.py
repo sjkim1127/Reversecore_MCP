@@ -3,6 +3,7 @@
 import os
 import shutil
 import tempfile
+from pathlib import Path
 
 # Set up test environment variables BEFORE importing reversecore_mcp modules
 # This is required because some modules initialize config at import time
@@ -26,6 +27,15 @@ os.environ["GHIDRA_PROJECT_PATH"] = _test_ghidra_project
 
 # These imports must come after env vars are set due to module-level config loading
 import subprocess  # noqa: E402
+import sys  # noqa: E402
+
+# Generated binary fixtures are recreated from source for clean clones and CI.
+_repo_root = Path(__file__).resolve().parent.parent
+subprocess.run(
+    [sys.executable, str(_repo_root / "scripts" / "generate-ci-fixtures.py")],
+    cwd=_repo_root,
+    check=True,
+)
 
 import pytest  # noqa: E402
 
