@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 BASE_URL = os.environ.get("MCP_HTTP_BASE_URL", "http://127.0.0.1:8000")
-MCP_SSE_URL = os.environ.get("MCP_SERVER_URL", f"{BASE_URL}/mcp/sse")
+MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL", f"{BASE_URL}/mcp")
 WORKSPACE = Path(os.environ.get("REVERSECORE_WORKSPACE", "/app/workspace")).resolve()
 
 
@@ -182,7 +182,7 @@ async def test_e2e() -> int:
     """Run deterministic workspace/upload and analysis flows with strict assertions."""
     try:
         from mcp import ClientSession
-        from mcp.client.sse import sse_client
+        from mcp.client.streamable_http import streamable_http_client
     except ImportError as exc:
         print(f"❌ mcp library is required for E2E verification: {exc}")
         return 1
@@ -207,7 +207,7 @@ async def test_e2e() -> int:
         else:
             raise AssertionError(f"Unexpected /upload response: HTTP {upload_status}")
 
-        async with sse_client(MCP_SSE_URL) as (read, write):
+        async with streamable_http_client(MCP_SERVER_URL) as (read, write, _):
             async with ClientSession(read, write) as session:
                 await session.initialize()
 
