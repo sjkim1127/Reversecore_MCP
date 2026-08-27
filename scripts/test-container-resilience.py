@@ -10,7 +10,7 @@ import time
 import urllib.request
 
 HEALTH_URL = os.environ.get("HEALTH_URL", "http://127.0.0.1:8000/health")
-MCP_SSE_URL = os.environ.get("MCP_SERVER_URL", "http://127.0.0.1:8000/mcp/sse")
+MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL", "http://127.0.0.1:8000/mcp")
 HEALTH_REQUESTS = 20
 MCP_SESSIONS = 3
 MAX_HEALTH_LATENCY_SECONDS = 2.0
@@ -38,9 +38,9 @@ async def concurrent_health_checks() -> tuple[int, int]:
 async def mcp_session_probe(index: int) -> int:
     """Open an independent MCP session and list registered tools."""
     from mcp import ClientSession
-    from mcp.client.sse import sse_client
+    from mcp.client.streamable_http import streamable_http_client
 
-    async with sse_client(MCP_SSE_URL) as (read, write):
+    async with streamable_http_client(MCP_SERVER_URL) as (read, write, _):
         async with ClientSession(read, write) as session:
             await session.initialize()
             tools = await session.list_tools()
