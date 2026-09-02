@@ -520,7 +520,7 @@ pyparsing==3.3.2
     # via matplotlib
 pypcode==3.3.3
     # via angr
-pypdf==6.15.0
+pypdf==6.16.1
     # via xhtml2pdf
 pyperclip==1.11.0
     # via fastmcp-slim
