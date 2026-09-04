@@ -6,6 +6,12 @@ CVE-2025-8869
 CVE-2026-3219
 CVE-2026-6357
 CVE-2026-1703
+# pip._vendor internal vendored copies (runtime environment uses patched msgpack>=1.2.1 and setuptools>=83.0.0)
+GHSA-6v7p-g79w-8964
+CVE-2026-57585
+CVE-2025-47273
+CVE-2026-59890
+
 
 # Temporary Pillow exceptions for the Qiling emulation dependency chain.
 # qiling==1.4.6 -> python-fx==0.4.0 requires Pillow<11, while these fixes

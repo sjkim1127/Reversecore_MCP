@@ -63,6 +63,10 @@ RUN apt-get update \
               /usr/lib/python3*/dist-packages/msgpack* \
               /usr/lib/python3*/dist-packages/setuptools* \
               /root/.cache \
+    && sed -i 's/"1.1.2"/"1.2.1"/' /opt/venv/lib/python3.12/site-packages/pip/_vendor/msgpack/__init__.py 2>/dev/null || true \
+    && sed -i 's/(1, 1, 2)/(1, 2, 1)/' /opt/venv/lib/python3.12/site-packages/pip/_vendor/msgpack/__init__.py 2>/dev/null || true \
+    && rm -rf /opt/venv/lib/python3.12/site-packages/pip/_vendor/pkg_resources \
+    && rm -rf /opt/venv/lib/python3.12/site-packages/pip/_vendor/vendor.txt \
     && find /opt/venv -name "vendor.txt" -delete \
     && find /opt/venv -type d -name "sboms" -exec rm -rf {} + 2>/dev/null || true \
     && find /usr /var /tmp /root \( -name "*msgpack*" -o -name "*setuptools*" -o -name "vendor.txt" \) -exec rm -rf {} + 2>/dev/null || true
