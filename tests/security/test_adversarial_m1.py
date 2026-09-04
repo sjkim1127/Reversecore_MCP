@@ -8,6 +8,7 @@ Verifies:
 
 from __future__ import annotations
 
+import asyncio
 import urllib.parse
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -202,7 +203,12 @@ class TestDynamicResourceAdversarialRead:
         ]
 
         for uri in traversal_uris:
-            res = await mcp._resource_manager.read_resource(uri)
+            if hasattr(mcp, "read_resource"):
+                res = await mcp.read_resource(uri)
+            elif hasattr(mcp, "_resource_manager"):
+                res = await mcp._resource_manager.read_resource(uri)
+            else:
+                raise AttributeError("No resource reader available on FastMCP instance")
             res_str = str(res)
             # Must return error and not leak /etc/passwd contents (root:x:0:0)
             assert "root:x:0:0" not in res_str
@@ -212,10 +218,20 @@ class TestDynamicResourceAdversarialRead:
 class TestResourceMimeTypesMetadata:
     """Verify that registered resources specify appropriate MIME types."""
 
-    def test_registered_resource_mime_types(self):
+    @pytest.mark.asyncio
+    async def test_registered_resource_mime_types(self):
         """Verify static resources and templates have defined MIME types."""
         # Check static resources
-        static_resources = mcp._resource_manager._resources
+        if hasattr(mcp, "list_resources"):
+            r = mcp.list_resources()
+            if asyncio.iscoroutine(r):
+                r = await r
+            static_resources = {str(item.uri): item for item in r}
+        elif hasattr(mcp, "_resource_manager") and hasattr(mcp._resource_manager, "_resources"):
+            static_resources = mcp._resource_manager._resources
+        else:
+            static_resources = {}
+
         expected_static_mimes = {
             "reversecore://guide": "text/markdown",
             "reversecore://guide/structures": "text/markdown",
@@ -231,8 +247,16 @@ class TestResourceMimeTypesMetadata:
             )
 
         # Check resource templates
-        templates = mcp._resource_manager._templates.values()
-        template_uris = {t.uri_template: t.mime_type for t in templates}
+        if hasattr(mcp, "list_resource_templates"):
+            t = mcp.list_resource_templates()
+            if asyncio.iscoroutine(t):
+                t = await t
+            template_uris = {str(item.uri_template): item.mime_type for item in t}
+        elif hasattr(mcp, "_resource_manager") and hasattr(mcp._resource_manager, "_templates"):
+            templates = mcp._resource_manager._templates.values()
+            template_uris = {t.uri_template: t.mime_type for t in templates}
+        else:
+            template_uris = {}
 
         expected_template_mimes = {
             "reversecore://{filename}/strings": "text/markdown",

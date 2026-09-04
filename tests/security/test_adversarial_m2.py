@@ -12,6 +12,7 @@ Verifies:
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -765,8 +766,17 @@ class TestFastMCPWireLevelResourceDispatch:
     @pytest.mark.asyncio
     async def test_all_dynamic_and_static_uris_registered_on_server_mcp(self):
         """Verify all Milestone 2 resource URI templates are present on the server MCP instance."""
-        # Read static resources from mcp._resource_manager
-        static_keys = set(mcp._resource_manager._resources.keys())
+        # Read static resources from server.mcp
+        if hasattr(mcp, "list_resources"):
+            r = mcp.list_resources()
+            if asyncio.iscoroutine(r):
+                r = await r
+            static_keys = {str(item.uri) for item in r}
+        elif hasattr(mcp, "_resource_manager") and hasattr(mcp._resource_manager, "_resources"):
+            static_keys = set(mcp._resource_manager._resources.keys())
+        else:
+            static_keys = set()
+
         expected_statics = {
             "reversecore://guide",
             "reversecore://guide/structures",
@@ -776,8 +786,17 @@ class TestFastMCPWireLevelResourceDispatch:
         for expected in expected_statics:
             assert expected in static_keys, f"Static resource {expected} missing from server.mcp"
 
-        # Read template URIs from mcp._resource_manager
-        template_uris = {t.uri_template for t in mcp._resource_manager._templates.values()}
+        # Read template URIs from server.mcp
+        if hasattr(mcp, "list_resource_templates"):
+            t = mcp.list_resource_templates()
+            if asyncio.iscoroutine(t):
+                t = await t
+            template_uris = {str(item.uri_template) for item in t}
+        elif hasattr(mcp, "_resource_manager") and hasattr(mcp._resource_manager, "_templates"):
+            template_uris = {t.uri_template for t in mcp._resource_manager._templates.values()}
+        else:
+            template_uris = set()
+
         expected_templates = {
             "reversecore://{filename}/metadata",
             "reversecore://{filename}/info",
@@ -820,7 +839,12 @@ class TestFastMCPWireLevelResourceDispatch:
         ]
 
         for uri in test_uris:
-            res = await mcp._resource_manager.read_resource(uri)
+            if hasattr(mcp, "read_resource"):
+                res = await mcp.read_resource(uri)
+            elif hasattr(mcp, "_resource_manager"):
+                res = await mcp._resource_manager.read_resource(uri)
+            else:
+                raise AttributeError("No resource reader available on FastMCP instance")
             assert res is not None
             res_content = str(res)
             # Token estimate: approx 4 chars per token -> must not exceed 25,000 tokens (100k chars)
