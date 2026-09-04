@@ -279,6 +279,25 @@ jobs:
             -t reversecore-mcp:ci .
           echo "✅ Docker image built: reversecore-mcp:ci"
 
+      - name: Debug locate vulnerable packages
+        run: |
+          echo "=== Locate files in container ==="
+          docker run --rm reversecore-mcp:ci find / -name "*msgpack*" -o -name "*setuptools*" 2>/dev/null || true
+          echo "=== Save image layers and inspect ==="
+          docker save reversecore-mcp:ci -o /tmp/img.tar
+          mkdir -p /tmp/img_layers
+          tar -xf /tmp/img.tar -C /tmp/img_layers
+          for f in $(find /tmp/img_layers -name "*.tar"); do
+            match=$(tar -tf "$f" 2>/dev/null | grep -E "(msgpack-1\.1\.2|setuptools-70)" || true)
+            if [ -n "$match" ]; then
+              echo ">>> Found in layer $f:"
+              echo "$match"
+            fi
+          done
+          echo "=== Trivy JSON Target Analysis ==="
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --format json reversecore-mcp:ci > /tmp/trivy.json || true
+          jq -r '.Results[]? | select(.Vulnerabilities != null) | "TARGET: " + .Target, (.Vulnerabilities[] | "  - " + .PkgName + " " + .InstalledVersion + " (" + .VulnerabilityID + ")")' /tmp/trivy.json || true
+
       - name: Run Trivy container security scan
         uses: aquasecurity/trivy-action@master
         with:
