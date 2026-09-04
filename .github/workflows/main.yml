@@ -825,7 +825,7 @@ jobs:
       - name: Copy fixture binary into container
         run: |
           mkdir -p ${{ github.workspace }}/workspace tests/fixtures
-          python3 -c "import base64, pathlib; p = pathlib.Path('tests/fixtures/smoke_test_elf'); p.write_bytes(base64.b64decode('f0VMRgIBAQAAAAAAAAAAAAIAPgABAAAAeABAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAOAABAEAAAAAAAAEAAAAFAAAAAAAAAAAAAAAAAEAAAAAAAAAAQAAAAAAAhAAAAAAAAACEAAAAAAAAAAAQAAAAAAAASMfAPAAAAEgx/w8F')); p.chmod(0o755)"
+          python3 -c "import runpy, pathlib, base64; mod = runpy.run_path('scripts/generate-ci-fixtures.py'); p = pathlib.Path('tests/fixtures/smoke_test_elf'); p.write_bytes(base64.b64decode(mod['SMOKE_ELF_B64'])); p.chmod(0o755)"
           docker cp tests/fixtures/smoke_test_elf mcp-smoke:/app/workspace/smoke_test_elf
           echo "Fixture copied into container workspace"
 

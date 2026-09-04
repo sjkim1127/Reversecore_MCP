@@ -398,19 +398,20 @@ def setup_fixture() -> bool:
     if not FIXTURE_SRC.exists():
         try:
             import base64
+            import runpy
 
-            smoke_b64 = (
-                "f0VMRgIBAQAAAAAAAAAAAAIAPgABAAAAeABAAAAAAABAAAAAAAAAAAAAAAAA"
-                "AAAAAAAAAEAAOAABAEAAAAAAAAEAAAAFAAAAAAAAAAAAAAAAAEAAAAAAAAAA"
-                "QAAAAAAAhAAAAAAAAACEAAAAAAAAAAAQAAAAAAAASMfAPAAAAEgx/w8F"
-            )
-            FIXTURE_DEST.write_bytes(base64.b64decode(smoke_b64))
+            gen_path = APP_DIR / "scripts" / "generate-ci-fixtures.py"
+            if not gen_path.exists():
+                gen_path = Path(__file__).resolve().parent / "generate-ci-fixtures.py"
+            mod = runpy.run_path(str(gen_path))
+            smoke_bytes = base64.b64decode(mod["SMOKE_ELF_B64"])
+            FIXTURE_DEST.write_bytes(smoke_bytes)
             try:
                 os.chmod(FIXTURE_DEST, 0o755)
             except PermissionError:
                 pass
             print(
-                f"  {DIM}Created fixture from embedded ELF at {FIXTURE_DEST}  ({FIXTURE_DEST.stat().st_size} bytes){RESET}"
+                f"  {DIM}Created fixture from generate-ci-fixtures.py at {FIXTURE_DEST}  ({FIXTURE_DEST.stat().st_size} bytes){RESET}"
             )
             return True
         except Exception as e:
