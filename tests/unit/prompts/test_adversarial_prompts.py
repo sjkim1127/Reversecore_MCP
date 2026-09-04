@@ -311,24 +311,39 @@ class TestFastMCPPromptRegistrationAndIntrospection:
 
     @pytest.mark.asyncio
     async def test_fastmcp_extra_unexpected_arguments(self, server):
-        """Verify prompt rendering type-safety when unexpected extra arguments are passed."""
-        with pytest.raises((PromptError, Exception)):
-            await _render_prompt_compat(
+        """Verify prompt rendering handles unexpected extra arguments safely."""
+        try:
+            res = await _render_prompt_compat(
                 server,
                 "vulnerability_triage_mode",
                 {"crash_log": "sample_crash", "unexpected_extra_key": "injected_val"},
             )
+            # FastMCP 3+ safely filters/ignores extra unexpected keys
+            assert res is not None
+            assert len(res.messages) >= 1
+        except Exception as e:
+            # FastMCP 2 raises PromptError for unexpected keys
+            assert "unexpected" in str(e).lower() or isinstance(e, PromptError)
 
     @pytest.mark.asyncio
     async def test_fastmcp_type_coercion_non_string_arguments(self, server):
         """Verify non-string values passed as arguments (int, bool, float)."""
-        # Testing integer coercion/stringification
-        rendered_int = await _render_prompt_compat(
-            server, "exploit_analysis_mode", {"filename": 12345}
-        )
-        assert "12345" in rendered_int.messages[0].content.text
+        import pydantic
 
-        rendered_bool = await _render_prompt_compat(
-            server, "malware_deobfuscation_mode", {"filename": True}
-        )
-        assert "True" in rendered_bool.messages[0].content.text
+        # Testing integer argument handling: FastMCP 3 validates strictly (ValidationError),
+        # while FastMCP 2 coerces or allows rendering.
+        try:
+            rendered_int = await _render_prompt_compat(
+                server, "exploit_analysis_mode", {"filename": 12345}
+            )
+            assert "12345" in rendered_int.messages[0].content.text
+        except (pydantic.ValidationError, TypeError) as e:
+            assert "filename" in str(e) or "string" in str(e).lower()
+
+        try:
+            rendered_bool = await _render_prompt_compat(
+                server, "malware_deobfuscation_mode", {"filename": True}
+            )
+            assert "True" in rendered_bool.messages[0].content.text
+        except (pydantic.ValidationError, TypeError) as e:
+            assert "filename" in str(e) or "string" in str(e).lower()
