@@ -50,10 +50,17 @@ COPY requirements-runtime.txt ./
 RUN apt-get update \
     && apt-get install -y --no-install-recommends --only-upgrade curl libcurl3-gnutls libcurl4 libgraphite2-3 liblzma5 xz-utils libgd3 \
     && apt-get install -y --no-install-recommends gcc g++ make python3-dev libc-dev \
-    && pip install --no-cache-dir --upgrade pip "setuptools>=83.0.0" "msgpack>=1.2.1" \
-    && pip install --no-cache-dir -r requirements-runtime.txt \
+    && /opt/venv/bin/pip install --no-cache-dir --upgrade "pip>=26.2.0" "setuptools>=83.0.0" "msgpack>=1.2.1" \
+    && /opt/venv/bin/pip install --no-cache-dir -r requirements-runtime.txt \
     && apt-get purge -y --auto-remove gcc g++ make python3-dev libc-dev \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /usr/local/lib/python3.12/site-packages/pip* \
+              /usr/local/lib/python3.12/site-packages/setuptools* \
+              /usr/local/lib/python3.12/site-packages/msgpack* \
+              /root/.cache \
+    && find / -name "*msgpack-1.1*" -exec rm -rf {} + 2>/dev/null || true \
+    && find / -name "*pip-26.1*" -exec rm -rf {} + 2>/dev/null || true \
+    && find / -name "*setuptools-70*" -exec rm -rf {} + 2>/dev/null || true
 
 # Application source (invalidates on every code change)
 COPY scripts/            ./scripts/
