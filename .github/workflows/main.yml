@@ -214,6 +214,7 @@ jobs:
           printf '\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00\x01\x00\x00\x00' > tests/fixtures/workspace/sample.elf
           # Pre-populate YARA rules directory (mirrors the unit-and-integration-tests job)
           python3 scripts/generate-ci-yara-rules.py
+          python3 scripts/generate-ci-fixtures.py
           echo "✅ YARA baseline rule created"
 
       - name: Cache test binaries
@@ -429,8 +430,9 @@ jobs:
             exit 1
           fi
 
-          echo "🔑 Adjusting workspace permissions inside container..."
-          docker exec -u root mcp-ci-test chown -R appuser:appuser /app/workspace
+          echo "🔑 Adjusting container permissions inside container..."
+          docker exec -u root mcp-ci-test chown -R appuser:appuser /app /tmp
+          docker exec -u root mcp-ci-test chmod -R 777 /app/tests /app/workspace /app/rules
 
           # Install diec (Detect It Easy CLI) inside the container
           echo "📦 Installing Detect It Easy CLI (diec) inside container..."
@@ -455,6 +457,10 @@ jobs:
           echo "📋 Installing python dev dependencies and optional tools inside container..."
           docker exec -u root mcp-ci-test /opt/venv/bin/pip install -r /app/requirements-dev.txt
           docker exec -u root mcp-ci-test /opt/venv/bin/pip install angr qiling flare-capa
+
+          echo "🔑 Adjusting file permissions for tests inside container..."
+          docker exec -u root mcp-ci-test chown -R appuser:appuser /app /tmp
+          docker exec -u root mcp-ci-test chmod -R 777 /app/tests /app/workspace /app/rules
 
           echo "🧪 Running real binary integration tests inside container..."
           docker exec mcp-ci-test /opt/venv/bin/pytest /app/tests/integration/test_mcp_real_binary_tools.py -v --tb=short

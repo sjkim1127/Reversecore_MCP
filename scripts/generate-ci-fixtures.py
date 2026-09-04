@@ -20,14 +20,24 @@ SMOKE_ELF_B64 = (
 
 def main() -> None:
     smoke = FIXTURES / "smoke_test_elf"
-    smoke.write_bytes(base64.b64decode(SMOKE_ELF_B64))
-    smoke.chmod(0o755)
+    try:
+        smoke.write_bytes(base64.b64decode(SMOKE_ELF_B64))
+        smoke.chmod(0o755)
+    except PermissionError:
+        if not smoke.exists():
+            raise
 
-    packers = runpy.run_path(str(FIXTURES / "synthetic_packers" / "generate_fixtures.py"))
-    packers["generate_all_fixtures"]()
+    try:
+        packers = runpy.run_path(str(FIXTURES / "synthetic_packers" / "generate_fixtures.py"))
+        packers["generate_all_fixtures"]()
+    except PermissionError:
+        pass
 
-    evasion = runpy.run_path(str(FIXTURES / "synthetic_evasion" / "generate_fixtures.py"))
-    evasion["generate_fixtures"](FIXTURES / "synthetic_evasion")
+    try:
+        evasion = runpy.run_path(str(FIXTURES / "synthetic_evasion" / "generate_fixtures.py"))
+        evasion["generate_fixtures"](FIXTURES / "synthetic_evasion")
+    except PermissionError:
+        pass
 
     binaries = FIXTURES / "workspace" / "binaries"
     if not (binaries / "hello_x64").exists():
