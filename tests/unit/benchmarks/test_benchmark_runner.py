@@ -109,10 +109,16 @@ class TestBenchmarkRunner:
             "minimized_input_size_bytes": 10,
         }
 
-        with patch(
-            "reversecore_mcp.tools.cve_hunter.cve_hunter_tools.hunt_cve_vulnerabilities",
-            new_callable=AsyncMock,
-        ) as mock_hunt:
+        with (
+            patch(
+                "reversecore_mcp.tools.cve_hunter.cve_hunter_tools.hunt_cve_vulnerabilities",
+                new_callable=AsyncMock,
+            ) as mock_hunt,
+            patch(
+                "reversecore_mcp.benchmarks.runner.detect_capabilities",
+                return_value=MagicMock(live_fuzzing_ready=True),
+            ),
+        ):
             mock_hunt.return_value = mock_tool_result
             res = await runner.run_target(target)
 
@@ -126,10 +132,16 @@ class TestBenchmarkRunner:
         runner = BenchmarkRunner(corpus_dir="tests/fixtures/benchmarks", mock_mode=False)
         target = runner.corpus_loader.load_corpus()[0]
 
-        with patch(
-            "reversecore_mcp.tools.cve_hunter.cve_hunter_tools.hunt_cve_vulnerabilities",
-            new_callable=AsyncMock,
-        ) as mock_hunt:
+        with (
+            patch(
+                "reversecore_mcp.tools.cve_hunter.cve_hunter_tools.hunt_cve_vulnerabilities",
+                new_callable=AsyncMock,
+            ) as mock_hunt,
+            patch(
+                "reversecore_mcp.benchmarks.runner.detect_capabilities",
+                return_value=MagicMock(live_fuzzing_ready=True),
+            ),
+        ):
             mock_hunt.side_effect = RuntimeError("Clang compilation failed")
             res = await runner.run_target(target)
 
@@ -147,10 +159,16 @@ class TestBenchmarkRunner:
         )
         target = runner.corpus_loader.load_corpus()[0]
 
-        with patch(
-            "reversecore_mcp.tools.cve_hunter.cve_hunter_tools.hunt_cve_vulnerabilities",
-            new_callable=AsyncMock,
-        ) as mock_hunt:
+        with (
+            patch(
+                "reversecore_mcp.tools.cve_hunter.cve_hunter_tools.hunt_cve_vulnerabilities",
+                new_callable=AsyncMock,
+            ) as mock_hunt,
+            patch(
+                "reversecore_mcp.benchmarks.runner.detect_capabilities",
+                return_value=MagicMock(live_fuzzing_ready=True),
+            ),
+        ):
             mock_hunt.side_effect = asyncio.TimeoutError()
             res = await runner.run_target(target)
 

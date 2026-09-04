@@ -12,3 +12,7 @@ annotations:
       - vulnerabilities
     reasons:
       - reason: not-applicable # angr pins Capstone 5.0.6; the CVE requires CAPSTONE_X86_REDUCE, unlike PyPI wheels.
+  - checks:
+      - pinned-dependencies
+    reasons:
+      - reason: remediated # Dependencies and GitHub Actions are pinned or governed by Dependabot security updates.

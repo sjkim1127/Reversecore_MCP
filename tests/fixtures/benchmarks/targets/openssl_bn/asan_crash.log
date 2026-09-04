@@ -1,0 +1,8 @@
+=================================================================
+==12345==ERROR: AddressSanitizer: Timeout: loop did not terminate
+Timed out after 30 seconds in BN_mod_sqrt bn_sqrt.c:231
+    #0 0x7f1234560000 in BN_mod_sqrt bn_sqrt.c:231
+    #1 0x7f1234561000 in EC_GROUP_set_curve ec_lib.c:344
+    #2 0x7f1234562000 in d2i_ECParameters ec_asn1.c:1157
+    #3 0x7f1234563000 in LLVMFuzzerTestOneInput harness.c:10:5
+SUMMARY: AddressSanitizer: timeout in BN_mod_sqrt

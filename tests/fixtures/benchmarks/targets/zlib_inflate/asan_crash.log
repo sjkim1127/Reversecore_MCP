@@ -1,0 +1,7 @@
+=================================================================
+==20001==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x602000000084
+WRITE of size 1 at 0x602000000084 thread T0
+    #0 0x555555557180 in inflateGetHeader inflate.c:848:8
+    #1 0x555555558290 in inflate inflate.c:1094:5
+    #2 0x555555559300 in LLVMFuzzerTestOneInput harness.c:18:5
+SUMMARY: AddressSanitizer: heap-buffer-overflow in inflateGetHeader

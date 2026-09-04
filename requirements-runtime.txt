@@ -66,3 +66,7 @@ slowapi>=0.1.9
 python-afl>=0.7.3
 volatility3>=2.4.0
 scapy>=2.5.0
+
+# Runtime security hardening (Trivy scanner remediation)
+setuptools>=83.0.0
+msgpack>=1.2.1

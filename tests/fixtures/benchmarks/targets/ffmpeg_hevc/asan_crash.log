@@ -1,0 +1,7 @@
+=================================================================
+==40001==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x615000003c80
+READ of size 4 at 0x615000003c80 thread T0
+    #0 0x7f2345670000 in hevc_parse_slice_header hevc_ps.c:1247:8
+    #1 0x7f2345671000 in ff_hevc_decode_nal_slice hevc_slice.c:2088:5
+    #2 0x7f2345672000 in LLVMFuzzerTestOneInput harness.c:18:5
+SUMMARY: AddressSanitizer: heap-buffer-overflow in hevc_parse_slice_header

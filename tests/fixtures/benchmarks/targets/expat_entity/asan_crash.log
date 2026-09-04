@@ -1,0 +1,7 @@
+=================================================================
+==60001==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x608000003500
+WRITE of size 8 at 0x608000003500 thread T0
+    #0 0x555555560000 in storeRawNames xmlparse.c:2653:5
+    #1 0x555555561000 in XML_ParseBuffer xmlparse.c:1814:8
+    #2 0x555555562000 in LLVMFuzzerTestOneInput harness.c:9:5
+SUMMARY: AddressSanitizer: heap-buffer-overflow in storeRawNames

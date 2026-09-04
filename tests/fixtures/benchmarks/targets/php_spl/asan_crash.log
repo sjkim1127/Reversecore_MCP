@@ -1,0 +1,7 @@
+=================================================================
+==50001==ERROR: AddressSanitizer: heap-use-after-free on address 0x604000003880
+READ of size 8 at 0x604000003880 thread T0
+    #0 0x5555555a1000 in spl_dllist_object_free_storage ext/spl/spl_dllist.c:316:5
+    #1 0x5555555a2000 in zend_objects_store_del Zend/zend_objects_API.c:178:4
+    #2 0x5555555a3000 in LLVMFuzzerTestOneInput harness.c:8:5
+SUMMARY: AddressSanitizer: heap-use-after-free in spl_dllist_object_free_storage

@@ -50,7 +50,7 @@ COPY requirements-runtime.txt ./
 RUN apt-get update \
     && apt-get install -y --no-install-recommends --only-upgrade curl libcurl3-gnutls libcurl4 libgraphite2-3 liblzma5 xz-utils \
     && apt-get install -y --no-install-recommends gcc g++ make python3-dev libc-dev \
-    && pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir --upgrade pip "setuptools>=83.0.0" "msgpack>=1.2.1" \
     && pip install --no-cache-dir -r requirements-runtime.txt \
     && apt-get purge -y --auto-remove gcc g++ make python3-dev libc-dev \
     && rm -rf /var/lib/apt/lists/*

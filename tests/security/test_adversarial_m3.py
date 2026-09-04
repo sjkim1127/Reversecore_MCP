@@ -438,7 +438,7 @@ class TestSerializationResilienceAdversarial:
 
         serialized = json_utils.dumps(
             payload,
-            default=lambda o: (o.to_dict() if isinstance(o, CustomTestEntity) else str(o)),
+            default=lambda o: o.to_dict() if isinstance(o, CustomTestEntity) else str(o),
         )
         loaded = json_utils.loads(serialized)
 

@@ -20,6 +20,7 @@ htmlcov/
 
 # Logs
 *.log
+!tests/fixtures/benchmarks/targets/**/asan_crash.log
 
 # Temporary files
 *.tmp
@@ -66,4 +67,3 @@ docs/test-results/
 /tests/fixtures/synthetic_packers/*.exe
 /tests/fixtures/synthetic_packers/synthetic_clean_elf
 /tests/fixtures/workspace/binaries/
-
