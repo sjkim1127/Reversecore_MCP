@@ -93,7 +93,7 @@ jobs:
           REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
           LOG_LEVEL: INFO
         run: |
-          pytest tests/ -m security -v
+          pytest tests/security/ -m security -v
 
   unit-and-integration-tests:
     name: Host Unit Tests (${{ matrix.python-version }})

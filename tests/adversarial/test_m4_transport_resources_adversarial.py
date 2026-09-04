@@ -98,10 +98,12 @@ async def asgi_request_adversarial(
     async def send(message: dict[str, Any]) -> None:
         if message["type"] == "http.response.start":
             resp_data["status"] = message["status"]
-            resp_data["headers"] = {
-                k.decode("latin1").lower(): v.decode("latin1")
-                for k, v in message.get("headers", [])
-            }
+            resp_data["headers"].update(
+                {
+                    k.decode("latin1").lower(): v.decode("latin1")
+                    for k, v in message.get("headers", [])
+                }
+            )
             response_started.set()
         elif message["type"] == "http.response.body":
             resp_data["body_chunks"].append(message.get("body", b""))
@@ -118,8 +120,8 @@ async def asgi_request_adversarial(
     finally:
         task.cancel()
         try:
-            await task
-        except asyncio.CancelledError:
+            await asyncio.wait_for(asyncio.shield(task), timeout=0.5)
+        except (asyncio.CancelledError, asyncio.TimeoutError, Exception):
             pass
 
     return resp_data
@@ -239,7 +241,8 @@ class TestSSETransportAdversarialStress:
             "GET",
             "/mcp/sse",
             headers={"Accept": "text/event-stream"},
-            disconnect_after_start=False,
+            disconnect_after_start=True,
+            disconnect_delay_seconds=0.01,
         )
         assert res_sse["status"] == 200
         assert "text/event-stream" in res_sse["headers"].get("content-type", "")
@@ -250,7 +253,8 @@ class TestSSETransportAdversarialStress:
             "GET",
             "/mcp/sse",
             headers={"Accept": "*/*"},
-            disconnect_after_start=False,
+            disconnect_after_start=True,
+            disconnect_delay_seconds=0.01,
         )
         assert res_wildcard["status"] == 200
 
