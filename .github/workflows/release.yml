@@ -12,7 +12,7 @@ concurrency:
 env:
   IMAGE_NAME: ghcr.io/sjkim1127/reversecore_mcp
   BASE_IMAGE: ghcr.io/sjkim1127/reversecore_mcp/base
-  BASE_TAG: yara4.3.1-r2-6.0.4-r2ghidra-v4
+  BASE_TAG: yara4.3.1-r2-6.0.4-r2ghidra-v5
 
 jobs:
   build:

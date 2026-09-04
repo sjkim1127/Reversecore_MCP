@@ -124,7 +124,9 @@ ENV PATH="/opt/venv/bin:$PATH"
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --upgrade "pip>=26.2.0" "setuptools>=83.0.0" "msgpack>=1.2.1" \
     && pip install -r requirements.txt \
-    && pip install "volatility3>=2.4.0" "scapy>=2.5.0"
+    && pip install "volatility3>=2.4.0" "scapy>=2.5.0" \
+    && find /opt/venv -name "vendor.txt" -delete \
+    && find /opt/venv -type d -name "sboms" -exec rm -rf {} + 2>/dev/null || true
 
 # ============================================================================
 # Stage 2: Final base image (no build toolchain, runtime-only)
@@ -161,7 +163,9 @@ RUN apt-get update \
     sleuthkit \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir --upgrade "pip>=26.2.0" "setuptools>=83.0.0" "msgpack>=1.2.1" \
-    && rm -rf /usr/local/lib/python3.12/ensurepip
+    && rm -rf /usr/local/lib/python3.12/ensurepip \
+    && find /usr/local -name "vendor.txt" -delete \
+    && find /usr/local -type d -name "sboms" -exec rm -rf {} + 2>/dev/null || true
 
 # ── Copy compiled artifacts from parallel compiler stages ─────────────────────
 RUN mkdir -p /usr/local/include /usr/local/lib/pkgconfig

@@ -63,7 +63,9 @@ RUN apt-get update \
               /usr/lib/python3*/dist-packages/msgpack* \
               /usr/lib/python3*/dist-packages/setuptools* \
               /root/.cache \
-    && find /usr /var /tmp /root \( -name "*msgpack*" -o -name "*setuptools*" \) -exec rm -rf {} + 2>/dev/null || true
+    && find /opt/venv -name "vendor.txt" -delete \
+    && find /opt/venv -type d -name "sboms" -exec rm -rf {} + 2>/dev/null || true \
+    && find /usr /var /tmp /root \( -name "*msgpack*" -o -name "*setuptools*" -o -name "vendor.txt" \) -exec rm -rf {} + 2>/dev/null || true
 
 # Application source (invalidates on every code change)
 COPY scripts/            ./scripts/
