@@ -321,7 +321,7 @@ def register_resources(mcp: FastMCP):
     @resource_decorator("resource_get_binary_info")
     async def get_binary_info(filename: str) -> str:
         """Get binary metadata (alias for reversecore://{filename}/metadata)"""
-        return await get_binary_metadata(filename)
+        return cast(str, await get_binary_metadata(filename))
 
     @_register_resource(
         mcp, "reversecore://{filename}/func/{address}/xrefs", mime_type="text/markdown"
@@ -515,7 +515,7 @@ def register_resources(mcp: FastMCP):
     @resource_decorator("resource_get_sections")
     async def get_sections(filename: str) -> str:
         """Get binary memory map and section table (alias for reversecore://{filename}/memory_map)"""
-        return await get_memory_map(filename)
+        return cast(str, await get_memory_map(filename))
 
     @_register_resource(mcp, "reversecore://{filename}/signatures", mime_type="text/markdown")
     @resource_decorator("resource_get_signatures_report")
