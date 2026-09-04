@@ -14,8 +14,8 @@ import re
 import sys
 from typing import Any
 
-# Target URL for the MCP server SSE endpoint (can be overridden via env)
-MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL", "http://127.0.0.1:8000/mcp/sse")
+# Target URL for the MCP server endpoint (can be overridden via env)
+MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL", "http://127.0.0.1:8000/mcp")
 
 # Workspace binaries directory (used for test binary lookup / fallback creation)
 BIN_DIR = os.path.join(os.environ.get("REVERSECORE_WORKSPACE", "/app/workspace"), "binaries")
@@ -262,7 +262,6 @@ async def test_all_tools() -> int:
     """Discover, configure, and invoke all registered MCP tools."""
     try:
         from mcp import ClientSession
-        from mcp.client.sse import sse_client
     except ImportError as exc:
         print(f"❌ mcp library not available: {exc}")
         return 1
@@ -279,7 +278,17 @@ async def test_all_tools() -> int:
     tool_list = []
 
     try:
-        async with sse_client(MCP_SERVER_URL) as (read, write):
+        if "sse" in MCP_SERVER_URL:
+            from mcp.client.sse import sse_client
+
+            client_ctx = sse_client(MCP_SERVER_URL)
+        else:
+            from mcp.client.streamable_http import streamable_http_client
+
+            client_ctx = streamable_http_client(MCP_SERVER_URL)
+
+        async with client_ctx as streams:
+            read, write = streams[0], streams[1]
             async with ClientSession(read, write) as session:
                 await session.initialize()
 
