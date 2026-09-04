@@ -34,7 +34,7 @@ permissions:
 env:
   YARA_VERSION: "4.3.1"
   RADARE2_VERSION: "6.0.4"
-  BASE_TAG: "yara4.3.1-r2-6.0.4-r2ghidra-v3"
+  BASE_TAG: "yara4.3.1-r2-6.0.4-r2ghidra-v4"
 
 jobs:
   strict-e2e:

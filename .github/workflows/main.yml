@@ -16,7 +16,7 @@ env:
   # Base image tag is derived from the tool versions so cache busts automatically
   # when any tool version changes.
   # NOTE: Ghidra/JDK are NOT installed — we use r2ghidra (embedded Ghidra decompiler in radare2).
-  BASE_TAG: "yara4.3.1-r2-6.0.4-r2ghidra-v3"
+  BASE_TAG: "yara4.3.1-r2-6.0.4-r2ghidra-v4"
 
 jobs:
   lint-and-security:

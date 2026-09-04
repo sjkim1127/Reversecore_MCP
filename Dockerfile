@@ -24,6 +24,8 @@ ARG BASE_IMAGE=ghcr.io/sjkim1127/reversecore_mcp/base
 ARG BASE_TAG=latest
 FROM ${BASE_IMAGE}:${BASE_TAG}
 
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
 LABEL org.opencontainers.image.title="Reversecore MCP" \
       org.opencontainers.image.description="Security-first MCP server for reverse engineering and malware analysis" \
       org.opencontainers.image.source="https://github.com/sjkim1127/Reversecore_MCP" \
@@ -61,7 +63,7 @@ RUN apt-get update \
               /usr/lib/python3*/dist-packages/msgpack* \
               /usr/lib/python3*/dist-packages/setuptools* \
               /root/.cache \
-    && find /usr /var /tmp /root -name "*msgpack*" -o -name "*setuptools*" 2>/dev/null | xargs -r rm -rf 2>/dev/null || true
+    && find /usr /var /tmp /root \( -name "*msgpack*" -o -name "*setuptools*" \) -exec rm -rf {} + 2>/dev/null || true
 
 # Application source (invalidates on every code change)
 COPY scripts/            ./scripts/
