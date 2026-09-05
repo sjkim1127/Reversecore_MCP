@@ -71,6 +71,38 @@ class TestExecuteSubprocessAsync:
                     timeout=1,
                 )
 
+    @pytest.mark.asyncio
+    async def test_large_stderr_concurrent_no_deadlock(self):
+        """Read large stderr (>64KB) concurrently with stdout without pipe buffer deadlock."""
+        from reversecore_mcp.core.execution import execute_subprocess_async
+
+        code = (
+            "import sys\n"
+            "sys.stderr.write('E' * 128000)\n"
+            "sys.stderr.flush()\n"
+            "sys.stdout.write('O' * 1000)\n"
+            "sys.stdout.flush()\n"
+        )
+        with patch.object(ResourceManager, "track_pid"):
+            output, bytes_read = await execute_subprocess_async(
+                ["python", "-c", code],
+                timeout=10,
+            )
+        assert len(output) >= 1000
+        assert "O" in output
+
+    @pytest.mark.asyncio
+    async def test_timeout_process_kill_cleanup(self):
+        """Ensure process termination logic is exercised on timeout."""
+        from reversecore_mcp.core.execution import execute_subprocess_async
+
+        with patch.object(ResourceManager, "track_pid"):
+            with pytest.raises(ExecutionTimeoutError):
+                await execute_subprocess_async(
+                    ["python", "-c", "import time; time.sleep(10)"],
+                    timeout=1,
+                )
+
 
 class TestExecuteSubprocessStreaming:
     """Tests for execute_subprocess_streaming synchronous wrapper."""

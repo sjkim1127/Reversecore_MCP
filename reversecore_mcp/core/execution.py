@@ -12,6 +12,7 @@ import asyncio
 import os
 import shutil
 import subprocess  # nosec B404 - required for safe subprocess execution in this module
+import sys
 import threading
 from collections.abc import Coroutine
 from typing import Any
@@ -198,8 +199,6 @@ async def execute_subprocess_async(
         if config.sandbox_enabled:
             mode = config.sandbox_mode.lower()
             if mode != "disabled":
-                import sys
-
                 in_container = is_in_container()
                 active_mode = (
                     "container"
@@ -238,8 +237,8 @@ async def execute_subprocess_async(
     bytes_read = 0
 
     try:
-        # Read output in chunks with timeout checking
-        async def read_stream():
+        # Read stdout and stderr in chunks concurrently with timeout checking
+        async def read_stdout():
             """Read stdout in chunks until EOF or size limit."""
             nonlocal bytes_read
             chunk_size = 8192  # 8KB chunks
@@ -260,9 +259,33 @@ async def execute_subprocess_async(
                 if bytes_read <= max_output_size:
                     output_chunks.append(decoded_chunk)
 
-        # Wait for process to complete with timeout
+        async def read_stderr():
+            """Read stderr in chunks until EOF or size limit to prevent pipe buffer deadlock."""
+            chunk_size = 8192  # 8KB chunks
+            stderr_bytes = 0
+
+            # Assert stderr is not None for mypy
+            assert process.stderr is not None  # nosec B101
+            while True:
+                chunk = await process.stderr.read(chunk_size)
+                if not chunk:
+                    break
+
+                # Decode chunk
+                decoded_chunk = chunk.decode(encoding, errors=errors)
+                chunk_bytes = len(chunk)
+                stderr_bytes += chunk_bytes
+
+                # Only append if we haven't exceeded the limit
+                if stderr_bytes <= max_output_size:
+                    stderr_chunks.append(decoded_chunk)
+
+        # Wait for both streams and process to complete with timeout
         try:
-            await asyncio.wait_for(read_stream(), timeout=timeout)
+            await asyncio.wait_for(
+                asyncio.gather(read_stdout(), read_stderr()),
+                timeout=timeout,
+            )
             await asyncio.wait_for(process.wait(), timeout=1.0)
         except asyncio.TimeoutError:
             logger.warning(f"Command timed out after {timeout}s: {' '.join(cmd)}")
@@ -273,19 +296,12 @@ async def execute_subprocess_async(
                 try:
                     process.kill()
                     # Wait for process to die to reap the zombie
-                    # We can't await indefinitely here, but usually kill is fast
                     try:
                         await asyncio.wait_for(process.wait(), timeout=2.0)
                     except asyncio.TimeoutError:
                         logger.error(f"Process {process.pid} refused to die after kill")
                 except Exception as e:
                     logger.error(f"Failed to kill process {process.pid}: {e}")
-
-        # Read any remaining stderr
-        assert process.stderr is not None  # nosec B101
-        stderr_data = await process.stderr.read()
-        if stderr_data:
-            stderr_chunks.append(stderr_data.decode(encoding, errors=errors))
 
         # Combine output chunks
         output_text = "".join(output_chunks)

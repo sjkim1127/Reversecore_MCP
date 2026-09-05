@@ -22,6 +22,7 @@ import asyncio
 import hashlib
 import os
 import sqlite3
+import threading
 import time
 from pathlib import Path
 
@@ -87,13 +88,40 @@ CREATE TABLE IF NOT EXISTS analysis_cache (
 """
 
 
+_db_init_lock = threading.Lock()
+_initialized_db_paths: set[str] = set()
+
+
+def _ensure_schema_initialized(db_path: Path) -> None:
+    """Ensure DDL schema is executed once per database path."""
+    path_key = str(db_path.resolve()) if db_path.exists() else str(db_path)
+    if path_key in _initialized_db_paths:
+        return
+
+    with _db_init_lock:
+        if path_key in _initialized_db_paths:
+            return
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(db_path), timeout=30.0)
+        try:
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute("PRAGMA synchronous=NORMAL;")
+            conn.execute("PRAGMA busy_timeout=30000;")
+            conn.executescript(_DDL)
+            conn.commit()
+            _initialized_db_paths.add(path_key)
+        finally:
+            conn.close()
+
+
 def _get_db_sync() -> sqlite3.Connection:
-    """Open (and initialise) the SQLite annotation DB synchronously."""
-    _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(str(_DB_PATH))
+    """Open (and initialise) the SQLite annotation DB synchronously with WAL mode and busy timeout."""
+    _ensure_schema_initialized(_DB_PATH)
+    db = sqlite3.connect(str(_DB_PATH), timeout=30.0)
     db.row_factory = sqlite3.Row
-    db.executescript(_DDL)
-    db.commit()
+    db.execute("PRAGMA journal_mode=WAL;")
+    db.execute("PRAGMA synchronous=NORMAL;")
+    db.execute("PRAGMA busy_timeout=30000;")
     return db
 
 

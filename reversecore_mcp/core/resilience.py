@@ -13,12 +13,24 @@ from collections.abc import Callable
 from enum import Enum
 from typing import TypeVar
 
-from reversecore_mcp.core.exceptions import ToolExecutionError
+from reversecore_mcp.core.exceptions import (
+    SecurityViolationError,
+    ToolExecutionError,
+    ValidationError,
+)
 from reversecore_mcp.core.logging_config import get_logger
 
 logger = get_logger(__name__)
 
 F = TypeVar("F", bound=Callable)
+
+# User-level input and validation errors that should never trip the circuit breaker
+IGNORED_EXCEPTIONS: tuple[type[Exception], ...] = (
+    ValidationError,
+    SecurityViolationError,
+    FileNotFoundError,
+    ValueError,
+)
 
 
 class CircuitState(Enum):
@@ -94,6 +106,14 @@ class CircuitBreaker:
                 self.state = CircuitState.OPEN
                 self.next_attempt_time = time.time() + self.recovery_timeout
 
+    def reset(self):
+        """Reset the circuit breaker to CLOSED state (thread-safe)."""
+        with self._lock:
+            self.state = CircuitState.CLOSED
+            self.failures = 0
+            self.last_failure_time = 0.0
+            self.next_attempt_time = 0.0
+
 
 # Global registry of circuit breakers
 _breakers: dict[str, CircuitBreaker] = {}
@@ -107,6 +127,14 @@ def get_circuit_breaker(name: str, **kwargs) -> CircuitBreaker:
             if name not in _breakers:
                 _breakers[name] = CircuitBreaker(name, **kwargs)
     return _breakers[name]
+
+
+def reset_circuit_breakers():
+    """Reset all circuit breakers to CLOSED state and clear the registry."""
+    with _breakers_lock:
+        for b in _breakers.values():
+            b.reset()
+        _breakers.clear()
 
 
 def circuit_breaker(
@@ -128,13 +156,7 @@ def circuit_breaker(
     """
 
     def decorator(func: F) -> F:
-        breaker = get_circuit_breaker(
-            tool_name,
-            failure_threshold=failure_threshold,
-            recovery_timeout=recovery_timeout,
-        )
-
-        def _get_error_message() -> str:
+        def _get_error_message(breaker: CircuitBreaker) -> str:
             """Generate error message for circuit open state."""
             remaining = int(breaker.next_attempt_time - time.time())
             return (
@@ -147,13 +169,20 @@ def circuit_breaker(
 
             @functools.wraps(func)
             async def async_wrapper(*args, **kwargs):
+                breaker = get_circuit_breaker(
+                    tool_name,
+                    failure_threshold=failure_threshold,
+                    recovery_timeout=recovery_timeout,
+                )
                 if not breaker.allow_request():
-                    raise ToolExecutionError(_get_error_message())
+                    raise ToolExecutionError(_get_error_message(breaker))
 
                 try:
                     result = await func(*args, **kwargs)
                     breaker.record_success()
                     return result
+                except IGNORED_EXCEPTIONS:
+                    raise
                 except Exception:
                     breaker.record_failure()
                     raise
@@ -163,13 +192,20 @@ def circuit_breaker(
         # Sync version
         @functools.wraps(func)
         def sync_wrapper(*args, **kwargs):
+            breaker = get_circuit_breaker(
+                tool_name,
+                failure_threshold=failure_threshold,
+                recovery_timeout=recovery_timeout,
+            )
             if not breaker.allow_request():
-                raise ToolExecutionError(_get_error_message())
+                raise ToolExecutionError(_get_error_message(breaker))
 
             try:
                 result = func(*args, **kwargs)
                 breaker.record_success()
                 return result
+            except IGNORED_EXCEPTIONS:
+                raise
             except Exception:
                 breaker.record_failure()
                 raise
@@ -190,14 +226,13 @@ def circuit_breaker_sync(
     """
 
     def decorator(func: F) -> F:
-        breaker = get_circuit_breaker(
-            tool_name,
-            failure_threshold=failure_threshold,
-            recovery_timeout=recovery_timeout,
-        )
-
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
+            breaker = get_circuit_breaker(
+                tool_name,
+                failure_threshold=failure_threshold,
+                recovery_timeout=recovery_timeout,
+            )
             if not breaker.allow_request():
                 raise ToolExecutionError(
                     f"Tool '{tool_name}' is temporarily unavailable due to repeated failures. "
@@ -208,6 +243,8 @@ def circuit_breaker_sync(
                 result = func(*args, **kwargs)
                 breaker.record_success()
                 return result
+            except IGNORED_EXCEPTIONS:
+                raise
             except Exception:
                 breaker.record_failure()
                 raise
@@ -228,14 +265,13 @@ def circuit_breaker_async(
     """
 
     def decorator(func: F) -> F:
-        breaker = get_circuit_breaker(
-            tool_name,
-            failure_threshold=failure_threshold,
-            recovery_timeout=recovery_timeout,
-        )
-
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
+            breaker = get_circuit_breaker(
+                tool_name,
+                failure_threshold=failure_threshold,
+                recovery_timeout=recovery_timeout,
+            )
             if not breaker.allow_request():
                 raise ToolExecutionError(
                     f"Tool '{tool_name}' is temporarily unavailable due to repeated failures. "
@@ -246,6 +282,8 @@ def circuit_breaker_async(
                 result = await func(*args, **kwargs)
                 breaker.record_success()
                 return result
+            except IGNORED_EXCEPTIONS:
+                raise
             except Exception:
                 breaker.record_failure()
                 raise

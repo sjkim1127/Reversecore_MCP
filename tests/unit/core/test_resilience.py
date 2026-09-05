@@ -215,6 +215,25 @@ class TestCircuitBreakerDecorator:
         assert breaker.failures == 1
 
     @pytest.mark.asyncio
+    async def test_decorator_ignores_validation_error(self):
+        """Test that ValidationError does not increment circuit breaker failures."""
+        from reversecore_mcp.core.exceptions import ValidationError
+
+        @circuit_breaker("test_tool", failure_threshold=2)
+        async def test_func():
+            raise ValidationError("invalid parameter format")
+
+        # Raise ValidationError 5 times
+        for _ in range(5):
+            with pytest.raises(ValidationError):
+                await test_func()
+
+        breaker = get_circuit_breaker("test_tool")
+        # Failures counter must still be 0, circuit must remain CLOSED
+        assert breaker.failures == 0
+        assert breaker.state == CircuitState.CLOSED
+
+    @pytest.mark.asyncio
     async def test_decorator_blocks_when_open(self):
         """Test that decorator blocks requests when circuit is open."""
 

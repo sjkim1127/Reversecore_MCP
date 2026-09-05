@@ -13,6 +13,7 @@ from reversecore_mcp.core.error_handling import handle_tool_errors
 from reversecore_mcp.core.exceptions import EmulationError, ValidationError
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
+from reversecore_mcp.core.resilience import circuit_breaker
 from reversecore_mcp.core.result import ToolResult, success
 from reversecore_mcp.core.security import validate_file_path
 
@@ -81,6 +82,7 @@ def _detect_binary_type(file_path: Path) -> tuple[str, str]:
 
 @log_execution(tool_name="emulate_binary")
 @track_metrics("emulate_binary")
+@circuit_breaker(tool_name="emulation", failure_threshold=3, recovery_timeout=45)
 @handle_tool_errors
 async def emulate_binary(
     file_path: str,

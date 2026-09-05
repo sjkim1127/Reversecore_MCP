@@ -8,6 +8,7 @@ providing high-level behavioral information like encryption, file deletion, etc.
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.next_tool_hints import build_capa_hints, finalize_hints
+from reversecore_mcp.core.resilience import circuit_breaker
 from reversecore_mcp.core.result import ToolSuccess, failure, success
 from reversecore_mcp.core.security import validate_file_path
 
@@ -25,6 +26,7 @@ def _is_capa_available() -> bool:
 
 
 @log_execution()
+@circuit_breaker(tool_name="capa", failure_threshold=3, recovery_timeout=45)
 async def run_capa(file_path: str, output_format: str = "summary"):
     """
     Analyze binary capabilities using CAPA (Mandiant FLARE).

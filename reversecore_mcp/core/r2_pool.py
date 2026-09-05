@@ -80,6 +80,8 @@ class R2ConnectionPool:
         self._lock = threading.RLock()
         self._async_lock: asyncio.Lock | None = None
         self._async_lock_init_lock = threading.Lock()
+        self._file_locks: dict[str, asyncio.Lock] = {}
+        self._file_locks_loop: asyncio.AbstractEventLoop | None = None
         self._last_access: dict[str, float] = {}
         self._analyzed_files: set[str] = set()
         self._last_health_check: dict[str, float] = {}
@@ -171,6 +173,25 @@ class R2ConnectionPool:
             self._async_lock = asyncio.Lock()
             self._lock_loop = loop
             return self._async_lock
+
+    def _get_file_async_lock(self, file_path: str) -> asyncio.Lock:
+        """Get or create a per-file async lock for the current event loop.
+
+        This serializes concurrent operations targeting the same binary file while
+        allowing concurrent analysis across different binary files.
+        """
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        with self._async_lock_init_lock:
+            if getattr(self, "_file_locks_loop", None) != loop:
+                self._file_locks = {}
+                self._file_locks_loop = loop
+            if file_path not in self._file_locks:
+                self._file_locks[file_path] = asyncio.Lock()
+            return self._file_locks[file_path]
 
     def _is_connection_healthy(self, file_path: str, r2: Any) -> bool:
         """Check if a connection is still healthy."""
@@ -275,8 +296,8 @@ class R2ConnectionPool:
                     raise
 
     async def execute_async(self, file_path: str, command: str) -> str:
-        """Execute a command asynchronously with proper async lock."""
-        async with self._get_async_lock():
+        """Execute a command asynchronously with per-file async lock."""
+        async with self._get_file_async_lock(file_path):
             return await asyncio.to_thread(self._execute_unsafe, file_path, command)
 
     def _execute_unsafe(self, file_path: str, command: str) -> str:
@@ -284,7 +305,7 @@ class R2ConnectionPool:
 
         Note: Despite the name 'unsafe', this method now acquires self._lock
         to ensure thread-safety when called from asyncio.to_thread().
-        The async lock in execute_async() serializes async callers,
+        The async lock in execute_async() serializes async callers per file,
         while this thread lock protects against concurrent sync callers.
         """
         with self._lock:  # Thread lock for safe pool access
@@ -341,21 +362,21 @@ class R2ConnectionPool:
 
     @asynccontextmanager
     async def async_session(self, file_path: str) -> AsyncGenerator[Any, None]:
-        """Async context manager for r2 connection.
+        """Async context manager for r2 connection with per-file lock and safe cleanup.
 
         Usage:
             async with r2_pool.async_session(path) as r2:
                 result = r2.cmd('aaa')
         """
-        async with self._get_async_lock():
-            r2 = await asyncio.to_thread(self._get_connection_unsafe, file_path)
+        async with self._get_file_async_lock(file_path):
+            r2 = await asyncio.to_thread(self.get_connection, file_path)
             try:
                 yield r2
             except Exception as e:
                 logger.warning(f"Error in async session: {e}")
-                # Invalidate connection on error
-                if file_path in self._pool:
-                    del self._pool[file_path]
+                # Safely terminate radare2 process and invalidate connection state
+                with self._lock:
+                    self._remove_connection_unsafe(file_path)
                 raise
 
     @contextmanager
@@ -387,6 +408,8 @@ class R2ConnectionPool:
             self._last_access.clear()
             self._last_health_check.clear()
             self._analyzed_files.clear()
+            if hasattr(self, "_file_locks"):
+                self._file_locks.clear()
 
     def is_analyzed(self, file_path: str) -> bool:
         """Check if the file has been analyzed."""

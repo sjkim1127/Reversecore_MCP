@@ -120,8 +120,12 @@ def _extract_sections(binary: Any) -> list[dict[str, Any]]:
             except Exception:
                 pass
         elif hasattr(section, "flags"):
-            is_writable = bool(section.flags & 0x1)
-            is_executable = bool(section.flags & 0x4)
+            try:
+                flags_val = int(section.flags)
+                is_writable = bool(flags_val & 0x1)
+                is_executable = bool(flags_val & 0x4)
+            except Exception:
+                pass
 
         is_std = is_standard_section_name(name, format_name)
 

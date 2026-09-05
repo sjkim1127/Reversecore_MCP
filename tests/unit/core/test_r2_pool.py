@@ -316,16 +316,54 @@ class TestR2ConnectionPoolAsync:
 
     @pytest.mark.asyncio
     async def test_async_session_error_invalidates(self):
-        """Should invalidate connection on session error."""
+        """Should invalidate connection and call r2.quit on session error."""
         pool = R2ConnectionPool()
         mock_r2 = MagicMock()
         pool._pool["/app/test.bin"] = mock_r2
         pool._last_health_check["/app/test.bin"] = time.time()
+        pool._last_access["/app/test.bin"] = time.time()
+        pool._analyzed_files.add("/app/test.bin")
         with patch.object(r2_pool_mod, "r2pipe"):
             with pytest.raises(RuntimeError):
                 async with pool.async_session("/app/test.bin"):
                     raise RuntimeError("session error")
         assert "/app/test.bin" not in pool._pool
+        assert "/app/test.bin" not in pool._last_health_check
+        assert "/app/test.bin" not in pool._last_access
+        assert "/app/test.bin" not in pool._analyzed_files
+        mock_r2.quit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_async_session_per_file_concurrency(self):
+        """Should allow concurrent sessions for different files without deadlock."""
+        pool = R2ConnectionPool()
+        r1 = MagicMock()
+        r2 = MagicMock()
+        pool._pool["/app/a.bin"] = r1
+        pool._pool["/app/b.bin"] = r2
+
+        order = []
+
+        async def session_a():
+            async with pool.async_session("/app/a.bin"):
+                order.append("a_start")
+                await asyncio.sleep(0.05)
+                order.append("a_end")
+
+        async def session_b():
+            async with pool.async_session("/app/b.bin"):
+                order.append("b_start")
+                await asyncio.sleep(0.05)
+                order.append("b_end")
+
+        with patch.object(r2_pool_mod, "r2pipe"):
+            await asyncio.gather(session_a(), session_b())
+
+        # Both sessions should have started before either finished (concurrent)
+        assert "a_start" in order and "b_start" in order
+        assert order.index("b_start") < order.index("a_end") or order.index(
+            "a_start"
+        ) < order.index("b_end")
 
 
 class TestR2ConnectionPoolSyncSession:

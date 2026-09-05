@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import sqlite3
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,16 @@ logger = get_logger(__name__)
 # Singleton/global state for SQLite initialization
 _sqlite_db_path: Path | None = None
 _sqlite_initialized: bool = False
+_sqlite_lock = threading.Lock()
+
+
+def _get_sqlite_conn(db_path: Path) -> sqlite3.Connection:
+    """Create a SQLite connection with timeout, busy handler, and WAL mode."""
+    conn = sqlite3.connect(db_path, timeout=30.0)
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA synchronous=NORMAL;")
+    conn.execute("PRAGMA busy_timeout=30000;")
+    return conn
 
 
 def _init_sqlite_db() -> Path:
@@ -32,36 +43,40 @@ def _init_sqlite_db() -> Path:
     config = get_config()
     current_db_path = config.workspace / ".reversecore_cache.db"
 
-    # If the workspace path changed (e.g., in a test environment), reset initialization
-    if _sqlite_db_path != current_db_path:
-        _sqlite_db_path = current_db_path
-        _sqlite_initialized = False
+    with _sqlite_lock:
+        # If the workspace path changed (e.g., in a test environment), reset initialization
+        if _sqlite_db_path != current_db_path:
+            _sqlite_db_path = current_db_path
+            _sqlite_initialized = False
 
-    # Ensure parent directory exists
-    _sqlite_db_path.parent.mkdir(parents=True, exist_ok=True)
+        # Ensure parent directory exists
+        _sqlite_db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    if not _sqlite_initialized:
-        conn = sqlite3.connect(_sqlite_db_path)
-        try:
-            cursor = conn.cursor()
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS decompilation_cache (
-                    file_hash TEXT,
-                    function_address TEXT,
-                    decompiler TEXT,
-                    status TEXT,
-                    data TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    PRIMARY KEY (file_hash, function_address, decompiler)
-                )
-            """)
-            conn.commit()
-            _sqlite_initialized = True
-            logger.info(f"SQLite caching database initialized at {_sqlite_db_path}")
-        except Exception as e:
-            logger.error(f"Failed to initialize SQLite cache database: {e}")
-        finally:
-            conn.close()
+        if not _sqlite_initialized:
+            try:
+                conn = _get_sqlite_conn(_sqlite_db_path)
+                try:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        CREATE TABLE IF NOT EXISTS decompilation_cache (
+                            file_hash TEXT,
+                            function_address TEXT,
+                            decompiler TEXT,
+                            status TEXT,
+                            data TEXT,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            PRIMARY KEY (file_hash, function_address, decompiler)
+                        )
+                    """)
+                    conn.commit()
+                    _sqlite_initialized = True
+                    logger.info(
+                        f"SQLite caching database initialized at {_sqlite_db_path} (WAL enabled)"
+                    )
+                finally:
+                    conn.close()
+            except Exception as e:
+                logger.error(f"Failed to initialize SQLite cache database: {e}")
 
     return _sqlite_db_path
 
@@ -70,7 +85,12 @@ def _read_from_sqlite(
     db_path: Path, file_hash: str, function_address: str, decompiler: str
 ) -> str | None:
     """Read serialized data from SQLite database."""
-    conn = sqlite3.connect(db_path)
+    try:
+        conn = _get_sqlite_conn(db_path)
+    except Exception as e:
+        logger.error(f"Failed to open SQLite database: {e}")
+        return None
+
     try:
         cursor = conn.cursor()
         cursor.execute(
@@ -96,7 +116,12 @@ def _write_to_sqlite(
     data: str,
 ) -> None:
     """Write serialized data to SQLite database."""
-    conn = sqlite3.connect(db_path)
+    try:
+        conn = _get_sqlite_conn(db_path)
+    except Exception as e:
+        logger.error(f"Failed to open SQLite database: {e}")
+        return
+
     try:
         cursor = conn.cursor()
         cursor.execute(
@@ -351,7 +376,7 @@ async def export_cache_by_hash(file_hash: str) -> dict:
         db_path = _init_sqlite_db()
 
         def _read_all() -> list[tuple]:
-            conn = sqlite3.connect(db_path)
+            conn = _get_sqlite_conn(db_path)
             cursor = conn.cursor()
             cursor.execute(
                 "SELECT function_address, decompiler, status, data FROM decompilation_cache WHERE file_hash = ?",
@@ -397,7 +422,7 @@ async def import_cache_data(cache_data: dict) -> int:
         db_path = _init_sqlite_db()
 
         def _write_all() -> None:
-            conn = sqlite3.connect(db_path)
+            conn = _get_sqlite_conn(db_path)
             cursor = conn.cursor()
             for entry in entries:
                 func_addr = entry["function_address"]

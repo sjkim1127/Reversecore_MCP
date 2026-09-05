@@ -339,3 +339,42 @@ class TestR2DbCaching:
 
         cached = await get_cached_result(str(mock_validate_file_path), "non_existent_key")
         assert cached is None
+
+    @pytest.mark.asyncio
+    async def test_concurrent_r2_db_access(self, mock_validate_file_path, patch_db_path):
+        """Concurrent read/write operations succeed without database locked errors."""
+        import asyncio
+
+        from reversecore_mcp.tools.radare2.r2_db import (
+            r2_add_bookmark,
+            r2_create_structure,
+            r2_list_bookmarks,
+            r2_list_structures,
+        )
+
+        async def worker(index: int):
+            # Create a structure
+            await r2_create_structure(
+                str(mock_validate_file_path),
+                f"struct_{index}",
+                [{"name": "f1", "type": "int", "offset": 0, "size": 4}],
+            )
+            # Add a bookmark
+            await r2_add_bookmark(
+                str(mock_validate_file_path),
+                f"0x{1000 + index:x}",
+                f"comment_{index}",
+            )
+            # Read structures and bookmarks
+            structs = await r2_list_structures(str(mock_validate_file_path))
+            bookmarks = await r2_list_bookmarks(str(mock_validate_file_path))
+            assert structs.status == "success"
+            assert bookmarks.status == "success"
+
+        # Run 20 concurrent operations simultaneously
+        tasks = [worker(i) for i in range(20)]
+        await asyncio.gather(*tasks)
+
+        final_structs = await r2_list_structures(str(mock_validate_file_path), limit=100)
+        assert final_structs.status == "success"
+        assert final_structs.data["count"] == 20

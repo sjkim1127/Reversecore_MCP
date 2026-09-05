@@ -208,14 +208,17 @@ def mock_shutil_which():
 
 @pytest.fixture(autouse=True)
 def clean_service_container():
-    """Reset the global service container before and after each test to ensure state isolation."""
+    """Reset the global service container and circuit breakers before and after each test to ensure state isolation."""
     from reversecore_mcp.core.container import _initialize_default_services, container
+    from reversecore_mcp.core.resilience import reset_circuit_breakers
 
     container.reset_all()
     _initialize_default_services()
+    reset_circuit_breakers()
     yield
     container.reset_all()
     _initialize_default_services()
+    reset_circuit_breakers()
 
 
 def pytest_configure(config):

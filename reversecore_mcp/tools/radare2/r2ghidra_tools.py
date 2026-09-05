@@ -27,6 +27,7 @@ from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.next_tool_hints import build_decompile_hints, finalize_hints
 from reversecore_mcp.core.r2_helpers import execute_r2_command as _execute_r2_command
+from reversecore_mcp.core.resilience import circuit_breaker
 from reversecore_mcp.core.result import (
     PaginationMeta,
     ToolError,
@@ -59,6 +60,7 @@ def _validate_addr(address: str, param: str = "function_address") -> ToolResult 
         return failure("VALIDATION_ERROR", str(exc))
 
 
+@circuit_breaker(tool_name="r2ghidra", failure_threshold=3, recovery_timeout=45)
 async def _r2_run(
     validated_path,
     cmds: list[str],
