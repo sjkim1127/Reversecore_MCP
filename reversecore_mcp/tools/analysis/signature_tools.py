@@ -225,7 +225,8 @@ async def generate_signature(
     # 6. Generate YARA rule template
     # Extract filename for rule name using cached helper
     file_name = _sanitize_filename_for_rule(file_path)
-    rule_name = f"suspicious_{file_name}_{address.replace('0x', 'x')}"
+    safe_addr = re.sub(r"[^a-zA-Z0-9_]", "_", address.replace("0x", "x"))
+    rule_name = f"suspicious_{file_name}_{safe_addr}"
 
     yara_rule = f"""rule {rule_name} {{
     meta:

@@ -122,6 +122,40 @@ void track_set_index(Track *track, int i, long ind)
 
 
 @pytest.mark.asyncio
+async def test_audit_source_code_c_accepts_less_equal_zero_check(tmp_path):
+    """Do not flag an index when guarded by i <= 0 or i > MAX."""
+    c_code = """
+#define MAXINDEX 99
+typedef struct Track {
+    long index[MAXINDEX + 1];
+} Track;
+
+void track_set_index(Track *track, int i, long ind)
+{
+    if (i <= 0 || i > MAXINDEX) {
+        return;
+    }
+
+    track->index[i] = ind;
+}
+"""
+    test_file = tmp_path / "bounds_lte.c"
+    test_file.write_text(c_code, encoding="utf-8")
+
+    with patch(
+        "reversecore_mcp.tools.analysis.source_auditor.validate_file_path",
+        return_value=test_file,
+    ):
+        result = await audit_source_code(str(test_file))
+
+    assert result.status == "success"
+    assert not any(
+        finding["rule_id"] == "RCMCP-SAST-C-012"
+        for finding in result.metadata.get("structured_findings", [])
+    )
+
+
+@pytest.mark.asyncio
 async def test_audit_source_code_python(tmp_path):
     """Test auditing a Python file using AST-based scanning."""
     python_code = """

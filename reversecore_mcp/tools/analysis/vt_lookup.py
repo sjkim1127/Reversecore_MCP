@@ -41,12 +41,11 @@ def _classify_ioc(ioc: str) -> str:
         return "hash"
     if _URL_RE.match(ioc):
         return "url"
-    if _IPV4_RE.match(ioc):
-        try:
-            ipaddress.ip_address(ioc)
-            return "ip"
-        except ValueError:
-            pass
+    try:
+        ipaddress.ip_address(ioc)
+        return "ip"
+    except ValueError:
+        pass
     # Coarse domain check: has a dot, no spaces, no slashes
     if "." in ioc and " " not in ioc and "/" not in ioc:
         return "domain"
@@ -278,7 +277,10 @@ async def vt_lookup(
                 except httpx.TimeoutException:
                     errors.append({"ioc": ioc, "error": f"Request timed out after {timeout}s"})
                 except Exception as exc:
-                    errors.append({"ioc": ioc, "error": str(exc)})
+                    err_msg = str(exc)
+                    if resolved_key:
+                        err_msg = err_msg.replace(resolved_key, "[REDACTED]")
+                    errors.append({"ioc": ioc, "error": err_msg})
 
         await asyncio.gather(*[_fetch(ioc, ioc_type) for ioc, ioc_type in classified])
 

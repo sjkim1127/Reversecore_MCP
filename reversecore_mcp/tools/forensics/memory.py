@@ -445,20 +445,26 @@ async def memory_extract_strings(
         result = await asyncio.to_thread(run_strings)
         all_strings = result.stdout.splitlines()
     except FileNotFoundError:
-        # Fallback: pure Python extraction
-        data = validated.read_bytes()
-        pattern = rb"[\x20-\x7E]{%d,}" % min_length
-        all_strings = [
-            m.group(0).decode("ascii", errors="replace") for m in re.finditer(pattern, data)
-        ]
+        # Fallback: pure Python extraction in background thread to avoid blocking event loop
+        def _extract_py() -> list[str]:
+            data = validated.read_bytes()
+            pattern = rb"[\x20-\x7E]{%d,}" % min_length
+            return [
+                m.group(0).decode("ascii", errors="replace") for m in re.finditer(pattern, data)
+            ]
 
-    # Detect notable patterns
-    ip_pattern = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
-    url_pattern = re.compile(r"https?://[^\s]{8,}")
-    notable = {
-        "ips": list({m for s in all_strings for m in ip_pattern.findall(s)})[:50],
-        "urls": [s for s in all_strings if url_pattern.search(s)][:50],
-    }
+        all_strings = await asyncio.to_thread(_extract_py)
+
+    # Detect notable patterns in background thread
+    def _extract_notable(strings_list: list[str]) -> dict[str, Any]:
+        ip_pattern = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+        url_pattern = re.compile(r"https?://[^\s]{8,}")
+        return {
+            "ips": list({m for s in strings_list for m in ip_pattern.findall(s)})[:50],
+            "urls": [s for s in strings_list if url_pattern.search(s)][:50],
+        }
+
+    notable = await asyncio.to_thread(_extract_notable, all_strings)
 
     return success(
         {

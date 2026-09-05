@@ -469,3 +469,12 @@ async def test_disk_extract_file_success(tmp_image, mock_tsk_available, workspac
 
     assert result.status == "success"
     assert result.data["recovered_bytes"] == len(b"live file data")
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_disk_recover_deleted_path_traversal(tmp_image, mock_tsk_available):
+    """Security: verify that path traversal in output_path is rejected."""
+    result = await disk_recover_deleted(tmp_image, "42", output_path="../../etc/cron.d/malicious")
+    assert result.status == "error"
+    assert result.error_code == "PATH_TRAVERSAL_DETECTED"

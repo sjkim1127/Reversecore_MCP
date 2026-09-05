@@ -12,6 +12,7 @@ from reversecore_mcp.core.security import validate_file_path
 from reversecore_mcp.core.validators import validate_address_format
 
 _HEX_PATTERN = re.compile(r"^[0-9a-fA-F]+$")
+_RULE_NAME_PATTERN = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]*$")
 
 
 def _mask_instruction(inst: dict[str, Any], mask_operands: bool) -> str:
@@ -87,6 +88,12 @@ async def generate_advanced_yara_rule(
         validate_address_format(address, "address")
     except ValidationError as e:
         return failure("VALIDATION_ERROR", str(e))
+
+    if not _RULE_NAME_PATTERN.match(rule_name):
+        return failure(
+            "VALIDATION_ERROR",
+            "rule_name must start with a letter and contain only alphanumeric characters and underscores",
+        )
 
     if not isinstance(num_instructions, int) or num_instructions < 1 or num_instructions > 1000:
         return failure("VALIDATION_ERROR", "num_instructions must be between 1 and 1000")

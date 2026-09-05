@@ -17,7 +17,7 @@ from reversecore_mcp.core.error_handling import handle_tool_errors
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.result import ToolResult, failure, success
-from reversecore_mcp.core.security import validate_file_path
+from reversecore_mcp.core.security import get_workspace_config, validate_file_path
 
 logger = get_logger(__name__)
 
@@ -246,7 +246,14 @@ async def disk_recover_deleted(
     """
     validated = validate_file_path(image_path)
     out = Path(output_path)
-    out.parent.mkdir(parents=True, exist_ok=True)
+    workspace = get_workspace_config().workspace.resolve()
+    resolved_out = (out if out.is_absolute() else (workspace / out)).resolve()
+    if not resolved_out.is_relative_to(workspace):
+        return failure(
+            "PATH_TRAVERSAL_DETECTED",
+            f"output_path '{output_path}' must reside within the workspace directory",
+        )
+    resolved_out.parent.mkdir(parents=True, exist_ok=True)
 
     if not _check_tsk_available():
         return failure(
@@ -282,14 +289,14 @@ async def disk_recover_deleted(
             f"Inode {inode} contains no data (may be fully overwritten)",
         )
 
-    out.write_bytes(result.stdout)
+    resolved_out.write_bytes(result.stdout)
     sha256 = hashlib.sha256(result.stdout).hexdigest()
 
     return success(
         {
             "image_path": str(validated),
             "inode": inode,
-            "output_path": str(out),
+            "output_path": str(resolved_out),
             "recovered_bytes": len(result.stdout),
             "sha256": sha256,
             "status": "recovered",

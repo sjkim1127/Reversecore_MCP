@@ -33,7 +33,9 @@ async def test_verify_path_satisfiable(mock_subprocess):
     mock_subprocess.assert_called_once()
     args, kwargs = mock_subprocess.call_args
     cmd = args[0]
-    assert cmd[0] == "python"
+    import sys
+
+    assert cmd[0] in ("python", "python3", sys.executable)
     assert "--binary" in cmd
     assert "/bin/test" in cmd
     assert "--target-addr" in cmd

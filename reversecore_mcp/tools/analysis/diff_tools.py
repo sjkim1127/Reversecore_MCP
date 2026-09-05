@@ -1,5 +1,6 @@
 """Binary diffing and library matching tools for comparing binaries and identifying library code."""
 
+import asyncio
 import os
 import re
 from functools import lru_cache
@@ -174,18 +175,18 @@ async def diff_binaries(
                 str(validated_path_b),
             ]
 
-        output, bytes_read = await execute_subprocess_async(
-            cmd,
-            max_output_size=max_output_size,
-            timeout=timeout,
-        )
-
-        # Also get similarity score (format: "similarity: 0.95")
         similarity_cmd = ["radiff2", "-s", str(validated_path_a), str(validated_path_b)]
-        similarity_output, _ = await execute_subprocess_async(
-            similarity_cmd,
-            max_output_size=1_000_000,
-            timeout=60,
+        (output, bytes_read), (similarity_output, _) = await asyncio.gather(
+            execute_subprocess_async(
+                cmd,
+                max_output_size=max_output_size,
+                timeout=timeout,
+            ),
+            execute_subprocess_async(
+                similarity_cmd,
+                max_output_size=1_000_000,
+                timeout=min(timeout, 60),
+            ),
         )
 
         # Parse similarity score (format: "similarity: 0.95")

@@ -7,6 +7,7 @@ as a separate process to prevent OOM issues and event loop blocking in the main 
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -52,7 +53,7 @@ async def verify_path_and_get_args(
         return {"satisfiable": False, "error": "Worker script not found"}
 
     cmd = [
-        "python",
+        sys.executable or "python3",
         str(worker_script),
         "--binary",
         str(binary_path),

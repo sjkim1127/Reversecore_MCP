@@ -582,19 +582,41 @@ async def analyze_patch_diff_auto(
         await ctx.report_progress(40, 100)
 
     # ── Step 3: Detect dangerous API changes ────────────────────────────────
-    # Get import lists for both binaries
     async def _get_imports(path: str) -> set[str]:
+        # Primary: radare2 'ii' command (reliable cross-platform)
         try:
-            out, _ = await execute_subprocess_async(
-                ["radiff2", "-i", path], max_output_size=1_000_000, timeout=30
+            out, _ = await _execute_r2_command(
+                path,
+                ["ii"],
+                analysis_level="",
+                max_output_size=1_000_000,
+                base_timeout=30,
             )
             names: set[str] = set()
             for ln in out.splitlines():
+                ln_lower = ln.lower()
                 for api in _DANGEROUS_APIS:
-                    if api in ln.lower():
+                    if api in ln_lower:
+                        names.add(api)
+            if names:
+                return names
+        except Exception as exc:
+            logger.debug("r2 import extraction failed for %s: %s", path, exc)
+
+        # Fallback: rabin2 -i CLI
+        try:
+            out, _ = await execute_subprocess_async(
+                ["rabin2", "-i", path], max_output_size=1_000_000, timeout=30
+            )
+            names = set()
+            for ln in out.splitlines():
+                ln_lower = ln.lower()
+                for api in _DANGEROUS_APIS:
+                    if api in ln_lower:
                         names.add(api)
             return names
-        except Exception:
+        except Exception as exc:
+            logger.debug("rabin2 import extraction failed for %s: %s", path, exc)
             return set()
 
     imports_old, imports_new = await asyncio.gather(

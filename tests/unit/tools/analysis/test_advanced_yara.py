@@ -92,3 +92,17 @@ async def test_generate_advanced_yara_rule_no_mask(mock_execute, mock_validate):
     assert result.status == "success"
     content_json = result.data
     assert "e8 11 22 33 44" in content_json["yara_rule"]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@patch("reversecore_mcp.tools.analysis.advanced_yara.validate_file_path")
+async def test_generate_advanced_yara_rule_invalid_name(mock_validate):
+    mock_validate.return_value = Path("test.bin")
+    result = await generate_advanced_yara_rule(
+        file_path="test.bin",
+        address="0x1000",
+        rule_name="123-bad-name!",
+    )
+    assert result.status == "error"
+    assert result.error_code == "VALIDATION_ERROR"

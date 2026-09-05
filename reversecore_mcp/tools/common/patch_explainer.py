@@ -269,17 +269,18 @@ def _find_added_lower_bound_checks(lines_a: list[str], lines_b: list[str]) -> li
     lower_bound_pattern = re.compile(
         r"\b([A-Za-z_][A-Za-z0-9_]*)\s*<\s*0\b|0\s*>\s*([A-Za-z_][A-Za-z0-9_]*)\b"
     )
+    cond_pattern = re.compile(r"\b(?:if|while)\b")
 
     checks_a = {
         match.group(0)
         for line in lines_a
-        if line.startswith("if")
+        if cond_pattern.search(line)
         for match in lower_bound_pattern.finditer(line)
     }
     checks_b = {
         match.group(0)
         for line in lines_b
-        if line.startswith("if")
+        if cond_pattern.search(line)
         for match in lower_bound_pattern.finditer(line)
     }
     return sorted(checks_b - checks_a)

@@ -250,8 +250,18 @@ def _iter_c_functions(lines: list[str]) -> list[dict[str, Any]]:
     for line_number, line in enumerate(lines, start=1):
         stripped = line.strip()
         if not in_function:
+            # Skip comments and preprocessor lines outside functions
+            if stripped.startswith(("#", "//", "/*", "*")):
+                continue
             signature = f"{signature} {stripped}".strip()
+            # If declaration/statement ended without an open brace, reset signature
+            if ";" in stripped and "{" not in stripped:
+                signature = ""
+                continue
             if "{" not in stripped:
+                # Prevent runaway signature accumulator
+                if len(signature) > 1000:
+                    signature = signature[-500:]
                 continue
             if not _looks_like_function_signature(signature):
                 signature = ""
@@ -302,7 +312,10 @@ def _collect_index_guards(function_lines: list[str]) -> dict[str, dict[str, bool
         re.compile(r"\b0\s*<=\s*(?P<idx>[A-Za-z_][A-Za-z0-9_]*)\b"),
         re.compile(r"\b(?P<idx>[A-Za-z_][A-Za-z0-9_]*)\s*>=\s*0\b"),
         re.compile(r"\b0\s*>\s*(?P<idx>[A-Za-z_][A-Za-z0-9_]*)\b"),
-        re.compile(r"\b(?P<idx>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*0\b"),
+        re.compile(r"\b(?P<idx>[A-Za-z_][A-Za-z0-9_]*)\s*==\s*0\b"),
+        re.compile(r"\b0\s*==\s*(?P<idx>[A-Za-z_][A-Za-z0-9_]*)\b"),
+        re.compile(r"\b(?P<idx>[A-Za-z_][A-Za-z0-9_]*)\s*<=\s*0\b"),
+        re.compile(r"\b0\s*>=\s*(?P<idx>[A-Za-z_][A-Za-z0-9_]*)\b"),
     ]
     upper_patterns = [
         re.compile(r"\b(?P<idx>[A-Za-z_][A-Za-z0-9_]*)\s*>\s*[A-Za-z_][A-Za-z0-9_]*\b"),

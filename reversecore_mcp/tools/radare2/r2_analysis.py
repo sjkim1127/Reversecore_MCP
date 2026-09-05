@@ -826,21 +826,21 @@ async def generate_function_graph(
             # Create temp files
             with tempfile.NamedTemporaryFile(mode="w", suffix=".dot", delete=False) as dot_file:
                 dot_file.write(dot_content)
-                dot_path = dot_file.name
+                dot_path = PathlibPath(dot_file.name)
 
-            png_path = dot_path.replace(".dot", ".png")
+            png_path = dot_path.with_suffix(".png")
 
             try:
                 # Use async subprocess execution to avoid blocking the event loop
                 # This allows concurrent operations and better resource utilization
                 await execute_subprocess_async(
-                    ["dot", "-Tpng", dot_path, "-o", png_path],
+                    ["dot", "-Tpng", str(dot_path), "-o", str(png_path)],
                     max_output_size=1_000_000,  # 1MB for error messages
                     timeout=30,
                 )
 
                 # Read PNG file
-                png_data = PathlibPath(png_path).read_bytes()
+                png_data = png_path.read_bytes()
 
                 # Return Image object
                 return Image(data=png_data, mime_type="image/png")
@@ -848,9 +848,9 @@ async def generate_function_graph(
             finally:
                 # Cleanup temp files
                 try:
-                    PathlibPath(dot_path).unlink()
-                    if PathlibPath(png_path).exists():
-                        PathlibPath(png_path).unlink()
+                    dot_path.unlink()
+                    if png_path.exists():
+                        png_path.unlink()
                 except (OSError, FileNotFoundError):
                     pass
 
