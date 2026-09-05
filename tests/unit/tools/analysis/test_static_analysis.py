@@ -226,6 +226,41 @@ class TestRunBinwalkExtract:
 
         assert result.status == "error"
 
+    @pytest.mark.asyncio
+    async def test_binwalk_extract_cleans_up_temp_dir_on_error(self, tmp_path):
+        """Test that temporary extraction directory is deleted on failure."""
+        import os
+        import tempfile
+
+        from reversecore_mcp.tools.analysis.static_analysis import run_binwalk_extract
+
+        test_file = tmp_path / "test.bin"
+        test_file.write_bytes(b"\x00" * 100)
+
+        created_dir = None
+        orig_mkdtemp = tempfile.mkdtemp
+
+        def track_mkdtemp(*args, **kwargs):
+            nonlocal created_dir
+            d = orig_mkdtemp(*args, **kwargs)
+            created_dir = d
+            return d
+
+        with patch("tempfile.mkdtemp", side_effect=track_mkdtemp):
+            with patch(
+                "reversecore_mcp.tools.analysis.static_analysis.validate_file_path",
+                return_value=test_file,
+            ):
+                with patch(
+                    "reversecore_mcp.tools.analysis.static_analysis.execute_subprocess_async",
+                    side_effect=RuntimeError("Extraction crashed unexpectedly"),
+                ):
+                    result = await run_binwalk_extract(str(test_file))
+
+        assert result.status == "error"
+        assert created_dir is not None
+        assert not os.path.exists(created_dir)
+
 
 class TestScanForVersionsError:
     """Tests for scan_for_versions error paths."""

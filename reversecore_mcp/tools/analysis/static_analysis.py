@@ -2,6 +2,7 @@
 
 import os
 import re
+import shutil
 import tempfile
 
 from reversecore_mcp.core.config import get_config
@@ -241,12 +242,14 @@ async def run_binwalk_extract(
     validated_path = validate_file_path(file_path)
 
     # Create output directory if not specified
+    is_temp_dir = False
     if output_dir is None:
         # Create temp directory for extraction inside workspace / tmp
         workspace_tmp = get_config().workspace / "tmp"
         workspace_tmp.mkdir(exist_ok=True)
         temp_dir = tempfile.mkdtemp(prefix="binwalk_extract_", dir=str(workspace_tmp))
         extraction_dir = temp_dir
+        is_temp_dir = True
     else:
         # Resolve output directory path (may not exist yet)
         from pathlib import Path
@@ -276,94 +279,99 @@ async def run_binwalk_extract(
     cmd.extend(["-C", str(extraction_dir)])  # Output directory
     cmd.append(str(validated_path))
 
-    # Run extraction
-    output, bytes_read = await execute_subprocess_async(
-        cmd,
-        max_output_size=max_output_size,
-        timeout=timeout,
-    )
+    try:
+        # Run extraction
+        output, bytes_read = await execute_subprocess_async(
+            cmd,
+            max_output_size=max_output_size,
+            timeout=timeout,
+        )
 
-    # Gather extraction results
-    extracted_files = []
-    total_size = 0
-    max_depth_found = 0
+        # Gather extraction results
+        extracted_files = []
+        total_size = 0
+        max_depth_found = 0
 
-    # Walk the extraction directory to catalog results
-    extraction_path = Path(extraction_dir)
-    if extraction_path.exists():
-        for root, _dirs, files in os.walk(extraction_path):
-            # Calculate depth from extraction root
-            rel_path = Path(root).relative_to(extraction_path)
-            current_depth = len(rel_path.parts)
-            max_depth_found = max(max_depth_found, current_depth)
+        # Walk the extraction directory to catalog results
+        extraction_path = Path(extraction_dir)
+        if extraction_path.exists():
+            for root, _dirs, files in os.walk(extraction_path):
+                # Calculate depth from extraction root
+                rel_path = Path(root).relative_to(extraction_path)
+                current_depth = len(rel_path.parts)
+                max_depth_found = max(max_depth_found, current_depth)
 
-            for filename in files:
-                file_full_path = Path(root) / filename
-                try:
-                    file_size = file_full_path.stat().st_size
-                    total_size += file_size
-
-                    # Try to determine file type
-                    file_type = "unknown"
+                for filename in files:
+                    file_full_path = Path(root) / filename
                     try:
-                        # Use 'file' command for type detection
-                        type_cmd = ["file", "-b", str(file_full_path)]
-                        type_output, _ = await execute_subprocess_async(
-                            type_cmd, timeout=5, max_output_size=1024
-                        )
-                        file_type = type_output.strip()[:100]  # Limit type string length
-                    except (OSError, TimeoutError):
-                        # file command failed or timed out, use default "unknown"
+                        file_size = file_full_path.stat().st_size
+                        total_size += file_size
+
+                        # Try to determine file type
                         file_type = "unknown"
+                        try:
+                            # Use 'file' command for type detection
+                            type_cmd = ["file", "-b", str(file_full_path)]
+                            type_output, _ = await execute_subprocess_async(
+                                type_cmd, timeout=5, max_output_size=1024
+                            )
+                            file_type = type_output.strip()[:100]  # Limit type string length
+                        except (OSError, TimeoutError):
+                            # file command failed or timed out, use default "unknown"
+                            file_type = "unknown"
 
-                    extracted_files.append(
-                        {
-                            "path": str(file_full_path.relative_to(extraction_path)),
-                            "type": file_type,
-                            "size": file_size,
-                        }
-                    )
-                except (OSError, ValueError):
-                    continue
+                        extracted_files.append(
+                            {
+                                "path": str(file_full_path.relative_to(extraction_path)),
+                                "type": file_type,
+                                "size": file_size,
+                            }
+                        )
+                    except (OSError, ValueError):
+                        continue
 
-    # Sort by size (largest first) and limit entries
-    extracted_files.sort(key=lambda x: x["size"], reverse=True)
-    truncated = len(extracted_files) > MAX_EXTRACTED_FILES
-    extracted_files = extracted_files[:MAX_EXTRACTED_FILES]
+        # Sort by size (largest first) and limit entries
+        extracted_files.sort(key=lambda x: x["size"], reverse=True)
+        truncated = len(extracted_files) > MAX_EXTRACTED_FILES
+        extracted_files = extracted_files[:MAX_EXTRACTED_FILES]
 
-    # Parse binwalk output for additional info
-    signatures_found = []
-    for line in output.splitlines():
-        line = line.strip()
-        if line and not line.startswith("DECIMAL") and not line.startswith("-"):
-            # Extract signature type from binwalk output.
-            # maxsplit=2 means parts[2] already holds the full remainder,
-            # so we avoid the " ".join(parts[2:]) re-join cost.
-            parts = line.split(maxsplit=2)
-            if len(parts) >= 3:
-                try:
-                    offset = int(parts[0])
-                    sig_type = parts[2]
-                    signatures_found.append({"offset": offset, "type": sig_type[:100]})
-                except (ValueError, IndexError):
-                    continue
+        # Parse binwalk output for additional info
+        signatures_found = []
+        for line in output.splitlines():
+            line = line.strip()
+            if line and not line.startswith("DECIMAL") and not line.startswith("-"):
+                # Extract signature type from binwalk output.
+                # maxsplit=2 means parts[2] already holds the full remainder,
+                # so we avoid the " ".join(parts[2:]) re-join cost.
+                parts = line.split(maxsplit=2)
+                if len(parts) >= 3:
+                    try:
+                        offset = int(parts[0])
+                        sig_type = parts[2]
+                        signatures_found.append({"offset": offset, "type": sig_type[:100]})
+                    except (ValueError, IndexError):
+                        continue
 
-    return success(
-        {
-            "output_directory": str(extraction_dir),
-            "extracted_files": extracted_files,
-            "total_files": len(extracted_files)
-            + (100 if truncated else 0),  # Estimate if truncated
-            "total_size": total_size,
-            "total_size_human": _format_size(total_size),
-            "extraction_depth": max_depth_found,
-            "signatures_found": signatures_found[:MAX_SIGNATURES],
-            "binwalk_output": output[:5000] if len(output) > 5000 else output,
-            "truncated": truncated,
-        },
-        bytes_read=bytes_read,
-        description=f"Extracted {len(extracted_files)} files ({_format_size(total_size)}) to {extraction_dir}",
-    )
+        return success(
+            {
+                "output_directory": str(extraction_dir),
+                "extracted_files": extracted_files,
+                "total_files": len(extracted_files)
+                + (100 if truncated else 0),  # Estimate if truncated
+                "total_size": total_size,
+                "total_size_human": _format_size(total_size),
+                "extraction_depth": max_depth_found,
+                "signatures_found": signatures_found[:MAX_SIGNATURES],
+                "binwalk_output": output[:5000] if len(output) > 5000 else output,
+                "truncated": truncated,
+            },
+            bytes_read=bytes_read,
+            description=f"Extracted {len(extracted_files)} files ({_format_size(total_size)}) to {extraction_dir}",
+        )
+    except Exception:
+        if is_temp_dir and os.path.exists(extraction_dir):
+            shutil.rmtree(extraction_dir, ignore_errors=True)
+        raise
 
 
 def _format_size(size_bytes: int) -> str:

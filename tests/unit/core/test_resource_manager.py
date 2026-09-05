@@ -141,6 +141,32 @@ class TestResourceManager:
         assert recent_tmp.exists()
 
     @pytest.mark.asyncio
+    async def test_cleanup_stale_temp_extraction_dirs(self, tmp_path, monkeypatch):
+        """Test cleaning up stale extraction directories in workspace/tmp."""
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        ws_tmp = workspace / "tmp"
+        ws_tmp.mkdir()
+
+        stale_extract_dir = ws_tmp / "binwalk_extract_old123"
+        stale_extract_dir.mkdir()
+        (stale_extract_dir / "extracted_data.bin").write_bytes(b"\x00" * 50)
+        old_time = time.time() - (25 * 3600)
+        os.utime(stale_extract_dir, (old_time, old_time))
+
+        recent_extract_dir = ws_tmp / "binwalk_extract_new456"
+        recent_extract_dir.mkdir()
+
+        mock_config = _create_mock_config(workspace)
+        monkeypatch.setattr(config, "get_config", lambda: mock_config)
+
+        manager = ResourceManager()
+        await manager.cleanup()
+
+        assert not stale_extract_dir.exists()
+        assert recent_extract_dir.exists()
+
+    @pytest.mark.asyncio
     async def test_cleanup_handles_errors_gracefully(self, tmp_path, monkeypatch):
         """Test that cleanup handles errors without crashing."""
         # Setup workspace

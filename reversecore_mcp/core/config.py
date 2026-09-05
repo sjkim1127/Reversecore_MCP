@@ -415,18 +415,20 @@ class Config:
         mock_mode: bool | None = None,
         clang_path: str | None = None,
         enable_live_fuzzing: bool | None = None,
+        _warn_deprecated: bool = True,
     ):
         """Initialize Config with optional Settings instance or individual values.
 
         For backward compatibility, individual values can be passed directly.
         """
-        import warnings
+        if _warn_deprecated:
+            import warnings
 
-        warnings.warn(
-            "Config wrapper is deprecated. Use get_settings() directly instead of get_config().",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+            warnings.warn(
+                "Config wrapper is deprecated. Use get_settings() directly instead of get_config().",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         if settings is not None:
             self._settings = settings
         else:
@@ -627,7 +629,7 @@ class Config:
     @classmethod
     def from_env(cls) -> Config:
         """Build a Config instance from environment variables."""
-        return cls(Settings())
+        return cls(Settings(), _warn_deprecated=False)
 
     def validate_paths(self, strict: bool = True) -> None:
         """Validate that configured directories exist and are directories."""
@@ -683,7 +685,8 @@ def get_settings() -> Settings:
 def reset_config() -> Config:
     """Reload configuration from the current environment (primarily for tests)."""
     global _CONFIG
-    _CONFIG = Config.from_env()
+    with _CONFIG_LOCK:
+        _CONFIG = Config.from_env()
     try:
         from reversecore_mcp.core import security
 

@@ -22,9 +22,16 @@ class CommonToolsPlugin(Plugin):
     def description(self) -> str:
         return "Unified common tools including memory management, server monitoring, file operations, and patch analysis."
 
-    def register(self, mcp_server: Any) -> None:
-        """Register all common tools."""
-        # Import and delegate to specialized plugins
+    def register(self, mcp_server: Any, include_subplugins: bool = False) -> None:
+        """Register common tools.
+
+        Args:
+            mcp_server: FastMCP server instance.
+            include_subplugins: If True, also registers MemoryToolsPlugin and
+                ServerToolsPlugin. Defaults to False because PluginLoader discovers
+                and registers them independently.
+        """
+        # Import tools
         from reversecore_mcp.tools.common.assembler import assemble_instructions
         from reversecore_mcp.tools.common.file_operations import (
             copy_to_workspace,
@@ -33,17 +40,17 @@ class CommonToolsPlugin(Plugin):
             run_file,
             scan_workspace,
         )
-        from reversecore_mcp.tools.common.memory_tools import MemoryToolsPlugin
         from reversecore_mcp.tools.common.patch_explainer import explain_patch
-        from reversecore_mcp.tools.common.server_tools import ServerToolsPlugin
 
-        # Register memory tools (plugin handles internal registration)
-        memory_plugin = MemoryToolsPlugin()
-        memory_plugin.register(mcp_server)
+        if include_subplugins:
+            from reversecore_mcp.tools.common.memory_tools import MemoryToolsPlugin
+            from reversecore_mcp.tools.common.server_tools import ServerToolsPlugin
 
-        # Register server tools (plugin handles internal registration)
-        server_plugin = ServerToolsPlugin()
-        server_plugin.register(mcp_server)
+            memory_plugin = MemoryToolsPlugin()
+            memory_plugin.register(mcp_server)
+
+            server_plugin = ServerToolsPlugin()
+            server_plugin.register(mcp_server)
 
         # File operation tools
         mcp_server.tool(run_file)

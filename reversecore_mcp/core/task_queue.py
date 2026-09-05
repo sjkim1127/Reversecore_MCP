@@ -23,7 +23,15 @@ logger = get_logger(__name__)
 # Global ARQ Redis connection pool
 _arq_pool: Any = None
 _queue_enabled: bool = True
-_pool_init_lock = asyncio.Lock()
+_pool_init_lock: asyncio.Lock | None = None
+
+
+def _get_pool_init_lock() -> asyncio.Lock:
+    """Get or create the async lock for initializing the ARQ connection pool."""
+    global _pool_init_lock
+    if _pool_init_lock is None:
+        _pool_init_lock = asyncio.Lock()
+    return _pool_init_lock
 
 
 async def get_arq_pool() -> Any:
@@ -33,7 +41,7 @@ async def get_arq_pool() -> Any:
         return None
 
     if _arq_pool is None:
-        async with _pool_init_lock:
+        async with _get_pool_init_lock():
             if _arq_pool is None:
                 try:
                     config = get_config()
@@ -52,7 +60,7 @@ async def get_arq_pool() -> Any:
 
 async def close_arq_pool() -> None:
     """Close the global ARQ Redis connection pool."""
-    global _arq_pool
+    global _arq_pool, _pool_init_lock
     if _arq_pool is not None:
         try:
             await _arq_pool.close()
@@ -61,6 +69,7 @@ async def close_arq_pool() -> None:
             logger.debug(f"Error closing ARQ pool: {e}")
         finally:
             _arq_pool = None
+            _pool_init_lock = None
 
 
 async def run_task_or_fallback(

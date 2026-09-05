@@ -154,6 +154,21 @@ class ResourceManager:
                 except Exception as e:
                     logger.warning(f"Failed to delete temp file {temp_file}: {e}")
 
+            # Clean up stale temporary directories in workspace / "tmp"
+            workspace_tmp = workspace / "tmp"
+            if workspace_tmp.exists() and workspace_tmp.is_dir():
+                import shutil
+
+                for temp_dir in workspace_tmp.glob("binwalk_extract_*"):
+                    try:
+                        if temp_dir.is_dir():
+                            mtime = temp_dir.stat().st_mtime
+                            if now - mtime > max_age:
+                                shutil.rmtree(temp_dir, ignore_errors=True)
+                                cleaned_count += 1
+                    except Exception as e:
+                        logger.warning(f"Failed to delete temp dir {temp_dir}: {e}")
+
             if cleaned_count > 0:
                 logger.info(f"Cleaned up {cleaned_count} stale temporary files")
 

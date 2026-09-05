@@ -387,3 +387,27 @@ class TestPydanticSettings:
         assert isinstance(config.default_tool_timeout, int)
         assert isinstance(config.r2_pool_size, int)
         assert isinstance(config.r2_pool_timeout, int)
+
+    def test_get_settings_no_deprecation_warning(self, monkeypatch, tmp_path):
+        """get_settings() must not emit deprecation warnings."""
+        import warnings
+
+        _provision_env(monkeypatch, tmp_path)
+        reset_config()
+        with warnings.catch_warnings(record=True) as recorded:
+            warnings.simplefilter("always")
+            settings = get_settings()
+            assert settings is not None
+            dep_warnings = [w for w in recorded if issubclass(w.category, DeprecationWarning)]
+            assert dep_warnings == []
+
+    def test_direct_config_instantiation_emits_deprecation_warning(self):
+        """Direct Config() instantiation should emit deprecation warning."""
+        import warnings
+
+        with warnings.catch_warnings(record=True) as recorded:
+            warnings.simplefilter("always")
+            _ = Config()
+            dep_warnings = [w for w in recorded if issubclass(w.category, DeprecationWarning)]
+            assert len(dep_warnings) == 1
+            assert "Config wrapper is deprecated" in str(dep_warnings[0].message)
