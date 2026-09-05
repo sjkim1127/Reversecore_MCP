@@ -9,6 +9,33 @@ from reversecore_mcp.core.loader import PluginLoader
 from reversecore_mcp.tools.common import CommonToolsPlugin
 
 
+def _get_registered_tools(mcp: FastMCP) -> dict[str, object]:
+    """Extract registered tools dict across FastMCP 2.x and 3.x."""
+    # FastMCP 2.x compatibility
+    if hasattr(mcp, "_tool_manager") and hasattr(mcp._tool_manager, "_tools"):
+        return mcp._tool_manager._tools
+
+    # FastMCP 3.x compatibility
+    local_provider = getattr(mcp, "_local_provider", None) or getattr(mcp, "local_provider", None)
+    if local_provider and hasattr(local_provider, "_components"):
+        return {
+            getattr(comp, "name", k.split(":")[1].split("@")[0]): comp
+            for k, comp in local_provider._components.items()
+            if k.startswith("tool:")
+        }
+
+    # Fallback to providers list
+    providers = getattr(mcp, "_providers", [])
+    tools: dict[str, object] = {}
+    for p in providers:
+        if hasattr(p, "_components"):
+            for k, comp in p._components.items():
+                if k.startswith("tool:"):
+                    name = getattr(comp, "name", k.split(":")[1].split("@")[0])
+                    tools[name] = comp
+    return tools
+
+
 class TestCommonToolsPlugin:
     """Tests for CommonToolsPlugin registration behavior."""
 
@@ -25,7 +52,7 @@ class TestCommonToolsPlugin:
 
         plugin.register(mcp)
 
-        tools = mcp._tool_manager._tools
+        tools = _get_registered_tools(mcp)
         assert len(tools) == 7
         expected_tools = {
             "run_file",
@@ -45,7 +72,7 @@ class TestCommonToolsPlugin:
 
         plugin.register(mcp, include_subplugins=True)
 
-        tools = mcp._tool_manager._tools
+        tools = _get_registered_tools(mcp)
         assert len(tools) == 20
         # Check presence of subplugin tools
         assert "create_memory_session" in tools
@@ -70,4 +97,4 @@ class TestCommonToolsPlugin:
             record.message for record in caplog.records if "Tool already exists" in record.message
         ]
         assert duplicate_warnings == [], f"Found duplicate tool warnings: {duplicate_warnings}"
-        assert len(mcp._tool_manager._tools) >= 140
+        assert len(_get_registered_tools(mcp)) >= 140
