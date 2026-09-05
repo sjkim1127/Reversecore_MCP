@@ -163,6 +163,34 @@ class TestGenerateYaraRule:
         assert "rule my_rule" in result.data
 
     @pytest.mark.asyncio
+    async def test_cache_separation_different_addresses(self, tmp_path):
+        test_file = tmp_path / "test.exe"
+        test_file.write_bytes(b"MZ" + b"\x90" * 100)
+
+        with (
+            patch(
+                "reversecore_mcp.tools.analysis.signature_tools.validate_file_path",
+                return_value=test_file,
+            ),
+            patch(
+                "reversecore_mcp.tools.analysis.signature_tools._execute_r2_command",
+                new_callable=AsyncMock,
+            ) as mock_r2,
+        ):
+            mock_r2.side_effect = [
+                ("5589e55d", 4),
+                ("31c0c390", 4),
+            ]
+            res1 = await generate_yara_rule(str(test_file), "0x401000", rule_name="rule_one")
+            res2 = await generate_yara_rule(str(test_file), "0x402000", rule_name="rule_one")
+
+        assert res1.status == "success"
+        assert res2.status == "success"
+        assert "55 89 e5 5d" in res1.data
+        assert "31 c0 c3 90" in res2.data
+        assert mock_r2.call_count == 2
+
+    @pytest.mark.asyncio
     async def test_invalid_rule_name(self, tmp_path):
         test_file = tmp_path / "test.exe"
         test_file.write_bytes(b"MZ" + b"\x00" * 100)

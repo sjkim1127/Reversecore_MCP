@@ -182,3 +182,20 @@ async def test_worker_proxy_handlers(patched_config):
             timeout=300,
             _bypass_queue=True,
         )
+
+
+@pytest.mark.asyncio
+async def test_close_and_reset_task_queue():
+    from reversecore_mcp.core import task_queue
+
+    task_queue._queue_enabled = False
+    task_queue._arq_pool = MagicMock()
+    task_queue._arq_pool.close = AsyncMock()
+
+    await task_queue.close_arq_pool()
+    assert task_queue._queue_enabled is True
+    assert task_queue._arq_pool is None
+
+    task_queue._queue_enabled = False
+    task_queue.reset_task_queue()
+    assert task_queue._queue_enabled is True

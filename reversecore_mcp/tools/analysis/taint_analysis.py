@@ -219,22 +219,41 @@ async def _find_sink_calls(binary_path: str, timeout: int) -> list[dict[str, Any
     """
     sink_calls: list[dict[str, Any]] = []
 
-    for sink_name, sink_info in TAINT_SINKS.items():
-        try:
-            # Find import or symbol
-            out, _ = await _execute_r2_command(
-                binary_path,
-                [f"is~{sink_name}", f"ii~{sink_name}"],
-                analysis_level="aa",
-                max_output_size=1_000_000,
-                base_timeout=30,
-            )
+    # Batch query: fetch imports and symbols once to discover which sinks exist
+    try:
+        sym_out, _ = await _execute_r2_command(
+            binary_path,
+            ["is~imp.", "ii"],
+            analysis_level="aa",
+            max_output_size=1_000_000,
+            base_timeout=min(timeout, 30),
+        )
+    except Exception as exc:
+        logger.debug("Batch symbol search failed: %s", exc)
+        sym_out = ""
 
-            if not out.strip():
-                continue
+    # Filter candidate sinks to only those found in binary (or all if batch failed)
+    candidate_sinks = [
+        (sink_name, sink_info)
+        for sink_name, sink_info in TAINT_SINKS.items()
+        if not sym_out or sink_name in sym_out
+    ]
+
+    for sink_name, sink_info in candidate_sinks:
+        try:
+            # If batch output was unavailable, check this sink individually
+            if not sym_out:
+                out, _ = await _execute_r2_command(
+                    binary_path,
+                    [f"is~{sink_name}", f"ii~{sink_name}"],
+                    analysis_level="aa",
+                    max_output_size=1_000_000,
+                    base_timeout=30,
+                )
+                if not out.strip():
+                    continue
 
             # Find cross-references to this symbol
-            # Try to find the PLT/GOT address first
             addr_out, _ = await _execute_r2_command(
                 binary_path,
                 [f"?v sym.imp.{sink_name}", f"axtj sym.imp.{sink_name}"],
@@ -261,6 +280,17 @@ async def _find_sink_calls(binary_path: str, timeout: int) -> list[dict[str, Any
                                 "description": sink_info["description"],
                             }
                         )
+                else:
+                    sink_calls.append(
+                        {
+                            "sink_api": sink_name,
+                            "call_address": "0x0",
+                            "cwe": sink_info["cwe"],
+                            "severity": sink_info["severity"],
+                            "category": sink_info["category"],
+                            "description": sink_info["description"],
+                        }
+                    )
             except Exception:
                 # Still record the sink as found even without xrefs
                 sink_calls.append(
@@ -295,39 +325,60 @@ async def _find_source_calls(binary_path: str, timeout: int) -> list[dict[str, A
     """
     source_calls: list[dict[str, Any]] = []
 
+    # argv is a parameter, not a function call — include directly
+    if "argv" in TAINT_SOURCES:
+        source_calls.append(
+            {
+                "source_api": "argv",
+                "call_address": "0x0",
+                "category": "argv",
+                "description": "Command-line argv[] input",
+            }
+        )
+
+    # Batch query imports and symbols once
+    try:
+        sym_out, _ = await _execute_r2_command(
+            binary_path,
+            ["is~imp.", "ii"],
+            analysis_level="aa",
+            max_output_size=1_000_000,
+            base_timeout=min(timeout, 20),
+        )
+    except Exception as exc:
+        logger.debug("Batch source search failed: %s", exc)
+        sym_out = ""
+
     for src_name, src_info in TAINT_SOURCES.items():
         if src_name == "argv":
-            # argv is a parameter, not a function call — check main signature
-            source_calls.append(
-                {
-                    "source_api": "argv",
-                    "call_address": "0x0",  # Entry point effectively
-                    "category": "argv",
-                    "description": "Command-line argv[] input",
-                }
-            )
             continue
 
-        try:
-            out, _ = await _execute_r2_command(
-                binary_path,
-                [f"is~{src_name}", f"ii~{src_name}"],
-                analysis_level="aa",
-                max_output_size=500_000,
-                base_timeout=20,
-            )
+        if sym_out and src_name not in sym_out:
+            continue
 
-            if out.strip():
-                source_calls.append(
-                    {
-                        "source_api": src_name,
-                        "call_address": "0x0",
-                        "category": src_info["category"],
-                        "description": src_info["description"],
-                    }
+        if not sym_out:
+            try:
+                out, _ = await _execute_r2_command(
+                    binary_path,
+                    [f"is~{src_name}", f"ii~{src_name}"],
+                    analysis_level="aa",
+                    max_output_size=500_000,
+                    base_timeout=20,
                 )
-        except Exception as exc:
-            logger.debug("Source search failed for %s: %s", src_name, exc)
+                if not out.strip():
+                    continue
+            except Exception as exc:
+                logger.debug("Source search failed for %s: %s", src_name, exc)
+                continue
+
+        source_calls.append(
+            {
+                "source_api": src_name,
+                "call_address": "0x0",
+                "category": src_info["category"],
+                "description": src_info["description"],
+            }
+        )
 
     return source_calls
 

@@ -591,3 +591,30 @@ async def test_artifact_report_include_yara_uncovered(normalized_artifacts):
     )
     assert result.status == "success"
     assert "## Auto-Generated YARA Rule" in result.data["report_markdown"]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_artifact_generate_yara_path_traversal(normalized_artifacts, workspace_dir):
+    """Ensure path traversal attempts are detected and blocked."""
+    artifacts = normalized_artifacts + [
+        {"type": "string", "value": "test_pattern_str", "source": "test"}
+    ]
+    malicious_path = "/etc/cron.d/malicious_rule.yar"
+    result = await artifact_generate_yara(artifacts, output_path=malicious_path)
+    assert result.status == "error"
+    assert "PATH_TRAVERSAL_DETECTED" in result.error_code
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_artifact_report_path_traversal(normalized_artifacts, workspace_dir):
+    """Ensure path traversal attempts are detected and blocked in report."""
+    malicious_path = "../../../evil_report.md"
+    result = await artifact_report(
+        artifacts=normalized_artifacts,
+        case_name="traversal_test",
+        output_path=malicious_path,
+    )
+    assert result.status == "error"
+    assert "PATH_TRAVERSAL_DETECTED" in result.error_code

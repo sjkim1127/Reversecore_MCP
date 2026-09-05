@@ -5,6 +5,8 @@ CAPA (by Mandiant FLARE) identifies capabilities in executable files,
 providing high-level behavioral information like encryption, file deletion, etc.
 """
 
+import asyncio
+
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.next_tool_hints import build_capa_hints, finalize_hints
@@ -91,8 +93,10 @@ async def run_capa(file_path: str, output_format: str = "summary"):
                 message=f"CAPA cannot analyze this file: {e}",
             )
 
-        # Get capabilities
-        capabilities, counts = capa.main.find_capabilities(rules, extractor)
+        # Get capabilities asynchronously to prevent event loop blocking
+        capabilities, counts = await asyncio.to_thread(
+            capa.main.find_capabilities, rules, extractor
+        )
 
         # Format results
         result = {

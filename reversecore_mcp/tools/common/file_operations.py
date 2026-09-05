@@ -144,14 +144,15 @@ def copy_to_workspace(
 
     # Determine destination filename
     config = get_config()
+    workspace_resolved = config.workspace.resolve()
     if destination_name:
         # Allow nested paths within the workspace but block traversal
         dest_path = Path(destination_name)
         if dest_path.is_absolute():
             # If absolute, verify it's inside the workspace
+            destination = dest_path.resolve()
             try:
-                dest_path.relative_to(config.workspace)
-                destination = dest_path
+                destination.relative_to(workspace_resolved)
             except ValueError:
                 raise ValidationError(
                     f"Absolute destination path must be within the workspace: {destination_name}",
@@ -161,7 +162,7 @@ def copy_to_workspace(
             destination = (config.workspace / dest_path).resolve()
             # Verify no path traversal (e.g. ../../etc/passwd)
             try:
-                destination.relative_to(config.workspace)
+                destination.relative_to(workspace_resolved)
             except ValueError:
                 raise ValidationError(
                     f"Destination path traverses outside workspace: {destination_name}",

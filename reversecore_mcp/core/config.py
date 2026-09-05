@@ -527,6 +527,10 @@ class Config:
         return self._settings.lief_max_file_size
 
     @property
+    def max_file_size(self) -> int:
+        return self._settings.lief_max_file_size
+
+    @property
     def max_output_size(self) -> int:
         return self._settings.max_output_size
 

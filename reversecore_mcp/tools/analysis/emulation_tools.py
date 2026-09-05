@@ -173,9 +173,13 @@ async def emulate_binary(
 
     # 4. Handle mock files setup
     if mock_files:
+        resolved_rootfs = rootfs_path.resolve()
         for virt_path, content in mock_files.items():
             clean_path = virt_path.lstrip("/\\")
-            host_path = rootfs_path / clean_path
+            host_path = (rootfs_path / clean_path).resolve()
+            if not host_path.is_relative_to(resolved_rootfs):
+                logger.warning("Rejected path traversal attempt in mock_file path: %s", virt_path)
+                continue
             host_path.parent.mkdir(parents=True, exist_ok=True)
             host_path.write_text(content, encoding="utf-8")
             logger.debug("Mocked file at %s inside rootfs", virt_path)

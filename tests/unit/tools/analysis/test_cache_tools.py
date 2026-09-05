@@ -128,3 +128,36 @@ async def test_import_analysis_cache_invalid_format(tmp_path):
 
         assert isinstance(result, ToolError)
         assert result.error_code == "CACHE_IMPORT_INVALID"
+
+
+@pytest.mark.asyncio
+async def test_export_analysis_cache_path_traversal_prevention(mock_cache_data, tmp_path):
+    with (
+        patch("reversecore_mcp.tools.analysis.cache_tools.validate_file_path") as mock_validate,
+        patch("reversecore_mcp.tools.analysis.cache_tools.calculate_file_sha256") as mock_calc,
+        patch(
+            "reversecore_mcp.tools.analysis.cache_tools.export_cache_by_hash",
+            new_callable=AsyncMock,
+        ) as mock_export,
+        patch("reversecore_mcp.tools.analysis.cache_tools.get_config") as mock_get_config,
+    ):
+        mock_path = MagicMock()
+        mock_path.name = "test_bin"
+        mock_validate.return_value = mock_path
+        mock_calc.return_value = "a1b2c3d4e5f6"
+        mock_export.return_value = mock_cache_data
+
+        config = MagicMock()
+        config.workspace = tmp_path
+        mock_get_config.return_value = config
+
+        # 1. Directory traversal attempt: ../../evil.rcpack must be sanitized to evil.rcpack
+        result = await export_analysis_cache("fake/path", "../../evil.rcpack")
+        assert isinstance(result, ToolSuccess)
+        assert (tmp_path / "evil.rcpack").exists()
+        assert not (tmp_path.parent / "evil.rcpack").exists()
+
+        # 2. Relative traversal token only: ".." must be rejected
+        res_dot = await export_analysis_cache("fake/path", "..")
+        assert isinstance(res_dot, ToolError)
+        assert res_dot.error_code == "INVALID_PARAMETER"

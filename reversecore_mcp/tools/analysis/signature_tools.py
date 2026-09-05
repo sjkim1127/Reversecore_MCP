@@ -260,7 +260,7 @@ async def generate_signature(
 @cache_tool_result(
     "generate_yara_rule",
     ttl=43200,
-    cache_kwargs=["rule_name", "author", "description", "mode"],
+    cache_kwargs=["function_address", "rule_name", "byte_length"],
 )
 async def generate_yara_rule(
     file_path: str,

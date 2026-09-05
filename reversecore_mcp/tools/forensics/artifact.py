@@ -13,6 +13,7 @@ from reversecore_mcp.core.error_handling import handle_tool_errors
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.result import ToolResult, failure, success
+from reversecore_mcp.core.security import get_workspace_config
 from reversecore_mcp.tools.malware.ioc_tools import extract_iocs
 
 logger = get_logger(__name__)
@@ -333,8 +334,15 @@ async def artifact_generate_yara(
         from pathlib import Path
 
         out = Path(output_path)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(yara_rule, encoding="utf-8")
+        workspace = get_workspace_config().workspace.resolve()
+        resolved_out = (out if out.is_absolute() else (workspace / out)).resolve()
+        if not resolved_out.is_relative_to(workspace):
+            return failure(
+                "PATH_TRAVERSAL_DETECTED",
+                f"output_path '{output_path}' must reside within the workspace directory",
+            )
+        resolved_out.parent.mkdir(parents=True, exist_ok=True)
+        resolved_out.write_text(yara_rule, encoding="utf-8")
         saved_path = str(out)
 
     return success(
@@ -580,8 +588,15 @@ async def artifact_report(
         from pathlib import Path
 
         out = Path(output_path)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(report_md, encoding="utf-8")
+        workspace = get_workspace_config().workspace.resolve()
+        resolved_out = (out if out.is_absolute() else (workspace / out)).resolve()
+        if not resolved_out.is_relative_to(workspace):
+            return failure(
+                "PATH_TRAVERSAL_DETECTED",
+                f"output_path '{output_path}' must reside within the workspace directory",
+            )
+        resolved_out.parent.mkdir(parents=True, exist_ok=True)
+        resolved_out.write_text(report_md, encoding="utf-8")
         saved_path = str(out)
 
     return success(

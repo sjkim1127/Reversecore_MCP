@@ -60,7 +60,7 @@ async def get_arq_pool() -> Any:
 
 async def close_arq_pool() -> None:
     """Close the global ARQ Redis connection pool."""
-    global _arq_pool, _pool_init_lock
+    global _arq_pool, _pool_init_lock, _queue_enabled
     if _arq_pool is not None:
         try:
             await _arq_pool.close()
@@ -70,6 +70,15 @@ async def close_arq_pool() -> None:
         finally:
             _arq_pool = None
             _pool_init_lock = None
+    _queue_enabled = True
+
+
+def reset_task_queue() -> None:
+    """Reset the task queue state and re-enable reconnection attempts."""
+    global _arq_pool, _pool_init_lock, _queue_enabled
+    _arq_pool = None
+    _pool_init_lock = None
+    _queue_enabled = True
 
 
 async def run_task_or_fallback(

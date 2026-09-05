@@ -263,7 +263,11 @@ async def disk_recover_deleted(
     resolved_exe = shutil.which(cmd[0])
     if not resolved_exe:
         return failure("DEPENDENCY_MISSING", "Sleuth Kit (icat) is not installed")
-    result = subprocess.run([resolved_exe] + cmd[1:], capture_output=True, timeout=120)  # nosec B603
+
+    def _run_icat():
+        return subprocess.run([resolved_exe] + cmd[1:], capture_output=True, timeout=120)  # nosec B603
+
+    result = await asyncio.to_thread(_run_icat)
 
     if result.returncode != 0 and not result.stdout:
         return failure(

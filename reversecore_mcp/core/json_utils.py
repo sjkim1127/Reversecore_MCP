@@ -61,10 +61,11 @@ try:
             JSON string
         """
         try:
-            if indent is not None:
-                # orjson only supports 2-space indentation via OPT_INDENT_2
-                # For compatibility, any indent value triggers pretty-printing
-                result = orjson.dumps(obj, option=orjson.OPT_INDENT_2)
+            option = orjson.OPT_INDENT_2 if indent is not None else 0
+            if default is not None:
+                result = orjson.dumps(obj, default=default, option=option)
+            elif option:
+                result = orjson.dumps(obj, option=option)
             else:
                 result = orjson.dumps(obj)
             # orjson returns bytes, convert to str for compatibility

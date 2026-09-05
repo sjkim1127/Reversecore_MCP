@@ -9,6 +9,8 @@ import pytest
 from reversecore_mcp.tools.analysis.taint_analysis import (
     TAINT_SINKS,
     TAINT_SOURCES,
+    _find_sink_calls,
+    _find_source_calls,
     taint_trace,
 )
 
@@ -246,3 +248,46 @@ class TestTaintTrace:
             verify_with_angr=False,
         )
         assert result.status == "success"
+
+
+class TestFindCalls:
+    """Direct tests for _find_sink_calls and _find_source_calls."""
+
+    @pytest.mark.asyncio
+    @patch("reversecore_mcp.tools.analysis.taint_analysis._execute_r2_command")
+    async def test_find_sink_calls_batch_success(self, mock_r2):
+        # 1st call: batch returns symbols including strcpy
+        # 2nd call: xrefs for strcpy
+        mock_r2.side_effect = [
+            ("0x401000 imp.strcpy\n0x401050 imp.printf\n", 40),
+            ('[{"from": 4198420, "type": "CALL"}]', 35),
+        ]
+        sinks = await _find_sink_calls("/fake/path", timeout=30)
+        assert len(sinks) >= 1
+        assert any(s["sink_api"] == "strcpy" for s in sinks)
+
+    @pytest.mark.asyncio
+    @patch("reversecore_mcp.tools.analysis.taint_analysis._execute_r2_command")
+    async def test_find_sink_calls_batch_fallback(self, mock_r2):
+        # 1st call raises Exception -> triggers fallback loop
+        mock_r2.side_effect = Exception("r2 batch failed")
+        sinks = await _find_sink_calls("/fake/path", timeout=30)
+        assert sinks == []
+
+    @pytest.mark.asyncio
+    @patch("reversecore_mcp.tools.analysis.taint_analysis._execute_r2_command")
+    async def test_find_source_calls_batch_success(self, mock_r2):
+        mock_r2.return_value = ("0x401000 imp.fgets\n0x401050 imp.recv\n", 40)
+        sources = await _find_source_calls("/fake/path", timeout=30)
+        source_names = [s["source_api"] for s in sources]
+        assert "argv" in source_names
+        assert "fgets" in source_names
+        assert "recv" in source_names
+
+    @pytest.mark.asyncio
+    @patch("reversecore_mcp.tools.analysis.taint_analysis._execute_r2_command")
+    async def test_find_source_calls_batch_fallback(self, mock_r2):
+        mock_r2.side_effect = Exception("r2 batch failed")
+        sources = await _find_source_calls("/fake/path", timeout=30)
+        assert len(sources) == 1
+        assert sources[0]["source_api"] == "argv"

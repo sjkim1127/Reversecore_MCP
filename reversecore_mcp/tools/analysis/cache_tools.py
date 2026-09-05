@@ -5,6 +5,8 @@ Enables sharing and portability of expensive analysis operations by exporting
 Redis/SQLite cache to a JSON file (.rcpack) and importing it back.
 """
 
+from pathlib import Path
+
 from reversecore_mcp.core import json_utils as json
 from reversecore_mcp.core.analysis_cache import (
     calculate_file_sha256,
@@ -56,8 +58,17 @@ async def export_analysis_cache(file_path: str, output_name: str | None = None) 
     config = get_config()
     if not output_name:
         output_name = f"{validated_path.name}_{file_hash[:8]}.rcpack"
+    else:
+        # Sanitize output_name to strictly filename only (prevent path traversal)
+        output_name = Path(output_name).name
+        if not output_name or output_name in (".", ".."):
+            return failure("INVALID_PARAMETER", "output_name cannot be empty or relative traversal")
 
-    export_path = config.workspace / output_name
+    export_path = (config.workspace / output_name).resolve()
+    try:
+        export_path.relative_to(config.workspace.resolve())
+    except ValueError:
+        return failure("SECURITY_ERROR", "Export path is outside allowed workspace directory")
 
     try:
         with open(export_path, "w", encoding="utf-8") as f:

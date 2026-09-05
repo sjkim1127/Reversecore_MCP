@@ -203,6 +203,20 @@ class TestJSONUtils:
         assert parsed["tag"] == "custom"
         assert set(parsed["data"]) == {1, 2, 3}
 
+    def test_dumps_with_path_and_datetime_default(self):
+        """Test dumps() with Path and datetime using default=str."""
+        from datetime import datetime
+        from pathlib import Path
+
+        now = datetime(2026, 9, 5, 12, 0, 0)
+        path = Path("/tmp/test_file.bin")
+        data = {"path": path, "time": now}
+
+        result = json_utils.dumps(data, indent=2, default=str)
+        parsed = json_utils.loads(result)
+        assert parsed["path"] == str(path)
+        assert parsed["time"] in (str(now), now.isoformat())
+
     def test_fallback_when_orjson_unavailable(self, monkeypatch):
         """Test fallback implementation when orjson is not installed."""
         import sys

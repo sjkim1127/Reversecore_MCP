@@ -1,5 +1,6 @@
 """Fuzzing harness generator for dynamic vulnerability verification."""
 
+import re
 import textwrap
 
 from reversecore_mcp.core.decorators import log_execution
@@ -136,9 +137,16 @@ def generate_fuzzing_harness(
     if save_to_workspace:
         from reversecore_mcp.core.config import get_config
 
-        workspace = get_config().workspace
-        target_file = workspace / script_name
-        target_file.write_text(harness_code)
+        workspace = get_config().workspace.resolve()
+        workspace.mkdir(parents=True, exist_ok=True)
+        safe_name = re.sub(r"[^\w.-]", "_", validated_path.name)
+        target_file = (workspace / f"fuzz_{safe_name}.py").resolve()
+        if not target_file.is_relative_to(workspace):
+            return failure(
+                "PATH_TRAVERSAL_DETECTED",
+                "Target script path must reside within the workspace directory",
+            )
+        target_file.write_text(harness_code, encoding="utf-8")
         saved_path = str(target_file)
 
     return success(

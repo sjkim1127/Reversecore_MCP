@@ -8,6 +8,7 @@ and zero-dependency pure Python PE/ELF header fallbacks.
 
 from __future__ import annotations
 
+import asyncio
 import math
 import re
 import shutil
@@ -19,6 +20,7 @@ from typing import Any
 
 import lief
 
+from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.result import failure, success
@@ -1451,6 +1453,17 @@ async def detect_packer(file_path: str):
         ToolResult with detailed detection information.
     """
     validated_path = validate_file_path(file_path, read_only=True)
+    max_file_size = getattr(get_config(), "lief_max_file_size", 1_000_000_000)
+    try:
+        file_size = validated_path.stat().st_size
+        if isinstance(file_size, (int, float)) and file_size > max_file_size:
+            return failure(
+                "FILE_TOO_LARGE",
+                f"File size ({file_size} bytes) exceeds maximum allowed size ({max_file_size} bytes)",
+                hint="Set REVERSECORE_MAX_FILE_SIZE environment variable to increase limit",
+            )
+    except (OSError, AttributeError):
+        pass
 
     try:
         data = validated_path.read_bytes()
@@ -1495,7 +1508,7 @@ async def detect_packer(file_path: str):
             detections.append({"type": "compiler", "value": label})
 
     # Optional diec CLI enhancement
-    diec_res = _run_diec_cli_if_available(validated_path)
+    diec_res = await asyncio.to_thread(_run_diec_cli_if_available, validated_path)
     if diec_res and isinstance(diec_res, dict):
         die_detects = diec_res.get("detects", [])
         for det in die_detects:
@@ -1606,6 +1619,17 @@ async def detect_packer_deep(file_path: str):
         ToolResult with comprehensive deep detection metrics.
     """
     validated_path = validate_file_path(file_path, read_only=True)
+    max_file_size = getattr(get_config(), "lief_max_file_size", 1_000_000_000)
+    try:
+        file_size = validated_path.stat().st_size
+        if isinstance(file_size, (int, float)) and file_size > max_file_size:
+            return failure(
+                "FILE_TOO_LARGE",
+                f"File size ({file_size} bytes) exceeds maximum allowed size ({max_file_size} bytes)",
+                hint="Set REVERSECORE_MAX_FILE_SIZE environment variable to increase limit",
+            )
+    except (OSError, AttributeError):
+        pass
 
     try:
         data = validated_path.read_bytes()
@@ -1665,7 +1689,7 @@ async def detect_packer_deep(file_path: str):
             detections.append({"type": "compiler_signature", "value": label})
 
     # Optional diec CLI integration
-    diec_res = _run_diec_cli_if_available(validated_path)
+    diec_res = await asyncio.to_thread(_run_diec_cli_if_available, validated_path)
     if diec_res and isinstance(diec_res, dict):
         for det in diec_res.get("detects", []):
             d_type = det.get("type", "unknown")
