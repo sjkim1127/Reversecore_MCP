@@ -7,6 +7,13 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 # ── Computed globals ──────────────────────────────────────────────────────────
 env:
   REGISTRY: ghcr.io
@@ -29,6 +36,10 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+
+      - name: Dependency Review
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@v4
 
       - name: Gitleaks Secret Scanner
         uses: gitleaks/gitleaks-action@v3
@@ -54,17 +65,17 @@ jobs:
           pip install -r requirements-dev.txt
           pip install "bandit[toml]" pip-audit
 
-      - name: Run Ruff check
-        run: ruff check reversecore_mcp/
+      - name: Run Ruff check (source, tests, scripts)
+        run: ruff check reversecore_mcp/ tests/ scripts/
 
-      - name: Run Ruff format check
-        run: ruff format --check reversecore_mcp/
+      - name: Run Ruff format check (source, tests, scripts)
+        run: ruff format --check reversecore_mcp/ tests/ scripts/
 
       - name: Run Mypy type check
         run: mypy reversecore_mcp/
 
       - name: Run Bandit security scan
-        run: bandit -r reversecore_mcp/ -c pyproject.toml
+        run: bandit -r reversecore_mcp/ -c pyproject.toml -ll
 
       - name: Run pip-audit (dependency vulnerabilities)
         run: |
@@ -144,7 +155,7 @@ jobs:
             --cov=reversecore_mcp \
             --cov-report=xml \
             --cov-report=term-missing \
-            --cov-fail-under=80
+            --cov-fail-under=85
 
       - name: Run security boundary tests
         env:

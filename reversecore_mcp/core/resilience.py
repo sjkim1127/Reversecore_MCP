@@ -73,10 +73,7 @@ class CircuitBreaker:
                     return True
                 return False
 
-            if self.state == CircuitState.HALF_OPEN:
-                # Only one request allowed in HALF_OPEN - lock ensures this
-                return True
-
+            # HALF_OPEN: only one request allowed in HALF_OPEN - lock ensures this
             return True
 
     def record_success(self):

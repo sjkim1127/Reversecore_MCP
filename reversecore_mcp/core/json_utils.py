@@ -14,7 +14,7 @@ Performance comparison:
 
 import json as _stdlib_json
 from json import JSONDecodeError as JSONDecodeError
-from typing import Any, cast
+from typing import Any
 
 try:
     import orjson
@@ -69,7 +69,7 @@ try:
             else:
                 result = orjson.dumps(obj)
             # orjson returns bytes, convert to str for compatibility
-            return cast(str, result.decode("utf-8"))
+            return result.decode("utf-8")
         except TypeError:
             # orjson can't serialize some types, fall back to stdlib with default
             return _stdlib_json.dumps(

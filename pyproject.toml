@@ -194,6 +194,8 @@ known-first-party = ["reversecore_mcp"]
 python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
+warn_unreachable = true
+warn_redundant_casts = true
 ignore_missing_imports = true
 no_implicit_optional = true
 check_untyped_defs = true
@@ -203,9 +205,6 @@ disallow_untyped_defs = false
 module = [
     "reversecore_mcp.tools.*",
     "reversecore_mcp.dashboard.*",
-    "reversecore_mcp.core.ghidra",
-    "reversecore_mcp.core.ghidra_manager",
-    "reversecore_mcp.core.ghidra_helper",
 ]
 ignore_errors = true
 

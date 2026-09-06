@@ -158,7 +158,7 @@ async def run_task_or_fallback(
         logger.warning(
             f"Queue submission failed for '{task_name}': {e}. Falling back to direct execution."
         )
-        return cast(ToolResult, await fallback_func(*args, **get_fallback_kwargs(bypass=True)))
+        return await fallback_func(*args, **get_fallback_kwargs(bypass=True))
 
 
 # =============================================================================
