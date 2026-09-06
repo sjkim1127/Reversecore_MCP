@@ -50,7 +50,7 @@ COPY requirements.txt         ./
 COPY requirements-runtime.txt ./
 # hadolint ignore=DL3008,DL3013
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends --only-upgrade curl libcurl3-gnutls libcurl4 libgraphite2-3 liblzma5 xz-utils libgd3 \
+    && apt-get install -y --no-install-recommends --only-upgrade curl libcurl3-gnutls libcurl4 libgraphite2-3 liblzma5 xz-utils libgd3 libssh2-1 \
     && apt-get install -y --no-install-recommends gcc g++ make python3-dev libc-dev \
     && /opt/venv/bin/pip install --no-cache-dir --upgrade "pip>=26.2.0" "setuptools>=83.0.0" "msgpack>=1.2.1" \
     && /opt/venv/bin/pip install --no-cache-dir -r requirements-runtime.txt \
