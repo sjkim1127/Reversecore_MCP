@@ -13,7 +13,6 @@ import math
 import re
 import shutil
 import struct
-import subprocess
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -1204,16 +1203,16 @@ def _run_diec_cli_if_available(file_path: Path) -> dict[str, Any] | None:
         return None
 
     try:
-        proc = subprocess.run(
+        from reversecore_mcp.core.execution import execute_subprocess_streaming
+
+        stdout, _ = execute_subprocess_streaming(
             [diec_path, "-j", str(file_path)],
-            capture_output=True,
-            text=True,
             timeout=5,
         )
-        if proc.returncode == 0 and proc.stdout.strip():
+        if stdout.strip():
             import json as stdlib_json
 
-            return stdlib_json.loads(proc.stdout)
+            return stdlib_json.loads(stdout)
     except Exception as exc:
         logger.debug(f"diec CLI execution skipped/failed: {exc}")
 

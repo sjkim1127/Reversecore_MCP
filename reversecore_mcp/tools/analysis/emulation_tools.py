@@ -276,8 +276,8 @@ async def emulate_binary(
                 try:
                     val = ql.arch.regs.read(reg)
                     final_regs[reg] = hex(val)
-                except Exception:  # nosec B110 - intentional: some regs unsupported on this arch/OS
-                    pass  # skip registers not available on this architecture
+                except Exception:  # nosec B110
+                    pass  # skip registers not available on this architecture (some regs unsupported)
         except Exception as e:
             logger.debug("Failed to read final register states: %s", e)
 

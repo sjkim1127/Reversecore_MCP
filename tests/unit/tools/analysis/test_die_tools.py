@@ -691,12 +691,9 @@ class TestDiecCliIntegration:
     """Tests for optional diec CLI wrapper."""
 
     @patch("shutil.which", return_value="/usr/bin/diec")
-    @patch("subprocess.run")
-    def test_diec_cli_success(self, mock_run, mock_which):
-        mock_proc = MagicMock()
-        mock_proc.returncode = 0
-        mock_proc.stdout = '{"detects": [{"type": "Packer", "name": "UPX (3.96)"}]}'
-        mock_run.return_value = mock_proc
+    @patch("reversecore_mcp.core.execution.execute_subprocess_streaming")
+    def test_diec_cli_success(self, mock_exec, mock_which):
+        mock_exec.return_value = ('{"detects": [{"type": "Packer", "name": "UPX (3.96)"}]}', 50)
 
         res = _run_diec_cli_if_available(Path("dummy"))
         assert res is not None

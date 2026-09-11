@@ -8,7 +8,7 @@ and applies delta-debugging minimization to verify payload byte reduction ratios
 from __future__ import annotations
 
 import os
-import subprocess
+import subprocess  # nosec B404
 import tempfile
 import time
 from pathlib import Path
@@ -132,7 +132,7 @@ class LiveTargetCompilerRunner:
         cmd.extend(["-o", str(out_bin)])
 
         try:
-            res = subprocess.run(
+            res = subprocess.run(  # nosec B603
                 cmd,
                 capture_output=True,
                 text=True,
@@ -193,7 +193,7 @@ class LiveTargetCompilerRunner:
 
         start_time = time.perf_counter()
         try:
-            proc = subprocess.run(
+            proc = subprocess.run(  # nosec B603
                 [str(bin_path), str(tmp_poc_path)],
                 capture_output=True,
                 text=True,

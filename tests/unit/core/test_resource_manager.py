@@ -42,6 +42,21 @@ class TestResourceManager:
         assert manager._running is False
         assert manager._task is None
 
+    def test_track_and_untrack_pid(self):
+        """Test tracking and untracking subprocess PIDs."""
+        manager = ResourceManager()
+        assert len(manager._tracked_pids) == 0
+
+        manager.track_pid(1234)
+        assert 1234 in manager._tracked_pids
+
+        manager.untrack_pid(1234)
+        assert 1234 not in manager._tracked_pids
+
+        # Untracking non-existent PID should be a safe no-op
+        manager.untrack_pid(9999)
+        assert len(manager._tracked_pids) == 0
+
     @pytest.mark.asyncio
     async def test_start(self):
         """Test starting the resource manager."""

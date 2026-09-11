@@ -26,6 +26,25 @@ class TestExecuteSubprocessAsync:
         assert bytes_read > 0
 
     @pytest.mark.asyncio
+    async def test_pid_lifecycle_tracked_and_untracked(self):
+        """Verify that spawned subprocess PID is tracked upon start and untracked upon exit."""
+        from reversecore_mcp.core.execution import execute_subprocess_async
+
+        with (
+            patch.object(ResourceManager, "track_pid") as mock_track,
+            patch.object(ResourceManager, "untrack_pid") as mock_untrack,
+        ):
+            await execute_subprocess_async(
+                ["python", "-c", "print('lifecycle')"],
+                timeout=10,
+            )
+            mock_track.assert_called_once()
+            mock_untrack.assert_called_once()
+            tracked_pid = mock_track.call_args[0][0]
+            untracked_pid = mock_untrack.call_args[0][0]
+            assert tracked_pid == untracked_pid
+
+    @pytest.mark.asyncio
     async def test_nonexistent_command(self):
         """Raise ToolNotFoundError for nonexistent command."""
         from reversecore_mcp.core.execution import execute_subprocess_async

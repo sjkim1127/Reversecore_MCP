@@ -10,7 +10,7 @@ from __future__ import annotations
 import importlib.util
 import os
 import shutil
-import subprocess
+import subprocess  # nosec B404
 import tempfile
 import threading
 from dataclasses import dataclass
@@ -143,7 +143,7 @@ class CapabilityDetector:
             src.write_text(code, encoding="utf-8")
             cmd = [str(clang_bin), *flags, "-o", str(out), str(src)]
             try:
-                res = subprocess.run(
+                res = subprocess.run(  # nosec B603
                     cmd,
                     capture_output=True,
                     text=True,
@@ -157,7 +157,7 @@ class CapabilityDetector:
     def _get_clang_version(cls, clang_bin: Path) -> str | None:
         """Retrieve version string from Clang executable."""
         try:
-            res = subprocess.run(
+            res = subprocess.run(  # nosec B603
                 [str(clang_bin), "--version"],
                 capture_output=True,
                 text=True,

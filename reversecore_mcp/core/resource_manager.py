@@ -40,6 +40,10 @@ class ResourceManager:
         """Track a subprocess PID for zombie cleanup."""
         self._tracked_pids.add(pid)
 
+    def untrack_pid(self, pid: int) -> None:
+        """Untrack a subprocess PID once reaped."""
+        self._tracked_pids.discard(pid)
+
     async def start(self):
         """Start the background cleanup tasks."""
         if self._running:

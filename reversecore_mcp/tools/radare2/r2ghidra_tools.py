@@ -558,7 +558,7 @@ async def r2_simulate_patch(
     script = "; ".join(patch_cmds) + "; q"
     proc = None
     try:
-        proc = await asyncio.create_subprocess_exec(  # nosec B603
+        proc = await asyncio.create_subprocess_exec(
             r2_exe,
             "-w",
             "-A",

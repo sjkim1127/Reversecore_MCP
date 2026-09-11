@@ -11,7 +11,9 @@ This module provides functions to execute subprocess commands safely with:
 import asyncio
 import os
 import shutil
-import subprocess  # nosec B404 - required for safe subprocess execution in this module
+
+# Subprocess module is required for execution; security is enforced via SandboxExecutor and limits.
+import subprocess  # nosec B404
 import sys
 import threading
 from collections.abc import Coroutine
@@ -237,94 +239,99 @@ async def execute_subprocess_async(
     bytes_read = 0
 
     try:
-        # Read stdout and stderr in chunks concurrently with timeout checking
-        async def read_stdout():
-            """Read stdout in chunks until EOF or size limit."""
-            nonlocal bytes_read
-            chunk_size = 8192  # 8KB chunks
-
-            # Assert stdout is not None for mypy
-            assert process.stdout is not None  # nosec B101
-            while True:
-                chunk = await process.stdout.read(chunk_size)
-                if not chunk:
-                    break
-
-                # Decode chunk
-                decoded_chunk = chunk.decode(encoding, errors=errors)
-                chunk_bytes = len(chunk)
-                bytes_read += chunk_bytes
-
-                # Only append if we haven't exceeded the limit
-                if bytes_read <= max_output_size:
-                    output_chunks.append(decoded_chunk)
-
-        async def read_stderr():
-            """Read stderr in chunks until EOF or size limit to prevent pipe buffer deadlock."""
-            chunk_size = 8192  # 8KB chunks
-            stderr_bytes = 0
-
-            # Assert stderr is not None for mypy
-            assert process.stderr is not None  # nosec B101
-            while True:
-                chunk = await process.stderr.read(chunk_size)
-                if not chunk:
-                    break
-
-                # Decode chunk
-                decoded_chunk = chunk.decode(encoding, errors=errors)
-                chunk_bytes = len(chunk)
-                stderr_bytes += chunk_bytes
-
-                # Only append if we haven't exceeded the limit
-                if stderr_bytes <= max_output_size:
-                    stderr_chunks.append(decoded_chunk)
-
-        # Wait for both streams and process to complete with timeout
         try:
-            await asyncio.wait_for(
-                asyncio.gather(read_stdout(), read_stderr()),
-                timeout=timeout,
-            )
-            await asyncio.wait_for(process.wait(), timeout=1.0)
-        except asyncio.TimeoutError:
-            logger.warning(f"Command timed out after {timeout}s: {' '.join(cmd)}")
-            raise ExecutionTimeoutError(timeout)
-        finally:
-            # Critical: Ensure process is terminated to prevent zombies
-            if process.returncode is None:
-                try:
-                    process.kill()
-                    # Wait for process to die to reap the zombie
+            # Read stdout and stderr in chunks concurrently with timeout checking
+            async def read_stdout():
+                """Read stdout in chunks until EOF or size limit."""
+                nonlocal bytes_read
+                chunk_size = 8192  # 8KB chunks
+
+                # Assert stdout is not None for mypy
+                assert process.stdout is not None  # nosec B101
+                while True:
+                    chunk = await process.stdout.read(chunk_size)
+                    if not chunk:
+                        break
+
+                    # Decode chunk
+                    decoded_chunk = chunk.decode(encoding, errors=errors)
+                    chunk_bytes = len(chunk)
+                    bytes_read += chunk_bytes
+
+                    # Only append if we haven't exceeded the limit
+                    if bytes_read <= max_output_size:
+                        output_chunks.append(decoded_chunk)
+
+            async def read_stderr():
+                """Read stderr in chunks until EOF or size limit to prevent pipe buffer deadlock."""
+                chunk_size = 8192  # 8KB chunks
+                stderr_bytes = 0
+
+                # Assert stderr is not None for mypy
+                assert process.stderr is not None  # nosec B101
+                while True:
+                    chunk = await process.stderr.read(chunk_size)
+                    if not chunk:
+                        break
+
+                    # Decode chunk
+                    decoded_chunk = chunk.decode(encoding, errors=errors)
+                    chunk_bytes = len(chunk)
+                    stderr_bytes += chunk_bytes
+
+                    # Only append if we haven't exceeded the limit
+                    if stderr_bytes <= max_output_size:
+                        stderr_chunks.append(decoded_chunk)
+
+            # Wait for both streams and process to complete with timeout
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(read_stdout(), read_stderr()),
+                    timeout=timeout,
+                )
+                await asyncio.wait_for(process.wait(), timeout=1.0)
+            except asyncio.TimeoutError:
+                logger.warning(f"Command timed out after {timeout}s: {' '.join(cmd)}")
+                raise ExecutionTimeoutError(timeout)
+            finally:
+                # Critical: Ensure process is terminated to prevent zombies
+                if process.returncode is None:
                     try:
-                        await asyncio.wait_for(process.wait(), timeout=2.0)
-                    except asyncio.TimeoutError:
-                        logger.error(f"Process {process.pid} refused to die after kill")
-                except Exception as e:
-                    logger.error(f"Failed to kill process {process.pid}: {e}")
+                        process.kill()
+                        # Wait for process to die to reap the zombie
+                        try:
+                            await asyncio.wait_for(process.wait(), timeout=2.0)
+                        except asyncio.TimeoutError:
+                            logger.error(f"Process {process.pid} refused to die after kill")
+                    except Exception as e:
+                        logger.error(f"Failed to kill process {process.pid}: {e}")
 
-        # Combine output chunks
-        output_text = "".join(output_chunks)
+            # Combine output chunks
+            output_text = "".join(output_chunks)
 
-        # Check if output was truncated
-        if bytes_read > max_output_size:
-            truncation_warning = (
-                f"\n\n[WARNING: Output truncated at {max_output_size} bytes. "
-                f"Total output size: {bytes_read} bytes]"
-            )
-            output_text += truncation_warning
+            # Check if output was truncated
+            if bytes_read > max_output_size:
+                truncation_warning = (
+                    f"\n\n[WARNING: Output truncated at {max_output_size} bytes. "
+                    f"Total output size: {bytes_read} bytes]"
+                )
+                output_text += truncation_warning
 
-        # If process failed, raise CalledProcessError with stderr
-        returncode = process.returncode
-        if returncode is None:
-            returncode = -1
-        if returncode != 0:
-            stderr_text = "".join(stderr_chunks)
-            raise subprocess.CalledProcessError(
-                returncode, cmd, output=output_text, stderr=stderr_text
-            )
+            # If process failed, raise CalledProcessError with stderr
+            returncode = process.returncode
+            if returncode is None:
+                returncode = -1
+            if returncode != 0:
+                stderr_text = "".join(stderr_chunks)
+                raise subprocess.CalledProcessError(
+                    returncode, cmd, output=output_text, stderr=stderr_text
+                )
 
-        return output_text, bytes_read
+            return output_text, bytes_read
+        finally:
+            from reversecore_mcp.core.resource_manager import resource_manager
+
+            resource_manager.untrack_pid(process.pid)
 
     except ImportError:
         # Re-raise import errors (e.g. from missing dependencies)
