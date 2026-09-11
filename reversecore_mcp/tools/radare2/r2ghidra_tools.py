@@ -556,6 +556,7 @@ async def r2_simulate_patch(
         return failure("DEPENDENCY_MISSING", "radare2 (r2) not found in PATH")
 
     script = "; ".join(patch_cmds) + "; q"
+    proc = None
     try:
         proc = await asyncio.create_subprocess_exec(  # nosec B603
             r2_exe,
@@ -576,6 +577,13 @@ async def r2_simulate_patch(
         return failure("TIMEOUT", f"Patch simulation timed out after {timeout}s")
     except Exception as exc:
         return failure("EXECUTION_ERROR", str(exc))
+    finally:
+        if proc is not None and proc.returncode is None:
+            try:
+                proc.kill()
+            except ProcessLookupError:
+                pass
+            await proc.wait()
 
     return success(
         {

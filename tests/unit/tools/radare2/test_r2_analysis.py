@@ -152,3 +152,45 @@ class TestAnalyzeXrefs:
                 result = await analyze_xrefs(str(test_file), "0x401000")
 
         assert result.status in ("success", "error")
+
+
+class TestGenerateFunctionGraph:
+    """Tests for generate_function_graph."""
+
+    @pytest.mark.asyncio
+    async def test_png_format_returns_valid_image(self, tmp_path):
+        """Regression test: format='png' must return Image with format='png', not raise TypeError."""
+        from pathlib import Path
+
+        from fastmcp.utilities.types import Image
+
+        from reversecore_mcp.core.result import success
+        from reversecore_mcp.tools.radare2.r2_analysis import generate_function_graph
+
+        test_file = tmp_path / "test.bin"
+        test_file.write_bytes(b"\x00" * 100)
+
+        dot_result = success("digraph G { main -> foo; }")
+        with patch(
+            "reversecore_mcp.tools.radare2.r2_analysis._generate_function_graph_impl",
+            new_callable=AsyncMock,
+            return_value=dot_result,
+        ):
+            fake_png = b"\x89PNG\r\n\x1a\nfake_png_data"
+
+            async def mock_dot_exec(cmd, **kwargs):
+                out_idx = cmd.index("-o") + 1
+                out_path = cmd[out_idx]
+                Path(out_path).write_bytes(fake_png)
+                return ("", 0)
+
+            with patch(
+                "reversecore_mcp.tools.radare2.r2_analysis.execute_subprocess_async",
+                side_effect=mock_dot_exec,
+            ):
+                result = await generate_function_graph(str(test_file), "main", format="png")
+
+        assert isinstance(result, Image)
+        assert getattr(result, "format", getattr(result, "_format", None)) == "png"
+        assert result._get_mime_type() == "image/png"
+        assert result.data == fake_png

@@ -4,6 +4,7 @@ import os
 
 from async_lru import alru_cache
 from fastmcp import Context
+from fastmcp.utilities.types import Image
 
 # Use high-performance JSON implementation (3-5x faster)
 from reversecore_mcp.core import json_utils as json
@@ -786,7 +787,7 @@ async def generate_function_graph(
     function_address: str,
     format: str = "mermaid",
     timeout: int = DEFAULT_TIMEOUT,
-) -> ToolResult:
+) -> ToolResult | Image:
     """
     Generate a Control Flow Graph (CFG) for a specific function.
 
@@ -805,14 +806,12 @@ async def generate_function_graph(
     """
     import time
 
-    from fastmcp.utilities.types import Image
-
     # If PNG format requested, generate DOT first then convert
     if format.lower() == "png":
         # Get DOT format first
         result = await _generate_function_graph_impl(file_path, function_address, "dot", timeout)
 
-        if result.is_error:
+        if result.status == "error":
             return result
 
         # Convert DOT to PNG using graphviz
@@ -821,7 +820,7 @@ async def generate_function_graph(
             from pathlib import Path as PathlibPath
 
             # Get DOT content from result
-            dot_content = result.content[0].text if result.content else ""
+            dot_content = result.data if isinstance(result.data, str) else ""
 
             # Create temp files
             with tempfile.NamedTemporaryFile(mode="w", suffix=".dot", delete=False) as dot_file:
@@ -843,7 +842,7 @@ async def generate_function_graph(
                 png_data = png_path.read_bytes()
 
                 # Return Image object
-                return Image(data=png_data, mime_type="image/png")
+                return Image(data=png_data, format="png")
 
             finally:
                 # Cleanup temp files

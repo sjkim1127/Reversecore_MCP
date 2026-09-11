@@ -394,3 +394,33 @@ class TestR2SimulatePatch:
         data = result.data
         assert data["byte_count"] == 2
         assert "NOT modified" in data["note"]
+
+    @pytest.mark.asyncio
+    async def test_timeout_kills_and_waits_process(self, mock_r2_run, mock_validate_file_path):
+        """r2_simulate_patch kills and reaps child process when execution times out."""
+        import asyncio
+
+        from reversecore_mcp.tools.radare2.r2ghidra_tools import r2_simulate_patch
+
+        mock_r2_run.return_value = ("0x401000  90 90  nop; nop\n", 50)
+
+        with patch("shutil.which", return_value="/usr/bin/r2"):
+            mock_proc = MagicMock()
+            mock_proc.returncode = None
+            mock_proc.kill = MagicMock()
+            mock_proc.wait = AsyncMock(return_value=0)
+            mock_proc.communicate = AsyncMock(side_effect=asyncio.TimeoutError())
+
+            with patch(
+                "asyncio.create_subprocess_exec",
+                new_callable=AsyncMock,
+                return_value=mock_proc,
+            ):
+                result = await r2_simulate_patch(
+                    "/workspace/test.elf", "0x401000", "9090", timeout=1
+                )
+
+        assert result.status == "error"
+        assert result.error_code == "TIMEOUT"
+        mock_proc.kill.assert_called_once()
+        mock_proc.wait.assert_awaited()
