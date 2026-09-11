@@ -7,6 +7,9 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from reversecore_mcp.core.config import get_config
+from reversecore_mcp.core.exceptions import ExecutionTimeoutError, ToolNotFoundError
+from reversecore_mcp.core.execution import execute_subprocess_async
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.r2_helpers import calculate_dynamic_timeout
 from reversecore_mcp.core.result import ToolResult, failure, success
@@ -132,23 +135,39 @@ int main(int argc, char **argv) {{
     return c_code
 
 
-def _test_input_causes_crash(binary_path: Path, data: bytes, timeout: int = 5) -> bool:
-    """Check if feeding data to target binary triggers a crash (non-zero or signal)."""
-    with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as tmp:
+async def _test_input_causes_crash(binary_path: Path, data: bytes, timeout: int = 5) -> bool:
+    """Check if feeding data to target binary triggers a crash (non-zero or signal).
+
+    Routes execution through execute_subprocess_async to enforce sandbox isolation,
+    streaming output limits, timeout enforcement, and PID tracking.
+    """
+    config = get_config()
+    cache_dir = config.workspace / ".cache"
+    temp_dir = cache_dir if cache_dir.is_dir() else None
+
+    with tempfile.NamedTemporaryFile(suffix=".bin", dir=temp_dir, delete=False) as tmp:
         tmp.write(data)
         tmp_name = tmp.name
 
     try:
-        res = subprocess.run(
-            [str(binary_path), tmp_name],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            timeout=timeout,
-        )
-        # Non-zero returncode or ASan ERROR indication in stderr
-        is_crash = res.returncode != 0 or b"AddressSanitizer" in res.stderr
-        return is_crash
-    except (subprocess.TimeoutExpired, OSError):
+        try:
+            output, _ = await execute_subprocess_async(
+                [str(binary_path), tmp_name],
+                max_output_size=1_000_000,
+                timeout=timeout,
+            )
+            # returncode was 0: check if ASan reported error without non-zero exit
+            return "AddressSanitizer" in output
+        except subprocess.CalledProcessError as err:
+            # Non-zero returncode or crash detected
+            stderr_str = err.stderr or ""
+            output_str = err.output or ""
+            return (
+                err.returncode != 0
+                or "AddressSanitizer" in stderr_str
+                or "AddressSanitizer" in output_str
+            )
+    except (ExecutionTimeoutError, ToolNotFoundError, OSError):
         return False
     finally:
         try:
@@ -157,7 +176,7 @@ def _test_input_causes_crash(binary_path: Path, data: bytes, timeout: int = 5) -
             pass
 
 
-def delta_debug_minimize(
+async def delta_debug_minimize(
     binary_path: Path,
     original_bytes: bytes,
     max_iterations: int = 50,
@@ -186,7 +205,7 @@ def delta_debug_minimize(
         while i < len(current):
             # Try removing chunk [i : i + chunk_size]
             candidate = current[:i] + current[i + chunk_size :]
-            if len(candidate) > 0 and _test_input_causes_crash(binary_path, bytes(candidate)):
+            if len(candidate) > 0 and await _test_input_causes_crash(binary_path, bytes(candidate)):
                 current = candidate
                 reduced = True
                 break
@@ -231,7 +250,7 @@ async def minimize_poc_impl(
 
     # Perform minimization
     try:
-        minimized_payload = delta_debug_minimize(
+        minimized_payload = await delta_debug_minimize(
             bin_path, original_payload, max_iterations=min(calc_timeout, 30)
         )
     except Exception as e:

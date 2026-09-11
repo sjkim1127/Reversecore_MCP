@@ -1,7 +1,7 @@
 """Unit tests for Testcase Minimizer and PoC Generator."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -54,20 +54,43 @@ class TestPocMinimizer:
         assert "g_poc_payload" in c_code
         assert "0x41, 0x42, 0x43, 0x44" in c_code
 
-    def test_test_input_causes_crash_subprocess(self, workspace_file):
+    @pytest.mark.asyncio
+    async def test_test_input_causes_crash_subprocess(self, workspace_file):
+        import subprocess
+
         test_bin = workspace_file("test_bin_crash.bin")
-        mock_proc = MagicMock()
-        mock_proc.returncode = 1
-        mock_proc.stderr = b"AddressSanitizer: heap-buffer-overflow"
 
-        with patch("subprocess.run", return_value=mock_proc):
-            assert _test_input_causes_crash(test_bin, b"TEST_PAYLOAD") is True
+        # Case 1: CalledProcessError with ASan in stderr triggers crash detection
+        asan_err = subprocess.CalledProcessError(
+            1, [str(test_bin)], stderr="AddressSanitizer: heap-buffer-overflow"
+        )
+        with patch(
+            "reversecore_mcp.tools.cve_hunter.poc_minimizer.execute_subprocess_async",
+            side_effect=asan_err,
+        ) as mock_exec:
+            assert await _test_input_causes_crash(test_bin, b"TEST_PAYLOAD") is True
+            mock_exec.assert_awaited_once()
 
-    def test_delta_debug_minimize(self, workspace_file):
+        # Case 2: Normal exit without ASan does not trigger crash detection
+        with patch(
+            "reversecore_mcp.tools.cve_hunter.poc_minimizer.execute_subprocess_async",
+            return_value=("normal execution completed", 30),
+        ):
+            assert await _test_input_causes_crash(test_bin, b"NORMAL_PAYLOAD") is False
+
+        # Case 3: Output with ASan message without non-zero exit triggers crash detection
+        with patch(
+            "reversecore_mcp.tools.cve_hunter.poc_minimizer.execute_subprocess_async",
+            return_value=("AddressSanitizer: global-buffer-overflow", 35),
+        ):
+            assert await _test_input_causes_crash(test_bin, b"ASAN_PAYLOAD") is True
+
+    @pytest.mark.asyncio
+    async def test_delta_debug_minimize(self, workspace_file):
         dummy_bin = workspace_file("test_dummy.bin")
         original_data = b"PREFIX_1234567890_CRASH_SUFFIX_9876543210"
 
-        def mock_causes_crash(binary_path, data, timeout=5):
+        async def mock_causes_crash(binary_path, data, timeout=5):
             # Crashes only if 'CRASH' substring is present
             return b"CRASH" in data
 
@@ -75,7 +98,7 @@ class TestPocMinimizer:
             "reversecore_mcp.tools.cve_hunter.poc_minimizer._test_input_causes_crash",
             side_effect=mock_causes_crash,
         ):
-            minimized = delta_debug_minimize(dummy_bin, original_data, max_iterations=20)
+            minimized = await delta_debug_minimize(dummy_bin, original_data, max_iterations=20)
 
         assert len(minimized) < len(original_data)
         assert b"CRASH" in minimized
@@ -95,7 +118,7 @@ class TestPocMinimizer:
         test_bin = workspace_file("fuzzer_bin.bin", content=b"\x7fELF" + b"\x00" * 50)
         crash_input = workspace_file("crash_seed.bin", content=b"A" * 100 + b"CRASH" + b"B" * 100)
 
-        def mock_causes_crash(binary_path, data, timeout=5):
+        async def mock_causes_crash(binary_path, data, timeout=5):
             return b"CRASH" in data
 
         with patch(
