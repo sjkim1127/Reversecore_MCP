@@ -50,6 +50,26 @@ class TestHybridFuzzOrchestrator:
         assert res.status == "error"
 
     @pytest.mark.asyncio
+    async def test_run_hybrid_fuzz_rejects_auxiliary_paths_outside_workspace(
+        self, workspace_file, tmp_path
+    ):
+        test_bin = workspace_file("path_guard_fuzzer.bin", content=b"\x7fELF" + b"\x00" * 100)
+        outside_corpus = tmp_path / "outside-corpus"
+        outside_dict = tmp_path / "outside.dict"
+        outside_dict.write_text('token = "TEST"')
+
+        res = await run_hybrid_fuzz_impl(
+            target_binary_path=str(test_bin),
+            corpus_dir=str(outside_corpus),
+            dictionary_path=str(outside_dict),
+            enable_angr_concolic=False,
+        )
+
+        assert res.status == "error"
+        assert res.error_code == "INVALID_PATH"
+        assert not outside_corpus.exists()
+
+    @pytest.mark.asyncio
     async def test_run_hybrid_fuzz_via_tool_wrapper(self):
         res = await cve_fuzz_target("/non/existent/bin")
         assert res.status == "error"

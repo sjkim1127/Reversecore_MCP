@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.r2_helpers import calculate_dynamic_timeout
 from reversecore_mcp.core.result import ToolResult, failure, success
@@ -88,6 +89,33 @@ async def run_hybrid_fuzz_impl(
     if not target_bin.exists():
         return failure("FILE_NOT_FOUND", f"Target binary not found: {target_binary_path}")
 
+    # All auxiliary inputs are server-side filesystem resources.  Do not let a
+    # caller turn the fuzzing tool into an arbitrary directory/file writer by
+    # supplying an absolute corpus or dictionary path outside the workspace.
+    workspace = get_config().workspace.resolve()
+
+    def _workspace_path(raw_path: str, label: str, *, directory: bool = False) -> Path:
+        candidate = Path(raw_path).expanduser().resolve()
+        try:
+            candidate.relative_to(workspace)
+        except ValueError as exc:
+            raise ValueError(f"{label} must be inside the configured workspace") from exc
+        if directory and candidate.exists() and not candidate.is_dir():
+            raise ValueError(f"{label} is not a directory")
+        return candidate
+
+    try:
+        if corpus_dir:
+            seeds_dir = _workspace_path(corpus_dir, "corpus_dir", directory=True)
+        else:
+            seeds_dir = target_bin.parent / "cve_seeds"
+        if dictionary_path:
+            dictionary_file = validate_file_path(dictionary_path, read_only=True)
+        else:
+            dictionary_file = None
+    except Exception as e:
+        return failure("INVALID_PATH", f"Auxiliary path validation error: {e}")
+
     calc_timeout = calculate_dynamic_timeout(
         target_bin, base_timeout=timeout or (max_total_time_seconds + 30)
     )
@@ -97,7 +125,6 @@ async def run_hybrid_fuzz_impl(
     crashes_dir = temp_workspace / "cve_crashes"
     crashes_dir.mkdir(parents=True, exist_ok=True)
 
-    seeds_dir = Path(corpus_dir) if corpus_dir else (temp_workspace / "cve_seeds")
     seeds_dir.mkdir(parents=True, exist_ok=True)
 
     # If seeds directory is empty, create minimal seed
@@ -129,8 +156,8 @@ async def run_hybrid_fuzz_impl(
             "-print_final_stats=1",
         ]
     )
-    if dictionary_path:
-        fuzz_cmd.append(f"-dict={dictionary_path}")
+    if dictionary_file:
+        fuzz_cmd.append(f"-dict={dictionary_file}")
 
     logger.info(f"Starting fuzzer run: {' '.join(fuzz_cmd)}")
 
