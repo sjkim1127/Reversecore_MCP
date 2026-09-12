@@ -111,6 +111,7 @@ async def audit_source_code(
         scan_findings.extend(_scan_c_stalled_loops(source_code))
         scan_findings.extend(_scan_c_use_after_free(source_code))
         scan_findings.extend(_scan_c_cleanup_call_graph(source_code))
+        scan_findings.extend(_scan_c_unchecked_pointer_dereference(source_code))
 
     # 5. Format findings into Category -> list[str] structure for backward compatibility
     static_findings: dict[str, list[str]] = {}
@@ -381,6 +382,50 @@ def _scan_c_cleanup_call_graph(source_code: str) -> list[dict[str, Any]]:
                 ],
             }
         )
+    return findings
+
+
+def _scan_c_unchecked_pointer_dereference(source_code: str) -> list[dict[str, Any]]:
+    """Find local pointer field dereferences without a same-function null guard."""
+    findings: list[dict[str, Any]] = []
+    for function in _iter_c_functions(source_code.splitlines()):
+        body = function["lines"]
+        pointer_names = set(
+            re.findall(r"\b[A-Za-z_]\w*\s*\*\s*([A-Za-z_]\w*)\s*=", "\n".join(body))
+        )
+        guarded = {
+            name
+            for name in pointer_names
+            if re.search(rf"\b(?:if\s*\([^)]*|assert\s*\()\b{re.escape(name)}\b", "\n".join(body))
+        }
+        reported: set[str] = set()
+        for rel_line, code in enumerate(body, start=1):
+            for name in pointer_names - guarded:
+                if name in reported:
+                    continue
+                if re.search(rf"\b{re.escape(name)}\s*->\s*[A-Za-z_]", code):
+                    line_no = function["start_line"] + rel_line - 1
+                    findings.append(
+                        {
+                            "category": "Null Pointer / Type Safety",
+                            "severity": "medium",
+                            "rule_id": "RCMCP-SAST-C-017",
+                            "message": f"Pointer '{name}' is dereferenced without an obvious same-function null guard.",
+                            "line": line_no,
+                            "code": code.strip(),
+                            "evidence_type": "static",
+                            "vulnerability_class": "null_pointer_dereference",
+                            "confidence": "medium",
+                            "verification_status": "needs_triage",
+                            "next_validation_steps": [
+                                "Trace whether deserialization or error paths can leave the pointer uninitialized.",
+                                "Run UBSan/ASan with NULL and partial-initialization inputs.",
+                                "Confirm the owning object establishes the field before cleanup.",
+                            ],
+                        }
+                    )
+                    reported.add(name)
+                    break
     return findings
 
 
