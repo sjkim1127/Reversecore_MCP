@@ -112,6 +112,7 @@ async def audit_source_code(
         scan_findings.extend(_scan_c_use_after_free(source_code))
         scan_findings.extend(_scan_c_cleanup_call_graph(source_code))
         scan_findings.extend(_scan_c_unchecked_pointer_dereference(source_code))
+        scan_findings.extend(_scan_c_redirect_credential_leak(source_code))
 
     # 5. Format findings into Category -> list[str] structure for backward compatibility
     static_findings: dict[str, list[str]] = {}
@@ -426,6 +427,53 @@ def _scan_c_unchecked_pointer_dereference(source_code: str) -> list[dict[str, An
                     )
                     reported.add(name)
                     break
+    return findings
+
+
+def _scan_c_redirect_credential_leak(source_code: str) -> list[dict[str, Any]]:
+    """Find cookie/auth header propagation without an obvious host check."""
+    findings: list[dict[str, Any]] = []
+    for function in _iter_c_functions(source_code.splitlines()):
+        body = function["lines"]
+        text = "\n".join(body)
+        has_credential_state = "cookieheader" in text.lower() or "authorization" in text.lower()
+        has_redirect_context = "redirect" in text.lower() or "new host" in text.lower()
+        has_host_check = any(
+            re.search(r"\b(host|hostname|origin)\b", line, re.IGNORECASE)
+            and re.search(r"==|!=|strcmp|strcasecmp|same", line, re.IGNORECASE)
+            for line in body
+        )
+        if not (has_redirect_context and has_credential_state) or has_host_check:
+            continue
+        rel_line = next(
+            (
+                i
+                for i, line in enumerate(body, start=1)
+                if "cookieheader" in line.lower() or "authorization" in line.lower()
+            ),
+            1,
+        )
+        findings.append(
+            {
+                "category": "Information Disclosure",
+                "severity": "high",
+                "rule_id": "RCMCP-SAST-C-018",
+                "function": function["name"],
+                "message": "Cookie or authorization state is propagated in redirect-related code without an obvious same-host check.",
+                "line": function["start_line"] + rel_line - 1,
+                "code": body[rel_line - 1].strip(),
+                "evidence_type": "static",
+                "vulnerability_class": "sensitive_information_disclosure",
+                "sink": "redirect credential/header propagation",
+                "confidence": "medium",
+                "verification_status": "candidate",
+                "next_validation_steps": [
+                    "Trace whether the redirect destination can differ from the original host.",
+                    "Run a two-host redirect harness and capture destination request headers.",
+                    "Compare patched code for same-origin filtering or credential stripping.",
+                ],
+            }
+        )
     return findings
 
 

@@ -224,6 +224,30 @@ def run_command(cmd)
 
 
 @pytest.mark.asyncio
+async def test_audit_source_code_c_redirect_credential_leak(tmp_path):
+    source = tmp_path / "redirect.c"
+    source.write_text(
+        """void forward(struct state *s) {
+    /* redirect to a new host */
+    s->cookieheader = build_cookie_header(s);
+}
+""",
+        encoding="utf-8",
+    )
+
+    with patch(
+        "reversecore_mcp.tools.analysis.source_auditor.validate_file_path",
+        return_value=source,
+    ):
+        result = await audit_source_code(str(source), language="c")
+
+    assert any(
+        finding["rule_id"] == "RCMCP-SAST-C-018"
+        for finding in result.metadata["structured_findings"]
+    )
+
+
+@pytest.mark.asyncio
 async def test_audit_source_code_file_too_large(tmp_path):
     """Test that files exceeding the size limit fail with FILE_TOO_LARGE."""
     test_file = tmp_path / "large_file.c"
