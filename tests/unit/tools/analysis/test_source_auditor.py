@@ -37,6 +37,25 @@ int main() {
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("name", "code", "rule_id"),
+    [
+        ("loop.c", 'int f(int x) { while (x) { puts("x"); } return 0; }', "RCMCP-SAST-C-014"),
+        ("uaf.c", "void f(char *p) { free(p); p[0] = 'x'; }", "RCMCP-SAST-C-015"),
+    ],
+)
+async def test_audit_source_code_c_detects_lifecycle_risks(tmp_path, name, code, rule_id):
+    test_file = tmp_path / name
+    test_file.write_text(code, encoding="utf-8")
+    with patch(
+        "reversecore_mcp.tools.analysis.source_auditor.validate_file_path",
+        return_value=test_file,
+    ):
+        result = await audit_source_code(str(test_file))
+    assert any(f["rule_id"] == rule_id for f in result.metadata["structured_findings"])
+
+
+@pytest.mark.asyncio
 async def test_audit_source_code_c_detects_missing_lower_bound_check(tmp_path):
     """Detect libcue-style upper-only validation before indexed memory access."""
     c_code = """
