@@ -6,6 +6,7 @@
  * allowing an attacker to trigger an OOB write via a crafted gzip header.
  */
 #include "zlib.h"
+#include <string.h>
 
 int inflateGetHeader_vulnerable(z_streamp strm, gz_headerp head) {
     /* VULNERABILITY: no bounds check on head->extra_max before memcpy */

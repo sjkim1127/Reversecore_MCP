@@ -137,18 +137,27 @@ class LiveTargetCompilerRunner:
         harness_text = (
             harness_c.read_text(encoding="utf-8", errors="ignore") if harness_c.exists() else ""
         )
-        if "<openssl/" in source_text or "<openssl/" in harness_text:
+        pkg_dependencies = {
+            "openssl": "openssl",
+            "zlib.h": "zlib",
+        }
+        for header, package in pkg_dependencies.items():
+            header_markers = (f"<{header}", f'"{header}"')
+            if not any(
+                marker in source_text or marker in harness_text for marker in header_markers
+            ):
+                continue
             try:
-                openssl_flags = subprocess.run(
-                    ["pkg-config", "--cflags", "--libs", "openssl"],
+                library_flags = subprocess.run(
+                    ["pkg-config", "--cflags", "--libs", package],
                     capture_output=True,
                     text=True,
                     timeout=5.0,
                     check=True,
                 ).stdout.split()
-                cmd.extend(openssl_flags)
+                cmd.extend(library_flags)
             except (OSError, subprocess.SubprocessError):
-                logger.debug("OpenSSL pkg-config metadata unavailable for %s", target.target_id)
+                logger.debug("%s pkg-config metadata unavailable for %s", package, target.target_id)
         cmd.extend(["-o", str(out_bin)])
 
         try:
