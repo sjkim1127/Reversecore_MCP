@@ -12,6 +12,7 @@ from reversecore_mcp.tools.analysis.fuzzing_campaign import (
     _afl_available,
     _collect_crashes,
     _crash_signature,
+    _validate_afl_extra_args,
     run_fuzzing_campaign,
 )
 
@@ -40,6 +41,11 @@ class TestCrashSignature:
         c2 = tmp_path / "c2"
         c2.write_bytes(b"PAYLOAD")
         assert _crash_signature(c1) == _crash_signature(c2)
+
+    @pytest.mark.parametrize("arg", ["-o=/tmp/out", "-i", "-f", "--output=/tmp/out", "--"])
+    def test_rejects_path_redirecting_afl_options(self, arg):
+        with pytest.raises(ValueError):
+            _validate_afl_extra_args([arg])
 
     def test_missing_file_returns_name(self, tmp_path):
         ghost = tmp_path / "ghost_crash"

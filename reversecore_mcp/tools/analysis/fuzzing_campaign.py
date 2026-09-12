@@ -56,6 +56,15 @@ def _asan_available() -> bool:
     return shutil.which("clang") is not None or shutil.which("gcc") is not None
 
 
+def _validate_afl_extra_args(extra_args: list[str]) -> None:
+    """Reject AFL options that can redirect tool-managed filesystem paths."""
+    forbidden = {"-i", "--input", "-o", "--output", "-f", "--file", "--"}
+    for arg in extra_args:
+        option = arg.split("=", 1)[0]
+        if option in forbidden:
+            raise ValueError(f"AFL option '{option}' is managed by Reversecore_MCP")
+
+
 def _crash_signature(crash_path: Path) -> str:
     """Compute a content-based signature for deduplication.
 
@@ -393,6 +402,10 @@ async def run_fuzzing_campaign(
 
     # Parse extra args
     extra_args = afl_extra_args.split() if afl_extra_args.strip() else []
+    try:
+        _validate_afl_extra_args(extra_args)
+    except ValueError as exc:
+        return failure("INVALID_PARAMETER", str(exc))
 
     if ctx:
         await ctx.info(f"🚀 Fuzzing Campaign → {validated_path.name}")
