@@ -108,6 +108,7 @@ async def audit_source_code(
 
     if language in {"c", "cpp"}:
         scan_findings.extend(_scan_c_index_bounds(source_code))
+        scan_findings.extend(_scan_c_stalled_loops(source_code))
 
     # 5. Format findings into Category -> list[str] structure for backward compatibility
     static_findings: dict[str, list[str]] = {}
@@ -235,6 +236,63 @@ def _scan_c_index_bounds(source_code: str) -> list[dict[str, Any]]:
                         }
                     )
 
+    return findings
+
+
+def _scan_c_stalled_loops(source_code: str) -> list[dict[str, Any]]:
+    """Find bounded-size while loops whose condition state is never updated."""
+    findings: list[dict[str, Any]] = []
+    lines = source_code.splitlines()
+    condition_re = re.compile(r"\bwhile\s*\((?P<condition>[^)]*)\)")
+    identifier_re = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
+
+    for line_no, line in enumerate(lines, start=1):
+        match = condition_re.search(line)
+        if not match:
+            continue
+        condition = match.group("condition")
+        identifiers = {
+            token
+            for token in identifier_re.findall(condition)
+            if token not in {"true", "false", "NULL"}
+        }
+        if not identifiers:
+            continue
+
+        body: list[str] = []
+        depth = line.count("{") - line.count("}")
+        for body_line in lines[line_no : line_no + 25]:
+            body.append(body_line)
+            depth += body_line.count("{") - body_line.count("}")
+            if depth <= 0:
+                break
+        body_text = "\n".join(body)
+        if "break" in body_text or "goto" in body_text:
+            continue
+        updated = any(
+            re.search(rf"\b{re.escape(name)}\s*(?:\+\+|--|[+\-*/]?=)", body_text)
+            for name in identifiers
+        )
+        if not updated and depth <= 0:
+            findings.append(
+                {
+                    "category": "Infinite Loop",
+                    "severity": "high",
+                    "rule_id": "RCMCP-SAST-C-014",
+                    "message": "While-loop condition variables are not updated in the loop body; attacker-controlled input may cause non-termination.",
+                    "line": line_no,
+                    "code": line.strip(),
+                    "evidence_type": "static",
+                    "vulnerability_class": "infinite_loop",
+                    "confidence": "medium",
+                    "verification_status": "candidate",
+                    "next_validation_steps": [
+                        "Trace whether the loop condition depends on attacker-controlled state.",
+                        "Run with a timeout and collect a stack trace for non-termination.",
+                        "Compare patched code for a progress check, iteration bound, or exit condition.",
+                    ],
+                }
+            )
     return findings
 
 
