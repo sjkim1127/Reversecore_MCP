@@ -374,6 +374,9 @@ def _build_structured_findings(
     """Normalize SAST findings for downstream evidence merging."""
     structured = []
     for finding in scan_findings:
+        next_steps = finding.get("next_validation_steps")
+        if not next_steps:
+            next_steps = _default_validation_steps(finding)
         item = {
             "source": "audit_source_code",
             "evidence_type": finding.get("evidence_type", "static"),
@@ -394,10 +397,29 @@ def _build_structured_findings(
             "sink": finding.get("sink"),
             "index": finding.get("index"),
             "guard_status": finding.get("guard_status"),
-            "next_validation_steps": finding.get("next_validation_steps", []),
+            "next_validation_steps": next_steps,
         }
         structured.append({key: value for key, value in item.items() if value is not None})
     return structured
+
+
+def _default_validation_steps(finding: dict[str, Any]) -> list[str]:
+    """Provide actionable next steps when a rule did not supply any."""
+    category = str(finding.get("category", "")).lower()
+    if "buffer" in category or "memcpy" in str(finding.get("message", "")).lower():
+        return [
+            "Trace the size expression to its source and compare it with the destination capacity.",
+            "Compile with AddressSanitizer and UndefinedBehaviorSanitizer.",
+            "Create a boundary-sized input and confirm whether the sink writes past the allocation.",
+        ]
+    if "integer" in category or "overflow" in category:
+        return [
+            "Check arithmetic for signedness, truncation, and maximum-value overflow.",
+            "Exercise boundary values under UBSan with integer-overflow checks enabled.",
+        ]
+    return [
+        "Trace the finding to a controllable input and validate it with a focused sanitizer test."
+    ]
 
 
 def _confidence_from_severity(severity: str | None) -> str:
