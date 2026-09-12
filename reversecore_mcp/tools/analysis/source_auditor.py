@@ -109,6 +109,7 @@ async def audit_source_code(
     if language in {"c", "cpp"}:
         scan_findings.extend(_scan_c_index_bounds(source_code))
         scan_findings.extend(_scan_c_stalled_loops(source_code))
+        scan_findings.extend(_scan_c_use_after_free(source_code))
 
     # 5. Format findings into Category -> list[str] structure for backward compatibility
     static_findings: dict[str, list[str]] = {}
@@ -293,6 +294,43 @@ def _scan_c_stalled_loops(source_code: str) -> list[dict[str, Any]]:
                     ],
                 }
             )
+    return findings
+
+
+def _scan_c_use_after_free(source_code: str) -> list[dict[str, Any]]:
+    """Find direct pointer dereferences after free within one function body."""
+    findings: list[dict[str, Any]] = []
+    lines = source_code.splitlines()
+    for function in _iter_c_functions(lines):
+        freed: dict[str, int] = {}
+        for rel_line, code in enumerate(function["lines"], start=1):
+            line_no = function["start_line"] + rel_line - 1
+            for pointer in re.findall(r"\bfree\s*\(\s*([A-Za-z_]\w*)\s*\)", code):
+                freed[pointer] = line_no
+            for pointer, free_line in list(freed.items()):
+                if line_no <= free_line or re.search(
+                    rf"\b{re.escape(pointer)}\s*(?:->|\[)|\*\s*{re.escape(pointer)}\b", code
+                ):
+                    findings.append(
+                        {
+                            "category": "Use After Free",
+                            "severity": "high",
+                            "rule_id": "RCMCP-SAST-C-015",
+                            "message": f"Pointer '{pointer}' is dereferenced after being freed on line {free_line}.",
+                            "line": line_no,
+                            "code": code.strip(),
+                            "evidence_type": "static",
+                            "vulnerability_class": "use_after_free",
+                            "confidence": "high",
+                            "verification_status": "candidate",
+                            "next_validation_steps": [
+                                "Confirm the pointer aliases the allocation released at the free site.",
+                                "Run AddressSanitizer with an input reaching both statements.",
+                                "Check whether ownership is transferred or the pointer is reset before use.",
+                            ],
+                        }
+                    )
+                    freed.pop(pointer)
     return findings
 
 
