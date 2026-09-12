@@ -110,6 +110,7 @@ async def audit_source_code(
         scan_findings.extend(_scan_c_index_bounds(source_code))
         scan_findings.extend(_scan_c_stalled_loops(source_code))
         scan_findings.extend(_scan_c_use_after_free(source_code))
+        scan_findings.extend(_scan_c_cleanup_call_graph(source_code))
 
     # 5. Format findings into Category -> list[str] structure for backward compatibility
     static_findings: dict[str, list[str]] = {}
@@ -331,6 +332,55 @@ def _scan_c_use_after_free(source_code: str) -> list[dict[str, Any]]:
                         }
                     )
                     freed.pop(pointer)
+    return findings
+
+
+def _scan_c_cleanup_call_graph(source_code: str) -> list[dict[str, Any]]:
+    """Find free-containing cleanup functions reused without nulling ownership."""
+    lines = source_code.splitlines()
+    functions = _iter_c_functions(lines)
+    function_names = {f["name"] for f in functions}
+    findings: list[dict[str, Any]] = []
+    for function in functions:
+        body = "\n".join(function["lines"])
+        if "free(" not in body.replace(" ", "") or re.search(
+            r"\b[A-Za-z_]\w*(?:->|\.)[A-Za-z_]\w*\s*=\s*NULL\b", body
+        ):
+            continue
+        call_count = (
+            sum(
+                len(re.findall(rf"\b{re.escape(function['name'])}\s*\(", line))
+                for line in lines
+                if function["name"] in function_names
+            )
+            - 1
+        )  # exclude the function definition itself
+        if call_count < 2:
+            continue
+        free_line = next(
+            function["start_line"] + i
+            for i, line in enumerate(function["lines"])
+            if re.search(r"\bfree\s*\(", line)
+        )
+        findings.append(
+            {
+                "category": "Double Free",
+                "severity": "high",
+                "rule_id": "RCMCP-SAST-C-016",
+                "message": f"Cleanup function '{function['name']}' frees memory and is called {call_count} times without an obvious ownership reset.",
+                "line": free_line,
+                "code": function["lines"][free_line - function["start_line"]].strip(),
+                "evidence_type": "static",
+                "vulnerability_class": "double_free",
+                "confidence": "medium",
+                "verification_status": "candidate",
+                "next_validation_steps": [
+                    "Trace whether both call sites can operate on the same allocation.",
+                    "Run AddressSanitizer through each cleanup path.",
+                    "Set the owner pointer to NULL after free or make cleanup idempotent.",
+                ],
+            }
+        )
     return findings
 
 
