@@ -16,7 +16,7 @@ from reversecore_mcp.core.error_handling import handle_tool_errors
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.result import ToolResult, failure, success
-from reversecore_mcp.core.security import validate_file_path
+from reversecore_mcp.core.security import get_workspace_config, validate_file_path
 
 logger = get_logger(__name__)
 
@@ -509,7 +509,13 @@ async def memory_dump_module(
     validated = validate_file_path(dump_path)
 
     if output_dir:
-        out_path = Path(output_dir)
+        workspace = get_workspace_config().workspace.resolve()
+        out_path = Path(output_dir).expanduser().resolve()
+        if not out_path.is_relative_to(workspace):
+            return failure(
+                "PATH_TRAVERSAL_DETECTED",
+                f"output_dir '{output_dir}' must reside within the workspace directory",
+            )
     else:
         from reversecore_mcp.core.config import get_settings
 
