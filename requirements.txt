@@ -78,7 +78,7 @@ cachetools==7.1.4
     #   angr
     #   claripy
     #   py-key-value-aio
-caio==0.9.25
+caio==0.12.2
     # via aiofile
 capstone==5.0.6
     # via
