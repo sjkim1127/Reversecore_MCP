@@ -129,6 +129,26 @@ class LiveTargetCompilerRunner:
         ]
         if harness_c.exists():
             cmd.append(str(harness_c))
+
+        # Some real-world fixtures (for example CVE-2022-0778) depend on a
+        # system library that is not part of the fixture tree. Resolve its
+        # compiler/linker flags portably when pkg-config is available.
+        source_text = vuln_c.read_text(encoding="utf-8", errors="ignore")
+        harness_text = (
+            harness_c.read_text(encoding="utf-8", errors="ignore") if harness_c.exists() else ""
+        )
+        if "<openssl/" in source_text or "<openssl/" in harness_text:
+            try:
+                openssl_flags = subprocess.run(
+                    ["pkg-config", "--cflags", "--libs", "openssl"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5.0,
+                    check=True,
+                ).stdout.split()
+                cmd.extend(openssl_flags)
+            except (OSError, subprocess.SubprocessError):
+                logger.debug("OpenSSL pkg-config metadata unavailable for %s", target.target_id)
         cmd.extend(["-o", str(out_bin)])
 
         try:
