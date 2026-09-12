@@ -607,7 +607,7 @@ questionary==2.1.1
     # via ida-hcli
 r2pipe==1.9.8
     # via reversecore-mcp (pyproject.toml)
-redis==5.3.1
+redis==8.0.1
     # via
     #   reversecore-mcp (pyproject.toml)
     #   arq
