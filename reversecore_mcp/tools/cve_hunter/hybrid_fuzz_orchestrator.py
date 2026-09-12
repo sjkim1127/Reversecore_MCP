@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
 import re
 from pathlib import Path
 from typing import Any
 
 from reversecore_mcp.core.config import get_config
+from reversecore_mcp.core.execution import execute_subprocess_async
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.r2_helpers import calculate_dynamic_timeout
 from reversecore_mcp.core.result import ToolResult, failure, success
@@ -165,29 +165,21 @@ async def run_hybrid_fuzz_impl(
     fuzzer_output = ""
 
     try:
-        proc = await asyncio.create_subprocess_exec(
-            *fuzz_cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        fuzzer_output, _ = await execute_subprocess_async(
+            fuzz_cmd,
+            max_output_size=10_000_000,
+            timeout=int(calc_timeout),
         )
-        try:
-            stdout_data, stderr_data = await asyncio.wait_for(
-                proc.communicate(),
-                timeout=float(calc_timeout),
-            )
-            fuzzer_output = (
-                stderr_data.decode("utf-8", errors="ignore")
-                + "\n"
-                + stdout_data.decode("utf-8", errors="ignore")
-            )
-        except asyncio.TimeoutError:
-            proc.kill()
-            stdout_data, stderr_data = await proc.communicate()
-            fuzzer_output = stderr_data.decode("utf-8", errors="ignore")
     except Exception as e:
-        logger.warning(
-            f"Direct LibFuzzer execution failed (falling back to subprocess testcases): {e}"
-        )
+        # The shared executor enforces sandboxing, timeout, output bounds, and
+        # process cleanup. A crashing target is expected during fuzzing; retain
+        # its diagnostic output when the executor exposes it.
+        fuzzer_output = str(getattr(e, "output", "") or "")
+        if getattr(e, "stderr", None):
+            fuzzer_output += "\n" + str(e.stderr)
+        if not fuzzer_output:
+            fuzzer_output = str(e)
+        logger.warning(f"Fuzzing subprocess failed: {e}")
 
     # Step 3: Scan crashes directory for artifacts (crash-*, leak-*, oom-*)
     artifact_files = (

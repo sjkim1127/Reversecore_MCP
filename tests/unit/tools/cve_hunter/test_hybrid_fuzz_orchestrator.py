@@ -1,6 +1,5 @@
 """Unit tests for Hybrid Fuzzing and Symbolic Constraint Solver Orchestrator."""
 
-import asyncio
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -80,15 +79,11 @@ class TestHybridFuzzOrchestrator:
         dict_file = workspace_file("tokens.dict", content=b'token_0 = "TEST"')
         corpus_dir = workspace_file("seeds/init.bin", content=b"INITIAL_SEED")
 
-        # Mock asyncio subprocess execution of LibFuzzer
-        async def mock_create_proc(*args, **kwargs):
-            mock_p = AsyncMock()
-            mock_p.communicate.return_value = (b"", SAMPLE_ASAN_CRASH_LOG.encode())
-            mock_p.returncode = 1
-            return mock_p
-
         with (
-            patch("asyncio.create_subprocess_exec", side_effect=mock_create_proc),
+            patch(
+                "reversecore_mcp.tools.cve_hunter.hybrid_fuzz_orchestrator.execute_subprocess_async",
+                new=AsyncMock(return_value=(SAMPLE_ASAN_CRASH_LOG, len(SAMPLE_ASAN_CRASH_LOG))),
+            ),
             patch(
                 "reversecore_mcp.tools.cve_hunter.hybrid_fuzz_orchestrator.solve_branch_constraints_angr",
                 return_value=[b"SOLVED_SEED"],
@@ -114,16 +109,10 @@ class TestHybridFuzzOrchestrator:
     async def test_run_hybrid_fuzz_timeout_handling(self, workspace_file):
         test_bin = workspace_file("timeout_fuzzer.bin", content=b"\x7fELF" + b"\x00" * 100)
 
-        async def mock_create_proc(*args, **kwargs):
-            mock_p = AsyncMock()
-            mock_p.communicate.side_effect = [
-                asyncio.TimeoutError(),
-                (b"", b"stat::number_of_executed_units: 500\n"),
-            ]
-            mock_p.kill.return_value = None
-            return mock_p
-
-        with patch("asyncio.create_subprocess_exec", side_effect=mock_create_proc):
+        with patch(
+            "reversecore_mcp.tools.cve_hunter.hybrid_fuzz_orchestrator.execute_subprocess_async",
+            new=AsyncMock(return_value=("stat::number_of_executed_units: 500\n", 38)),
+        ):
             res = await run_hybrid_fuzz_impl(
                 target_binary_path=str(test_bin),
                 max_total_time_seconds=1,
