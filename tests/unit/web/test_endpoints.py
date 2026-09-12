@@ -275,6 +275,21 @@ class TestUploadEndpoint:
             assert ".." not in filename
             assert "/" not in filename
 
+    def test_upload_rejects_symlinked_upload_directory(self, client, tmp_path):
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        upload_dir = tmp_path / "uploads"
+        try:
+            upload_dir.symlink_to(outside, target_is_directory=True)
+        except OSError:
+            pytest.skip("symbolic links unavailable")
+
+        with patch("reversecore_mcp.web.endpoints.invalidate_path_cache"):
+            response = client.post("/upload", files=self._make_file())
+
+        assert response.status_code == 500
+        assert not list(outside.iterdir())
+
 
 # ---------------------------------------------------------------------------
 # _validate_file_magic helper

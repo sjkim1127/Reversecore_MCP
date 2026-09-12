@@ -254,6 +254,11 @@ async def upload_file(file: UploadFile = File(...)):
 
     try:
         upload_dir = settings.workspace / "uploads"
+        # Do not follow a workspace-local symlink to an attacker-controlled
+        # directory. The workspace boundary is meaningless if this component
+        # itself resolves outside it.
+        if upload_dir.is_symlink():
+            raise ValueError("Upload directory must not be a symbolic link")
         upload_dir.mkdir(parents=True, exist_ok=True)
 
         original_filename = file.filename or "unnamed"
