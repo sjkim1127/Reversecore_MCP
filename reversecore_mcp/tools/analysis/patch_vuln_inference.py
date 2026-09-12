@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from fastmcp import Context
@@ -371,7 +372,7 @@ async def _get_function_metadata(
     """
     try:
         output, _ = await _execute_r2_command(
-            binary_path,
+            Path(binary_path),
             [f"s {func_name}", "afij"],
             analysis_level="aa",
             max_output_size=1_000_000,
@@ -586,7 +587,7 @@ async def analyze_patch_diff_auto(
         # Primary: radare2 'ii' command (reliable cross-platform)
         try:
             out, _ = await _execute_r2_command(
-                path,
+                Path(path),
                 ["ii"],
                 analysis_level="",
                 max_output_size=1_000_000,

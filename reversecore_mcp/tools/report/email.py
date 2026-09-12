@@ -63,7 +63,7 @@ def load_quick_contacts_from_env() -> dict[str, dict[str, str]]:
     Format: REPORT_QUICK_CONTACTS=name1:email1:role1,name2:email2:role2
     """
     contacts_str = os.getenv("REPORT_QUICK_CONTACTS", "")
-    contacts = {}
+    contacts: dict[str, dict[str, str]] = {}
 
     if not contacts_str:
         return contacts

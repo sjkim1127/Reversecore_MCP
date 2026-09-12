@@ -23,7 +23,7 @@ from reversecore_mcp.core.r2_helpers import (
 from reversecore_mcp.core.r2_helpers import (
     parse_json_output as _parse_json_output,
 )
-from reversecore_mcp.core.result import ToolResult, failure, success
+from reversecore_mcp.core.result import ToolError, ToolResult, failure, success
 from reversecore_mcp.core.result_cache import cache_tool_result
 from reversecore_mcp.core.security import validate_file_path
 from reversecore_mcp.core.validators import validate_tool_parameters
@@ -44,7 +44,7 @@ _ALL_00_PATTERN = re.compile(r"^(00)+$")
 _RULE_NAME_PATTERN = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]*$")
 
 
-def _validate_address_or_fail(address: str, param_name: str = "address"):
+def _validate_address_or_fail(address: str, param_name: str = "address") -> ToolError | None:
     """
     Validate address format and return failure ToolResult if invalid.
 

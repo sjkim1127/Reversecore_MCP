@@ -190,11 +190,11 @@ class R2Session:
         self._analyzed = False
         self.created_at = datetime.now()
         self.status = "initialized"  # initialized, active, error, closed
-        self.last_error = None
+        self.last_error: str | None = None
         self.retry_count = 0
         # Async lock for safe concurrent command execution
-        self._command_lock_obj = None
-        self._command_lock_loop = None
+        self._command_lock_obj: asyncio.Lock | None = None
+        self._command_lock_loop: asyncio.AbstractEventLoop | None = None
 
     def open(self, file_path: str, arch: str | None = None, bits: int | None = None) -> bool:
         """Open a binary file with radare2."""
@@ -280,6 +280,7 @@ class R2Session:
         elif getattr(self, "_command_lock_loop", None) != loop:
             self._command_lock_obj = asyncio.Lock()
             self._command_lock_loop = loop
+        assert self._command_lock_obj is not None
         return self._command_lock_obj
 
     async def safe_cmd(self, command: str) -> str:

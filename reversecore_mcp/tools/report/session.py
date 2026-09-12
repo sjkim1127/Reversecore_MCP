@@ -9,6 +9,30 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any
 
+# Timezone handling using standard library zoneinfo (Python 3.9+)
+try:
+    from zoneinfo import ZoneInfo
+except (ImportError, Exception):
+    # Fallback for environments where zoneinfo is missing or blocked
+    class ZoneInfo:  # type: ignore[no-redef]
+        def __init__(self, key: str) -> None:
+            self.key = key
+
+        def utcoffset(self, dt: Any = None) -> timedelta:
+            # Very basic fallback - DOES NOT HANDLE DST
+            # This is just to prevent crashes if zoneinfo missing
+            offsets = {
+                "Asia/Seoul": 9,
+                "Asia/Tokyo": 9,
+                "Asia/Shanghai": 8,
+                "America/New_York": -5,
+                "America/Los_Angeles": -8,
+                "Europe/Paris": 1,
+                "Europe/London": 0,
+                "UTC": 0,
+            }
+            return timedelta(hours=offsets.get(self.key, 0))
+
 
 class TimezonePreset(Enum):
     """Frequently used timezone presets"""
@@ -24,30 +48,6 @@ class TimezonePreset(Enum):
 
 
 # Timezone handling using standard library zoneinfo (Python 3.9+)
-try:
-    from zoneinfo import ZoneInfo
-except ImportError:
-    # Fallback for older python versions if backports.zoneinfo not installed
-    from datetime import timedelta, timezone
-
-    class ZoneInfo:
-        def __init__(self, key: str):
-            self.key = key
-
-        def utcoffset(self, dt):
-            # Very basic fallback - DOES NOT HANDLE DST
-            # This is just to prevent crashes if zoneinfo missing
-            offsets = {
-                "Asia/Seoul": 9,
-                "Asia/Tokyo": 9,
-                "Asia/Shanghai": 8,
-                "America/New_York": -5,
-                "America/Los_Angeles": -8,
-                "Europe/Paris": 1,
-                "Europe/London": 0,
-                "UTC": 0,
-            }
-            return timedelta(hours=offsets.get(self.key, 0))
 
 
 def get_timezone(tz_name: str):

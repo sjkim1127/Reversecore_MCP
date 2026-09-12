@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from fastmcp import Context
@@ -218,11 +219,12 @@ async def _find_sink_calls(binary_path: str, timeout: int) -> list[dict[str, Any
         List of sink call dicts with address, function name, sink info.
     """
     sink_calls: list[dict[str, Any]] = []
+    bin_path = Path(binary_path)
 
     # Batch query: fetch imports and symbols once to discover which sinks exist
     try:
         sym_out, _ = await _execute_r2_command(
-            binary_path,
+            bin_path,
             ["is~imp.", "ii"],
             analysis_level="aa",
             max_output_size=1_000_000,
@@ -244,7 +246,7 @@ async def _find_sink_calls(binary_path: str, timeout: int) -> list[dict[str, Any
             # If batch output was unavailable, check this sink individually
             if not sym_out:
                 out, _ = await _execute_r2_command(
-                    binary_path,
+                    bin_path,
                     [f"is~{sink_name}", f"ii~{sink_name}"],
                     analysis_level="aa",
                     max_output_size=1_000_000,
@@ -255,7 +257,7 @@ async def _find_sink_calls(binary_path: str, timeout: int) -> list[dict[str, Any
 
             # Find cross-references to this symbol
             addr_out, _ = await _execute_r2_command(
-                binary_path,
+                bin_path,
                 [f"?v sym.imp.{sink_name}", f"axtj sym.imp.{sink_name}"],
                 analysis_level="aa",
                 max_output_size=1_000_000,
@@ -324,6 +326,7 @@ async def _find_source_calls(binary_path: str, timeout: int) -> list[dict[str, A
         List of source call dicts with address, function name, source info.
     """
     source_calls: list[dict[str, Any]] = []
+    bin_path = Path(binary_path)
 
     # argv is a parameter, not a function call — include directly
     if "argv" in TAINT_SOURCES:
@@ -339,7 +342,7 @@ async def _find_source_calls(binary_path: str, timeout: int) -> list[dict[str, A
     # Batch query imports and symbols once
     try:
         sym_out, _ = await _execute_r2_command(
-            binary_path,
+            bin_path,
             ["is~imp.", "ii"],
             analysis_level="aa",
             max_output_size=1_000_000,
@@ -359,7 +362,7 @@ async def _find_source_calls(binary_path: str, timeout: int) -> list[dict[str, A
         if not sym_out:
             try:
                 out, _ = await _execute_r2_command(
-                    binary_path,
+                    bin_path,
                     [f"is~{src_name}", f"ii~{src_name}"],
                     analysis_level="aa",
                     max_output_size=500_000,

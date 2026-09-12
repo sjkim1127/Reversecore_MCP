@@ -107,7 +107,7 @@ async def eliminate_dead_code_impl(
 
     for i in range(func_limit):
         f = functions[i]
-        f_offset = f.get("offset")
+        f_offset: Any = f.get("offset")
         f_name = f.get("name", "func")
         if f_offset is None:
             continue

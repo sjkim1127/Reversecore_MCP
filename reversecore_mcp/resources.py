@@ -822,13 +822,19 @@ def register_resources(mcp: FastMCP):
                 _get_workspace_path(filename), address, format="mermaid"
             )
 
-            if result.status == "success":
-                content = result.data if isinstance(result.data, str) else str(result.data)
+            from reversecore_mcp.core.result import ToolSuccess
+
+            if isinstance(result, ToolSuccess) or getattr(result, "status", None) == "success":
+                data = getattr(result, "data", None)
+                content = data if isinstance(data, str) else str(data)
                 return f"""# Control Flow Graph: {filename} @ {address}
 
 {content}
 """
-            return f"Error generating CFG for {address}: {result.message if hasattr(result, 'message') else 'CFG generation failed'}"
+            error_msg = getattr(result, "message", None) or getattr(
+                result, "error", "CFG generation failed"
+            )
+            return f"Error generating CFG for {address}: {error_msg}"
         except Exception as e:
             return f"Error: {str(e)}"
 

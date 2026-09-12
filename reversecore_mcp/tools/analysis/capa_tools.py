@@ -6,6 +6,7 @@ providing high-level behavioral information like encryption, file deletion, etc.
 """
 
 import asyncio
+from typing import Any
 
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.logging_config import get_logger
@@ -99,7 +100,7 @@ async def run_capa(file_path: str, output_format: str = "summary"):
         )
 
         # Format results
-        result = {
+        result: dict[str, Any] = {
             "capabilities": [],
             "mitre_attack": [],
             "mbc": [],
@@ -182,7 +183,9 @@ async def run_capa(file_path: str, output_format: str = "summary"):
         }
 
         # Build adaptive next-tool hints based on detected capabilities
-        cap_names = [c["name"] for c in result.get("capabilities", [])]
+        cap_names = [
+            c["name"] for c in result.get("capabilities", []) if isinstance(c, dict) and "name" in c
+        ]
         _hints = finalize_hints(build_capa_hints(file_path, cap_names))
 
         return success(

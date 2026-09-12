@@ -130,9 +130,11 @@ class ReportTools:
         return utc_now.astimezone(local_tz)
 
     def _format_time(
-        self, dt: datetime, include_tz: bool = True, tz_name: str | None = None
+        self, dt: datetime | None, include_tz: bool = True, tz_name: str | None = None
     ) -> str:
         """Format datetime to configured timezone"""
+        if dt is None:
+            return ""
         target_tz_name = tz_name or self.default_timezone
         offset = TIMEZONE_OFFSETS.get(target_tz_name, 0)
 
@@ -259,7 +261,9 @@ class ReportTools:
             "success": True,
             "session_id": session_id,
             "started_at": self._format_time(session.started_at),
-            "started_at_utc": session.started_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "started_at_utc": session.started_at.strftime("%Y-%m-%d %H:%M:%S UTC")
+            if session.started_at
+            else "",
             "sample": session.sample_name,
             "analyst": analyst,
             "severity": severity,
@@ -703,7 +707,7 @@ class ReportTools:
             )
 
         # 최신순 정렬
-        reports.sort(key=lambda x: x["created"], reverse=True)
+        reports.sort(key=lambda x: str(x.get("created", "")), reverse=True)
 
         return {"total": len(reports), "reports": reports}
 
@@ -974,13 +978,14 @@ class ReportTools:
         return "Unknown Binary"
 
     @staticmethod
-    def _human_readable_size(size: int) -> str:
+    def _human_readable_size(size: int | float) -> str:
         """Convert bytes to human-readable format"""
+        size_f = float(size)
         for unit in ["B", "KB", "MB", "GB"]:
-            if size < 1024:
-                return f"{size:,.1f} {unit}"
-            size /= 1024
-        return f"{size:,.1f} TB"
+            if size_f < 1024:
+                return f"{size_f:,.1f} {unit}"
+            size_f /= 1024
+        return f"{size_f:,.1f} TB"
 
     @staticmethod
     def _get_severity_emoji(severity: str) -> str:

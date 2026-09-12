@@ -9,6 +9,7 @@ and zero-dependency pure Python PE/ELF header fallbacks.
 from __future__ import annotations
 
 import asyncio
+import json
 import math
 import re
 import shutil
@@ -22,7 +23,7 @@ import lief
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.logging_config import get_logger
-from reversecore_mcp.core.result import failure, success
+from reversecore_mcp.core.result import ToolResult, failure, success
 from reversecore_mcp.core.security import validate_file_path
 
 logger = get_logger(__name__)
@@ -1210,9 +1211,8 @@ def _run_diec_cli_if_available(file_path: Path) -> dict[str, Any] | None:
             timeout=5,
         )
         if stdout.strip():
-            import json as stdlib_json
-
-            return stdlib_json.loads(stdout)
+            parsed = json.loads(stdout)
+            return parsed if isinstance(parsed, dict) else None
     except Exception as exc:
         logger.debug(f"diec CLI execution skipped/failed: {exc}")
 
@@ -1340,12 +1340,14 @@ def _analyze_binary_with_lief(file_path: Path, data: bytes | None = None) -> dic
                     and not hasattr(section, "_mock_name")
                 ):
                     try:
-                        is_writable = section.has_characteristic(
-                            lief.PE.SECTION_CHARACTERISTICS.MEM_WRITE
+                        char_enum = getattr(
+                            lief.PE,
+                            "SECTION_CHARACTERISTICS",
+                            getattr(getattr(lief.PE, "Section", None), "CHARACTERISTICS", None),
                         )
-                        is_executable = section.has_characteristic(
-                            lief.PE.SECTION_CHARACTERISTICS.MEM_EXECUTE
-                        )
+                        if char_enum is not None:
+                            is_writable = bool(section.has_characteristic(char_enum.MEM_WRITE))
+                            is_executable = bool(section.has_characteristic(char_enum.MEM_EXECUTE))
                     except Exception:
                         pass
                 elif hasattr(section, "flags") and isinstance(section.flags, int):
@@ -1608,7 +1610,7 @@ async def detect_packer(file_path: str):
 
 
 @log_execution()
-async def detect_packer_deep(file_path: str):
+async def detect_packer_deep(file_path: str) -> ToolResult:
     """Deep scan combining block-level entropy, overlay analysis, section anomaly heuristics, and full signature scanning.
 
     Args:

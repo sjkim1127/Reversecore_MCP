@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import tempfile
+from typing import Any
 
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.decorators import log_execution
@@ -288,7 +289,7 @@ async def run_binwalk_extract(
         )
 
         # Gather extraction results
-        extracted_files = []
+        extracted_files: list[dict[str, Any]] = []
         total_size = 0
         max_depth_found = 0
 
@@ -331,7 +332,7 @@ async def run_binwalk_extract(
                         continue
 
         # Sort by size (largest first) and limit entries
-        extracted_files.sort(key=lambda x: x["size"], reverse=True)
+        extracted_files.sort(key=lambda x: int(x["size"]), reverse=True)
         truncated = len(extracted_files) > MAX_EXTRACTED_FILES
         extracted_files = extracted_files[:MAX_EXTRACTED_FILES]
 
@@ -374,13 +375,14 @@ async def run_binwalk_extract(
         raise
 
 
-def _format_size(size_bytes: int) -> str:
+def _format_size(size_bytes: int | float) -> str:
     """Format byte size to human-readable string."""
+    size = float(size_bytes)
     for unit in ["B", "KB", "MB", "GB"]:
-        if size_bytes < 1024:
-            return f"{size_bytes:.1f} {unit}"
-        size_bytes /= 1024
-    return f"{size_bytes:.1f} TB"
+        if size < 1024:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} TB"
 
 
 @log_execution(tool_name="scan_for_versions")

@@ -1,6 +1,8 @@
 """Radare2-based analysis tools for binary analysis, cross-references, and execution tracing."""
 
 import os
+from pathlib import Path
+from typing import Any
 
 from async_lru import alru_cache
 from fastmcp import Context
@@ -8,7 +10,7 @@ from fastmcp.utilities.types import Image
 
 # Use high-performance JSON implementation (3-5x faster)
 from reversecore_mcp.core import json_utils as json
-from reversecore_mcp.core.command_spec import validate_r2_command
+from reversecore_mcp.core.command_spec import ValidatedR2Command, validate_r2_command
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
@@ -113,9 +115,11 @@ async def run_radare2(
     try:
         # ── Extension pre-hooks (may transform file_path / command) ──────────
         _registry = get_extension_registry()
-        validated_path, validated_command = await _apply_validated_r2_pre_hooks(
+        hooked_path, hooked_command = await _apply_validated_r2_pre_hooks(
             str(validated_path), validated_command
         )
+        validated_path = Path(hooked_path)
+        validated_command = ValidatedR2Command(hooked_command)
 
         # If user explicitly requested analysis, handle it via caching
         if "aaa" in validated_command or "aa" in validated_command:
@@ -385,7 +389,8 @@ def _find_best_symbol_match(target: str, symbols: list[dict]) -> tuple[dict | No
     best_score = 0.0
     best_method = "none"
 
-    for sym in symbols:
+    for sym_item in symbols:
+        sym: Any = sym_item
         if not isinstance(sym, dict):
             continue
 
@@ -532,8 +537,8 @@ async def trace_execution_path(
         target_addr = hex(resolved_addr)
     # If we can't resolve it, use the original name (might work as r2 symbol)
 
-    paths = []
-    visited = set()
+    paths: list[list[dict[str, Any]]] = []
+    visited: set[str] = set()
 
     async def recursive_backtrace(current_addr, current_path, depth):
         if depth >= max_depth or len(paths) >= max_paths:
@@ -809,10 +814,12 @@ async def generate_function_graph(
     # If PNG format requested, generate DOT first then convert
     if format.lower() == "png":
         # Get DOT format first
-        result = await _generate_function_graph_impl(file_path, function_address, "dot", timeout)
+        dot_result: ToolResult = await _generate_function_graph_impl(
+            file_path, function_address, "dot", timeout
+        )
 
-        if result.status == "error":
-            return result
+        if dot_result.status == "error":
+            return dot_result
 
         # Convert DOT to PNG using graphviz
         try:
@@ -820,7 +827,7 @@ async def generate_function_graph(
             from pathlib import Path as PathlibPath
 
             # Get DOT content from result
-            dot_content = result.data if isinstance(result.data, str) else ""
+            dot_content = dot_result.data if isinstance(dot_result.data, str) else ""
 
             # Create temp files
             with tempfile.NamedTemporaryFile(mode="w", suffix=".dot", delete=False) as dot_file:
@@ -861,17 +868,19 @@ async def generate_function_graph(
             )
 
     # For other formats, use existing implementation
-    result = await _generate_function_graph_impl(file_path, function_address, format, timeout)
+    other_result: ToolResult = await _generate_function_graph_impl(
+        file_path, function_address, format, timeout
+    )
 
     # Check for cache hit
-    if result.status == "success" and result.metadata:
-        ts = result.metadata.get("timestamp")
+    if other_result.status == "success" and other_result.metadata:
+        ts = other_result.metadata.get("timestamp")
         if ts and (time.time() - ts > 1.0):
-            result.metadata["cache_hit"] = True
+            other_result.metadata["cache_hit"] = True
             # Update description to indicate cached result
             # Note: ToolSuccess has 'data' field, not 'content'
 
-    return result
+    return other_result
 
 
 @log_execution(tool_name="analyze_xrefs")

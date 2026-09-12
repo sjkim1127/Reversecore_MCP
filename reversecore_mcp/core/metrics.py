@@ -5,10 +5,13 @@ Performance metrics collection for monitoring.
 import inspect
 import threading
 import time
+from collections.abc import Callable
 from functools import wraps
-from typing import Any
+from typing import Any, TypeVar, cast
 
 from reversecore_mcp.core.result import ToolError
+
+F = TypeVar("F", bound=Callable[..., Any])
 
 
 class MetricsCollector:
@@ -147,7 +150,7 @@ def _determine_success(result: Any) -> bool:
     return True
 
 
-def track_metrics(tool_name: str):
+def track_metrics(tool_name: str) -> Callable[[F], F]:
     """
     Decorator to track tool execution metrics.
 
@@ -155,12 +158,12 @@ def track_metrics(tool_name: str):
     Automatically detects function type using inspect.iscoroutinefunction().
     """
 
-    def decorator(func):
+    def decorator(func: F) -> F:
         # Check if function is async
         if inspect.iscoroutinefunction(func):
 
             @wraps(func)
-            async def async_wrapper(*args, **kwargs):
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 start_time = time.time()
                 success = True
 
@@ -175,11 +178,11 @@ def track_metrics(tool_name: str):
                     execution_time = time.time() - start_time
                     metrics_collector.record_tool_execution(tool_name, execution_time, success)
 
-            return async_wrapper
+            return cast(F, async_wrapper)
         else:
 
             @wraps(func)
-            def sync_wrapper(*args, **kwargs):
+            def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
                 start_time = time.time()
                 success = True
 
@@ -194,6 +197,6 @@ def track_metrics(tool_name: str):
                     execution_time = time.time() - start_time
                     metrics_collector.record_tool_execution(tool_name, execution_time, success)
 
-            return sync_wrapper
+            return cast(F, sync_wrapper)
 
     return decorator

@@ -12,12 +12,16 @@ SECURITY NOTES:
 import html
 import secrets
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+
+from reversecore_mcp.core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # Setup paths
 DASHBOARD_DIR = Path(__file__).parent
@@ -47,19 +51,18 @@ def _verify_csrf_token(session_id: str, token: str) -> bool:
     return expected is not None and secrets.compare_digest(expected, token)
 
 
-def _sanitize_for_display(text: str, max_length: int = 1000) -> str:
+def _sanitize_for_display(text: Any, max_length: int = 1000) -> str:
     """
     Sanitize binary-extracted text for safe display.
 
     This is a defense-in-depth measure on top of Jinja2's auto-escaping.
     """
-    if not isinstance(text, str):
-        text = str(text)
+    s = str(text) if not isinstance(text, str) else text
     # Truncate long strings
-    if len(text) > max_length:
-        text = text[:max_length] + "... [truncated]"
+    if len(s) > max_length:
+        s = s[:max_length] + "... [truncated]"
     # HTML escape (Jinja2 does this, but we double-check for safety)
-    return html.escape(text)
+    return str(html.escape(s))
 
 
 def get_router() -> APIRouter:
@@ -200,7 +203,7 @@ async def dashboard_iocs(request: Request, filename: str):
     try:
         from reversecore_mcp.tools.malware.ioc_tools import extract_iocs
 
-        result = await extract_iocs(str(validated_path))
+        result = extract_iocs(str(validated_path))
         if result.status == "success" and isinstance(result.data, dict):
             raw_iocs = result.data
             # SECURITY: Sanitize all IOC values extracted from binary
@@ -239,7 +242,7 @@ async def dashboard_reports(request: Request):
     report_tools = get_report_tools()
 
     # 1. Get reports list
-    reports_res = report_tools.list_reports()
+    reports_res = await report_tools.list_reports()
     reports = reports_res.get("reports", [])
 
     # 2. Get workspace files list for the creation dropdown
@@ -288,7 +291,7 @@ async def dashboard_report_view(request: Request, report_id: str):
     from reversecore_mcp.tools.report.report_mcp_tools import get_report_tools
 
     report_tools = get_report_tools()
-    report_res = report_tools.get_report(report_id)
+    report_res = await report_tools.get_report(report_id)
 
     if not report_res.get("success"):
         return templates.TemplateResponse(
@@ -402,7 +405,7 @@ async def dashboard_report_create(
 
         # Enhance report by extracting IOCs from binary
         try:
-            ioc_result = await extract_iocs(str(validated_path))
+            ioc_result = extract_iocs(str(validated_path))
             if ioc_result.status == "success" and isinstance(ioc_result.data, dict):
                 raw_iocs = ioc_result.data
 
@@ -568,7 +571,7 @@ async def files_fragment(request: Request):
                     }
                 )
 
-    files.sort(key=lambda x: x["modified"], reverse=True)
+    files.sort(key=lambda x: cast(float, x["modified"]), reverse=True)
 
     return templates.TemplateResponse(
         request,

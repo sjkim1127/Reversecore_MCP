@@ -155,7 +155,8 @@ class Radare2ToolsPlugin(Plugin):
 
     def _diagnose_error(self, file_path: str, error: Exception) -> dict[str, Any]:
         """Diagnose why r2 failed to open a file."""
-        diagnosis = {
+        hints: list[str] = []
+        diagnosis: dict[str, Any] = {
             "error": str(error),
             "file_exists": os.path.exists(file_path),
             "is_file": (os.path.isfile(file_path) if os.path.exists(file_path) else False),
@@ -164,17 +165,15 @@ class Radare2ToolsPlugin(Plugin):
             ),
             "file_size": os.path.getsize(file_path) if os.path.exists(file_path) else 0,
             "r2_available": shutil.which("radare2") is not None,
-            "hints": [],
+            "hints": hints,
         }
 
         if not diagnosis["file_exists"]:
-            diagnosis["hints"].append(
-                "Check if the file path is correct (relative to /app/workspace?)"
-            )
+            hints.append("Check if the file path is correct (relative to /app/workspace?)")
         elif not diagnosis["is_file"]:
-            diagnosis["hints"].append("Path exists but is not a file (directory?)")
+            hints.append("Path exists but is not a file (directory?)")
         elif diagnosis["file_size"] == 0:
-            diagnosis["hints"].append("File is empty (0 bytes)")
+            hints.append("File is empty (0 bytes)")
 
         return diagnosis
 
@@ -1522,7 +1521,7 @@ def _parse_register_state(ar_output: str) -> dict:
     return registers
 
 
-def _validate_address_or_fail(address: str, param_name: str = "address"):
+def _validate_address_or_fail(address: str, param_name: str = "address") -> ToolResult | None:
     """Validate address format and return failure ToolResult if invalid."""
 
     try:

@@ -102,7 +102,8 @@ async def artifact_collect(
         )
 
     normalized = []
-    for raw in artifacts:
+    for raw_item in artifacts:
+        raw: Any = raw_item
         if not isinstance(raw, dict):
             logger.warning("Skipping non-dict artifact: %s", raw)
             continue

@@ -189,14 +189,11 @@ async def task_run_yara(ctx: Any, file_path: str, rule_file: str, timeout: int) 
     from reversecore_mcp.tools.malware.yara_tools import run_yara
 
     # We call run_yara with _bypass_queue=True to execute the actual logic in the worker
-    return cast(
-        ToolResult,
-        await run_yara(
-            file_path=file_path,
-            rule_file=rule_file,
-            timeout=timeout,
-            _bypass_queue=True,
-        ),
+    return await run_yara(
+        file_path=file_path,
+        rule_file=rule_file,
+        timeout=timeout,
+        _bypass_queue=True,
     )
 
 
@@ -207,15 +204,12 @@ async def task_run_strings(
     logger.info(f"Worker executing task_run_strings for {file_path}")
     from reversecore_mcp.tools.analysis.static_analysis import run_strings
 
-    return cast(
-        ToolResult,
-        await run_strings(
-            file_path=file_path,
-            min_length=min_length,
-            max_output_size=max_output_size,
-            timeout=timeout,
-            _bypass_queue=True,
-        ),
+    return await run_strings(
+        file_path=file_path,
+        min_length=min_length,
+        max_output_size=max_output_size,
+        timeout=timeout,
+        _bypass_queue=True,
     )
 
 
@@ -231,16 +225,13 @@ async def task_vulnerability_hunter(
     logger.info(f"Worker executing task_vulnerability_hunter for {file_path}")
     from reversecore_mcp.tools.malware.vulnerability_hunter import vulnerability_hunter
 
-    return cast(
-        ToolResult,
-        await vulnerability_hunter(
-            file_path=file_path,
-            max_depth=max_depth,
-            severity_filter=severity_filter,
-            generate_yara=generate_yara,
-            timeout=timeout,
-            _bypass_queue=True,
-        ),
+    return await vulnerability_hunter(
+        file_path=file_path,
+        max_depth=max_depth,
+        severity_filter=severity_filter,
+        generate_yara=generate_yara,
+        timeout=timeout,
+        _bypass_queue=True,
     )
 
 

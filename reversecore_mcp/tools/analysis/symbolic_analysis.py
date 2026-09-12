@@ -75,7 +75,13 @@ async def verify_path_and_get_args(
             try:
                 # Find the JSON output which should be on the last line
                 lines = stdout.strip().split("\n")
-                return json.loads(lines[-1])
+                parsed = json.loads(lines[-1])
+                if isinstance(parsed, dict):
+                    return parsed
+                return {
+                    "satisfiable": False,
+                    "error": "Invalid output format from worker",
+                }
             except json.JSONDecodeError:
                 logger.error(f"Failed to parse angr worker output: {stdout}")
                 return {
@@ -116,9 +122,7 @@ async def verify_path_and_get_args_tool(
     """
     validated_path = validate_file_path(file_path)
 
-    def parse_addr(val: str | None) -> int | str | None:
-        if val is None:
-            return None
+    def parse_addr(val: str) -> int | str:
         val_strip = val.strip()
         if val_strip.startswith("0x") or val_strip.startswith("0X"):
             return int(val_strip, 16)
@@ -128,7 +132,7 @@ async def verify_path_and_get_args_tool(
             return val_strip
 
     parsed_target = parse_addr(target_addr)
-    parsed_start = parse_addr(start_addr)
+    parsed_start = parse_addr(start_addr) if start_addr is not None else None
     parsed_avoid = [parse_addr(x) for x in avoid_addrs] if avoid_addrs else None
 
     # Call core execution logic

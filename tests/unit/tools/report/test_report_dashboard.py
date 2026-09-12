@@ -1,7 +1,7 @@
 """Tests for report conversion and report dashboard routes."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -136,16 +136,18 @@ class TestReportDashboardRoutes:
                 "reversecore_mcp.tools.report.report_mcp_tools.get_report_tools"
             ) as mock_get_tools:
                 mock_tools = MagicMock()
-                mock_tools.list_reports.return_value = {
-                    "reports": [
-                        {
-                            "report_id": "MAR-2026-TEST",
-                            "path": "/reports/MAR-2026-TEST.md",
-                            "size": 1024,
-                            "created": "2026-06-25T12:00:00",
-                        }
-                    ]
-                }
+                mock_tools.list_reports = AsyncMock(
+                    return_value={
+                        "reports": [
+                            {
+                                "report_id": "MAR-2026-TEST",
+                                "path": "/reports/MAR-2026-TEST.md",
+                                "size": 1024,
+                                "created": "2026-06-25T12:00:00",
+                            }
+                        ]
+                    }
+                )
                 mock_get_tools.return_value = mock_tools
 
                 # Mock templates response
@@ -173,10 +175,12 @@ class TestReportDashboardRoutes:
             "reversecore_mcp.tools.report.report_mcp_tools.get_report_tools"
         ) as mock_get_tools:
             mock_tools = MagicMock()
-            mock_tools.get_report.return_value = {
-                "success": True,
-                "content": "# Test Report",
-            }
+            mock_tools.get_report = AsyncMock(
+                return_value={
+                    "success": True,
+                    "content": "# Test Report",
+                }
+            )
             mock_get_tools.return_value = mock_tools
 
             with patch("starlette.templating.Jinja2Templates.TemplateResponse") as mock_tr:
@@ -199,7 +203,7 @@ class TestReportDashboardRoutes:
             "reversecore_mcp.tools.report.report_mcp_tools.get_report_tools"
         ) as mock_get_tools:
             mock_tools = MagicMock()
-            mock_tools.get_report.return_value = {"success": False}
+            mock_tools.get_report = AsyncMock(return_value={"success": False})
             mock_get_tools.return_value = mock_tools
 
             with patch("starlette.templating.Jinja2Templates.TemplateResponse") as mock_tr:

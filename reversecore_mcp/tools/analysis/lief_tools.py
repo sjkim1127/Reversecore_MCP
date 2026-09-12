@@ -5,7 +5,7 @@ import threading
 from collections import OrderedDict
 from concurrent.futures.process import BrokenProcessPool
 from itertools import islice
-from typing import Any
+from typing import Any, cast
 
 # Use high-performance JSON implementation (3-5x faster)
 from reversecore_mcp.core import json_utils as json
@@ -113,10 +113,14 @@ def _extract_sections(binary: Any) -> list[dict[str, Any]]:
             try:
                 import lief
 
-                is_writable = section.has_characteristic(lief.PE.SECTION_CHARACTERISTICS.MEM_WRITE)
-                is_executable = section.has_characteristic(
-                    lief.PE.SECTION_CHARACTERISTICS.MEM_EXECUTE
+                char_enum = getattr(
+                    lief.PE,
+                    "SECTION_CHARACTERISTICS",
+                    getattr(getattr(lief.PE, "Section", None), "CHARACTERISTICS", None),
                 )
+                if char_enum is not None:
+                    is_writable = bool(section.has_characteristic(char_enum.MEM_WRITE))
+                    is_executable = bool(section.has_characteristic(char_enum.MEM_EXECUTE))
             except Exception:
                 pass
         elif hasattr(section, "flags"):
@@ -162,28 +166,27 @@ def _extract_mitigations(binary: Any) -> dict[str, Any]:
     try:
         import lief
 
-        # Compatibility aliases for newer LIEF versions (0.14+)
-        if (
-            not hasattr(lief.ELF, "DYNAMIC_TAGS")
-            and hasattr(lief.ELF, "DynamicEntry")
-            and hasattr(lief.ELF.DynamicEntry, "TAG")
-        ):
-            lief.ELF.DYNAMIC_TAGS = lief.ELF.DynamicEntry.TAG
-        if not hasattr(lief.ELF, "DYNAMIC_FLAGS") and hasattr(lief.ELF.DynamicEntryFlags, "FLAG"):
-            lief.ELF.DYNAMIC_FLAGS = lief.ELF.DynamicEntryFlags.FLAG
-        if not hasattr(lief.ELF, "SEGMENT_TYPES") and hasattr(lief.ELF.Segment, "TYPE"):
-            lief.ELF.SEGMENT_TYPES = lief.ELF.Segment.TYPE
-        if (
-            not hasattr(lief.PE, "DLL_CHARACTERISTICS")
-            and hasattr(lief.PE, "OptionalHeader")
-            and hasattr(lief.PE.OptionalHeader, "DLL_CHARACTERISTICS")
-        ):
-            lief.PE.DLL_CHARACTERISTICS = lief.PE.OptionalHeader.DLL_CHARACTERISTICS
-        if not hasattr(lief.PE, "LoadConfigurationV1") and hasattr(lief.PE, "LoadConfiguration"):
-            try:
-                lief.PE.LoadConfigurationV1 = lief.PE.LoadConfiguration
-            except Exception:  # nosec B110
-                pass
+        # Resolve enum classes safely across LIEF versions (0.13 - 0.16+)
+        elf_dyn_tags = getattr(
+            lief.ELF,
+            "DYNAMIC_TAGS",
+            getattr(getattr(lief.ELF, "DynamicEntry", None), "TAG", None),
+        )
+        elf_dyn_flags = getattr(
+            lief.ELF,
+            "DYNAMIC_FLAGS",
+            getattr(getattr(lief.ELF, "DynamicEntryFlags", None), "FLAG", None),
+        )
+        elf_seg_types = getattr(
+            lief.ELF,
+            "SEGMENT_TYPES",
+            getattr(getattr(lief.ELF, "Segment", None), "TYPE", None),
+        )
+        pe_dll_chars = getattr(
+            lief.PE,
+            "DLL_CHARACTERISTICS",
+            getattr(getattr(lief.PE, "OptionalHeader", None), "DLL_CHARACTERISTICS", None),
+        )
 
         if isinstance(binary, lief.ELF.Binary):
             mitigations["nx"] = binary.has_nx
@@ -199,23 +202,27 @@ def _extract_mitigations(binary: Any) -> dict[str, Any]:
             # Check for RELRO
             has_bind_now = False
             has_relro = False
-            if hasattr(binary, "segments"):
+            if hasattr(binary, "segments") and elf_seg_types is not None:
                 for segment in binary.segments:
-                    if segment.type == lief.ELF.SEGMENT_TYPES.GNU_RELRO:
+                    if segment.type == getattr(elf_seg_types, "GNU_RELRO", None):
                         has_relro = True
 
             try:
-                if binary.has(lief.ELF.DYNAMIC_TAGS.FLAGS):
-                    flags = binary.get(lief.ELF.DYNAMIC_TAGS.FLAGS)
-                    if isinstance(flags, lief.ELF.DynamicEntryFlags):
-                        if lief.ELF.DYNAMIC_FLAGS.BIND_NOW in flags.flags:
-                            has_bind_now = True
-                    elif type(flags).__name__ == "DynamicEntryFlags":
-                        if lief.ELF.DYNAMIC_FLAGS.BIND_NOW in flags:
-                            has_bind_now = True
-                    elif isinstance(flags, list):  # Some LIEF versions return list
-                        if lief.ELF.DYNAMIC_FLAGS.BIND_NOW in flags:
-                            has_bind_now = True
+                flags_tag = (
+                    getattr(elf_dyn_tags, "FLAGS", None) if elf_dyn_tags is not None else None
+                )
+                if flags_tag is not None and binary.has(cast(Any, flags_tag)):
+                    flags = binary.get(cast(Any, flags_tag))
+                    if elf_dyn_flags is not None:
+                        bind_now_flag = getattr(elf_dyn_flags, "BIND_NOW", None)
+                        flags_val = getattr(flags, "flags", flags)
+                        if (
+                            bind_now_flag is not None
+                            and flags_val is not None
+                            and hasattr(flags_val, "__contains__")
+                        ):
+                            if bind_now_flag in flags_val:
+                                has_bind_now = True
             except Exception:  # nosec B110
                 pass
 
@@ -225,29 +232,42 @@ def _extract_mitigations(binary: Any) -> dict[str, Any]:
                 mitigations["relro"] = "Partial"
 
         elif isinstance(binary, lief.PE.Binary):
-            if binary.has_opt_header:
-                dll_chars = binary.optional_header.dll_characteristics_lists
-                mitigations["nx"] = lief.PE.DLL_CHARACTERISTICS.NX_COMPAT in dll_chars
-                mitigations["dynamic_base"] = lief.PE.DLL_CHARACTERISTICS.DYNAMIC_BASE in dll_chars
-                mitigations["cfg"] = lief.PE.DLL_CHARACTERISTICS.GUARD_CF in dll_chars
-                mitigations["pie"] = mitigations["dynamic_base"]  # ASLR essentially
+            has_opt = bool(getattr(binary, "has_opt_header", hasattr(binary, "optional_header")))
+            if has_opt:
+                opt_hdr = getattr(binary, "optional_header", None)
+                if opt_hdr is not None and pe_dll_chars is not None:
+                    dll_chars = getattr(opt_hdr, "dll_characteristics_lists", [])
+                    nx_compat = getattr(pe_dll_chars, "NX_COMPAT", None)
+                    dyn_base = getattr(pe_dll_chars, "DYNAMIC_BASE", None)
+                    guard_cf = getattr(pe_dll_chars, "GUARD_CF", None)
+                    mitigations["nx"] = nx_compat in dll_chars if nx_compat else False
+                    mitigations["dynamic_base"] = dyn_base in dll_chars if dyn_base else False
+                    mitigations["cfg"] = guard_cf in dll_chars if guard_cf else False
+                    mitigations["pie"] = mitigations["dynamic_base"]  # ASLR essentially
 
+            has_config = bool(
+                getattr(binary, "has_load_config", getattr(binary, "has_configuration", False))
+            )
             # Check for SafeSEH
             try:
-                if binary.has_load_config:
-                    load_config = binary.load_configuration
-                    if isinstance(load_config, lief.PE.LoadConfigurationV1):  # Has SafeSEH
-                        if load_config.se_handler_table != 0 and load_config.se_handler_count > 0:
+                if has_config:
+                    load_config = getattr(binary, "load_configuration", None)
+                    if load_config is not None:
+                        table = getattr(load_config, "se_handler_table", 0)
+                        count = getattr(load_config, "se_handler_count", 0)
+                        if table != 0 and count > 0:
                             mitigations["safeseh"] = True
             except Exception:  # nosec B110
                 pass
 
             # Check for stack cookie (__security_cookie)
             try:
-                if binary.has_load_config:
-                    load_config = binary.load_configuration
-                    if hasattr(load_config, "security_cookie") and load_config.security_cookie != 0:
-                        mitigations["canary"] = True
+                if has_config:
+                    load_config = getattr(binary, "load_configuration", None)
+                    if load_config is not None:
+                        cookie = getattr(load_config, "security_cookie", 0)
+                        if cookie != 0:
+                            mitigations["canary"] = True
             except Exception:  # nosec B110
                 pass
     except Exception:  # nosec B110
@@ -577,7 +597,7 @@ def _run_lief_in_process(
         raise ValueError("Unsupported binary format")
 
     result_data: dict[str, Any] = {
-        "format": str(binary.format).split(".")[-1].lower(),
+        "format": str(getattr(binary, "format", "unknown")).split(".")[-1].lower(),
         "entry_point": (hex(binary.entrypoint) if hasattr(binary, "entrypoint") else None),
     }
 

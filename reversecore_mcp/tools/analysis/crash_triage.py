@@ -182,10 +182,11 @@ def _parse_gdb_output(output: str) -> dict[str, Any]:
 
 def _assess_exploitability(crash_info: dict[str, Any]) -> dict[str, Any]:
     """Perform a basic heuristic assessment of exploitability based on GDB output."""
-    assessment = {
+    tags: list[str] = []
+    assessment: dict[str, Any] = {
         "status": "UNKNOWN",
         "description": "Could not determine exploitability.",
-        "tags": [],
+        "tags": tags,
     }
 
     signal = crash_info.get("signal")

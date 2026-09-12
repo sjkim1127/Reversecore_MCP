@@ -91,20 +91,23 @@ async def run_deobfuscation_pipeline_impl(
         str(safe_path), function_address=func_addr, timeout=timeout
     )
 
-    string_res, api_res, dead_code_res = await asyncio.gather(
+    results: tuple[Any, ...] = await asyncio.gather(
         string_task, api_task, dead_code_task, return_exceptions=True
     )
+    string_res, api_res, dead_code_res = results[0], results[1], results[2]
 
     # Unwrap results safely
     strings_data: dict[str, Any] = {}
     apis_data: dict[str, Any] = {}
     dead_code_data: dict[str, Any] = {}
 
-    if isinstance(string_res, ToolResult) and string_res.status == "success":
+    from reversecore_mcp.core.result import ToolSuccess
+
+    if isinstance(string_res, ToolSuccess):
         strings_data = string_res.data or {}
-    if isinstance(api_res, ToolResult) and api_res.status == "success":
+    if isinstance(api_res, ToolSuccess):
         apis_data = api_res.data or {}
-    if isinstance(dead_code_res, ToolResult) and dead_code_res.status == "success":
+    if isinstance(dead_code_res, ToolSuccess):
         dead_code_data = dead_code_res.data or {}
 
     recovered_strings = strings_data.get("recovered_strings", [])

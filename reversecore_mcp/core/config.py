@@ -630,6 +630,14 @@ class Config:
     def enable_live_fuzzing(self) -> bool:
         return self._settings.enable_live_fuzzing
 
+    @property
+    def vt_api_key(self) -> str:
+        return self._settings.vt_api_key
+
+    @property
+    def vt_request_timeout(self) -> int:
+        return self._settings.vt_request_timeout
+
     @classmethod
     def from_env(cls) -> Config:
         """Build a Config instance from environment variables."""

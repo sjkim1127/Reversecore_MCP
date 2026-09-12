@@ -25,6 +25,7 @@ import sqlite3
 import threading
 import time
 from pathlib import Path
+from typing import Any, cast
 
 from reversecore_mcp.core import json_utils as json
 from reversecore_mcp.core.decorators import log_execution
@@ -232,7 +233,7 @@ def _create_structure_sync(bh: str, name: str, fields_json: str) -> None:
 async def r2_create_structure(
     file_path: str,
     name: str,
-    fields: list[dict],
+    fields: list[dict] | Any,
 ) -> ToolResult:
     """Save (or replace) a C struct definition in the annotation DB."""
     if not name or not name.isidentifier():
@@ -484,7 +485,7 @@ def _get_cached_result_sync(bh: str, cache_key: str) -> dict | None:
         row = cursor.fetchone()
         if row:
             try:
-                return json.loads(row["result_json"])
+                return cast(dict[Any, Any], json.loads(row["result_json"]))
             except json.JSONDecodeError:
                 return None
         return None

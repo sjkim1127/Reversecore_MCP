@@ -31,7 +31,7 @@ def _detect_binary_type(file_path: Path) -> tuple[str, str]:
 
         binary = lief.parse(str(file_path))
         if binary is not None:
-            fmt_str = str(binary.format).lower()
+            fmt_str = str(getattr(binary, "format", "")).lower()
             if "pe" in fmt_str:
                 ostype = "windows"
             elif "elf" in fmt_str:

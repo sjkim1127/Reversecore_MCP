@@ -25,7 +25,7 @@ from reversecore_mcp.core.r2_helpers import (
 from reversecore_mcp.core.r2_helpers import (
     parse_json_output as _parse_json_output,
 )
-from reversecore_mcp.core.result import PaginationMeta, ToolResult, failure, success
+from reversecore_mcp.core.result import PaginationMeta, ToolResult, ToolSuccess, failure, success
 from reversecore_mcp.core.security import validate_file_path
 from reversecore_mcp.core.validators import validate_tool_parameters
 
@@ -372,7 +372,7 @@ async def analyze_variant_changes(
     sorted_funcs.sort(key=lambda x: x[0])
 
     # Map changes to functions using binary search
-    changed_funcs = {}  # {func_name: count}
+    changed_funcs: dict[str, int] = {}  # {func_name: count}
 
     for change in changes:
         addr_str = change.get("address")
@@ -403,15 +403,17 @@ async def analyze_variant_changes(
             pass
 
     # Sort by number of changes
-    sorted_funcs = sorted(changed_funcs.items(), key=lambda x: x[1], reverse=True)[:top_n]
+    top_changed_funcs = sorted(changed_funcs.items(), key=lambda x: x[1], reverse=True)[:top_n]
 
     detailed_analysis = []
 
     # 3. Generate CFG for top changed functions
-    for func_name, count in sorted_funcs:
+    for func_name, count in top_changed_funcs:
         # Get CFG for variant
         cfg_result = await generate_function_graph(file_path_b, func_name, format="mermaid")
-        cfg_mermaid = cfg_result.data if cfg_result.status == "success" else "Error generating CFG"
+        cfg_mermaid = (
+            cfg_result.data if isinstance(cfg_result, ToolSuccess) else "Error generating CFG"
+        )
 
         detailed_analysis.append(
             {
