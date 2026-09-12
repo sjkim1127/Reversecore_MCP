@@ -7,7 +7,6 @@ enabling multi-session memory persistence and cross-project knowledge transfer.
 
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -57,11 +56,15 @@ class MemoryToolsPlugin(Plugin):
             binary_hash = None
             if binary_path:
                 try:
-                    path = Path(binary_path)
-                    if path.exists():
-                        binary_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+                    from reversecore_mcp.core.analysis_cache import calculate_file_sha256
+                    from reversecore_mcp.core.security import validate_file_path
+
+                    path_obj = Path(binary_path)
+                    if path_obj.exists():
+                        validated_path = validate_file_path(binary_path, read_only=True)
+                        binary_hash = calculate_file_sha256(validated_path)
                         if not binary_name:
-                            binary_name = path.name
+                            binary_name = validated_path.name
                 except Exception as e:
                     logger.warning(f"Could not hash binary: {e}")
 

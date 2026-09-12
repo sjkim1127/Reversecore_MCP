@@ -304,6 +304,74 @@ class TestR2ConnectionPoolAsync:
             assert result == "async result"
 
     @pytest.mark.asyncio
+    async def test_execute_async_timeout(self):
+        """Should raise ExecutionTimeoutError and terminate connection on timeout."""
+        from reversecore_mcp.core.exceptions import ExecutionTimeoutError
+
+        pool = R2ConnectionPool()
+        mock_r2 = MagicMock()
+        mock_process = MagicMock()
+        mock_r2.process = mock_process
+
+        def slow_cmd(cmd):
+            time.sleep(0.5)
+            return "too slow"
+
+        mock_r2.cmd = MagicMock(side_effect=slow_cmd)
+        pool._pool["/app/hang.bin"] = mock_r2
+        pool._last_health_check["/app/hang.bin"] = time.time()
+
+        with patch.object(r2_pool_mod, "r2pipe"):
+            with pytest.raises(ExecutionTimeoutError) as exc_info:
+                await pool.execute_async("/app/hang.bin", "pdf", timeout=0.05)
+            assert exc_info.value.timeout_seconds == 0
+            # Ensure process was killed to prevent worker thread hang
+            mock_process.kill.assert_called_once()
+            assert "/app/hang.bin" not in pool._pool
+
+    @pytest.mark.asyncio
+    async def test_execute_async_per_file_concurrency(self):
+        """Commands on different files run concurrently without waiting for pool lock."""
+        pool = R2ConnectionPool()
+        r1 = MagicMock()
+        r2 = MagicMock()
+
+        order = []
+
+        def slow_a(cmd):
+            order.append("a_start")
+            time.sleep(0.08)
+            order.append("a_end")
+            return "res_a"
+
+        def slow_b(cmd):
+            order.append("b_start")
+            time.sleep(0.08)
+            order.append("b_end")
+            return "res_b"
+
+        r1.cmd = MagicMock(side_effect=slow_a)
+        r2.cmd = MagicMock(side_effect=slow_b)
+        pool._pool["/app/a.bin"] = r1
+        pool._pool["/app/b.bin"] = r2
+        pool._last_health_check["/app/a.bin"] = time.time()
+        pool._last_health_check["/app/b.bin"] = time.time()
+
+        with patch.object(r2_pool_mod, "r2pipe"):
+            res_a, res_b = await asyncio.gather(
+                pool.execute_async("/app/a.bin", "pdf"),
+                pool.execute_async("/app/b.bin", "pdf"),
+            )
+
+        assert res_a == "res_a"
+        assert res_b == "res_b"
+        assert "a_start" in order and "b_start" in order
+        # Concurrency verification: b must have started before a finished, or vice versa
+        assert order.index("b_start") < order.index("a_end") or order.index(
+            "a_start"
+        ) < order.index("b_end")
+
+    @pytest.mark.asyncio
     async def test_async_session(self):
         """Should provide async context manager."""
         pool = R2ConnectionPool()

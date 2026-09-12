@@ -127,10 +127,11 @@ def _get_db_sync() -> sqlite3.Connection:
 
 
 def _sha256(path: Path) -> str:
-    """Return the SHA-256 hex digest of *path* (first 64 KB for speed)."""
+    """Return the SHA-256 hex digest of *path*."""
     h = hashlib.sha256()
     with path.open("rb") as fh:
-        h.update(fh.read(65536))
+        while chunk := fh.read(65536):
+            h.update(chunk)
     return h.hexdigest()
 
 

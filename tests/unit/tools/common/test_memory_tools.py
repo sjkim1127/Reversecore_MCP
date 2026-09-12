@@ -94,7 +94,10 @@ class TestMemoryToolsPlugin:
     @pytest.mark.asyncio
     async def test_create_memory_session_with_binary(self, plugin, mock_mcp, tmp_path):
         """Test session creation with binary path."""
-        binary = tmp_path / "test.exe"
+        from reversecore_mcp.core.config import get_config
+
+        config = get_config()
+        binary = config.workspace / "test.exe"
         binary.write_bytes(b"MZ")
         plugin.register(mock_mcp)
         create_session = mock_mcp.tools["create_memory_session"]
@@ -104,6 +107,18 @@ class TestMemoryToolsPlugin:
         )
         assert result["status"] == "success"
         assert result["binary_hash"] is not None
+
+    @pytest.mark.asyncio
+    async def test_create_memory_session_traversal_blocked(self, plugin, mock_mcp):
+        """Path traversal or unauthorized path outside workspace does not leak hash."""
+        plugin.register(mock_mcp)
+        create_session = mock_mcp.tools["create_memory_session"]
+        result = await create_session(
+            name="test_traversal",
+            binary_path="/etc/passwd",
+        )
+        assert result["status"] == "success"
+        assert result["binary_hash"] is None
 
     @pytest.mark.asyncio
     async def test_list_memory_sessions(self, plugin, mock_mcp, mock_store):

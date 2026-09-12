@@ -1444,7 +1444,7 @@ def _analyze_binary_with_lief(file_path: Path, data: bytes | None = None) -> dic
 
 
 @log_execution()
-async def detect_packer(file_path: str):
+async def detect_packer(file_path: str) -> ToolResult:
     """Detect packer, compiler, and protector using Shannon entropy, section heuristics, and signature matching.
 
     Args:

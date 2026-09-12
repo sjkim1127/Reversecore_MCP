@@ -26,6 +26,7 @@ try:
 except ImportError:
     r2pipe = None
 
+from reversecore_mcp.core.exceptions import ExecutionTimeoutError
 from reversecore_mcp.core.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -82,6 +83,7 @@ class R2ConnectionPool:
         self._async_lock_init_lock = threading.Lock()
         self._file_locks: dict[str, asyncio.Lock] = {}
         self._file_locks_loop: asyncio.AbstractEventLoop | None = None
+        self._file_thread_locks: dict[str, threading.Lock] = {}
         self._last_access: dict[str, float] = {}
         self._analyzed_files: set[str] = set()
         self._last_health_check: dict[str, float] = {}
@@ -193,6 +195,30 @@ class R2ConnectionPool:
                 self._file_locks[file_path] = asyncio.Lock()
             return self._file_locks[file_path]
 
+    def _get_file_thread_lock(self, file_path: str) -> threading.Lock:
+        """Get or create a per-file thread lock for serializing r2pipe calls."""
+        with self._lock:
+            if file_path not in self._file_thread_locks:
+                self._file_thread_locks[file_path] = threading.Lock()
+            return self._file_thread_locks[file_path]
+
+    def _terminate_file_connection(self, file_path: str) -> None:
+        """Forcefully terminate and remove an r2 connection (e.g. after timeout)."""
+        with self._lock:
+            if file_path in self._pool:
+                r2 = self._pool.pop(file_path, None)
+                if r2 is not None:
+                    try:
+                        proc = getattr(r2, "process", None)
+                        if proc is not None and hasattr(proc, "kill"):
+                            proc.kill()
+                            proc.wait(timeout=1.0)
+                        else:
+                            r2.quit()
+                    except Exception as e:
+                        logger.debug("Error terminating r2 process for %s: %s", file_path, e)
+                self._cleanup_connection_state(file_path)
+
     def _is_connection_healthy(self, file_path: str, r2: Any) -> bool:
         """Check if a connection is still healthy."""
         try:
@@ -277,52 +303,49 @@ class R2ConnectionPool:
             del self._pool[file_path]
         self._cleanup_connection_state(file_path)
 
+    def _execute_file(self, file_path: str, command: str) -> str:
+        """Execute command holding only the per-file lock during r2.cmd, not the global pool lock."""
+        file_lock = self._get_file_thread_lock(file_path)
+        with file_lock:
+            r2 = self.get_connection(file_path)
+            try:
+                return cast(str, r2.cmd(command))
+            except Exception as e:
+                logger.warning(f"r2 command failed, retrying connection: {e}")
+                with self._lock:
+                    self._remove_connection_unsafe(file_path)
+                    self._stats["reconnections"] += 1
+                r2 = self.get_connection(file_path)
+                try:
+                    return cast(str, r2.cmd(command))
+                except Exception as retry_error:
+                    logger.error(f"Retry failed: {retry_error}")
+                    raise
+
     def execute(self, file_path: str, command: str) -> str:
         """Execute a command on the r2 connection for the given file."""
-        with self._lock:
-            try:
-                r2 = self.get_connection(file_path)
-                return cast(str, r2.cmd(command))
-            except Exception as e:
-                logger.warning(f"r2 command failed, retrying connection: {e}")
-                self._remove_connection_unsafe(file_path)
-                self._stats["reconnections"] += 1
+        return self._execute_file(file_path, command)
 
-                try:
-                    r2 = self.get_connection(file_path)
-                    return cast(str, r2.cmd(command))
-                except Exception as retry_error:
-                    logger.error(f"Retry failed: {retry_error}")
-                    raise
-
-    async def execute_async(self, file_path: str, command: str) -> str:
-        """Execute a command asynchronously with per-file async lock."""
+    async def execute_async(
+        self,
+        file_path: str,
+        command: str,
+        timeout: float | None = None,
+    ) -> str:
+        """Execute a command asynchronously with per-file async lock and optional timeout."""
         async with self._get_file_async_lock(file_path):
-            return await asyncio.to_thread(self._execute_unsafe, file_path, command)
+            coro = asyncio.to_thread(self._execute_file, file_path, command)
+            if timeout is None:
+                return await coro
+            try:
+                return await asyncio.wait_for(coro, timeout=timeout)
+            except asyncio.TimeoutError:
+                self._terminate_file_connection(file_path)
+                raise ExecutionTimeoutError(int(timeout))
 
     def _execute_unsafe(self, file_path: str, command: str) -> str:
-        """Execute with thread lock for safe asyncio.to_thread usage.
-
-        Note: Despite the name 'unsafe', this method now acquires self._lock
-        to ensure thread-safety when called from asyncio.to_thread().
-        The async lock in execute_async() serializes async callers per file,
-        while this thread lock protects against concurrent sync callers.
-        """
-        with self._lock:  # Thread lock for safe pool access
-            try:
-                r2 = self._get_connection_unsafe(file_path)
-                return cast(str, r2.cmd(command))
-            except Exception as e:
-                logger.warning(f"r2 command failed, retrying connection: {e}")
-                self._remove_connection_unsafe(file_path)
-                self._stats["reconnections"] += 1
-
-                try:
-                    r2 = self._get_connection_unsafe(file_path)
-                    return cast(str, r2.cmd(command))
-                except Exception as retry_error:
-                    logger.error(f"Retry failed: {retry_error}")
-                    raise
+        """Execute with thread lock for safe asyncio.to_thread usage."""
+        return self._execute_file(file_path, command)
 
     def _get_connection_unsafe(self, file_path: str) -> Any:
         """Get or create connection without locking (caller must hold lock)."""
@@ -410,6 +433,8 @@ class R2ConnectionPool:
             self._analyzed_files.clear()
             if hasattr(self, "_file_locks"):
                 self._file_locks.clear()
+            if hasattr(self, "_file_thread_locks"):
+                self._file_thread_locks.clear()
 
     def is_analyzed(self, file_path: str) -> bool:
         """Check if the file has been analyzed."""

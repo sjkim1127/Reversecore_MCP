@@ -202,7 +202,7 @@ async def run_capa(file_path: str, output_format: str = "summary") -> ToolResult
 
 
 @log_execution()
-async def run_capa_quick(file_path: str):
+async def run_capa_quick(file_path: str) -> ToolResult:
     """
     Quick CAPA scan returning only high-risk capabilities.
 
