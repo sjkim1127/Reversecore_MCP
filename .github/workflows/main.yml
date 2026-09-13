@@ -169,7 +169,7 @@ jobs:
 
       - name: Upload unit coverage artifact
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: coverage-python-${{ matrix.python-version }}-${{ github.sha }}
           path: coverage.xml
@@ -798,7 +798,7 @@ jobs:
 
       - name: Upload performance regression artifact
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: performance-regression-${{ github.sha }}
           path: artifacts/ci-benchmarks/performance-regression.json
