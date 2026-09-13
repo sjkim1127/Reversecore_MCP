@@ -40,7 +40,7 @@ ROPgadget>=7.3
 pefile>=2023.0.0
 lief>=0.17.6
 capstone>=5.0.0,<6
-keystone-engine>=0.9.2
+keystone-engine>=0.9.2; sys_platform != "darwin"
 yara-python>=4.5.4
 r2pipe>=1.9.8
 gitpython>=3.1.51
