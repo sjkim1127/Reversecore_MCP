@@ -39,7 +39,7 @@ jobs:
 
       - name: Dependency Review
         if: github.event_name == 'pull_request'
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@v5
 
       - name: Gitleaks Secret Scanner
         uses: gitleaks/gitleaks-action@v3
