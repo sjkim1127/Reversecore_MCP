@@ -163,6 +163,15 @@ jobs:
             --cov-report=term-missing \
             --cov-fail-under=85
 
+      - name: Upload unit coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage-python-${{ matrix.python-version }}-${{ github.sha }}
+          path: coverage.xml
+          if-no-files-found: warn
+          retention-days: 30
+
       - name: Run security boundary tests
         env:
           REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
