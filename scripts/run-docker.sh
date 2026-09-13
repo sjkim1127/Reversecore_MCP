@@ -56,11 +56,11 @@ case "$ACTION" in
         if [[ "$ARCH" == "arm64" ]]; then
             PLATFORM="linux/arm64"
         fi
-        
+
         # Use simple docker run for now since we consolidated Dockerfile
         # Note: In a real environment, you'd update docker-compose.yml to use platform: linux/arm64
         # but for simplicity we rely on buildx/platform handling.
-        
+
         if [[ "$ARCH" == "arm64" ]]; then
             echo "🍎 Running for Apple Silicon"
             docker compose --profile arm64 up -d
@@ -68,7 +68,7 @@ case "$ACTION" in
             echo "🖥️ Running for Intel/AMD"
             docker compose --profile x86 up -d
         fi
-        
+
         echo ""
         echo "📡 Server running at: http://localhost:8000"
         echo "📂 Workspace mounted: ./workspace"
@@ -79,19 +79,19 @@ case "$ACTION" in
 
     build)
         echo "🔨 Building Docker image ($ARCH)..."
-        
+
         PLATFORM="linux/amd64"
         TAG="latest"
         if [[ "$ARCH" == "arm64" ]]; then
             PLATFORM="linux/arm64"
             TAG="arm64"
         fi
-        
+
         # Enable BuildKit for multi-arch support
         export DOCKER_BUILDKIT=1
-        
+
         docker build --platform $PLATFORM -f Dockerfile -t reversecore-mcp:$TAG .
-        
+
         echo "✅ Build complete: reversecore-mcp:$TAG"
         ;;
 

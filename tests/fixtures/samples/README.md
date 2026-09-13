@@ -12,4 +12,3 @@ This directory contains test binary files for integration testing.
 
 Test binaries are generated during test setup or CI/CD pipeline.
 For local development, use system binaries like `/bin/ls` or `/bin/cat`.
-

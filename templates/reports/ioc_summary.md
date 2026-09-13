@@ -1,8 +1,8 @@
 <!-- IOC-focused report for threat intelligence teams and SIEM integration -->
 # IOC Summary Report
 
-**Report ID:** {{REPORT_ID}}  
-**Date:** {{DATE}}  
+**Report ID:** {{REPORT_ID}}
+**Date:** {{DATE}}
 **Classification:** {{CLASSIFICATION}}
 
 ---

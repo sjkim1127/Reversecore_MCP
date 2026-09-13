@@ -1,17 +1,17 @@
 <!-- Comprehensive technical malware analysis report for security analysts -->
 # Malware Analysis Report
 
-**Report ID:** {{REPORT_ID}}  
-**Classification:** {{CLASSIFICATION}}  
-**Generated:** {{DATETIME_FULL}}  
-**Analyst:** {{ANALYST}}  
+**Report ID:** {{REPORT_ID}}
+**Classification:** {{CLASSIFICATION}}
+**Generated:** {{DATETIME_FULL}}
+**Analyst:** {{ANALYST}}
 
 ---
 
 ## 📋 Executive Summary
 
-**Severity:** {{SEVERITY_EMOJI}} {{SEVERITY}}  
-**Malware Family:** {{MALWARE_FAMILY}}  
+**Severity:** {{SEVERITY_EMOJI}} {{SEVERITY}}
+**Malware Family:** {{MALWARE_FAMILY}}
 **Tags:** {{TAGS}}
 
 {{SUMMARY}}
