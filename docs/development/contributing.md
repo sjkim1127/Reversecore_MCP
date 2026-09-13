@@ -106,11 +106,11 @@ pytest tests/unit/ --cov=reversecore_mcp --cov-report=html
 
 ### Coverage Threshold
 
-We enforce a strict **80% minimum coverage gate** in our CI/CD pipelines. Ensure your tests keep code coverage above this threshold:
+We enforce a strict **85% minimum coverage gate** in our CI/CD pipelines. Ensure your tests keep code coverage above this threshold:
 
 ```bash
-# Fail if code coverage falls below 80%
-pytest tests/unit/ --cov=reversecore_mcp --cov-fail-under=80
+# Fail if code coverage falls below 85%
+pytest tests/unit/ --cov=reversecore_mcp --cov-fail-under=85
 ```
 
 ---
@@ -168,7 +168,7 @@ class AnalysisToolsPlugin(Plugin):
 ## 🚀 Pull Request Checklist
 
 Before submitting a Pull Request, ensure:
-1. `pytest tests/unit/ --cov-fail-under=80` passes.
+1. `pytest tests/unit/ --cov-fail-under=85` passes.
 2. `ruff check reversecore_mcp/` has zero errors.
 3. `mypy reversecore_mcp/` has zero typing errors.
 4. `bandit -r reversecore_mcp/` reports no security warnings.

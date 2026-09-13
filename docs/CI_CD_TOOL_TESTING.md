@@ -39,7 +39,7 @@ GitHub Actions (Push / Pull Request)
 ┌─────────────────────────────────────────┐
 │ 4. Unit Testing (Async Event Loop)      │
 │    - run pytest tests/unit/             │
-│    - Coverage threshold gate (min 80%)  │
+│    - Coverage threshold gate (min 85%)  │
 └─────────────────────────────────────────┘
     ↓
 ┌─────────────────────────────────────────┐
@@ -144,4 +144,4 @@ pytest tests/integration/test_tool_installation.py -v
 
 - **Optional Tools Failures**: Failing to find an optional dependency skips its related tests but does not fail the pipeline.
 - **Required Tools Failures**: Missing core files (e.g. `file` or `strings`) fails the build immediately.
-- **Coverage Policy**: Minimum coverage is strict (80%). If a commit drops coverage below 80%, the build fails.
+- **Coverage Policy**: Minimum coverage is strict (85%). If a commit drops coverage below 85%, the build fails.

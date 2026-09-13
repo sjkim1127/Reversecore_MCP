@@ -36,7 +36,7 @@ This guide explains the verification pipeline for auditing system binaries, comp
 │                                                             │
 │ 5. Unit & Quality Tests Gate                                │
 │    ├─ run unit test suite (1,520+ tests)                    │
-│    └─ Enforce 80% coverage threshold                        │
+│    └─ Enforce 85% coverage threshold                        │
 │                                                             │
 │ 6. Output Pipeline Telemetry                                │
 │    ├─ Test execution summary                                │
@@ -99,7 +99,7 @@ bash scripts/generate-test-binaries.sh
 ./scripts/verify-tools.sh
 
 # 3. Run unit test suite
-pytest tests/unit/ -v --cov=reversecore_mcp --cov-fail-under=80
+pytest tests/unit/ -v --cov=reversecore_mcp --cov-fail-under=85
 
 # 4. Run integration checks
 pytest tests/integration/ -v

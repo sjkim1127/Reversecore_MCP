@@ -57,11 +57,11 @@ pytest tests/unit/core/test_security.py -v
 
 ### Enforcing Code Coverage Gates
 
-Our CI/CD pipeline enforces an **80% minimum code coverage gate**. To run tests locally and generate a coverage report:
+Our CI/CD pipeline enforces an **85% minimum code coverage gate**. To run tests locally and generate a coverage report:
 
 ```bash
-# Fail if code coverage falls below 80%
-pytest tests/unit/ --cov=reversecore_mcp --cov-fail-under=80
+# Fail if code coverage falls below 85%
+pytest tests/unit/ --cov=reversecore_mcp --cov-fail-under=85
 
 # Generate HTML report
 pytest tests/unit/ --cov=reversecore_mcp --cov-report=html
