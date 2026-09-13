@@ -301,6 +301,7 @@ class TestPydanticSettings:
         workspace.mkdir()
         monkeypatch.delenv("REVERSECORE_WORKSPACE", raising=False)
         monkeypatch.delenv("REVERSECORE_READ_DIRS", raising=False)
+        monkeypatch.delenv("LOG_FORMAT", raising=False)
 
         settings = Settings(workspace=workspace)
         assert settings.workspace == workspace
