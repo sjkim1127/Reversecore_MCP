@@ -74,6 +74,9 @@ jobs:
       - name: Run Mypy type check
         run: mypy reversecore_mcp/
 
+      - name: Verify MCP API schema compatibility
+        run: python scripts/check_api_schema.py
+
       - name: Run Bandit security scan
         run: bandit -r reversecore_mcp/ -c pyproject.toml -ll
 

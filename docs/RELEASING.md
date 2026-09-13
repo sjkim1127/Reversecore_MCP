@@ -68,6 +68,7 @@ Before creating the tag, the release owner must confirm:
 - [ ] `pre-commit run --all-files` passes.
 - [ ] `pytest tests/ -v` passes with the configured coverage threshold.
 - [ ] `mypy reversecore_mcp/` and `bandit -r reversecore_mcp/ -c pyproject.toml -ll` pass.
+- [ ] `python scripts/check_api_schema.py` passes, or the schema baseline is updated with a reviewed migration note.
 - [ ] Dependency and container scans pass, or each accepted advisory is documented in the workflow with an owner and review date.
 - [ ] Performance regression tests pass and their benchmark artifact is retained for comparison.
 - [ ] `python -m build` and `python -m twine check dist/*` pass.
