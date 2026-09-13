@@ -70,10 +70,10 @@ class TestLiveTargetCompilerRunner:
         )
         assert compiled_bin is None
 
-    def test_compile_target_with_header_dependency_returns_none_cleanly(
+    def test_compile_target_with_header_dependency_uses_pkg_config(
         self, openssl_target: TargetGroundTruth, tmp_path: Path
     ):
-        """Verify compilation of targets requiring external headers fails cleanly with None."""
+        """Verify pkg-config resolves external headers and linker flags."""
         caps = detect_capabilities()
         if not caps.live_fuzzing_ready:
             pytest.skip("Clang or ASan not available on host system")
@@ -82,8 +82,8 @@ class TestLiveTargetCompilerRunner:
             target=openssl_target,
             work_dir=tmp_path,
         )
-        # OpenSSL target requires openssl/bn.h which is absent in standalone compile
-        assert compiled_bin is None
+        assert compiled_bin is not None
+        assert compiled_bin.exists()
 
     def test_execute_live_target_sqlite3_crash(
         self,
