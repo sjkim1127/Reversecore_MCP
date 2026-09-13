@@ -14,11 +14,36 @@ import logging
 import platform
 import sys
 import time
+import uuid
+from contextvars import ContextVar, Token
 from logging.handlers import RotatingFileHandler
 from typing import Any
 
 from reversecore_mcp.core import json_utils as json
 from reversecore_mcp.core.config import get_config
+
+_correlation_id: ContextVar[str | None] = ContextVar("reversecore_correlation_id", default=None)
+
+
+def get_correlation_id() -> str | None:
+    """Return the correlation ID for the current request or tool context."""
+    return _correlation_id.get()
+
+
+def start_correlation_context() -> tuple[str, Token[str | None]]:
+    """Start or join a correlation context and return its reset token.
+
+    Nested tool calls inherit the outer request ID. A new UUID is generated
+    only when the current execution has no active correlation context.
+    """
+    current = _correlation_id.get()
+    correlation_id = current or str(uuid.uuid4())
+    return correlation_id, _correlation_id.set(correlation_id)
+
+
+def reset_correlation_context(token: Token[str | None]) -> None:
+    """Restore the correlation context before returning control to the caller."""
+    _correlation_id.reset(token)
 
 
 class JSONFormatter(logging.Formatter):
@@ -47,6 +72,10 @@ class JSONFormatter(logging.Formatter):
             "function": record.funcName,
             "line": record.lineno,
         }
+
+        correlation_id = get_correlation_id()
+        if correlation_id:
+            log_data["correlation_id"] = correlation_id
 
         # Add hostname for distributed systems
         if self._hostname:

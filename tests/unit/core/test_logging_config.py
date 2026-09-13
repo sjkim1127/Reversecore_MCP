@@ -4,7 +4,14 @@ Smoke tests for core.logging_config.
 
 import logging
 
-from reversecore_mcp.core.logging_config import get_logger, setup_logging
+from reversecore_mcp.core.logging_config import (
+    JSONFormatter,
+    get_correlation_id,
+    get_logger,
+    reset_correlation_context,
+    setup_logging,
+    start_correlation_context,
+)
 
 
 def test_get_logger_returns_logger():
@@ -146,6 +153,30 @@ def test_json_formatter_with_extra_fields(monkeypatch):
     assert data["context"]["file_name"] == "test.bin"
     assert data["context"]["execution_time_ms"] == 123
     assert data["context"]["error_code"] == "E001"
+
+
+def test_json_formatter_includes_correlation_id():
+    """Structured logs expose the active request correlation ID."""
+    import json
+
+    correlation_id, token = start_correlation_context()
+    try:
+        record = logging.LogRecord(
+            name="test",
+            level=logging.INFO,
+            pathname="test.py",
+            lineno=25,
+            msg="correlated",
+            args=(),
+            exc_info=None,
+        )
+        data = json.loads(JSONFormatter().format(record))
+        assert data["correlation_id"] == correlation_id
+        assert get_correlation_id() == correlation_id
+    finally:
+        reset_correlation_context(token)
+
+    assert get_correlation_id() is None
 
 
 def test_json_formatter_with_exception(monkeypatch):

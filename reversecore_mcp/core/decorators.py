@@ -11,7 +11,11 @@ import time
 from collections.abc import Callable
 from typing import Any, TypeVar, cast
 
-from reversecore_mcp.core.logging_config import get_logger
+from reversecore_mcp.core.logging_config import (
+    get_logger,
+    reset_correlation_context,
+    start_correlation_context,
+)
 from reversecore_mcp.core.result import ToolResult
 
 logger = get_logger(__name__)
@@ -50,6 +54,7 @@ def log_execution(tool_name: str | None = None) -> Callable[[F], F]:
             @functools.wraps(func)
             async def async_wrapper(*args: Any, **kwargs: Any) -> ToolResult:
                 start_time = time.time()
+                correlation_id, correlation_token = start_correlation_context()
                 file_name = None
 
                 # OPTIMIZATION: Extract filename without creating Path object
@@ -66,7 +71,10 @@ def log_execution(tool_name: str | None = None) -> Callable[[F], F]:
                         file_name = os.path.basename(first_arg)
 
                 # Log start
-                log_extra: dict[str, Any] = {"tool_name": actual_tool_name}
+                log_extra: dict[str, Any] = {
+                    "tool_name": actual_tool_name,
+                    "correlation_id": correlation_id,
+                }
                 if file_name:
                     log_extra["file_name"] = file_name
                 logger.info(f"Starting {actual_tool_name}", extra=log_extra)
@@ -83,6 +91,7 @@ def log_execution(tool_name: str | None = None) -> Callable[[F], F]:
 
                     log_extra["execution_time_ms"] = execution_time
                     logger.info(f"{actual_tool_name} completed successfully", extra=log_extra)
+                    reset_correlation_context(correlation_token)
                     return cast(ToolResult, result)
                 except Exception:
                     execution_time = int((time.time() - start_time) * 1000)
@@ -92,6 +101,7 @@ def log_execution(tool_name: str | None = None) -> Callable[[F], F]:
                         extra=log_extra,
                         exc_info=True,
                     )
+                    reset_correlation_context(correlation_token)
                     # Critical: Re-raise exception so @handle_tool_errors can catch it
                     # returning failure() here would hide the error from outer decorators
                     raise
@@ -101,6 +111,7 @@ def log_execution(tool_name: str | None = None) -> Callable[[F], F]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> ToolResult:
             start_time = time.time()
+            correlation_id, correlation_token = start_correlation_context()
             file_name = None
 
             # OPTIMIZATION: Extract filename without creating Path object
@@ -118,7 +129,10 @@ def log_execution(tool_name: str | None = None) -> Callable[[F], F]:
                     file_name = os.path.basename(first_arg)
 
             # Log start
-            log_extra: dict[str, Any] = {"tool_name": actual_tool_name}
+            log_extra: dict[str, Any] = {
+                "tool_name": actual_tool_name,
+                "correlation_id": correlation_id,
+            }
             if file_name:
                 log_extra["file_name"] = file_name
             logger.info(f"Starting {actual_tool_name}", extra=log_extra)
@@ -135,6 +149,7 @@ def log_execution(tool_name: str | None = None) -> Callable[[F], F]:
 
                 log_extra["execution_time_ms"] = execution_time
                 logger.info(f"{actual_tool_name} completed successfully", extra=log_extra)
+                reset_correlation_context(correlation_token)
                 return cast(ToolResult, result)
             except Exception:
                 execution_time = int((time.time() - start_time) * 1000)
@@ -144,6 +159,7 @@ def log_execution(tool_name: str | None = None) -> Callable[[F], F]:
                     extra=log_extra,
                     exc_info=True,
                 )
+                reset_correlation_context(correlation_token)
                 # Critical: Re-raise exception so @handle_tool_errors can catch it
                 raise
 
