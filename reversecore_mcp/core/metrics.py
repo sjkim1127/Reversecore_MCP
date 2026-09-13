@@ -3,6 +3,7 @@ Performance metrics collection for monitoring.
 """
 
 import inspect
+import sys
 import threading
 import time
 from collections.abc import Callable
@@ -41,6 +42,7 @@ class MetricsCollector:
         return {
             "calls": 0,
             "errors": 0,
+            "timeouts": 0,
             "total_time": 0.0,
             "avg_time": 0.0,
             "max_time": 0.0,
@@ -57,7 +59,13 @@ class MetricsCollector:
             oldest_key = next(iter(d))
             del d[oldest_key]
 
-    def record_tool_execution(self, tool_name: str, execution_time: float, success: bool = True):
+    def record_tool_execution(
+        self,
+        tool_name: str,
+        execution_time: float,
+        success: bool = True,
+        timed_out: bool = False,
+    ):
         """
         Record metrics for a tool execution (thread-safe, bounded).
 
@@ -76,6 +84,8 @@ class MetricsCollector:
 
             if not success:
                 metrics["errors"] += 1
+            if timed_out:
+                metrics["timeouts"] += 1
 
             metrics["total_time"] += execution_time
             metrics["avg_time"] = metrics["total_time"] / metrics["calls"]
@@ -150,6 +160,13 @@ def _determine_success(result: Any) -> bool:
     return True
 
 
+def _is_timeout_error(error: BaseException | None) -> bool:
+    """Return whether an exception represents a tool timeout."""
+    return error is not None and (
+        isinstance(error, TimeoutError) or hasattr(error, "timeout_seconds")
+    )
+
+
 def track_metrics(tool_name: str) -> Callable[[F], F]:
     """
     Decorator to track tool execution metrics.
@@ -176,7 +193,12 @@ def track_metrics(tool_name: str) -> Callable[[F], F]:
                     raise
                 finally:
                     execution_time = time.time() - start_time
-                    metrics_collector.record_tool_execution(tool_name, execution_time, success)
+                    metrics_collector.record_tool_execution(
+                        tool_name,
+                        execution_time,
+                        success,
+                        timed_out=not success and _is_timeout_error(sys.exc_info()[1]),
+                    )
 
             return cast(F, async_wrapper)
         else:
@@ -195,7 +217,12 @@ def track_metrics(tool_name: str) -> Callable[[F], F]:
                     raise
                 finally:
                     execution_time = time.time() - start_time
-                    metrics_collector.record_tool_execution(tool_name, execution_time, success)
+                    metrics_collector.record_tool_execution(
+                        tool_name,
+                        execution_time,
+                        success,
+                        timed_out=not success and _is_timeout_error(sys.exc_info()[1]),
+                    )
 
             return cast(F, sync_wrapper)
 

@@ -44,6 +44,14 @@ class TestMetricsCollector:
         assert m["tools"]["failing_tool"]["errors"] == 1
         assert m["tools"]["failing_tool"]["calls"] == 1
 
+    def test_record_tool_execution_timeout(self):
+        """Timeouts are counted separately from other tool failures."""
+        collector = MetricsCollector()
+        collector.record_tool_execution("timed_out_tool", 2.0, success=False, timed_out=True)
+        metrics = collector.get_metrics()["tools"]["timed_out_tool"]
+        assert metrics["errors"] == 1
+        assert metrics["timeouts"] == 1
+
     def test_evict_oldest_circuit_breaker_states(self):
         """Eviction runs when circuit_breaker_states exceeds max entries."""
         collector = MetricsCollector()
