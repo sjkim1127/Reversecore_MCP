@@ -175,8 +175,9 @@ async def run_hybrid_fuzz_impl(
         # process cleanup. A crashing target is expected during fuzzing; retain
         # its diagnostic output when the executor exposes it.
         fuzzer_output = str(getattr(e, "output", "") or "")
-        if getattr(e, "stderr", None):
-            fuzzer_output += "\n" + str(e.stderr)
+        stderr = getattr(e, "stderr", None)
+        if stderr:
+            fuzzer_output += "\n" + str(stderr)
         if not fuzzer_output:
             fuzzer_output = str(e)
         logger.warning(f"Fuzzing subprocess failed: {e}")
