@@ -92,3 +92,30 @@ The following are **out of scope**:
 Security fixes are released as patch versions (e.g., `3.0.x`). Subscribe to
 [GitHub releases](https://github.com/sjkim1127/Reversecore_MCP/releases) to
 be notified of updates.
+
+## Dependency and CVE response procedure
+
+When Dependabot, `pip-audit`, Trivy, or a user report identifies a CVE:
+
+1. Record the advisory ID, affected package/image layer, installed version,
+   fixed version, and whether the vulnerable code is reachable in this
+   project. Do not hide the finding by adding an ignore entry first.
+2. Reproduce the affected installation from the relevant lock file and run the
+   smallest proof test or advisory reproducer. Check both the Python package
+   environment and the Docker image because they have different dependency
+   graphs.
+3. Prefer upgrading or removing the affected dependency. If an upgrade is not
+   immediately possible, isolate the feature, add a compensating control, and
+   create a time-bounded exception in `.trivyignore` with an owner, rationale,
+   and review/expiry date.
+4. Run `pip-audit`, Trivy, Bandit, the security regression tests, and the
+   affected integration tests. Attach their outputs to the change or release
+   record.
+5. Publish the fix as a patch release when the project is affected. Include
+   the advisory, impact, mitigation, and upgrade instructions in the release
+   notes. Revoke a temporary ignore as soon as the fixed dependency is
+   available.
+
+The authoritative dependency files are `pyproject.toml`, `requirements.txt`,
+and `requirements-runtime.txt`; changes to one must be checked against the
+others and the Docker build.
