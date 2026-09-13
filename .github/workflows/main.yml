@@ -17,6 +17,9 @@ concurrency:
 # ── Computed globals ──────────────────────────────────────────────────────────
 env:
   REGISTRY: ghcr.io
+  # Keep ordering and timestamp-sensitive tests reproducible across runners.
+  PYTHONHASHSEED: "0"
+  TZ: UTC
   # Tool versions — bump these to trigger a base image rebuild
   YARA_VERSION: "4.3.1"
   RADARE2_VERSION: "6.0.4"
