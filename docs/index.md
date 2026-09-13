@@ -100,6 +100,7 @@ graph TB
     - [Contributing Guide](development/contributing.md)
     - [Testing & Quality Assurance](development/testing.md)
     - [API Reference](api/core/config.md)
+    - [MCP Tool Contract](api/tool-contract.md)
 
 ## License
 
