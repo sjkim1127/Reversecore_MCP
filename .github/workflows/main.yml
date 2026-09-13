@@ -168,6 +168,14 @@ jobs:
         run: |
           pytest tests/security/ -m security -v --tb=short
 
+      - name: Run complete integration suite
+        env:
+          REVERSECORE_WORKSPACE: ${{ github.workspace }}/tests/fixtures/workspace
+          REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
+          LOG_LEVEL: INFO
+        run: |
+          pytest tests/integration/ -v --tb=short
+
   wheel-smoke-test:
     name: Wheel Build & Install Smoke Test
     runs-on: ubuntu-latest
