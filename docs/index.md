@@ -90,6 +90,7 @@ graph TB
     - [Installation Guide](getting-started/installation.md)
     - [Quick Start Guide](getting-started/quickstart.md)
     - [Configuration Options](getting-started/configuration.md)
+    - [Troubleshooting Runbook](getting-started/troubleshooting.md)
 - **User Guides**:
     - [Architecture Overview](development/architecture.md)
     - [Static & Binary Analysis](user-guide/binary-analysis.md)
