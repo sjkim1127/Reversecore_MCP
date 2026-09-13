@@ -179,6 +179,19 @@ jobs:
         run: |
           pytest tests/integration/ -v --tb=short
 
+      - name: Verify benchmark corpus integrity
+        run: |
+          python - <<'PY'
+          from reversecore_mcp.benchmarks.corpus_loader import CorpusLoader
+
+          loader = CorpusLoader("tests/fixtures/benchmarks")
+          targets = loader.load_corpus()
+          report = loader.validate_corpus_integrity(targets)
+          if len(targets) != 10 or not report["valid"]:
+              raise SystemExit(f"benchmark corpus integrity failure: {report}")
+          print(f"benchmark corpus OK: {len(targets)} targets and all fixtures present")
+          PY
+
   wheel-smoke-test:
     name: Wheel Build & Install Smoke Test
     runs-on: ubuntu-latest
