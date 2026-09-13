@@ -92,7 +92,7 @@ jobs:
       id-token: write
     steps:
       - name: Download Python distributions
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: python-distributions
           path: dist/
@@ -207,19 +207,19 @@ jobs:
       contents: write
     steps:
       - name: Download Python distributions
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: python-distributions
           path: dist/
 
       - name: Download CycloneDX SBOM
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: reversecore-mcp-${{ github.ref_name }}.cdx.json
           path: sbom/
 
       - name: Download SPDX SBOM
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: reversecore-mcp-${{ github.ref_name }}.spdx.json
           path: sbom/
