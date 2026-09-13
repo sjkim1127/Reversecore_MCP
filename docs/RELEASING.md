@@ -60,6 +60,33 @@ python -m build
 python -m twine check dist/*
 ```
 
+## Release checklist
+
+Before creating the tag, the release owner must confirm:
+
+- [ ] `python scripts/check_release_metadata.py` passes.
+- [ ] `pre-commit run --all-files` passes.
+- [ ] `pytest tests/ -v` passes with the configured coverage threshold.
+- [ ] `mypy reversecore_mcp/` and `bandit -r reversecore_mcp/ -c pyproject.toml -ll` pass.
+- [ ] Dependency and container scans pass, or each accepted advisory is documented in the workflow with an owner and review date.
+- [ ] Performance regression tests pass and their benchmark artifact is retained for comparison.
+- [ ] `python -m build` and `python -m twine check dist/*` pass.
+- [ ] The changelog, migration notes, and user-facing documentation describe all breaking changes.
+- [ ] The tag is exactly `v<project.version>` and the working tree is clean.
+
+## Version policy
+
+This project follows Semantic Versioning (`MAJOR.MINOR.PATCH`):
+
+- **MAJOR**: incompatible MCP tool schemas, removed tools, or incompatible configuration/API behavior.
+- **MINOR**: backward-compatible tools, fields, capabilities, and documented configuration additions.
+- **PATCH**: backward-compatible bug fixes, security fixes, dependency updates, and documentation-only releases.
+
+The version is authoritative in `pyproject.toml`. `reversecore_mcp/__init__.py`,
+`server.json`, release tags, and published artifacts must match it exactly. A
+breaking schema change requires a migration note and an explicit compatibility
+test before release.
+
 The `Release Metadata Validation` workflow performs the same checks on pull requests.
 
 ## Publishing

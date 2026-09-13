@@ -752,7 +752,18 @@ jobs:
           REVERSECORE_READ_DIRS: ${{ github.workspace }}/tests/fixtures/rules
           LOG_LEVEL: WARNING
         run: |
-          pytest tests/performance/test_performance_regression.py -v --tb=short --benchmark-warmup=on
+          mkdir -p artifacts/ci-benchmarks
+          pytest tests/performance/test_performance_regression.py -v --tb=short --benchmark-warmup=on \
+            --benchmark-json=artifacts/ci-benchmarks/performance-regression.json
+
+      - name: Upload performance regression artifact
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: performance-regression-${{ github.sha }}
+          path: artifacts/ci-benchmarks/performance-regression.json
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: "🚧 Verify workspace isolation under network restriction (Docker)"
         run: |
