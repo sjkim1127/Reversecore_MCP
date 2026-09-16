@@ -415,10 +415,11 @@ class TestDynamicMCPContextResources:
     async def test_resource_templates_discovery_and_mime_types(self, registered_mcp_and_resources):
         """Verify all 7 dynamic context resource templates are registered with text/markdown MIME type."""
         server = registered_mcp_and_resources
+        templates_fn = getattr(
+            server, "list_resource_templates", getattr(server, "get_resource_templates", None)
+        )
         templates = (
-            await server.get_resource_templates()
-            if asyncio.iscoroutinefunction(server.get_resource_templates)
-            else server.get_resource_templates()
+            await templates_fn() if asyncio.iscoroutinefunction(templates_fn) else templates_fn()
         )
 
         template_uris = {

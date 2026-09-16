@@ -24,14 +24,22 @@ EXPECTED_SCHEMA_SHA256 = "48f0ef470adb01e71a0d68bd84d1b1e4f332a46aa455b6b5a434f4
 
 
 async def _canonical_schema() -> list[dict[str, Any]]:
-    tools = await server.mcp.get_tools()
+    if hasattr(server.mcp, "list_tools"):
+        tools = await server.mcp.list_tools()
+        tools_list = tools if isinstance(tools, list) else list(tools.values())
+    elif hasattr(server.mcp, "get_tools"):
+        tools = await server.mcp.get_tools()
+        tools_list = tools if isinstance(tools, list) else list(tools.values())
+    else:
+        raise AttributeError("No tool listing method found on FastMCP instance")
+
     return [
         {
             "name": tool.name,
             "description": tool.description or "",
             "inputSchema": tool.parameters,
         }
-        for _, tool in sorted(tools.items())
+        for tool in sorted(tools_list, key=lambda t: t.name)
     ]
 
 
