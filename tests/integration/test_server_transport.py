@@ -32,6 +32,7 @@ from fastmcp import Client, Context, FastMCP
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.exceptions import ValidationError
 from reversecore_mcp.core.logging_config import setup_logging
+from reversecore_mcp.core.resource_manager import resource_manager
 from reversecore_mcp.core.result import ToolSuccess
 from reversecore_mcp.prompts import register_prompts
 from reversecore_mcp.resources import _get_workspace_path, register_resources
@@ -193,8 +194,9 @@ class TestStdioTransportLifecycle:
                 new_callable=AsyncMock,
                 return_value=None,
             ),
-            patch(
-                "reversecore_mcp.core.resource_manager.resource_manager.stop",
+            patch.object(
+                resource_manager,
+                "stop",
                 new_callable=AsyncMock,
             ) as mock_rm_stop,
             patch("reversecore_mcp.core.memory.get_memory_store") as mock_get_store,
