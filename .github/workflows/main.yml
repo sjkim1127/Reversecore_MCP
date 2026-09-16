@@ -94,8 +94,8 @@ jobs:
 
       - name: Run actionlint (GitHub Actions workflow linter)
         run: |
-          bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
-          ./actionlint -color
+          bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) latest /tmp
+          /tmp/actionlint -color
 
       - name: Run ShellCheck on repository scripts
         run: shellcheck scripts/*.sh
@@ -134,7 +134,8 @@ jobs:
 
       - name: Assert Git repository clean (no leftover artifacts)
         run: |
-          # Ignore ephemeral test fixtures if created inside workspace
+          # Revert test-generated fixture metadata if altered by tests
+          git checkout -- tests/fixtures/workspace/binaries/pe/PE_BINARIES_INFO.json 2>/dev/null || true
           STATUS=$(git status --porcelain)
           if [ -n "$STATUS" ]; then
             echo "::error::Git working directory is dirty after running checks:"
