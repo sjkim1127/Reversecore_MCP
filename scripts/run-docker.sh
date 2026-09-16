@@ -17,7 +17,8 @@ cd "$PROJECT_DIR"
 
 # Detect architecture
 detect_arch() {
-    local arch=$(uname -m)
+    local arch
+    arch=$(uname -m)
     case "$arch" in
         arm64|aarch64)
             echo "arm64"

@@ -7,6 +7,7 @@ cd "$(dirname "$0")/.."
 # Check if virtual environment is active, if not active but .venv exists, use it
 if [ -z "${VIRTUAL_ENV:-}" ] && [ -d ".venv" ]; then
     echo "Activating virtual environment (.venv)..."
+    # shellcheck source=/dev/null
     source .venv/bin/activate
 fi
 

@@ -257,7 +257,7 @@ jobs:
       - name: Verify plugin discovery
         run: |
           cd /tmp
-          $GITHUB_WORKSPACE/test_env/bin/python -c "import reversecore_mcp.server as s; assert len(s.plugins) > 0, 'No plugins discovered from installed wheel!'"
+          "$GITHUB_WORKSPACE"/test_env/bin/python -c "import reversecore_mcp.server as s; assert len(s.plugins) > 0, 'No plugins discovered from installed wheel!'"
 
   docker-verification:
     name: Docker & E2E Integration Verification
@@ -329,7 +329,7 @@ jobs:
       - name: Ensure base image is available
         run: |
           BASE_IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}/base"
-          echo "BASE_IMAGE=${BASE_IMAGE}" >> $GITHUB_ENV
+          echo "BASE_IMAGE=${BASE_IMAGE}" >> "$GITHUB_ENV"
           BASE_TAG="${{ env.BASE_TAG }}"
           echo "🔍 Checking for base image ${BASE_IMAGE}:${BASE_TAG} in registry..."
           if docker pull "${BASE_IMAGE}:${BASE_TAG}" 2>/dev/null; then
@@ -648,7 +648,7 @@ jobs:
 
       - name: Downcase repository name
         run: |
-          echo "BASE_IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/base" >> ${GITHUB_ENV}
+          echo "BASE_IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/base" >> "${GITHUB_ENV}"
 
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.0.0
@@ -666,10 +666,10 @@ jobs:
         id: base-exists
         run: |
           if docker manifest inspect ${{ env.BASE_IMAGE }}:${{ env.BASE_TAG }}-${{ matrix.suffix }} > /dev/null 2>&1; then
-            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "exists=true" >> "$GITHUB_OUTPUT"
             echo "✅ Base image ${{ env.BASE_TAG }}-${{ matrix.suffix }} already exists — skipping rebuild"
           else
-            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "exists=false" >> "$GITHUB_OUTPUT"
             echo "🔨 Base image ${{ env.BASE_TAG }}-${{ matrix.suffix }} not found — will build"
           fi
 
@@ -711,7 +711,7 @@ jobs:
     steps:
       - name: Downcase repository name
         run: |
-          echo "BASE_IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/base" >> ${GITHUB_ENV}
+          echo "BASE_IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/base" >> "${GITHUB_ENV}"
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.0.0
@@ -890,8 +890,8 @@ jobs:
 
       - name: Downcase repository name
         run: |
-          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> ${GITHUB_ENV}
-          echo "BASE_IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/base" >> ${GITHUB_ENV}
+          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> "${GITHUB_ENV}"
+          echo "BASE_IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/base" >> "${GITHUB_ENV}"
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.0.0
@@ -988,8 +988,8 @@ jobs:
 
       - name: Downcase repository name for Docker image
         run: |
-          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> ${GITHUB_ENV}
-          echo "BASE_IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/base" >> ${GITHUB_ENV}
+          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> "${GITHUB_ENV}"
+          echo "BASE_IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/base" >> "${GITHUB_ENV}"
 
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.0.0
@@ -1037,7 +1037,7 @@ jobs:
 
       - name: Downcase repository name
         run: |
-          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> ${GITHUB_ENV}
+          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> "${GITHUB_ENV}"
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.0.0
