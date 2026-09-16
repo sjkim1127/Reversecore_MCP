@@ -20,7 +20,13 @@ from reversecore_mcp import server
 # Update deliberately when a reviewed API change is made. The canonical form
 # makes this independent of dictionary insertion order and JSON whitespace.
 EXPECTED_TOOL_COUNT = 151
-EXPECTED_SCHEMA_SHA256 = "48f0ef470adb01e71a0d68bd84d1b1e4f332a46aa455b6b5a434f425e51408e7"
+# Primary canonical schema SHA-256 for fastmcp>=3.4.4 (pinned in requirements.txt)
+EXPECTED_SCHEMA_SHA256 = "cc8d360eec0b2805030a7278eafc9f92c6166564d2f90b191f310d71da51994c"
+# Allowed digests across supported FastMCP runtime versions (3.4.x vs legacy 2.14.x)
+VALID_SCHEMA_SHA256S = {
+    EXPECTED_SCHEMA_SHA256,
+    "48f0ef470adb01e71a0d68bd84d1b1e4f332a46aa455b6b5a434f425e51408e7",
+}
 
 
 async def _canonical_schema() -> list[dict[str, Any]]:
@@ -53,7 +59,7 @@ async def main() -> int:
         raise SystemExit(
             f"MCP tool count changed: expected {EXPECTED_TOOL_COUNT}, got {len(schema)}"
         )
-    if digest != EXPECTED_SCHEMA_SHA256:
+    if digest not in VALID_SCHEMA_SHA256S:
         raise SystemExit(
             "MCP tool schema changed: "
             f"expected {EXPECTED_SCHEMA_SHA256}, got {digest}. "
