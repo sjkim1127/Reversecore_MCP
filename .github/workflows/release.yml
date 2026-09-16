@@ -14,6 +14,8 @@ env:
   BASE_IMAGE: ghcr.io/sjkim1127/reversecore_mcp/base
   BASE_TAG: yara4.3.1-r2-6.0.4-r2ghidra-v6
 
+permissions: read-all
+
 jobs:
   build:
     name: Build and validate release artifacts
@@ -22,7 +24,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -37,7 +39,7 @@ jobs:
           fi
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.1.0
         with:
           python-version: "3.11"
 
@@ -54,7 +56,7 @@ jobs:
         run: python -m twine check dist/*
 
       - name: Upload Python distributions
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: python-distributions
           path: dist/
@@ -62,7 +64,7 @@ jobs:
           retention-days: 14
 
       - name: Generate SBOM — CycloneDX
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@f325610c9f50a54015d37c8d16cb3b0e2c8f4de0 # v0.18.0
         with:
           path: dist/
           format: cyclonedx-json
@@ -72,7 +74,7 @@ jobs:
           upload-release-assets: false
 
       - name: Generate SBOM — SPDX
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@f325610c9f50a54015d37c8d16cb3b0e2c8f4de0 # v0.18.0
         with:
           path: dist/
           format: spdx-json
@@ -92,13 +94,13 @@ jobs:
       id-token: write
     steps:
       - name: Download Python distributions
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: python-distributions
           path: dist/
 
       - name: Publish package using PyPI Trusted Publishing
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc # v1.12.4
         with:
           packages-dir: dist/
           attestations: true
@@ -114,7 +116,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Verify tag and release metadata
         run: python scripts/check_release_metadata.py --tag "${GITHUB_REF_NAME}"
@@ -129,17 +131,17 @@ jobs:
           echo "major_minor=${major_minor}" >> "${GITHUB_OUTPUT}"
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.0.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.0.0
 
       - name: Build and publish OCI image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.0.0
         with:
           context: .
           file: ./Dockerfile
@@ -164,7 +166,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Verify tag and release metadata
         run: python scripts/check_release_metadata.py --tag "${GITHUB_REF_NAME}"
@@ -205,34 +207,53 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
     steps:
       - name: Download Python distributions
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: python-distributions
           path: dist/
 
       - name: Download CycloneDX SBOM
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: reversecore-mcp-${{ github.ref_name }}.cdx.json
           path: sbom/
 
       - name: Download SPDX SBOM
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: reversecore-mcp-${{ github.ref_name }}.spdx.json
           path: sbom/
 
-      - name: Create release and attach distributions and SBOMs
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@d7d6bc7722e3daa8354c50bcb52f4837da5e9b6a # v3.8.1
+
+      - name: Sign release artifacts with Cosign (Sigstore keyless)
+        run: |
+          set -euo pipefail
+          mkdir -p signatures
+          for file in dist/* sbom/*; do
+            if [ -f "$file" ]; then
+              base="$(basename "$file")"
+              echo "Signing $file..."
+              cosign sign-blob --yes "$file" \
+                --bundle "signatures/${base}.bundle" \
+                --output-signature "signatures/${base}.sig" \
+                --output-certificate "signatures/${base}.pem"
+            fi
+          done
+
+      - name: Create release and attach distributions, SBOMs, and Cosign signatures
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" dist/* sbom/* \
+          gh release create "${GITHUB_REF_NAME}" dist/* sbom/* signatures/* \
             --repo "${GITHUB_REPOSITORY}" \
             --verify-tag \
             --generate-notes \
             --title "Reversecore MCP ${GITHUB_REF_NAME}" || \
-          gh release upload "${GITHUB_REF_NAME}" dist/* sbom/* \
+          gh release upload "${GITHUB_REF_NAME}" dist/* sbom/* signatures/* \
             --repo "${GITHUB_REPOSITORY}" \
             --clobber

@@ -36,7 +36,7 @@ classifiers = [
 ]
 dependencies = [
     # Core MCP server dependencies
-    "mcp[cli]>=1.27.0",
+    "mcp[cli]>=1.28.1",
     "fastmcp==3.4.4",
     "fastapi>=0.100.0",
     "uvicorn>=0.30.0",

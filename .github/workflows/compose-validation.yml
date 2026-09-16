@@ -17,16 +17,17 @@ on:
       - .github/workflows/compose-validation.yml
   workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: read-all
 
 jobs:
   validate-compose:
     name: Validate Compose Profiles
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Validate default/x86 profile
         env:
