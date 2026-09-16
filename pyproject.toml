@@ -211,7 +211,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --strict-markers --tb=short"
+addopts = "-v --strict-markers --tb=short --timeout=120"
 markers = [
     "unit: Unit tests",
     "integration: Integration tests",

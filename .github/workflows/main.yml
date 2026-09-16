@@ -86,6 +86,20 @@ jobs:
       - name: Verify MCP API schema compatibility
         run: python scripts/check_api_schema.py
 
+      - name: Verify GitHub Action SHA pinning
+        run: python scripts/check_action_pinning.py
+
+      - name: Verify MCP tool hygiene and resource contracts
+        run: python scripts/check_tool_hygiene.py
+
+      - name: Run actionlint (GitHub Actions workflow linter)
+        run: |
+          bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint -color
+
+      - name: Run ShellCheck on repository scripts
+        run: shellcheck scripts/*.sh
+
       - name: Run Bandit security scan
         run: bandit -r reversecore_mcp/ -c pyproject.toml -ll
 
@@ -117,6 +131,17 @@ jobs:
           LOG_LEVEL: INFO
         run: |
           pytest tests/security/ -m security -v
+
+      - name: Assert Git repository clean (no leftover artifacts)
+        run: |
+          # Ignore ephemeral test fixtures if created inside workspace
+          STATUS=$(git status --porcelain)
+          if [ -n "$STATUS" ]; then
+            echo "::error::Git working directory is dirty after running checks:"
+            echo "$STATUS"
+            exit 1
+          fi
+          echo "✅ Git working tree is clean"
 
   unit-and-integration-tests:
     name: Host Unit Tests (${{ matrix.python-version }})
@@ -220,9 +245,11 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install build tools
-        run: pip install build
-      - name: Build wheel
-        run: python -m build --wheel
+        run: pip install build twine
+      - name: Build distribution packages (sdist and wheel)
+        run: python -m build
+      - name: Validate PyPI package metadata with Twine
+        run: twine check --strict dist/*
       - name: Test install wheel
         run: |
           python -m venv test_env
@@ -355,6 +382,17 @@ jobs:
           elif [ "$SIZE_MB" -gt 2000 ]; then
             echo "⚠️  Image size is large (${SIZE_MB}MB > 2GB)"
           fi
+
+      - name: Verify non-root container user
+        run: |
+          USER_ID=$(docker run --rm reversecore-mcp:ci id -u)
+          USER_NAME=$(docker run --rm reversecore-mcp:ci whoami)
+          echo "Container runtime user: ${USER_NAME} (UID: ${USER_ID})"
+          if [ "$USER_ID" -eq 0 ]; then
+            echo "❌ Container is running as root (UID 0)! Security policy requires non-root user."
+            exit 1
+          fi
+          echo "✅ Verified container runs as non-root user (${USER_NAME})"
 
       - name: Check Dockerfile vs requirements.txt sync
         run: |
