@@ -94,7 +94,11 @@ jobs:
 
       - name: Run actionlint (GitHub Actions workflow linter)
         run: |
-          bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) latest /tmp
+          ACTIONLINT_VER="1.7.12"
+          ACTIONLINT_SHA="8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+          curl -sSfL "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VER}/actionlint_${ACTIONLINT_VER}_linux_amd64.tar.gz" -o /tmp/actionlint.tar.gz
+          echo "${ACTIONLINT_SHA}  /tmp/actionlint.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/actionlint.tar.gz -C /tmp actionlint
           /tmp/actionlint -color
 
       - name: Run ShellCheck on repository scripts
