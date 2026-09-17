@@ -19,7 +19,6 @@ updates:
     open-pull-requests-limit: 5
     ignore:
       - dependency-name: "python"
-        versions: ["3.14*"]
 
   # Maintain dependencies for GitHub Actions
   - package-ecosystem: "github-actions"
