@@ -7,7 +7,7 @@
 
 # Core MCP server
 mcp[cli]>=1.28.1
-fastmcp==3.4.4
+fastmcp==3.4.7
 fastapi>=0.100.0
 uvicorn>=0.30.0
 python-multipart>=0.0.27
@@ -69,5 +69,5 @@ scapy>=2.5.0
 
 # Runtime security hardening (Trivy scanner remediation)
 setuptools>=83.0.0
-msgpack>=1.2.1
-pip>=26.2.0
+msgpack>=1.2.2
+pip>=26.2.1
