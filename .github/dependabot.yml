@@ -10,6 +10,12 @@ updates:
       python-dependencies:
         patterns:
           - "*"
+    ignore:
+      # angr 9.2.213 requires exact ABI-compatible capstone release
+      - dependency-name: "capstone"
+      # FastMCP 4.x introduces breaking API changes; retain pinned 3.x
+      - dependency-name: "fastmcp"
+        update-types: ["version-update:semver-major"]
 
   # Maintain dependencies for Docker
   - package-ecosystem: "docker"
