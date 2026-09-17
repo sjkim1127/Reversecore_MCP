@@ -1,15 +1,14 @@
 version: 2
 updates:
   # Maintain dependencies for pip
+  # Automated version updates for pip lockfile (requirements.txt) are disabled
+  # because lockfiles must be deterministically compiled via scripts/compile-requirements.sh
+  # to preserve ABI compatibility (angr/capstone, fastmcp, etc.).
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
-    groups:
-      python-dependencies:
-        patterns:
-          - "*"
+    open-pull-requests-limit: 0
     ignore:
       # angr 9.2.213 requires exact ABI-compatible capstone release
       - dependency-name: "capstone"
