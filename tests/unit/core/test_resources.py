@@ -57,14 +57,16 @@ class TestStaticResources:
         result = guide_func()
         assert "# Test Guide Content" in result
 
+    @patch("reversecore_mcp.resources._get_docs_path")
     @patch("reversecore_mcp.resources._get_resources_path")
-    def test_get_guide_not_found(self, mock_get_resources_path, mock_mcp):
+    def test_get_guide_not_found(self, mock_get_resources_path, mock_get_docs_path, mock_mcp):
         """Test guide resource when file doesn't exist."""
         # Setup
         mock_path = Mock()
         mock_path.__truediv__ = Mock(return_value=mock_path)
         mock_path.exists.return_value = False
         mock_get_resources_path.return_value = mock_path
+        mock_get_docs_path.return_value = mock_path
 
         # Capture the registered function
         registered_funcs = {}
@@ -85,6 +87,26 @@ class TestStaticResources:
 
         result = guide_func()
         assert result == "Guide not found."
+
+    def test_get_guide_fallback_to_docs(self, mock_mcp):
+        """Test guide resource falls back to quickstart docs when primary guide is missing."""
+        registered_funcs = {}
+
+        def capture_resource(uri):
+            def decorator(func):
+                registered_funcs[uri] = func
+                return func
+
+            return decorator
+
+        mock_mcp.resource = capture_resource
+        register_resources(mock_mcp)
+
+        guide_func = registered_funcs.get("reversecore://guide")
+        assert guide_func is not None
+
+        result = guide_func()
+        assert "Quick Start" in result or "Reversecore" in result
 
     def test_get_structure_guide(self, mock_mcp):
         """Test structure guide resource."""

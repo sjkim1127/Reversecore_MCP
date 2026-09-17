@@ -56,9 +56,11 @@ async def server_lifespan(server: FastMCP) -> AsyncGenerator[None, None]:
     else:
         logger.info("✅ radare2 found")
 
-    # Check Java (for Ghidra)
+    # Check Java (optional, only needed for standalone Ghidra scripts; r2ghidra operates natively)
     if not shutil.which("java"):
-        logger.warning("⚠️ Java not found - Ghidra decompilation unavailable")
+        logger.info(
+            "ℹ️ Java not found - standalone Ghidra scripts unavailable (r2ghidra operates natively)"
+        )
     else:
         logger.info("✅ Java found")
 

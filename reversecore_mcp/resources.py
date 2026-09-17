@@ -161,10 +161,22 @@ def _get_resources_path() -> Path:
     if resources_path.exists():
         return resources_path
     # Fallback to local resources directory
-    local_resources = Path(__file__).parent.parent / "resources"
+    local_resources = Path(__file__).resolve().parent.parent / "resources"
     if local_resources.exists():
         return local_resources
     return resources_path  # Return config-based path even if not exists
+
+
+def _get_docs_path() -> Path:
+    """Get docs path from repository root or config."""
+    local_docs = Path(__file__).resolve().parent.parent / "docs"
+    if local_docs.exists():
+        return local_docs
+    config = get_config()
+    docs_path = config.workspace.parent / "docs"
+    if docs_path.exists():
+        return docs_path
+    return local_docs
 
 
 def _get_workspace_path(filename: str) -> str:
@@ -210,17 +222,28 @@ def register_resources(mcp: FastMCP):
     @_register_resource(mcp, "reversecore://guide", mime_type="text/markdown")
     def get_guide() -> str:
         """Reversecore MCP Tool Usage Guide"""
-        guide_path = _get_resources_path() / "FILE_COPY_TOOL_GUIDE.md"
-        if guide_path.exists():
-            return guide_path.read_text(encoding="utf-8")
+        guide_candidates = [
+            _get_resources_path() / "FILE_COPY_TOOL_GUIDE.md",
+            _get_docs_path() / "getting-started" / "quickstart.md",
+            _get_docs_path() / "user-guide" / "overview.md",
+            _get_resources_path() / "README.md",
+        ]
+        for candidate in guide_candidates:
+            if candidate.exists():
+                return candidate.read_text(encoding="utf-8")
         return "Guide not found."
 
     @_register_resource(mcp, "reversecore://guide/structures", mime_type="text/markdown")
     def get_structure_guide() -> str:
         """Structure Recovery and Cross-Reference Analysis Technical Guide"""
-        doc_path = _get_resources_path() / "XREFS_AND_STRUCTURES_IMPLEMENTATION.md"
-        if doc_path.exists():
-            return doc_path.read_text(encoding="utf-8")
+        doc_candidates = [
+            _get_resources_path() / "XREFS_AND_STRUCTURES_IMPLEMENTATION.md",
+            _get_docs_path() / "user-guide" / "decompilation.md",
+            _get_docs_path() / "api" / "tools" / "radare2.md",
+        ]
+        for candidate in doc_candidates:
+            if candidate.exists():
+                return candidate.read_text(encoding="utf-8")
         return "Documentation not found."
 
     @_register_resource(mcp, "reversecore://tools", mime_type="text/markdown")

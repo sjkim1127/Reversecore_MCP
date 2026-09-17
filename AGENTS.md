@@ -107,9 +107,9 @@ AI Agent → MCP Protocol → Reversecore Server (FastMCP)
   - `malware/`: Threat detection (vaccine generation, dormant detector, vulnerability hunter)
   - `report/`: Report generation
   - `common/`: File operations, patch explanation
-- **`reversecore_mcp/prompts.py`**: AI reasoning prompts for different analysis tasks
+- **`reversecore_mcp/prompts/`**: AI reasoning prompts for different analysis tasks
 - **`reversecore_mcp/resources.py`**: Dynamic resources exposed to AI agents
-- **`server.py`**: FastMCP server entry point
+- **`reversecore_mcp/server.py`**: FastMCP server entry point
 
 See [Architecture Documentation](docs/development/architecture.md) for details.
 
@@ -300,13 +300,13 @@ See [Testing Guide](docs/development/testing.md) for detailed test patterns.
 
 | File | Purpose |
 |------|---------|
-| [server.py](server.py) | FastMCP server initialization & lifecycle |
+| [reversecore_mcp/server.py](reversecore_mcp/server.py) | FastMCP server initialization & lifecycle |
 | [reversecore_mcp/core/config.py](reversecore_mcp/core/config.py) | Configuration management |
 | [reversecore_mcp/core/exceptions.py](reversecore_mcp/core/exceptions.py) | Exception hierarchy |
 | [reversecore_mcp/core/security.py](reversecore_mcp/core/security.py) | Input sanitization |
 | [reversecore_mcp/core/validators.py](reversecore_mcp/core/validators.py) | Path & input validation |
 | [reversecore_mcp/tools/__init__.py](reversecore_mcp/tools/__init__.py) | Tool registration |
-| [reversecore_mcp/prompts.py](reversecore_mcp/prompts.py) | AI reasoning prompts |
+| [reversecore_mcp/prompts/](reversecore_mcp/prompts/) | AI reasoning prompts |
 | [tests/conftest.py](tests/conftest.py) | Pytest fixtures & shared test setup |
 | [pytest.ini](pytest.ini) | Test configuration |
 | [.pre-commit-config.yaml](.pre-commit-config.yaml) | Code quality hooks |

@@ -35,11 +35,24 @@ repos:
         additional_dependencies: ["bandit[toml]"]
         pass_filenames: false
 
-# Optional: mypy for type checking (disabled by default due to many errors)
-# Uncomment after fixing type hints
-#  - repo: https://github.com/pre-commit/mirrors-mypy
-#    rev: v1.19.0
-#    hooks:
-#      - id: mypy
-#        args: [--ignore-missing-imports]
-#        additional_dependencies: [types-requests]
+  # Type checking and repository hygiene checks
+  - repo: local
+    hooks:
+      - id: mypy
+        name: Type Check (mypy)
+        entry: mypy reversecore_mcp/
+        language: system
+        pass_filenames: false
+        files: ^reversecore_mcp/
+      - id: check-action-pinning
+        name: Check GitHub Action Pinning
+        entry: python scripts/check_action_pinning.py
+        language: system
+        pass_filenames: false
+        files: ^\.github/workflows/
+      - id: check-tool-hygiene
+        name: Check Tool Hygiene
+        entry: python scripts/check_tool_hygiene.py
+        language: system
+        pass_filenames: false
+        files: ^reversecore_mcp/
