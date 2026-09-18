@@ -174,16 +174,6 @@ class SandboxExecutor:
                     f"--reuid={target_user}",
                     f"--regid={target_gid}",
                     "--clear-groups",
-                    "--reset-env",
-                    "--",
-                ] + cmd
-            if shutil.which("capsh"):
-                return [
-                    "capsh",
-                    f"--user={target_user}",
-                    "--drop=all",
-                    "-c",
-                    'exec "$@"',
                     "--",
                 ] + cmd
 
@@ -243,10 +233,23 @@ async def execute_subprocess_async(
                     active_mode == "container"
                     and hasattr(os, "geteuid")
                     and os.geteuid() == 0
-                    and not (shutil.which("setpriv") or shutil.which("capsh"))
+                    and not shutil.which("setpriv")
                 ):
                     if sys.platform != "win32" and config.sandbox_user:
-                        extra_kwargs["user"] = config.sandbox_user
+                        try:
+                            import pwd
+
+                            pw = pwd.getpwnam(config.sandbox_user)
+                            extra_kwargs["user"] = pw.pw_uid
+                            extra_kwargs["group"] = pw.pw_gid
+                            extra_kwargs["extra_groups"] = ()
+                        except Exception as err:
+                            logger.warning(
+                                "Failed to resolve sandbox user %s for privilege drop: %s",
+                                config.sandbox_user,
+                                err,
+                            )
+                            extra_kwargs["user"] = config.sandbox_user
 
         # Start the process with piped stdout/stderr
         process = await asyncio.create_subprocess_exec(

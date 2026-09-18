@@ -1,8 +1,9 @@
 """Unit tests for tool profile architecture and PluginLoader profile filtering."""
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from reversecore_mcp.core.loader import TOOL_PROFILES, PluginLoader
+from reversecore_mcp.core.loader import MODULE_TO_PLUGIN_NAME, TOOL_PROFILES, PluginLoader
 from reversecore_mcp.core.plugin import Plugin
 
 
@@ -173,3 +174,18 @@ class TestToolProfiles:
         assert "reversecore_mcp.tools.analysis.cache" in imported_modules
         assert "reversecore_mcp.tools.malware.dormant" not in imported_modules
         assert "reversecore_mcp.tools.forensics.disk" not in imported_modules
+
+    def test_all_real_plugins_mapped_in_manifest(self):
+        """Contract: Every real plugin discovered in reversecore_mcp.tools must be mapped in MODULE_TO_PLUGIN_NAME."""
+        tools_dir = (
+            Path(__file__).resolve().parent.parent.parent.parent / "reversecore_mcp" / "tools"
+        )
+        loader = PluginLoader(profile="full")
+        plugins = loader.discover_plugins(str(tools_dir), "reversecore_mcp.tools")
+        mapped_plugin_names = set(MODULE_TO_PLUGIN_NAME.values())
+
+        for plugin in plugins:
+            assert plugin.name in mapped_plugin_names, (
+                f"Plugin '{plugin.name}' was discovered but is missing from MODULE_TO_PLUGIN_NAME manifest. "
+                f"Register its module prefix in MODULE_TO_PLUGIN_NAME to ensure pre-import profile isolation."
+            )
