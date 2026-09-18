@@ -148,11 +148,22 @@ class SandboxExecutor:
             return docker_cmd
 
         elif active_mode == "container":
+            if shutil.which("setpriv"):
+                return [
+                    "setpriv",
+                    f"--reuid={config.sandbox_user}",
+                    f"--regid={config.sandbox_user}",
+                    "--clear-groups",
+                    "--reset-env",
+                    "--",
+                ] + cmd
             if shutil.which("capsh"):
                 return [
                     "capsh",
                     f"--user={config.sandbox_user}",
                     "--drop=all",
+                    "-c",
+                    'exec "$@"',
                     "--",
                 ] + cmd
 
@@ -208,7 +219,9 @@ async def execute_subprocess_async(
                     else mode
                 )
 
-                if active_mode == "container" and not shutil.which("capsh"):
+                if active_mode == "container" and not (
+                    shutil.which("setpriv") or shutil.which("capsh")
+                ):
                     if sys.platform != "win32" and config.sandbox_user:
                         extra_kwargs["user"] = config.sandbox_user
 

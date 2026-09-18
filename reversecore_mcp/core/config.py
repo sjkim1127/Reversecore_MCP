@@ -293,6 +293,11 @@ class Settings(BaseSettings):
         alias="REVERSECORE_SANDBOX_USER",
         description="Non-root user for execution in Container Mode",
     )
+    tool_profile: str = Field(
+        default="full",
+        alias="REVERSECORE_PROFILE",
+        description="Tool profile to load: 'full', 'static', 'malware', 'forensics', 'vuln-research', or comma-separated plugin names",
+    )
 
     # ------------------------------------------------------------------
     # Threat Intelligence
@@ -415,6 +420,7 @@ class Config:
         mock_mode: bool | None = None,
         clang_path: str | None = None,
         enable_live_fuzzing: bool | None = None,
+        tool_profile: str | None = None,
         _warn_deprecated: bool = True,
     ):
         """Initialize Config with optional Settings instance or individual values.
@@ -474,6 +480,8 @@ class Config:
                 env_overrides["clang_path"] = clang_path
             if enable_live_fuzzing is not None:
                 env_overrides["enable_live_fuzzing"] = enable_live_fuzzing
+            if tool_profile is not None:
+                env_overrides["tool_profile"] = tool_profile
 
             if env_overrides:
                 self._settings = Settings(**env_overrides)
@@ -617,6 +625,10 @@ class Config:
     @property
     def sandbox_user(self) -> str:
         return self._settings.sandbox_user
+
+    @property
+    def tool_profile(self) -> str:
+        return self._settings.tool_profile
 
     @property
     def mock_mode(self) -> bool:

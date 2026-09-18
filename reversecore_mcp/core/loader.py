@@ -12,14 +12,90 @@ from reversecore_mcp.core.plugin import Plugin
 logger = get_logger(__name__)
 
 
+TOOL_PROFILES: dict[str, set[str]] = {
+    "full": {
+        "analysis_tools",
+        "source_auditor",
+        "common_tools",
+        "memory_tools",
+        "server_tools",
+        "cve_hunter_tools",
+        "deobfuscation_tools",
+        "forensics_tools",
+        "malware_tools",
+        "radare2_mcp_tools",
+        "report_tools",
+    },
+    "static": {
+        "common_tools",
+        "server_tools",
+        "analysis_tools",
+        "radare2_mcp_tools",
+        "report_tools",
+    },
+    "malware": {
+        "common_tools",
+        "server_tools",
+        "malware_tools",
+        "analysis_tools",
+        "deobfuscation_tools",
+        "report_tools",
+    },
+    "forensics": {
+        "common_tools",
+        "server_tools",
+        "forensics_tools",
+        "memory_tools",
+        "report_tools",
+    },
+    "vuln-research": {
+        "common_tools",
+        "server_tools",
+        "cve_hunter_tools",
+        "analysis_tools",
+        "radare2_mcp_tools",
+        "source_auditor",
+        "report_tools",
+    },
+}
+# Alias
+TOOL_PROFILES["vuln_research"] = TOOL_PROFILES["vuln-research"]
+
+
 class PluginLoader:
     """Responsible for discovering and loading plugins."""
 
-    def __init__(self):
+    def __init__(self, profile: str | None = None):
         self._plugins: dict[str, Plugin] = {}
+        self._profile = profile
+
+    def is_plugin_allowed(self, plugin_name: str, profile: str | None = None) -> bool:
+        """Check if a plugin is allowed under the active or given tool profile."""
+        active_profile = profile or self._profile
+        if active_profile is None:
+            try:
+                from reversecore_mcp.core.config import get_config
+
+                active_profile = get_config().tool_profile
+            except Exception:
+                active_profile = "full"
+
+        normalized = active_profile.strip().lower() if active_profile else "full"
+        if normalized in ("full", "*", "", "all"):
+            return True
+
+        if normalized in TOOL_PROFILES:
+            return plugin_name.lower() in TOOL_PROFILES[normalized]
+
+        # Comma-separated list of plugin names
+        allowed = {p.strip().lower() for p in normalized.split(",") if p.strip()}
+        return plugin_name.lower() in allowed
 
     def discover_plugins(
-        self, package_path: str, package_name: str = "reversecore_mcp.tools"
+        self,
+        package_path: str,
+        package_name: str = "reversecore_mcp.tools",
+        profile: str | None = None,
     ) -> list[Plugin]:
         """
         Discover and load plugins from a package directory (including subdirectories).
@@ -27,6 +103,7 @@ class PluginLoader:
         Args:
             package_path: Absolute path to the package directory
             package_name: Python package name prefix
+            profile: Optional tool profile override ('full', 'static', 'malware', etc.)
 
         Returns:
             List of instantiated Plugin objects
@@ -57,6 +134,13 @@ class PluginLoader:
                                     f"Plugin {plugin_instance.name} already loaded, skipping duplicate registration"
                                 )
                                 continue
+
+                            if not self.is_plugin_allowed(plugin_instance.name, profile=profile):
+                                logger.debug(
+                                    f"Plugin {plugin_instance.name} skipped: not included in profile"
+                                )
+                                continue
+
                             self._plugins[plugin_instance.name] = plugin_instance
                             discovered_plugins.append(plugin_instance)
                             logger.info(f"Loaded plugin: {plugin_instance.name}")

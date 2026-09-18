@@ -127,6 +127,61 @@ int main(int argc, char *argv[]) {
     print("✅ Fallback binaries created.")
 
 
+def safe_extract_tar(tar: tarfile.TarFile, target_dir: Path) -> None:
+    """Extract a tar archive safely, preventing directory traversal and dangerous entries."""
+    target_resolved = target_dir.resolve()
+    target_resolved.mkdir(parents=True, exist_ok=True)
+
+    for member in tar.getmembers():
+        if not member.name:
+            continue
+
+        member_path = Path(member.name)
+        if member_path.is_absolute() or ".." in member_path.parts:
+            raise ValueError(f"Dangerous path traversal detected in archive member: {member.name}")
+
+        dest_path = (target_resolved / member.name).resolve()
+        try:
+            dest_path.relative_to(target_resolved)
+        except ValueError as err:
+            raise ValueError(
+                f"Archive member attempts path traversal outside destination: {member.name}"
+            ) from err
+
+        if member.isdev() or member.ischr() or member.isblk() or member.isfifo():
+            raise ValueError(f"Special device entries not permitted: {member.name}")
+
+        if member.issym():
+            if member.linkname.startswith("/"):
+                raise ValueError(
+                    f"Absolute symlinks not permitted: {member.name} -> {member.linkname}"
+                )
+            link_target = (dest_path.parent / member.linkname).resolve()
+            try:
+                link_target.relative_to(target_resolved)
+            except ValueError as err:
+                raise ValueError(
+                    f"Symlink points outside target directory: {member.name} -> {member.linkname}"
+                ) from err
+        elif member.islnk():
+            if member.linkname.startswith("/"):
+                raise ValueError(
+                    f"Absolute hardlinks not permitted: {member.name} -> {member.linkname}"
+                )
+            link_target = (target_resolved / member.linkname).resolve()
+            try:
+                link_target.relative_to(target_resolved)
+            except ValueError as err:
+                raise ValueError(
+                    f"Hardlink points outside target directory: {member.name} -> {member.linkname}"
+                ) from err
+
+    if hasattr(tarfile, "data_filter"):
+        tar.extractall(path=target_resolved, filter="data")
+    else:
+        tar.extractall(path=target_resolved)
+
+
 def fetch_binaries():
     """Download, verify, and extract binaries."""
     print("========================================")
@@ -146,6 +201,9 @@ def fetch_binaries():
 
     print(f"Downloading from {TEST_BINARIES_URL}...")
     try:
+        if TEST_BINARIES_URL.startswith(("http://", "https://")) and not EXPECTED_SHA256:
+            raise ValueError("TEST_BINARIES_SHA256 must be provided for remote URL downloads.")
+
         urllib.request.urlretrieve(TEST_BINARIES_URL, archive_path)
         print("Download successful.")
 
@@ -156,9 +214,9 @@ def fetch_binaries():
                 raise ValueError("Checksum mismatch")
             print("✅ Checksum verified.")
 
-        print("Extracting archive...")
+        print("Extracting archive safely...")
         with tarfile.open(archive_path, "r:gz") as tar:
-            tar.extractall(path=BINARIES_DIR)
+            safe_extract_tar(tar, BINARIES_DIR)
         print("✅ Extraction complete.")
 
         # Cleanup archive

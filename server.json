@@ -7,19 +7,19 @@
     "url": "https://github.com/sjkim1127/Reversecore_MCP",
     "source": "github"
   },
-  "version": "3.0.3",
+  "version": "3.0.4",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "reversecore-mcp",
-      "version": "3.0.3",
+      "version": "3.0.4",
       "transport": {
         "type": "stdio"
       }
     },
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/sjkim1127/reversecore_mcp:3.0.3",
+      "identifier": "ghcr.io/sjkim1127/reversecore_mcp:3.0.4",
       "transport": {
         "type": "stdio"
       }

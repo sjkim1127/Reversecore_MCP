@@ -144,8 +144,32 @@ class TestSandboxExecutorWrapCmd:
             assert wrapped[-4] == "test-sandbox:latest"
             assert wrapped[-3:] == cmd
 
+    def test_container_mode_setpriv_available(self, patched_config):
+        """Should wrap command with setpriv when setpriv is available in container mode."""
+        patched_config._settings.sandbox_enabled = True
+        patched_config._settings.sandbox_mode = "container"
+        patched_config._settings.sandbox_user = "sandbox_user"
+
+        with (
+            patch(
+                "shutil.which",
+                side_effect=lambda x: "/usr/bin/setpriv" if x == "setpriv" else None,
+            ),
+            patch("reversecore_mcp.core.execution.is_in_container", return_value=True),
+        ):
+            cmd = ["yara", "rules.yar", "file.bin"]
+            wrapped = SandboxExecutor.wrap_cmd(cmd)
+
+            assert wrapped[0] == "setpriv"
+            assert wrapped[1] == "--reuid=sandbox_user"
+            assert wrapped[2] == "--regid=sandbox_user"
+            assert wrapped[3] == "--clear-groups"
+            assert wrapped[4] == "--reset-env"
+            assert wrapped[5] == "--"
+            assert wrapped[6:] == cmd
+
     def test_container_mode_capsh_available(self, patched_config):
-        """Should wrap command with capsh in container mode."""
+        """Should wrap command with capsh and exec when capsh is available in container mode."""
         patched_config._settings.sandbox_enabled = True
         patched_config._settings.sandbox_mode = "container"
         patched_config._settings.sandbox_user = "sandbox_user"
@@ -163,11 +187,13 @@ class TestSandboxExecutorWrapCmd:
             assert wrapped[0] == "capsh"
             assert wrapped[1] == "--user=sandbox_user"
             assert wrapped[2] == "--drop=all"
-            assert wrapped[3] == "--"
-            assert wrapped[4:] == cmd
+            assert wrapped[3] == "-c"
+            assert wrapped[4] == 'exec "$@"'
+            assert wrapped[5] == "--"
+            assert wrapped[6:] == cmd
 
     def test_container_mode_capsh_not_available(self, patched_config):
-        """Should return original command if capsh is not available."""
+        """Should return original command if neither setpriv nor capsh is available."""
         patched_config._settings.sandbox_enabled = True
         patched_config._settings.sandbox_mode = "container"
 
