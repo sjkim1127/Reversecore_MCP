@@ -148,11 +148,31 @@ class SandboxExecutor:
             return docker_cmd
 
         elif active_mode == "container":
+            # If already running as a non-root user (e.g., in Docker under USER appuser),
+            # privilege separation is already enforced. Non-root users lack CAP_SETUID/CAP_SETGID
+            # and cannot switch UIDs.
+            if hasattr(os, "geteuid") and os.geteuid() != 0:
+                logger.debug(
+                    "Already running as non-root user (UID=%d); skipping privilege drop.",
+                    os.geteuid(),
+                )
+                return cmd
+
+            target_user = config.sandbox_user
+            target_gid = target_user
+            if sys.platform != "win32":
+                try:
+                    import pwd
+
+                    target_gid = str(pwd.getpwnam(target_user).pw_gid)
+                except Exception:
+                    pass
+
             if shutil.which("setpriv"):
                 return [
                     "setpriv",
-                    f"--reuid={config.sandbox_user}",
-                    f"--regid={config.sandbox_user}",
+                    f"--reuid={target_user}",
+                    f"--regid={target_gid}",
                     "--clear-groups",
                     "--reset-env",
                     "--",
@@ -160,7 +180,7 @@ class SandboxExecutor:
             if shutil.which("capsh"):
                 return [
                     "capsh",
-                    f"--user={config.sandbox_user}",
+                    f"--user={target_user}",
                     "--drop=all",
                     "-c",
                     'exec "$@"',
@@ -219,8 +239,11 @@ async def execute_subprocess_async(
                     else mode
                 )
 
-                if active_mode == "container" and not (
-                    shutil.which("setpriv") or shutil.which("capsh")
+                if (
+                    active_mode == "container"
+                    and hasattr(os, "geteuid")
+                    and os.geteuid() == 0
+                    and not (shutil.which("setpriv") or shutil.which("capsh"))
                 ):
                     if sys.platform != "win32" and config.sandbox_user:
                         extra_kwargs["user"] = config.sandbox_user

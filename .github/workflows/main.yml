@@ -399,6 +399,28 @@ jobs:
           fi
           echo "✅ Verified container runs as non-root user (${USER_NAME})"
 
+      - name: Verify container sandbox execution (REVERSECORE_SANDBOX_MODE=container)
+        run: |
+          echo "🔒 Verifying sandbox container mode execution..."
+          docker run --rm \
+            -e REVERSECORE_SANDBOX_ENABLED=true \
+            -e REVERSECORE_SANDBOX_MODE=container \
+            -e REVERSECORE_WORKSPACE=/app/workspace \
+            reversecore-mcp:ci \
+            python -c "
+          import asyncio
+          from reversecore_mcp.core.execution import execute_subprocess_async
+
+          async def verify():
+              out, _ = await execute_subprocess_async(['id'])
+              print('Container sandbox id output:', out.strip())
+              assert 'uid=0(' not in out, 'Security violation: Process unexpectedly executed as root!'
+              assert 'uid=' in out, 'Expected valid id output showing user identity'
+              print('✅ Container sandbox mode verified: executed safely as non-root user')
+
+          asyncio.run(verify())
+          "
+
       - name: Check Dockerfile vs requirements.txt sync
         run: |
           chmod +x scripts/check-docker-requirements-sync.sh

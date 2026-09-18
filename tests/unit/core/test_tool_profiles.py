@@ -1,6 +1,6 @@
 """Unit tests for tool profile architecture and PluginLoader profile filtering."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from reversecore_mcp.core.loader import TOOL_PROFILES, PluginLoader
 from reversecore_mcp.core.plugin import Plugin
@@ -132,3 +132,44 @@ class TestToolProfiles:
         assert discovered[0].name == "analysis_tools"
         assert loader.get_plugin("analysis_tools") is not None
         assert loader.get_plugin("malware_tools") is None
+
+    def test_is_module_allowed_manifest(self):
+        """is_module_allowed correctly consults MODULE_TO_PLUGIN_NAME and profile."""
+        loader = PluginLoader(profile="static")
+        # Allowed in static
+        assert loader.is_module_allowed("reversecore_mcp.tools.analysis.diff_tools") is True
+        assert loader.is_module_allowed("reversecore_mcp.tools.radare2.r2_analysis") is True
+        # Excluded in static
+        assert loader.is_module_allowed("reversecore_mcp.tools.malware.yara_tools") is False
+        assert loader.is_module_allowed("reversecore_mcp.tools.forensics.memory") is False
+        assert (
+            loader.is_module_allowed("reversecore_mcp.tools.cve_hunter.asan_crash_triager") is False
+        )
+        # Unknown/test module outside manifest should be allowed
+        assert loader.is_module_allowed("reversecore_mcp.tools.custom_vendor.new_tool") is True
+
+    def test_pre_import_skipping_prevents_unneeded_imports(self):
+        """Modules excluded by profile must NOT be imported via importlib."""
+        loader = PluginLoader(profile="static")
+        imported_modules = []
+
+        def track_import(name):
+            imported_modules.append(name)
+            m = MagicMock()
+            m.TestPlugin = Plugin
+            return m
+
+        with (
+            patch("reversecore_mcp.core.loader.pkgutil.walk_packages") as walk,
+            patch("importlib.import_module", side_effect=track_import),
+        ):
+            walk.return_value = [
+                (None, "reversecore_mcp.tools.analysis.cache", False),
+                (None, "reversecore_mcp.tools.malware.dormant", False),
+                (None, "reversecore_mcp.tools.forensics.disk", False),
+            ]
+            loader.discover_plugins("/fake/path")
+
+        assert "reversecore_mcp.tools.analysis.cache" in imported_modules
+        assert "reversecore_mcp.tools.malware.dormant" not in imported_modules
+        assert "reversecore_mcp.tools.forensics.disk" not in imported_modules

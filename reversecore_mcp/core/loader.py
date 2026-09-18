@@ -62,6 +62,24 @@ TOOL_PROFILES: dict[str, set[str]] = {
 TOOL_PROFILES["vuln_research"] = TOOL_PROFILES["vuln-research"]
 
 
+# Manifest mapping module prefixes to plugin names for pre-import filtering.
+# Prevents importing unnecessary dependencies and running import-time side effects
+# for plugins excluded by the active profile.
+MODULE_TO_PLUGIN_NAME: dict[str, str] = {
+    "reversecore_mcp.tools.analysis.source_auditor": "source_auditor",
+    "reversecore_mcp.tools.analysis": "analysis_tools",
+    "reversecore_mcp.tools.common.memory_tools": "memory_tools",
+    "reversecore_mcp.tools.common.server_tools": "server_tools",
+    "reversecore_mcp.tools.common": "common_tools",
+    "reversecore_mcp.tools.cve_hunter": "cve_hunter_tools",
+    "reversecore_mcp.tools.deobfuscation": "deobfuscation_tools",
+    "reversecore_mcp.tools.forensics": "forensics_tools",
+    "reversecore_mcp.tools.malware": "malware_tools",
+    "reversecore_mcp.tools.radare2": "radare2_mcp_tools",
+    "reversecore_mcp.tools.report": "report_tools",
+}
+
+
 class PluginLoader:
     """Responsible for discovering and loading plugins."""
 
@@ -91,6 +109,14 @@ class PluginLoader:
         allowed = {p.strip().lower() for p in normalized.split(",") if p.strip()}
         return plugin_name.lower() in allowed
 
+    def is_module_allowed(self, module_name: str, profile: str | None = None) -> bool:
+        """Check if a module should be imported based on module manifest and active profile."""
+        for prefix in sorted(MODULE_TO_PLUGIN_NAME.keys(), key=len, reverse=True):
+            if module_name == prefix or module_name.startswith(f"{prefix}."):
+                plugin_name = MODULE_TO_PLUGIN_NAME[prefix]
+                return self.is_plugin_allowed(plugin_name, profile=profile)
+        return True
+
     def discover_plugins(
         self,
         package_path: str,
@@ -118,6 +144,11 @@ class PluginLoader:
         ):
             # Skip __init__ modules and __pycache__ directories
             if name.endswith(".__init__") or "__pycache__" in name:
+                continue
+
+            # Pre-import check: avoid importing heavy modules that are excluded by profile
+            if not self.is_module_allowed(name, profile=profile):
+                logger.debug(f"Skipping module import {name}: excluded by active profile")
                 continue
 
             try:

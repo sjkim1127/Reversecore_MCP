@@ -145,12 +145,17 @@ class TestSandboxExecutorWrapCmd:
             assert wrapped[-3:] == cmd
 
     def test_container_mode_setpriv_available(self, patched_config):
-        """Should wrap command with setpriv when setpriv is available in container mode."""
+        """Should wrap command with setpriv when root in container mode."""
         patched_config._settings.sandbox_enabled = True
         patched_config._settings.sandbox_mode = "container"
-        patched_config._settings.sandbox_user = "sandbox_user"
+        patched_config._settings.sandbox_user = "nobody"
+
+        mock_pw = MagicMock()
+        mock_pw.pw_gid = 65534
 
         with (
+            patch("os.geteuid", return_value=0),
+            patch("pwd.getpwnam", return_value=mock_pw),
             patch(
                 "shutil.which",
                 side_effect=lambda x: "/usr/bin/setpriv" if x == "setpriv" else None,
@@ -161,20 +166,21 @@ class TestSandboxExecutorWrapCmd:
             wrapped = SandboxExecutor.wrap_cmd(cmd)
 
             assert wrapped[0] == "setpriv"
-            assert wrapped[1] == "--reuid=sandbox_user"
-            assert wrapped[2] == "--regid=sandbox_user"
+            assert wrapped[1] == "--reuid=nobody"
+            assert wrapped[2] == "--regid=65534"
             assert wrapped[3] == "--clear-groups"
             assert wrapped[4] == "--reset-env"
             assert wrapped[5] == "--"
             assert wrapped[6:] == cmd
 
     def test_container_mode_capsh_available(self, patched_config):
-        """Should wrap command with capsh and exec when capsh is available in container mode."""
+        """Should wrap command with capsh and exec when root and capsh is available in container mode."""
         patched_config._settings.sandbox_enabled = True
         patched_config._settings.sandbox_mode = "container"
         patched_config._settings.sandbox_user = "sandbox_user"
 
         with (
+            patch("os.geteuid", return_value=0),
             patch(
                 "shutil.which",
                 side_effect=lambda x: "/usr/bin/capsh" if x == "capsh" else None,
@@ -192,12 +198,28 @@ class TestSandboxExecutorWrapCmd:
             assert wrapped[5] == "--"
             assert wrapped[6:] == cmd
 
+    def test_container_mode_already_non_root_skips_wrapping(self, patched_config):
+        """Should not wrap command when process is already running as non-root (e.g. appuser)."""
+        patched_config._settings.sandbox_enabled = True
+        patched_config._settings.sandbox_mode = "container"
+        patched_config._settings.sandbox_user = "nobody"
+
+        with (
+            patch("os.geteuid", return_value=1000),
+            patch("shutil.which", return_value="/usr/bin/setpriv"),
+            patch("reversecore_mcp.core.execution.is_in_container", return_value=True),
+        ):
+            cmd = ["yara", "rules.yar", "file.bin"]
+            wrapped = SandboxExecutor.wrap_cmd(cmd)
+            assert wrapped == cmd
+
     def test_container_mode_capsh_not_available(self, patched_config):
         """Should return original command if neither setpriv nor capsh is available."""
         patched_config._settings.sandbox_enabled = True
         patched_config._settings.sandbox_mode = "container"
 
         with (
+            patch("os.geteuid", return_value=0),
             patch("shutil.which", return_value=None),
             patch("reversecore_mcp.core.execution.is_in_container", return_value=True),
         ):
@@ -210,8 +232,10 @@ class TestExecuteSubprocessAsyncSandbox:
     """Test integration of SandboxExecutor inside execute_subprocess_async."""
 
     @pytest.mark.asyncio
-    async def test_sandbox_enabled_container_mode_capsh_missing_user_kwargs(self, patched_config):
-        """Should pass 'user' kwargs to asyncio.create_subprocess_exec when capsh is missing on Unix."""
+    async def test_sandbox_enabled_container_mode_capsh_missing_user_kwargs_when_root(
+        self, patched_config
+    ):
+        """Should pass 'user' kwargs to asyncio.create_subprocess_exec when root on Unix."""
         patched_config._settings.sandbox_enabled = True
         patched_config._settings.sandbox_mode = "container"
         patched_config._settings.sandbox_user = "nobody"
@@ -226,7 +250,8 @@ class TestExecuteSubprocessAsyncSandbox:
 
         with (
             patch("sys.platform", "linux"),
-            patch("shutil.which", return_value=None),  # capsh missing
+            patch("os.geteuid", return_value=0),
+            patch("shutil.which", return_value=None),  # capsh & setpriv missing
             patch("reversecore_mcp.core.execution.is_in_container", return_value=True),
             patch("asyncio.create_subprocess_exec", return_value=mock_process) as mock_exec,
             patch.object(ResourceManager, "track_pid"),
@@ -234,10 +259,39 @@ class TestExecuteSubprocessAsyncSandbox:
             cmd = ["yara", "rules.yar", "file.bin"]
             await execute_subprocess_async(cmd)
 
-            # verify it was called with original command (as capsh is missing) but user kwarg
             mock_exec.assert_called_once_with(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 user="nobody",
             )
+
+    @pytest.mark.asyncio
+    async def test_sandbox_enabled_container_mode_already_non_root_no_user_kwarg(
+        self, patched_config
+    ):
+        """Should not pass 'user' kwargs when already running as non-root user (prevents PermissionError)."""
+        patched_config._settings.sandbox_enabled = True
+        patched_config._settings.sandbox_mode = "container"
+        patched_config._settings.sandbox_user = "nobody"
+
+        mock_process = AsyncMock()
+        mock_process.stdout.read = AsyncMock(side_effect=[b"output", b""])
+        mock_process.stderr.read = AsyncMock(return_value=b"")
+        mock_process.wait = AsyncMock(return_value=0)
+        mock_process.returncode = 0
+
+        from reversecore_mcp.core.resource_manager import ResourceManager
+
+        with (
+            patch("sys.platform", "linux"),
+            patch("os.geteuid", return_value=1000),  # non-root user
+            patch("shutil.which", return_value=None),
+            patch("reversecore_mcp.core.execution.is_in_container", return_value=True),
+            patch("asyncio.create_subprocess_exec", return_value=mock_process) as mock_exec,
+            patch.object(ResourceManager, "track_pid"),
+        ):
+            cmd = ["yara", "rules.yar", "file.bin"]
+            await execute_subprocess_async(cmd)
+
+            assert "user" not in mock_exec.call_args.kwargs
