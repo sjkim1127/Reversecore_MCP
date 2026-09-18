@@ -48,6 +48,17 @@ async def triage_crash(
     valid_bin = validate_file_path(binary_path)
     valid_crash = validate_file_path(crash_file)
 
+    valid_crash_str = str(valid_crash)
+    valid_bin_str = str(valid_bin)
+    forbidden_chars = ("\n", "\r", ";", "!", "|", "`", "$")
+    if any(c in valid_crash_str for c in forbidden_chars) or any(
+        c in valid_bin_str for c in forbidden_chars
+    ):
+        return failure(
+            "INVALID_PATH",
+            "Binary or crash file path contains characters forbidden in GDB scripts",
+        )
+
     if not os.access(valid_bin, os.X_OK):
         # We might need to ensure it's executable for GDB to run it
         try:

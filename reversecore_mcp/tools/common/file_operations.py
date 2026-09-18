@@ -285,29 +285,33 @@ def create_directory(directory_path: str) -> ToolResult:
         ToolResult with the newly created directory path
     """
     config = get_config()
-    path = Path(directory_path)
+    if not isinstance(directory_path, str):
+        raise ValidationError("directory_path must be a string")
 
-    if path.is_absolute():
-        try:
-            path.relative_to(config.workspace)
-            target = path
-        except ValueError:
-            raise ValidationError(
-                f"Absolute directory path must be within the workspace: {directory_path}"
-            )
+    if any(c in directory_path for c in ("\0", "\r", "\n")):
+        raise ValidationError(
+            f"Directory path contains forbidden control characters: {directory_path!r}"
+        )
+
+    workspace = config.workspace.resolve()
+    raw_path = Path(directory_path)
+
+    if raw_path.is_absolute():
+        target = raw_path.resolve()
     else:
-        target = (config.workspace / path).resolve()
-        try:
-            target.relative_to(config.workspace)
-        except ValueError:
-            raise ValidationError(f"Directory path traverses outside workspace: {directory_path}")
+        target = (workspace / raw_path).resolve()
+
+    try:
+        target.relative_to(workspace)
+    except ValueError:
+        raise ValidationError(f"Directory path traverses outside workspace: {directory_path}")
 
     try:
         target.mkdir(parents=True, exist_ok=True)
         return success(
             str(target),
-            workspace_path=str(config.workspace),
-            message=f"Directory created successfully: {target.relative_to(config.workspace)}",
+            workspace_path=str(workspace),
+            message=f"Directory created successfully: {target.relative_to(workspace)}",
         )
     except PermissionError as e:
         raise ValidationError(f"Permission denied when creating directory: {e}")

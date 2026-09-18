@@ -145,6 +145,19 @@ def validate_file_path(
     """
     active_config = config or get_workspace_config()
 
+    if not isinstance(path, str):
+        raise ValidationError(
+            f"File path must be a string, got {type(path).__name__}",
+            details={"path": str(path)},
+        )
+
+    # Reject control characters (null bytes, newlines, carriage returns) to prevent injection
+    if any(c in path for c in ("\0", "\r", "\n")):
+        raise ValidationError(
+            f"File path contains forbidden control characters: {path!r}",
+            details={"path": path},
+        )
+
     # Handle relative paths: resolve them relative to workspace directory
     # This allows users to specify just the filename (e.g., "sample.exe")
     # instead of the full path ("/app/workspace/sample.exe")

@@ -7,6 +7,7 @@ Provides functionality to convert Markdown reports into:
 - JSON (structured dictionary representation)
 """
 
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,7 @@ from typing import Any
 import markdown
 from xhtml2pdf import pisa
 
+from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -148,9 +150,64 @@ def markdown_to_html(md_content: str, title: str = "Analysis Report") -> str:
     return html_document
 
 
-def html_to_pdf(html_content: str, output_pdf_path: Path) -> bool:
+def _secure_pdf_link_callback(uri: str, rel: str) -> str:
+    """Secure link callback for xhtml2pdf to prevent SSRF and arbitrary file reads.
+
+    xhtml2pdf invokes link_callback for resources like <img src="..."> or <link href="...">.
+    When a URI is blocked or invalid, returning os.devnull ensures xhtml2pdf treats it as an
+    empty/unreadable local asset and does NOT fall back to network fetching (SSRF defense).
+
+    This callback:
+    1. Blocks all remote/network URL schemes (http, https, ftp, smb, data, etc.)
+    2. Blocks absolute or traversal paths that resolve outside the workspace directory
+    3. Only resolves local file paths strictly contained within the workspace
     """
-    Convert HTML content into a PDF file using xhtml2pdf.
+    if not uri:
+        return os.devnull
+
+    clean_uri = uri.strip()
+    lower_uri = clean_uri.lower()
+
+    # Block external network schemes and protocol-relative URLs (SSRF defense)
+    forbidden_schemes = (
+        "http://",
+        "https://",
+        "ftp://",
+        "ftps://",
+        "smb://",
+        "data:",
+        "//",
+    )
+    if lower_uri.startswith(forbidden_schemes):
+        logger.warning(f"Blocked remote URI in PDF generation: {clean_uri}")
+        return os.devnull
+
+    # Strip optional file:// prefix
+    if lower_uri.startswith("file://"):
+        clean_uri = clean_uri[7:]
+
+    try:
+        workspace = get_config().workspace.resolve()
+        target = Path(clean_uri)
+        if not target.is_absolute():
+            target = workspace / target
+        resolved_target = target.resolve()
+
+        # Strict workspace boundary check
+        resolved_target.relative_to(workspace)
+
+        if resolved_target.is_file():
+            return str(resolved_target)
+
+        logger.warning(f"PDF asset not found or not a regular file: {resolved_target}")
+        return os.devnull
+    except Exception as e:
+        logger.warning(f"Rejected invalid resource URI in PDF generation: {uri!r} ({e})")
+        return os.devnull
+
+
+def html_to_pdf(html_content: str, output_pdf_path: Path) -> bool:
+    """Convert HTML content into a PDF file using xhtml2pdf.
 
     Args:
         html_content: HTML document string
@@ -164,7 +221,11 @@ def html_to_pdf(html_content: str, output_pdf_path: Path) -> bool:
         output_pdf_path.parent.mkdir(parents=True, exist_ok=True)
 
         with open(output_pdf_path, "wb") as pdf_file:
-            pisa_status = pisa.CreatePDF(html_content, dest=pdf_file)
+            pisa_status = pisa.CreatePDF(
+                html_content,
+                dest=pdf_file,
+                link_callback=_secure_pdf_link_callback,
+            )
 
         if pisa_status.err:
             logger.error(f"xhtml2pdf error: {pisa_status.err}")

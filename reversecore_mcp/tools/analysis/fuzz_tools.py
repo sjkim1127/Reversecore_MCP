@@ -5,6 +5,7 @@ import textwrap
 
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
+from reversecore_mcp.core.exceptions import ValidationError
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.result import ToolResult, failure, success
 from reversecore_mcp.core.security import validate_file_path
@@ -105,27 +106,40 @@ def generate_fuzzing_harness(
             f"Fuzzer type '{fuzzer_type}' is not supported yet. Use 'qiling'.",
         )
 
+    # Validate and sanitize target address / function name
+    target_clean = target_function_or_addr.strip()
+    if not target_clean:
+        raise ValidationError("target_function_or_addr cannot be empty")
+
+    if any(c in target_clean for c in ('"', "'", "\n", "\r", "`", "$", ";", "\\")):
+        raise ValidationError(
+            f"target_function_or_addr contains forbidden characters: {target_clean!r}"
+        )
+
     # Format the target address
     try:
         target_val = (
-            int(target_function_or_addr, 16)
-            if target_function_or_addr.startswith("0x")
-            else int(target_function_or_addr)
+            int(target_clean, 16) if target_clean.startswith(("0x", "0X")) else int(target_clean)
         )
         target_str = hex(target_val)
         target_addr_val = target_str
     except ValueError:
-        # If it's a function name, we assume ql.run() will resolve it or start from entry
-        # In a real scenario, we might want to resolve it via lief or r2 first
-        target_str = target_function_or_addr
+        # If not an integer, validate as a safe symbol/function identifier
+        if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_.:]*$", target_clean):
+            raise ValidationError(
+                f"Invalid function name format: {target_clean!r}. "
+                "Must be a valid symbol name or hex/decimal address."
+            )
+        target_str = target_clean
         target_addr_val = "ql.os.entry_point"
 
     # Default rootfs placeholder (user should adjust based on their setup)
     rootfs_placeholder = "/qiling/examples/rootfs/x8664_linux"
 
-    script_name = f"fuzz_{validated_path.name}.py"
+    safe_binary_name = re.sub(r'["\'\r\n]', "", validated_path.name)
+    script_name = f"fuzz_{safe_binary_name}.py"
     harness_code = QILING_HARNESS_TEMPLATE.format(
-        binary_name=validated_path.name,
+        binary_name=safe_binary_name,
         target_addr=target_str,
         script_name=script_name,
         binary_path_str=repr(str(validated_path)),
