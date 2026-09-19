@@ -66,7 +66,15 @@ class ReportTools:
     ):
         self.template_dir = Path(template_dir)
         self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            # Fallback to local 'reports' if workspace reports is not writable
+            self.output_dir = Path("reports")
+            try:
+                self.output_dir.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                pass
 
         self.default_timezone = default_timezone
         self.timezone_offset = TIMEZONE_OFFSETS.get(default_timezone, 0)

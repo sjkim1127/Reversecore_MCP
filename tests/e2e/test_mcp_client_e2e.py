@@ -44,9 +44,15 @@ async def spawn_mcp_session(
         Initialized mcp.ClientSession ready for tool calls.
     """
     env = os.environ.copy()
+    env["MCP_TRANSPORT"] = "stdio"
+    env["REVERSECORE_TRANSPORT"] = "stdio"
+    env.pop("PORT", None)
+    env.pop("MCP_PORT", None)
     env["REVERSECORE_PROFILE"] = profile
     env["REVERSECORE_WORKSPACE"] = str(workspace_dir)
     env["REVERSECORE_REDIS_URL"] = "disabled"
+    env["MEMORY_DB_PATH"] = str(workspace_dir / ".memory.db")
+    env["R2GHIDRA_DB_PATH"] = str(workspace_dir / ".r2db")
     env["PYTHONPATH"] = str(ROOT)
 
     params = StdioServerParameters(
@@ -83,7 +89,8 @@ async def call_tool_json(
     assert not result.isError, f"Tool '{tool_name}' returned error: {result}"
     assert len(result.content) > 0, f"Tool '{tool_name}' returned empty content list"
 
-    raw_text = result.content[0].text
+    first_block = result.content[0]
+    raw_text = getattr(first_block, "text", str(first_block))
     try:
         data = json.loads(raw_text)
     except Exception:
@@ -244,6 +251,312 @@ class TestMcpClientE2EWorkflows:
         for step, duration in diagnostics.items():
             print(f"  {step}: {duration:.3f}s")
 
+    async def test_scenario_2_pe_malware_triage(self):
+        """Scenario 2: PE Malware Triage in malware profile.
+
+        Verifies:
+        1. malware profile tool exposure (65 tools, no static/forensics-only tools).
+        2. Binary identification & metadata via run_file.
+        3. Indicator of Compromise (IoC) extraction: IPv4, URL, Bitcoin, CVE, Registry.
+        4. YARA signature matching using custom rules.
+        5. Anti-evasion detection (detect_anti_analysis): VM/debugger indicators, MITRE ATT&CK mapping.
+        6. Defensive strategy generation via adaptive_vaccine.
+        7. Step latency diagnostics tracking.
+        """
+        diagnostics: dict[str, float] = {}
+
+        with tempfile.TemporaryDirectory() as temp_ws:
+            ws_path = Path(temp_ws).resolve()
+
+            # Copy deterministic test malware payload into workspace
+            fixture_payload = FIXTURES_DIR / "binaries" / "sample_malware.bin"
+            assert fixture_payload.exists(), f"Missing fixture payload at {fixture_payload}"
+            target_bin = ws_path / "sample_malware.exe"
+            shutil.copy2(fixture_payload, target_bin)
+            target_bin.chmod(0o755)
+
+            # Write custom YARA rule to test rule matching
+            rule_file = ws_path / "test_malware.yar"
+            rule_file.write_text(
+                "rule Test_Malware_Payload {\n"
+                "    meta:\n"
+                '        description = "Detect test payload signature"\n'
+                "    strings:\n"
+                '        $sig = "REVERSECORE_TEST_PAYLOAD_SIGNATURE_2026"\n'
+                "    condition:\n"
+                "        $sig\n"
+                "}\n"
+            )
+
+            async with spawn_mcp_session("malware", ws_path) as session:
+                # 1. Profile Exposure Check (Contract: Exactly 65 tools)
+                tools_res = await session.list_tools()
+                exposed_tools = {t.name for t in tools_res.tools}
+                assert len(exposed_tools) == 65, f"Expected 65 tools, got {len(exposed_tools)}"
+                assert "extract_iocs" in exposed_tools
+                assert "run_yara" in exposed_tools
+                assert "detect_anti_analysis" in exposed_tools
+                assert "adaptive_vaccine" in exposed_tools
+                # Static and forensics tools must be excluded
+                assert "Radare2_list_functions" not in exposed_tools
+                assert "r2_decompile" not in exposed_tools
+                assert "pcap_analyze" not in exposed_tools
+
+                # 2. Step 1: Binary Identification
+                ident_data, d_time = await call_tool_json(
+                    session,
+                    "run_file",
+                    {"file_path": str(target_bin)},
+                )
+                diagnostics["step1_run_file_seconds"] = d_time
+                assert ident_data.get("status") == "success"
+
+                # 3. Step 2: IoC Extraction
+                ioc_data, d_time = await call_tool_json(
+                    session,
+                    "extract_iocs",
+                    {"file_path": str(target_bin)},
+                )
+                diagnostics["step2_extract_iocs_seconds"] = d_time
+                assert ioc_data.get("status") == "success"
+                iocs = ioc_data.get("data", {})
+                assert "198.51.100.42" in iocs.get("ipv4", [])
+                assert any("update-check-service.org" in u for u in iocs.get("urls", []))
+                assert "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa" in iocs.get("bitcoin_addresses", [])
+                assert "CVE-2024-38077" in iocs.get("cves", [])
+
+                # 4. Step 3: YARA Scanning
+                yara_data, d_time = await call_tool_json(
+                    session,
+                    "run_yara",
+                    {"file_path": str(target_bin), "rule_file": str(rule_file)},
+                )
+                diagnostics["step3_run_yara_seconds"] = d_time
+                assert yara_data.get("status") == "success"
+                matches = yara_data.get("data", {}).get("matches", [])
+                assert len(matches) >= 1
+                assert matches[0].get("rule") == "Test_Malware_Payload"
+
+                # 5. Step 4: Anti-Analysis & Evasion Detection
+                anti_data, d_time = await call_tool_json(
+                    session,
+                    "detect_anti_analysis",
+                    {"file_path": str(target_bin)},
+                )
+                diagnostics["step4_detect_anti_analysis_seconds"] = d_time
+                assert anti_data.get("status") == "success"
+                anti_res = anti_data.get("data", {})
+                assert anti_res.get("evasion_score", 0) >= 50
+                assert anti_res.get("verdict") in ("HIGHLY_EVASIVE", "SUSPICIOUS")
+                assert len(anti_res.get("mitre_techniques", [])) > 0
+
+                # 6. Step 5: Adaptive Vaccine Generation
+                threat_report = {
+                    "function": "c2_beacon",
+                    "address": "0x401000",
+                    "instruction": "cmp eax, 0x19851100",
+                    "reason": "C2 beacon communication detected",
+                    "refined_code": 'if (beacon_target == "198.51.100.42")',
+                }
+                vaccine_data, d_time = await call_tool_json(
+                    session,
+                    "adaptive_vaccine",
+                    {"threat_report": threat_report, "action": "yara"},
+                )
+                diagnostics["step5_adaptive_vaccine_seconds"] = d_time
+                assert vaccine_data.get("status") == "success"
+                vaccine_res = vaccine_data.get("data", {})
+                assert "yara_rule" in vaccine_res
+
+        print("\n[Scenario 2 Latency Diagnostics]")
+        for step, duration in diagnostics.items():
+            print(f"  {step}: {duration:.3f}s")
+
+    async def test_scenario_3_patch_diffing_security_impact(self):
+        """Scenario 3: Binary Patch Diffing & Security Impact in vuln-research profile.
+
+        Verifies:
+        1. vuln-research profile tool exposure (103 tools).
+        2. Binary diffing via diff_binaries: computes similarity score and code delta.
+        3. Automated patch inference via analyze_patch_diff_auto: verdicts and vulnerability assessment.
+        4. Identical binary fast-path: perfect similarity (1.0) and IDENTICAL verdict.
+        5. Step latency diagnostics tracking.
+        """
+        diagnostics: dict[str, float] = {}
+
+        with tempfile.TemporaryDirectory() as temp_ws:
+            ws_path = Path(temp_ws).resolve()
+
+            # Create original and modified binary variants
+            fixture_elf = FIXTURES_DIR / "binaries" / "hello_elf_x64"
+            assert fixture_elf.exists(), f"Missing fixture ELF at {fixture_elf}"
+            bin_v1 = ws_path / "app_v1"
+            bin_v2 = ws_path / "app_v2"
+
+            src_data = fixture_elf.read_bytes()
+            bin_v1.write_bytes(src_data)
+
+            # Patch 100 bytes to create realistic modified variant
+            modified = bytearray(src_data)
+            for i in range(100):
+                modified[0x200 + i] = (modified[0x200 + i] + 1) % 256
+            bin_v2.write_bytes(bytes(modified))
+
+            bin_v1.chmod(0o755)
+            bin_v2.chmod(0o755)
+
+            async with spawn_mcp_session("vuln-research", ws_path) as session:
+                # 1. Profile Exposure Check
+                tools_res = await session.list_tools()
+                exposed_tools = {t.name for t in tools_res.tools}
+                assert len(exposed_tools) == 103, f"Expected 103 tools, got {len(exposed_tools)}"
+                assert "diff_binaries" in exposed_tools
+                assert "analyze_patch_diff_auto" in exposed_tools
+
+                # 2. Step 1: radiff2-based Binary Diffing
+                diff_data, d_time = await call_tool_json(
+                    session,
+                    "diff_binaries",
+                    {"file_path_a": str(bin_v1), "file_path_b": str(bin_v2)},
+                )
+                diagnostics["step1_diff_binaries_seconds"] = d_time
+                assert diff_data.get("status") == "success"
+                diff_res = diff_data.get("data", {})
+                similarity = diff_res.get("similarity", 0.0)
+                assert 0.0 < similarity < 1.0, f"Expected similarity in (0, 1), got {similarity}"
+
+                # 3. Step 2: Automated Patch Vulnerability Inference
+                patch_data, d_time = await call_tool_json(
+                    session,
+                    "analyze_patch_diff_auto",
+                    {"file_path_old": str(bin_v1), "file_path_new": str(bin_v2)},
+                )
+                diagnostics["step2_analyze_patch_diff_seconds"] = d_time
+                assert patch_data.get("status") == "success"
+                patch_res = patch_data.get("data", {})
+                assert "patch_verdict" in patch_res
+                assert "statistics" in patch_res
+
+                # 4. Step 3: Identical Binary Fast-path Verification
+                ident_data, d_time = await call_tool_json(
+                    session,
+                    "analyze_patch_diff_auto",
+                    {"file_path_old": str(bin_v1), "file_path_new": str(bin_v1)},
+                )
+                diagnostics["step3_identical_check_seconds"] = d_time
+                assert ident_data.get("status") == "success"
+                assert ident_data.get("data", {}).get("patch_verdict") == "IDENTICAL"
+
+        print("\n[Scenario 3 Latency Diagnostics]")
+        for step, duration in diagnostics.items():
+            print(f"  {step}: {duration:.3f}s")
+
+    async def test_scenario_4_incident_pcap_forensics(self):
+        """Scenario 4: Incident & Network PCAP Forensics in forensics profile.
+
+        Verifies:
+        1. forensics profile tool exposure (57 tools, no radare2/cve-hunter tools).
+        2. PCAP packet triage and protocol distribution via pcap_analyze.
+        3. DNS query and response domain extraction via pcap_extract_dns.
+        4. 5-tuple network connection enumeration via pcap_list_connections.
+        5. Artifact correlation pipeline: artifact_collect -> artifact_correlate_ioc.
+        6. Step latency diagnostics tracking.
+        """
+        diagnostics: dict[str, float] = {}
+
+        with tempfile.TemporaryDirectory() as temp_ws:
+            ws_path = Path(temp_ws).resolve()
+
+            # Copy deterministic PCAP fixture into workspace
+            fixture_pcap = FIXTURES_DIR / "pcap" / "sample_traffic.pcap"
+            assert fixture_pcap.exists(), f"Missing fixture PCAP at {fixture_pcap}"
+            target_pcap = ws_path / "incident_capture.pcap"
+            shutil.copy2(fixture_pcap, target_pcap)
+
+            async with spawn_mcp_session("forensics", ws_path) as session:
+                # 1. Profile Exposure Check (Contract: Exactly 57 tools)
+                tools_res = await session.list_tools()
+                exposed_tools = {t.name for t in tools_res.tools}
+                assert len(exposed_tools) == 57, f"Expected 57 tools, got {len(exposed_tools)}"
+                assert "pcap_analyze" in exposed_tools
+                assert "pcap_extract_dns" in exposed_tools
+                assert "pcap_list_connections" in exposed_tools
+                assert "artifact_collect" in exposed_tools
+                assert "artifact_correlate_ioc" in exposed_tools
+                # Static and CVE hunter tools must be excluded
+                assert "r2_decompile" not in exposed_tools
+                assert "Radare2_list_functions" not in exposed_tools
+                assert "cve_triage_crash" not in exposed_tools
+
+                # 2. Step 1: PCAP Statistical Analysis
+                pcap_data, d_time = await call_tool_json(
+                    session,
+                    "pcap_analyze",
+                    {"pcap_path": str(target_pcap)},
+                )
+                diagnostics["step1_pcap_analyze_seconds"] = d_time
+                assert pcap_data.get("status") == "success"
+                pcap_res = pcap_data.get("data", {})
+                assert pcap_res.get("total_packets", 0) >= 5
+                proto_dist = pcap_res.get("protocol_distribution", {})
+                assert "UDP" in proto_dist or "DNS" in proto_dist
+                assert "TCP" in proto_dist
+
+                # 3. Step 2: DNS Query Extraction
+                dns_data, d_time = await call_tool_json(
+                    session,
+                    "pcap_extract_dns",
+                    {"pcap_path": str(target_pcap)},
+                )
+                diagnostics["step2_pcap_extract_dns_seconds"] = d_time
+                assert dns_data.get("status") == "success"
+                dns_res = dns_data.get("data", {})
+                assert "evil-c2.com" in dns_res.get("unique_domains", [])
+
+                # 4. Step 3: Connection Enumeration
+                conn_data, d_time = await call_tool_json(
+                    session,
+                    "pcap_list_connections",
+                    {"pcap_path": str(target_pcap)},
+                )
+                diagnostics["step3_pcap_list_connections_seconds"] = d_time
+                assert conn_data.get("status") == "success"
+                connections = conn_data.get("data", {}).get("connections", [])
+                assert len(connections) >= 1
+                dports = {c.get("dst_port") for c in connections if isinstance(c, dict)}
+                assert 4444 in dports or 53 in dports
+
+                # 5. Step 4: Forensic Artifact Collection and Correlation
+                raw_artifacts = [
+                    {"value": "evil-c2.com", "resolved": "203.0.113.50"},
+                    {"value": "203.0.113.50", "port": 4444},
+                ]
+                collect_data, d_time = await call_tool_json(
+                    session,
+                    "artifact_collect",
+                    {
+                        "artifacts": raw_artifacts,
+                        "artifact_type": "ip",
+                        "source": "pcap_forensics",
+                    },
+                )
+                diagnostics["step4_artifact_collect_seconds"] = d_time
+                assert collect_data.get("status") == "success"
+                collected_list = collect_data.get("data", {}).get("artifacts", [])
+                assert len(collected_list) == 2
+
+                correlate_data, d_time = await call_tool_json(
+                    session,
+                    "artifact_correlate_ioc",
+                    {"artifacts": collected_list},
+                )
+                diagnostics["step5_artifact_correlate_seconds"] = d_time
+                assert correlate_data.get("status") == "success"
+
+        print("\n[Scenario 4 Latency Diagnostics]")
+        for step, duration in diagnostics.items():
+            print(f"  {step}: {duration:.3f}s")
+
     async def test_scenario_5_crash_complex_path(self):
         """Scenario 5: Crash Unhappy/Complex Path in vuln-research profile.
 
@@ -372,7 +685,8 @@ class TestMcpClientE2EWorkflows:
                 t0 = time.perf_counter()
                 err_call = await session.call_tool("cve_triage_crash", {"crash_log_or_text": "   "})
                 diagnostics["step4_error_resilience_seconds"] = time.perf_counter() - t0
-                err_text = err_call.content[0].text
+                err_first_block = err_call.content[0]
+                err_text = getattr(err_first_block, "text", str(err_first_block))
                 err_obj = json.loads(err_text)
                 assert err_obj.get("status") == "error"
                 assert (

@@ -992,6 +992,8 @@ jobs:
 
       - name: Start container for smoke test
         run: |
+          mkdir -p ${{ github.workspace }}/workspace tests/fixtures
+          chmod -R 777 ${{ github.workspace }}/workspace tests/fixtures
           docker run -d --name mcp-smoke \
             -e MCP_TRANSPORT=stdio \
             -e LOG_LEVEL=WARNING \
