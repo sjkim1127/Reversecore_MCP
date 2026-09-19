@@ -146,16 +146,41 @@ async def r2_decompile(
             "pdg",  # r2ghidra decompile command
         ]
 
-        output, _ = await _r2_run(validated, cmds, timeout=timeout)
+        try:
+            output, _ = await _r2_run(validated, cmds, timeout=timeout)
+        except Exception:
+            output = ""
 
-        if not output or output.strip().startswith("ERROR"):
-            return failure(
-                "DECOMPILE_ERROR",
-                f"r2ghidra failed to decompile '{function_address}'. "
-                "Ensure r2ghidra plugin is installed (`r2pm -ci r2ghidra`) and the "
-                "function address is valid.",
-                hint="Try running `r2 -AA binary -c 'pdg @ main'` locally to verify.",
-            )
+        if (
+            not output
+            or output.strip().startswith("ERROR")
+            or "install the plugin with r2pm" in output.lower()
+        ):
+            # Fallback to radare2's built-in pdc decompiler
+            fallback_cmds = [
+                f"s {function_address}",
+                "pdc",
+            ]
+            try:
+                fallback_output, _ = await _r2_run(validated, fallback_cmds, timeout=timeout)
+                if fallback_output and not fallback_output.strip().startswith("ERROR"):
+                    output = fallback_output
+                else:
+                    return failure(
+                        "DECOMPILE_ERROR",
+                        f"r2ghidra failed to decompile '{function_address}'. "
+                        "Ensure r2ghidra plugin is installed (`r2pm -ci r2ghidra`) and the "
+                        "function address is valid.",
+                        hint="Try running `r2 -AA binary -c 'pdg @ main'` locally to verify.",
+                    )
+            except Exception:
+                return failure(
+                    "DECOMPILE_ERROR",
+                    f"r2ghidra and pdc failed to decompile '{function_address}'. "
+                    "Ensure r2ghidra plugin is installed (`r2pm -ci r2ghidra`) and the "
+                    "function address is valid.",
+                    hint="Try running `r2 -AA binary -c 'pdg @ main'` locally to verify.",
+                )
 
         pseudo_c = output.strip()
 

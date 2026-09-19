@@ -42,9 +42,17 @@ def get_report_tools(
                 project_root = package_root.parent  # reversecore_mcp -> Reversecore_MCP
                 template_dir = project_root / "templates" / "reports"
 
+        from reversecore_mcp.core.security import get_workspace_config
+
+        try:
+            ws_dir = get_workspace_config().workspace
+            resolved_output_dir = output_dir or (ws_dir / "reports")
+        except Exception:
+            resolved_output_dir = output_dir or Path("reports")
+
         _report_tools = ReportTools(
             template_dir=template_dir,
-            output_dir=output_dir or Path("reports"),
+            output_dir=resolved_output_dir,
             default_timezone=default_timezone,
             email_config=EmailConfig.from_env(),
         )

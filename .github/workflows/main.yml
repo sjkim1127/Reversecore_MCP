@@ -229,6 +229,12 @@ jobs:
         run: |
           pytest tests/integration/ -v --tb=short
 
+      - name: Run MCP client E2E workflows
+        env:
+          LOG_LEVEL: INFO
+        run: |
+          pytest tests/e2e/ -v --tb=short
+
       - name: Verify benchmark corpus integrity
         run: |
           python - <<'PY'
@@ -630,6 +636,9 @@ jobs:
 
           echo "🧪 Running extended tool tests inside container..."
           docker exec mcp-ci-test /opt/venv/bin/pytest /app/tests/integration/test_extended_tools.py -v --tb=short
+
+          echo "🧪 Running MCP client E2E workflows inside container..."
+          docker exec mcp-ci-test /opt/venv/bin/pytest /app/tests/e2e/test_mcp_client_e2e.py -v --tb=short
 
           echo "📋 Calling ALL MCP tools comprehensively..."
           docker cp scripts/test-all-mcp-tools.py mcp-ci-test:/tmp/test-all-mcp-tools.py

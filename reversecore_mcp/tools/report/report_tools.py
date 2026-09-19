@@ -1080,10 +1080,25 @@ def get_report_tools(
                 # 이메일 설정 로드
                 email_config = EmailConfig.from_env()
 
+                # Resolve templates directory relative to package root if default
+                default_tmpl = Path(__file__).resolve().parents[3] / "templates" / "reports"
+                resolved_template_dir = template_dir or (
+                    default_tmpl if default_tmpl.exists() else Path("templates/reports")
+                )
+
+                # Output directory defaults to workspace reports directory
+                from reversecore_mcp.core.security import get_workspace_config
+
+                try:
+                    ws_dir = get_workspace_config().workspace
+                    resolved_output_dir = output_dir or (ws_dir / "reports")
+                except Exception:
+                    resolved_output_dir = output_dir or Path("reports")
+
                 # ReportTools 인스턴스 생성
                 _default_report_tools = ReportTools(
-                    template_dir=template_dir or Path("templates/reports"),
-                    output_dir=output_dir or Path("reports"),
+                    template_dir=resolved_template_dir,
+                    output_dir=resolved_output_dir,
                     default_timezone=default_timezone or env_timezone,
                     email_config=email_config,
                 )

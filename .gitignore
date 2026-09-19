@@ -23,6 +23,7 @@ actionlint
 # Logs
 *.log
 !tests/fixtures/benchmarks/targets/**/asan_crash.log
+!tests/fixtures/crash/*.log
 
 # Temporary files
 *.tmp

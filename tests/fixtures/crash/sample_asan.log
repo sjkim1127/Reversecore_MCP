@@ -1,0 +1,7 @@
+=================================================================
+==30001==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x603000001000
+READ of size 4096 at 0x603000001000 thread T0
+    #0 0x555555558180 in Curl_http_output_auth http.c:728:12
+    #1 0x555555558300 in Curl_http http.c:2001:9
+    #2 0x555555559400 in LLVMFuzzerTestOneInput harness.c:14:5
+SUMMARY: AddressSanitizer: heap-buffer-overflow in Curl_http_output_auth

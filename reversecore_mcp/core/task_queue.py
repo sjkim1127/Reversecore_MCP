@@ -7,6 +7,7 @@ and resilient fallback to in-process execution when Redis is unavailable.
 from __future__ import annotations
 
 import asyncio
+import os
 from collections.abc import Callable, Coroutine
 from typing import Any, cast
 
@@ -45,6 +46,18 @@ async def get_arq_pool() -> Any:
             if _arq_pool is None:
                 try:
                     config = get_config()
+                    env_redis = os.environ.get("REVERSECORE_REDIS_URL", "").strip().lower()
+                    redis_url = (config.redis_url or "").strip().lower()
+                    if (
+                        env_redis in ("none", "disabled", "null", "false", "0")
+                        or not redis_url
+                        or redis_url in ("none", "disabled", "null")
+                    ):
+                        logger.info(
+                            "Task queue disabled by configuration (empty or disabled redis_url)."
+                        )
+                        _queue_enabled = False
+                        return None
                     redis_settings = RedisSettings.from_dsn(config.redis_url)
                     _arq_pool = await create_pool(redis_settings)
                     logger.info("Initialized ARQ Redis task queue pool client.")
