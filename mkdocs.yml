@@ -89,6 +89,8 @@ nav:
           - Memory Store: api/core/memory.md
           - Metrics & Decorators: api/core/metrics.md
           - Task Queue: api/core/task_queue.md
+      - Tool Catalog (151 Tools): TOOLS.md
+      - Profile Benchmark: benchmarks/profile_footprint.md
       - Tools:
           - Static Analysis: api/tools/analysis.md
           - Radare2 & Decompilation: api/tools/radare2.md

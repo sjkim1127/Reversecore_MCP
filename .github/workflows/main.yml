@@ -92,6 +92,11 @@ jobs:
       - name: Verify MCP tool hygiene and resource contracts
         run: python scripts/check_tool_hygiene.py
 
+      - name: Verify tool catalog and profile benchmark drift
+        run: |
+          python scripts/generate_tool_catalog.py --check
+          python scripts/benchmark_profiles.py --check
+
       - name: Run actionlint (GitHub Actions workflow linter)
         run: |
           ACTIONLINT_VER="1.7.12"

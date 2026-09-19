@@ -32,7 +32,7 @@
 
 - [What is Reversecore MCP?](#what-is-reversecore-mcp)
 - [Architecture](#architecture)
-- [Tool Catalog (120 Tools)](#tool-catalog-120-tools)
+- [Tool Catalog (151 Tools)](#tool-catalog-151-tools)
 - [Guided Analysis Prompts (22 Modes)](#guided-analysis-prompts-22-modes)
 - [MCP Resources (11 URIs)](#mcp-resources-11-uris)
 - [Quick Start](#quick-start)
@@ -54,7 +54,7 @@
 
 ## What is Reversecore MCP?
 
-Reversecore MCP is a [Model Context Protocol](https://modelcontextprotocol.io/) server that wraps **120 analysis tools** into a single interface that AI assistants can call through natural language.
+Reversecore MCP is a [Model Context Protocol](https://modelcontextprotocol.io/) server that wraps **151 analysis tools** into a single interface that AI assistants can call through natural language.
 
 Instead of learning the command-line syntax for a dozen different tools, you describe what you want:
 
@@ -96,7 +96,7 @@ AI Client (Claude / Cursor / any MCP-compatible client)
         ▼
 ┌──────────────────────────────────────────────────────┐
 │                   FastMCP 3.4.4 Server               │
-│          120 registered tools · Fully async          │
+│          151 registered tools · Fully async          │
 │                  Python 3.10–3.12                    │
 ├────────────────────┬─────────────────────────────────┤
 │   Guided Prompts   │  Dynamic Resources              │
@@ -163,9 +163,20 @@ The `reversecore_mcp/core/` directory contains the shared infrastructure that al
 
 ---
 
-## Tool Catalog (120 Tools)
+## Tool Catalog (151 Tools)
 
-Every tool returns a structured `ToolResult` — either a `ToolSuccess` with typed `data` or a `ToolError` with an `RCMCP-E*` error code. Tools are organized into 8 plugins.
+> 📖 **[Authoritative Tool Catalog & Parameter Reference (151 Tools)](docs/TOOLS.md)**
+> 📊 **[Tool Profile Footprint & Context Benchmark Matrix](docs/benchmarks/profile_footprint.md)**
+
+Every tool returns a structured `ToolResult` — either a `ToolSuccess` with typed `data` or a `ToolError` with an `RCMCP-E*` error code. Tools are organized into 11 domain plugins across 5 modular execution profiles (`full`, `static`, `malware`, `forensics`, `vuln-research`):
+
+| Profile | Registered Tools | Schema Size | LLM Context Saving vs Full | Recommended Domain |
+|---|:---:|:---:|:---:|---|
+| `full` | **151** | 112.6 KB | Baseline (0%) | Complete enterprise reverse engineering suite |
+| `vuln-research` | **103** | 70.2 KB | **-37.7%** (~10,800 tokens) | Fuzzing, ASan crash triage, CVE hunting, exploit research |
+| `static` | **97** | 64.8 KB | **-42.5%** (~12,200 tokens) | Disassembly, decompilation (r2ghidra), LIEF, static triage |
+| `malware` | **65** | 59.4 KB | **-47.2%** (~13,600 tokens) | Threat triage, YARA scanning, deobfuscation, anti-analysis |
+| `forensics` | **57** | 36.4 KB | **-67.7%** (~19,500 tokens) | Memory forensics (Volatility3), network PCAP (Scapy), disk |
 
 ---
 
@@ -441,7 +452,7 @@ Resources are read-only data endpoints that AI clients can access through URI te
 |---|---|
 | `reversecore://guide` | Tool usage guide with file path rules and best practices |
 | `reversecore://guide/structures` | Structure recovery and cross-reference analysis technical guide |
-| `reversecore://tools` | Complete documentation for all 120 registered tools |
+| `reversecore://tools` | Complete documentation for all 151 registered tools |
 | `reversecore://logs` | Application logs (last 100 lines) |
 
 ### Dynamic Resources (Per-Binary Virtual Filesystem)
@@ -991,7 +1002,7 @@ reversecore_mcp/
 │       ├── rule_manager.py        # SAST rule loader
 │       └── default_rules.yaml     # Default scanning rules
 │
-├── tools/                         # MCP tool implementations (120 tools)
+├── tools/                         # MCP tool implementations (151 tools)
 │   ├── analysis/                  # Static analysis (24 tools)
 │   │   ├── static_analysis.py     # file, strings, binwalk
 │   │   ├── lief_tools.py          # LIEF binary parser
