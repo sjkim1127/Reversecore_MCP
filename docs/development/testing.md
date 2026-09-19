@@ -27,9 +27,11 @@ tests/
 │       ├── test_memory.py
 │       └── ...
 │
-└── integration/             # Integration tests (verifies local tool installations)
-    ├── test_tool_installation.py
-    └── ...
+├── integration/             # Integration tests (verifies local tool installations)
+│   ├── test_tool_installation.py
+│   └── ...
+└── e2e/                     # End-to-End tests (real MCP stdio client sessions)
+    └── test_mcp_client_e2e.py
 ```
 
 ---
@@ -50,6 +52,9 @@ pytest tests/unit/ -v
 
 # Integration tests only
 pytest tests/integration/ -v
+
+# E2E MCP client tests (all 5 user scenarios)
+pytest tests/e2e/ -v
 
 # Run tests in a specific file
 pytest tests/unit/core/test_security.py -v
