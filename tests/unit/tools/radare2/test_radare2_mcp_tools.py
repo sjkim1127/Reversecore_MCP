@@ -519,13 +519,14 @@ class TestMcpToolsMocked:
         assert result["output"] == "analysis output"
 
     @pytest.mark.asyncio
-    async def test_Radare2_run_command_blocked(self, registered_plugin):
-        """Radare2_run_command should block dangerous commands."""
+    async def test_Radare2_run_command_rejects_unsafe_command(self, registered_plugin):
+        """Radare2_run_command rejects commands outside its read-only allowlist."""
         plugin = registered_plugin
         tool = plugin._tools["Radare2_run_command"]
         result = await tool("/app/test.bin", command="!rm -rf /")
         assert result["status"] == "error"
-        assert "blocked" in result["message"].lower() or "invalid" in result["message"].lower()
+        message = result["message"].lower()
+        assert "allowlist" in message or "unsafe operand" in message
 
     @pytest.mark.asyncio
     async def test_Radare2_calculate_success(self, registered_plugin, mock_session):
