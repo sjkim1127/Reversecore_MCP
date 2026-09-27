@@ -57,6 +57,8 @@ logger = get_logger(__name__)
 
 # Default configuration
 DEFAULT_TIMEOUT = get_config().default_tool_timeout
+RAW_COMMAND_TIMEOUT = min(DEFAULT_TIMEOUT, 30)
+RAW_COMMAND_OUTPUT_LIMIT = 1_000_000
 
 
 class Radare2ToolsPlugin(Plugin):
@@ -78,7 +80,14 @@ class Radare2ToolsPlugin(Plugin):
     def _touch_session(self, session_id: str) -> None:
         self._session_last_used[session_id] = time.monotonic()
 
-    async def _run_session_cmd(self, session: R2Session, command: str) -> str:
+    async def _run_session_cmd(
+        self,
+        session: R2Session,
+        command: str,
+        *,
+        timeout: int | None = None,
+        max_output_size: int | None = None,
+    ) -> str:
         """Serialize commands per r2pipe process and keep blocking I/O off the event loop."""
         lock = self._session_locks.setdefault(session.session_id, asyncio.Lock())
         async with lock:
@@ -86,7 +95,28 @@ class Radare2ToolsPlugin(Plugin):
                 raise ToolExecutionError("Radare2 session is closed")
             self._touch_session(session.session_id)
             try:
-                return await asyncio.to_thread(session.cmd, command)
+                command_task = asyncio.to_thread(session.cmd, command)
+                if timeout is None:
+                    result = await command_task
+                else:
+                    try:
+                        result = await asyncio.wait_for(command_task, timeout=timeout)
+                    except asyncio.TimeoutError as exc:
+                        # Cancelling to_thread does not stop its worker. Kill the
+                        # owned r2pipe child so its blocking pipe read exits.
+                        await asyncio.to_thread(session.terminate)
+                        raise ToolExecutionError(
+                            f"Radare2 command timed out after {timeout}s; session terminated"
+                        ) from exc
+
+                if max_output_size is not None:
+                    output_bytes = result.encode("utf-8", errors="replace")
+                    if len(output_bytes) > max_output_size:
+                        marker = b"\n[output truncated]"
+                        result = (
+                            output_bytes[: max(0, max_output_size - len(marker))] + marker
+                        ).decode("utf-8", errors="ignore")
+                return result
             finally:
                 self._touch_session(session.session_id)
 
@@ -417,7 +447,7 @@ class Radare2ToolsPlugin(Plugin):
             """
             # Validate command for security
             try:
-                _validate_r2_command(command)
+                command = _validate_r2_command(command)
             except ValidationError as e:
                 return {"status": "error", "message": str(e)}
 
@@ -425,7 +455,15 @@ class Radare2ToolsPlugin(Plugin):
             if not session.is_open:
                 return {"status": "error", "message": "Failed to open file"}
 
-            result = await self._run_session_cmd(session, command)
+            try:
+                result = await self._run_session_cmd(
+                    session,
+                    command,
+                    timeout=RAW_COMMAND_TIMEOUT,
+                    max_output_size=RAW_COMMAND_OUTPUT_LIMIT,
+                )
+            except ToolExecutionError as e:
+                return {"status": "error", "message": str(e)}
             return {"status": "success", "output": result}
 
         @mcp.tool()

@@ -82,7 +82,7 @@ async def server_lifespan(server: FastMCP) -> AsyncGenerator[None, None]:
     from reversecore_mcp.core.memory import initialize_memory_store
 
     try:
-        await initialize_memory_store()
+        await initialize_memory_store(settings.memory_db_path)
         logger.info("✅ AI Memory store initialized")
     except Exception as e:
         logger.warning(f"⚠️ Memory store initialization failed: {e}")
@@ -261,6 +261,18 @@ async def _cleanup_old_files():
             for target_dir in targets:
                 if not target_dir.exists():
                     continue
+
+                for extraction_dir in target_dir.glob("binwalk_extract_*"):
+                    try:
+                        if (
+                            extraction_dir.is_dir()
+                            and not extraction_dir.is_symlink()
+                            and now - extraction_dir.stat().st_mtime > retention_seconds
+                        ):
+                            shutil.rmtree(extraction_dir, ignore_errors=True)
+                            count += 1
+                    except OSError:
+                        continue
 
                 for p in target_dir.rglob("*"):
                     # Use a single stat() call: S_ISREG checks for regular file,
@@ -490,6 +502,14 @@ def main():
             allow_headers=["*"],
             expose_headers=["mcp-session-id"],
         )
+
+        # Place the request limiter inside auth, CORS, and loopback middleware,
+        # while still wrapping FastAPI's multipart parser and upload endpoint.
+        from reversecore_mcp.web.upload_limit import UploadRequestLimitMiddleware
+
+        app.add_middleware(UploadRequestLimitMiddleware)
+        upload_limiter = app.user_middleware.pop(0)
+        app.user_middleware.append(upload_limiter)
 
         # Mount dashboard
         try:

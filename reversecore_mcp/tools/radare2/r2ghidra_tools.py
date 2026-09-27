@@ -13,7 +13,9 @@ Available tools (MCP-registered):
     r2_simulate_patch        — Simulate a byte-level patch and re-analyse
 """
 
-import asyncio
+import shutil
+import tempfile
+from pathlib import Path
 
 from reversecore_mcp.core import json_utils as json
 from reversecore_mcp.core.analysis_cache import (
@@ -23,6 +25,8 @@ from reversecore_mcp.core.analysis_cache import (
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
+from reversecore_mcp.core.exceptions import ExecutionTimeoutError
+from reversecore_mcp.core.execution import execute_subprocess_async, prepare_sandbox_access
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.next_tool_hints import build_decompile_hints, finalize_hints
@@ -526,10 +530,9 @@ async def r2_simulate_patch(
 ) -> ToolResult:
     """Simulate a byte-level patch at an address and re-decompile.
 
-    Opens the binary in write mode, applies ``patch_bytes`` (hex string) at
-    ``address``, then runs r2ghidra's ``pdg`` to show the patched pseudo-C.
-    **The original file is not modified** — radare2's ``-w`` flag patches
-    a memory copy only.
+    Copies the binary to a temporary workspace cache file, opens that copy in
+    write mode, applies ``patch_bytes`` at ``address``, then runs r2ghidra's
+    ``pdg``. The original file remains read-only throughout the simulation.
 
     Args:
         file_path: Path to the binary (must be inside the workspace).
@@ -564,7 +567,7 @@ async def r2_simulate_patch(
     ]
     original_output, _ = await _r2_run(validated, read_cmds, timeout=timeout)
 
-    # Simulate patch in a separate read+write session
+    # Simulate the patch only on a separate, temporary copy.
     patch_cmds = [
         f"s {address}",
         f"wx {patch_bytes_clean}",  # write patch bytes
@@ -572,43 +575,55 @@ async def r2_simulate_patch(
         "pdg",  # r2ghidra decompile after patch
     ]
 
-    # r2 write mode requires -w flag; pass via analysis_level workaround
-    # We use a subprocess call for write-mode simulation
-    import shutil
-
     r2_exe = shutil.which("r2")
     if not r2_exe:
         return failure("DEPENDENCY_MISSING", "radare2 (r2) not found in PATH")
 
     script = "; ".join(patch_cmds) + "; q"
-    proc = None
+    workspace = get_config().workspace.resolve()
+    cache_dir = workspace / ".cache"
+    if cache_dir.is_symlink():
+        return failure("INVALID_WORKSPACE", "Workspace cache directory must not be a symbolic link")
+    cache_dir.mkdir(parents=True, exist_ok=True)
     try:
-        proc = await asyncio.create_subprocess_exec(
-            r2_exe,
-            "-w",
-            "-A",
-            "-e",
-            "scr.color=0",
-            "-q",
-            "-c",
-            script,
-            str(validated),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        cache_dir.resolve().relative_to(workspace)
+    except ValueError:
+        return failure(
+            "INVALID_WORKSPACE", "Workspace cache directory resolves outside the workspace"
         )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-        patched_output = stdout.decode("utf-8", errors="replace")
-    except asyncio.TimeoutError:
+
+    patch_copy: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            prefix="r2_patch_", dir=cache_dir, delete=False
+        ) as temp_file:
+            patch_copy = Path(temp_file.name)
+        shutil.copyfile(validated, patch_copy)
+        prepare_sandbox_access(patch_copy)
+        patched_output, _ = await execute_subprocess_async(
+            [
+                r2_exe,
+                "-w",
+                "-A",
+                "-e",
+                "scr.color=0",
+                "-q",
+                "-c",
+                script,
+                str(patch_copy),
+            ],
+            max_output_size=10_000_000,
+            timeout=timeout,
+            capture_stderr=True,
+            kill_process_group=True,
+        )
+    except ExecutionTimeoutError:
         return failure("TIMEOUT", f"Patch simulation timed out after {timeout}s")
     except Exception as exc:
         return failure("EXECUTION_ERROR", str(exc))
     finally:
-        if proc is not None and proc.returncode is None:
-            try:
-                proc.kill()
-            except ProcessLookupError:
-                pass
-            await proc.wait()
+        if patch_copy is not None:
+            patch_copy.unlink(missing_ok=True)
 
     return success(
         {
@@ -617,6 +632,6 @@ async def r2_simulate_patch(
             "byte_count": len(patch_bytes_clean) // 2,
             "original_disasm": original_output.strip(),
             "patched_output": patched_output.strip(),
-            "note": "Original file is NOT modified. Patch was applied to in-memory copy only.",
+            "note": "Original file is NOT modified. Patch was applied to a temporary copy.",
         }
     )

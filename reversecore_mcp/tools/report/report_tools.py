@@ -41,6 +41,31 @@ from reversecore_mcp.tools.report.session import (
 
 logger = logging.getLogger(__name__)
 
+
+def resolve_report_path(output_dir: Path, report_id: str) -> Path | None:
+    """Look up a report by a strict ID without deriving a path from caller input."""
+    if (
+        not report_id
+        or len(report_id) > 128
+        or not report_id.isascii()
+        or not all(ch.isalnum() or ch in "_-" for ch in report_id)
+    ):
+        return None
+
+    report_root = output_dir.resolve()
+    for candidate in output_dir.glob("*.md"):
+        if candidate.stem != report_id or candidate.is_symlink():
+            continue
+        try:
+            report_path = candidate.resolve(strict=True)
+            report_path.relative_to(report_root)
+            if report_path.is_file():
+                return report_path
+        except (OSError, RuntimeError, ValueError):
+            continue
+    return None
+
+
 __all__ = ["ReportTools"]
 
 
@@ -664,27 +689,12 @@ class ReportTools:
 
     async def get_report(self, report_id: str) -> dict:
         """Retrieve a generated report without deriving a path from user input."""
-        if (
-            not report_id
-            or len(report_id) > 128
-            or not report_id.isascii()
-            or not all(ch.isalnum() or ch in "_-" for ch in report_id)
-        ):
-            return {
-                "success": False,
-                "error": "Invalid report ID",
-                "available_reports": [f.stem for f in self.output_dir.glob("*.md")],
-            }
-
-        # Enumerate trusted paths first. The untrusted ID is used only as a dict key,
-        # so it never reaches a filesystem path expression.
-        reports_by_id = {f.stem: f for f in self.output_dir.glob("*.md")}
-        report_path = reports_by_id.get(report_id)
+        report_path = resolve_report_path(self.output_dir, report_id)
         if report_path is None:
             return {
                 "success": False,
-                "error": f"Report not found: {report_id}",
-                "available_reports": sorted(reports_by_id),
+                "error": "Invalid report ID or report not found",
+                "available_reports": [f.stem for f in self.output_dir.glob("*.md")],
             }
 
         async with aiofiles.open(report_path, encoding="utf-8") as f:
