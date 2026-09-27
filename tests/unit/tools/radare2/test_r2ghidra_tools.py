@@ -4,7 +4,8 @@ Unit tests for r2ghidra_tools — r2ghidra decompilation and analysis tools.
 All radare2/r2ghidra calls are mocked so tests run without any binary tools installed.
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -368,59 +369,61 @@ class TestR2SimulatePatch:
         assert result.status == "error"
 
     @pytest.mark.asyncio
-    async def test_success_with_nop_patch(self, mock_r2_run, mock_validate_file_path):
+    async def test_success_with_nop_patch(
+        self, mock_r2_run, mock_validate_file_path, patched_config
+    ):
         """r2_simulate_patch succeeds with valid NOP patch and mocked r2."""
 
         from reversecore_mcp.tools.radare2.r2ghidra_tools import r2_simulate_patch
 
         mock_r2_run.return_value = ("0x401000  90 90  nop; nop\n", 50)
+        source = patched_config.workspace / "test.elf"
+        source.write_bytes(b"test binary")
+        mock_validate_file_path.return_value = source
 
         with patch("shutil.which", return_value="/usr/bin/r2"):
-            mock_proc = MagicMock()
-            mock_proc.communicate = AsyncMock(
-                return_value=(
-                    b"0x401000  90 90  nop; nop\nint main() { return 0; }\n",
-                    b"",
-                )
-            )
             with patch(
-                "asyncio.create_subprocess_exec",
+                "reversecore_mcp.tools.radare2.r2ghidra_tools.execute_subprocess_async",
                 new_callable=AsyncMock,
-                return_value=mock_proc,
-            ):
+                return_value=("0x401000  90 90  nop; nop\nint main() { return 0; }\n", 70),
+            ) as mock_execute:
                 result = await r2_simulate_patch("/workspace/test.elf", "0x401000", "9090")
 
         assert result.status == "success"
         data = result.data
         assert data["byte_count"] == 2
         assert "NOT modified" in data["note"]
+        assert source.read_bytes() == b"test binary"
+        mock_execute.assert_awaited_once()
+        executed_command = mock_execute.await_args.args[0]
+        assert executed_command[-1] != str(source)
+        assert not Path(executed_command[-1]).exists()
 
     @pytest.mark.asyncio
-    async def test_timeout_kills_and_waits_process(self, mock_r2_run, mock_validate_file_path):
-        """r2_simulate_patch kills and reaps child process when execution times out."""
-        import asyncio
+    async def test_timeout_returns_timeout_error(
+        self, mock_r2_run, mock_validate_file_path, patched_config
+    ):
+        """r2_simulate_patch reports the shared executor's timeout."""
 
+        from reversecore_mcp.core.exceptions import ExecutionTimeoutError
         from reversecore_mcp.tools.radare2.r2ghidra_tools import r2_simulate_patch
 
         mock_r2_run.return_value = ("0x401000  90 90  nop; nop\n", 50)
+        source = patched_config.workspace / "test.elf"
+        source.write_bytes(b"test binary")
+        mock_validate_file_path.return_value = source
 
         with patch("shutil.which", return_value="/usr/bin/r2"):
-            mock_proc = MagicMock()
-            mock_proc.returncode = None
-            mock_proc.kill = MagicMock()
-            mock_proc.wait = AsyncMock(return_value=0)
-            mock_proc.communicate = AsyncMock(side_effect=asyncio.TimeoutError())
-
             with patch(
-                "asyncio.create_subprocess_exec",
+                "reversecore_mcp.tools.radare2.r2ghidra_tools.execute_subprocess_async",
                 new_callable=AsyncMock,
-                return_value=mock_proc,
-            ):
+                side_effect=ExecutionTimeoutError(1),
+            ) as mock_execute:
                 result = await r2_simulate_patch(
                     "/workspace/test.elf", "0x401000", "9090", timeout=1
                 )
 
         assert result.status == "error"
         assert result.error_code == "TIMEOUT"
-        mock_proc.kill.assert_called_once()
-        mock_proc.wait.assert_awaited()
+        mock_execute.assert_awaited_once()
+        assert source.read_bytes() == b"test binary"

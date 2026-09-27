@@ -83,18 +83,18 @@ class TestSandboxExecutorWrapCmd:
         cmd = ["yara", "rules.yar", "file.bin"]
         assert SandboxExecutor.wrap_cmd(cmd) == cmd
 
-    def test_host_mode_docker_not_available(self, patched_config):
-        """Should log warning and return original command if docker command is missing in PATH."""
+    def test_host_mode_docker_not_available_fails_closed(self, patched_config):
+        """Should refuse unisolated execution when Docker is unavailable."""
         patched_config._settings.sandbox_enabled = True
         patched_config._settings.sandbox_mode = "host"
 
         with (
-            patch("shutil.which", return_value=None),
-            patch("reversecore_mcp.core.execution.logger.warning") as mock_warn,
+            patch("shutil.which", return_value=None) as mock_which,
         ):
             cmd = ["yara", "rules.yar", "file.bin"]
-            assert SandboxExecutor.wrap_cmd(cmd) == cmd
-            mock_warn.assert_called_once()
+            with pytest.raises(RuntimeError, match="Docker is unavailable"):
+                SandboxExecutor.wrap_cmd(cmd)
+            mock_which.assert_called_once_with("docker")
 
     def test_host_mode_success(self, patched_config):
         """Should generate docker run command with resource limits and path mounts."""
@@ -242,6 +242,7 @@ class TestExecuteSubprocessAsyncSandbox:
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                start_new_session=False,
                 user=65534,
                 group=65534,
                 extra_groups=(),

@@ -130,9 +130,9 @@ class ResourceManager:
             cfg = config.get_config()
             workspace = cfg.workspace
 
-            # Clean .tmp files older than 24 hours
+            # Use the configured retention period for temporary outputs.
             now = time.time()
-            max_age = 24 * 3600
+            max_age = cfg.file_retention_minutes * 60
 
             cleaned_count = 0
 
@@ -159,13 +159,14 @@ class ResourceManager:
                     logger.warning(f"Failed to delete temp file {temp_file}: {e}")
 
             # Clean up stale temporary directories in workspace / "tmp"
-            workspace_tmp = workspace / "tmp"
-            if workspace_tmp.exists() and workspace_tmp.is_dir():
-                import shutil
+            import shutil
 
-                for temp_dir in workspace_tmp.glob("binwalk_extract_*"):
+            for temp_root in (workspace / "tmp", workspace / ".cache"):
+                if not temp_root.exists() or not temp_root.is_dir() or temp_root.is_symlink():
+                    continue
+                for temp_dir in temp_root.glob("binwalk_extract_*"):
                     try:
-                        if temp_dir.is_dir():
+                        if temp_dir.is_dir() and not temp_dir.is_symlink():
                             mtime = temp_dir.stat().st_mtime
                             if now - mtime > max_age:
                                 shutil.rmtree(temp_dir, ignore_errors=True)

@@ -46,30 +46,12 @@ _SAFE_IDENTIFIER_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_.]*$")
 # Allows: hex (0x..), decimal, operators, symbols (sym.xxx), parentheses
 _SAFE_EXPRESSION_PATTERN = re.compile(r"^[a-zA-Z0-9_.\s+\-*/%()[\]]+$")
 
-# Dangerous r2 commands that should be blocked
-_BLOCKED_R2_COMMANDS = frozenset(
-    {
-        "!",  # Shell escape
-        "#!",  # Alternative shell
-        "=!",  # Remote shell
-        "=h",  # HTTP server
-        "=H",  # HTTP server (alt)
-        "o+",  # Open for write
-        "w",  # Write
-        "wa",  # Write assembly
-        "wb",  # Write bytes
-        "wc",  # Write comment (file modification)
-        "wf",  # Write file
-        "wo",  # Write operations
-        "wx",  # Write hex
-        "wv",  # Write value
-        "wd",  # Write dword
-        "Ps",  # Project save (can overwrite)
-        "rm",  # Remove (radare2 built-in)
-        "r2pm",  # Package manager
-        "L",  # Load plugin (potential code exec)
-        ".",  # Interpret script
-    }
+_MAX_RAW_R2_COMMAND_LENGTH = 512
+_MAX_RAW_R2_READ_BYTES = 4096
+_MAX_RAW_R2_INSTRUCTIONS = 512
+_SAFE_R2_ADDRESS = (
+    r"(?:0[xX][0-9a-fA-F]{1,16}|[0-9]{1,20}|[A-Za-z_][A-Za-z0-9_.]*)"
+    r"(?:[+-](?:0[xX][0-9a-fA-F]{1,16}|[0-9]{1,20}))*"
 )
 
 
@@ -118,7 +100,7 @@ def _validate_expression(expression: str) -> None:
         raise ValidationError("expression contains forbidden shell characters")
 
 
-def _validate_r2_command(command: str) -> None:
+def _validate_r2_command(command: str) -> str:
     """
     Validate radare2 command for safety.
 
@@ -130,23 +112,76 @@ def _validate_r2_command(command: str) -> None:
     """
     if not command:
         raise ValidationError("command cannot be empty")
+    if len(command) > _MAX_RAW_R2_COMMAND_LENGTH:
+        raise ValidationError(f"command must not exceed {_MAX_RAW_R2_COMMAND_LENGTH} characters")
 
-    # Check for shell escape
-    cmd_start = command.strip().split()[0] if command.strip() else ""
+    normalized = " ".join(command.split())
+    if not normalized:
+        raise ValidationError("command cannot be empty")
 
-    # Block dangerous commands
-    for blocked in _BLOCKED_R2_COMMANDS:
-        if cmd_start.startswith(blocked):
-            raise ValidationError(
-                f"Command '{blocked}' is blocked for security reasons. "
-                "Only analysis commands are allowed."
-            )
+    # Keep the raw-command API to read-only commands with operands that cannot
+    # name files, scripts, shell commands, or command chains. In particular,
+    # `o` is intentionally absent: even read-only `o /path` switches the file
+    # backing the session and bypasses validation of the initial sample path.
+    location = rf"(?:\s*@\s*{_SAFE_R2_ADDRESS})?"
+    patterns = (
+        (rf"pdf{location}", "pd 256{location}"),
+        (rf"pd(?:\s+(\d{{1,4}}))?{location}", None),
+        (rf"px(?:\s+(\d{{1,5}}))?{location}", None),
+        (rf"ps(?:\s+(\d{{1,5}}))?{location}", None),
+    )
 
-    # Block shell metacharacters in command
-    # SECURITY: `;` is critical - it allows command chaining in radare2
-    # Example attack: "px 10; !rm -rf /" would execute both commands
-    if any(c in command for c in ["`", "$", ";", "|", "&", ">", "<", "~", "\n", "\r"]):
-        raise ValidationError("Command contains forbidden shell metacharacters")
+    for pattern, rewrite in patterns:
+        match = re.fullmatch(pattern, normalized)
+        if not match:
+            continue
+
+        if rewrite is not None:
+            normalized = re.sub(r"^pdf", "pd 256", normalized)
+            break
+
+        command_name = normalized.split(maxsplit=1)[0]
+        size = int(match.group(1)) if match.group(1) else None
+        if command_name == "pd":
+            if size is not None and not 1 <= size <= _MAX_RAW_R2_INSTRUCTIONS:
+                raise ValidationError(
+                    f"pd instruction count must be between 1 and {_MAX_RAW_R2_INSTRUCTIONS}"
+                )
+            if size is None:
+                normalized = re.sub(r"^pd(?=\s|$)", "pd 256", normalized)
+        elif command_name == "px":
+            if size is not None and not 1 <= size <= _MAX_RAW_R2_READ_BYTES:
+                raise ValidationError(
+                    f"px byte count must be between 1 and {_MAX_RAW_R2_READ_BYTES}"
+                )
+            if size is None:
+                normalized = re.sub(r"^px(?=\s|$)", "px 256", normalized)
+        elif command_name == "ps":
+            if size is not None and not 1 <= size <= _MAX_RAW_R2_READ_BYTES:
+                raise ValidationError(
+                    f"ps byte count must be between 1 and {_MAX_RAW_R2_READ_BYTES}"
+                )
+            if size is None:
+                normalized = re.sub(r"^ps(?=\s|$)", "ps 512", normalized)
+        break
+    else:
+        # Bounded metadata queries used by normal analysis workflows.
+        if re.fullmatch(r"(?:afl|aflj|iI|ij|ie|iS|is|iz|ii)", normalized):
+            return normalized
+        if re.fullmatch(r"ii\s+~[A-Za-z0-9_.-]{1,128}", normalized):
+            return normalized
+        if re.fullmatch(rf"axt\s+(?:{_SAFE_R2_ADDRESS}|@\s*{_SAFE_R2_ADDRESS})", normalized):
+            return normalized
+        if re.fullmatch(rf"s\s+{_SAFE_R2_ADDRESS}", normalized):
+            return normalized
+        raise ValidationError(
+            "Command is not in the read-only Radare2 allowlist or has an unsafe operand"
+        )
+
+    # Keep the output cap effective even when a metadata command returns an
+    # unusually large result. Command-specific byte/instruction limits above
+    # also bound commands that read directly from the sample.
+    return normalized
 
 
 def _sanitize_for_r2_cmd(value: str) -> str:
@@ -240,6 +275,21 @@ class R2Session:
             self._r2 = None
             self.status = "closed"
             self._analyzed = False
+
+    def terminate(self) -> None:
+        """Kill a blocked radare2 child process and invalidate this session."""
+        r2 = self._r2
+        process = getattr(r2, "process", None) if r2 is not None else None
+        if process is not None:
+            try:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=2)
+            except Exception as e:
+                logger.debug("Could not fully reap timed-out radare2 process: %s", e)
+        self._r2 = None
+        self.status = "closed"
+        self._analyzed = False
 
     def cmd(self, command: str) -> str:
         """Execute a radare2 command and return the output."""

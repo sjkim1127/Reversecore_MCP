@@ -127,6 +127,19 @@ class Settings(BaseSettings):
         ge=1_000_000,
         description="Maximum file size for LIEF parsing (bytes)",
     )
+    binwalk_max_extracted_bytes: int = Field(
+        default=500_000_000,
+        ge=1_000_000,
+        alias="BINWALK_MAX_EXTRACTED_BYTES",
+        description="Maximum total bytes produced by one Binwalk extraction",
+    )
+    binwalk_max_extracted_files: int = Field(
+        default=10_000,
+        ge=1,
+        le=100_000,
+        alias="BINWALK_MAX_EXTRACTED_FILES",
+        description="Maximum file entries produced by one Binwalk extraction",
+    )
 
     # Transport configuration
     host: str = Field(
@@ -543,6 +556,14 @@ class Config:
         return self._settings.max_output_size
 
     @property
+    def binwalk_max_extracted_bytes(self) -> int:
+        return self._settings.binwalk_max_extracted_bytes
+
+    @property
+    def binwalk_max_extracted_files(self) -> int:
+        return self._settings.binwalk_max_extracted_files
+
+    @property
     def host(self) -> str:
         return self._settings.host
 
@@ -589,6 +610,10 @@ class Config:
     @property
     def max_emulation_instructions(self) -> int:
         return self._settings.max_emulation_instructions
+
+    @property
+    def memory_db_path(self) -> Path:
+        return self._settings.memory_db_path
 
     @property
     def redis_url(self) -> str:

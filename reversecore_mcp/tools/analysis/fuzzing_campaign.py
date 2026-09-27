@@ -11,10 +11,12 @@ and crash analysis (triage_crash) — previously these had to be done manually.
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
+import math
 import os
+import re
 import shutil
+import subprocess  # nosec B404
 import tempfile
 import time
 from pathlib import Path
@@ -25,6 +27,8 @@ from fastmcp import Context
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
+from reversecore_mcp.core.exceptions import ExecutionTimeoutError, ToolNotFoundError
+from reversecore_mcp.core.execution import execute_subprocess_async, prepare_sandbox_access
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.result import ToolResult, failure, success
@@ -57,11 +61,11 @@ def _asan_available() -> bool:
 
 
 def _validate_afl_extra_args(extra_args: list[str]) -> None:
-    """Reject AFL options that can redirect tool-managed filesystem paths."""
-    forbidden = {"-i", "--input", "-o", "--output", "-f", "--file", "--"}
+    """Reject options that override managed paths or resource limits."""
+    forbidden = {"-i", "--input", "-o", "--output", "-f", "--file", "--", "-m"}
     for arg in extra_args:
         option = arg.split("=", 1)[0]
-        if option in forbidden:
+        if option in forbidden or arg.startswith("-m"):
             raise ValueError(f"AFL option '{option}' is managed by Reversecore_MCP")
 
 
@@ -128,74 +132,66 @@ async def _run_afl(
     timeout_secs: int,
     extra_args: list[str],
 ) -> tuple[int, str]:
-    """Run afl-fuzz as an async subprocess.
+    """Run afl-fuzz through the shared bounded and sandbox-aware executor.
 
     Args:
         binary_path: Path to the target binary.
         seed_dir: Directory containing initial seed corpus.
         output_dir: AFL++ output directory.
         timeout_secs: How long to run AFL++ in seconds.
-        extra_args: Additional AFL++ CLI arguments (e.g. ["-m", "none"]).
+        extra_args: Additional AFL++ CLI arguments.
 
     Returns:
         Tuple of (return_code, stderr_output).
     """
+    config = get_config()
+    memory_limit_mb: int | None = None
+    if config.sandbox_enabled:
+        match = re.fullmatch(r"([1-9][0-9]*)([kKmMgG]?)", config.sandbox_memory_limit.strip())
+        if not match:
+            return -1, "Invalid sandbox memory limit; use a value such as 512m or 2g"
+        amount = int(match.group(1))
+        unit = match.group(2).lower()
+        multiplier = {"": 1, "k": 1_000, "m": 1_000_000, "g": 1_000_000_000}[unit]
+        memory_limit_mb = max(1, math.ceil(amount * multiplier / 1_000_000))
+
+    cmd = [
+        "afl-fuzz",
+        "-i",
+        str(seed_dir),
+        "-o",
+        str(output_dir),
+        "-t",
+        "5000",  # Per-run timeout: 5s
+        *extra_args,
+    ]
+    if memory_limit_mb is not None:
+        # Keep AFL's per-target memory limit aligned with the sandbox cgroup;
+        # user-provided extra_args cannot replace this managed option.
+        cmd.extend(["-m", str(memory_limit_mb)])
+    cmd.extend(["--"])
     if binary_path.name.endswith(".py"):
-        cmd = [
-            "afl-fuzz",
-            "-i",
-            str(seed_dir),
-            "-o",
-            str(output_dir),
-            "-m",
-            "none",  # No memory limit
-            "-t",
-            "5000",  # Per-run timeout: 5s
-            *extra_args,
-            "--",
-            "python3",
-            str(binary_path),
-            "@@",  # AFL++ file input placeholder
-        ]
+        cmd.extend(["python3", str(binary_path), "@@"])
     else:
-        cmd = [
-            "afl-fuzz",
-            "-i",
-            str(seed_dir),
-            "-o",
-            str(output_dir),
-            "-m",
-            "none",  # No memory limit
-            "-t",
-            "5000",  # Per-run timeout: 5s
-            *extra_args,
-            "--",
-            str(binary_path),
-            "@@",  # AFL++ file input placeholder
-        ]
+        cmd.extend([str(binary_path), "@@"])
 
     logger.info("Starting AFL++ campaign: %s", " ".join(cmd))
 
     try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env={**os.environ, "AFL_NO_UI": "1"},
+        output, _ = await execute_subprocess_async(
+            cmd,
+            max_output_size=2_000_000,
+            timeout=timeout_secs,
+            capture_stderr=True,
+            kill_process_group=True,
         )
-
-        try:
-            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout_secs)
-            return proc.returncode or 0, (stderr or b"").decode(errors="replace")
-        except asyncio.TimeoutError:
-            try:
-                proc.kill()
-            except ProcessLookupError:
-                pass
-            return 0, f"AFL++ ran for {timeout_secs}s then terminated"
-
-    except FileNotFoundError:
+        return 0, output
+    except ExecutionTimeoutError:
+        return 0, f"AFL++ ran for {timeout_secs}s then terminated"
+    except ToolNotFoundError:
         return -1, "afl-fuzz not found in PATH"
+    except subprocess.CalledProcessError as exc:
+        return exc.returncode, str(exc.output or exc.stderr or "")
     except Exception as exc:
         return -1, str(exc)
 
@@ -415,7 +411,19 @@ async def run_fuzzing_campaign(
         )
         await ctx.report_progress(5, 100)
 
-    with tempfile.TemporaryDirectory(prefix="rcmcp_afl_") as tmp_root:
+    workspace = get_config().workspace.resolve()
+    cache_dir = workspace / ".cache"
+    if cache_dir.is_symlink():
+        return failure("INVALID_WORKSPACE", "Workspace cache directory must not be a symbolic link")
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        cache_dir.resolve().relative_to(workspace)
+    except ValueError:
+        return failure(
+            "INVALID_WORKSPACE", "Workspace cache directory resolves outside the workspace"
+        )
+
+    with tempfile.TemporaryDirectory(prefix="rcmcp_afl_", dir=cache_dir) as tmp_root:
         tmp_path = Path(tmp_root)
         seed_dir = tmp_path / "seeds"
         output_dir = tmp_path / "output"
@@ -436,6 +444,12 @@ async def run_fuzzing_campaign(
             (seed_dir / "empty").write_bytes(b"")
             (seed_dir / "one_byte").write_bytes(b"A")
             (seed_dir / "pattern").write_bytes(b"A" * 64)
+
+        prepare_sandbox_access(tmp_path)
+        prepare_sandbox_access(seed_dir)
+        prepare_sandbox_access(output_dir)
+        for seed_file in seed_dir.iterdir():
+            prepare_sandbox_access(seed_file)
 
         if ctx:
             await ctx.info(f"📁 Seed corpus ready ({len(list(seed_dir.iterdir()))} files)")

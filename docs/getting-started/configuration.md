@@ -15,6 +15,8 @@ Reversecore MCP is configured using environment variables. When the server boots
 | `REVERSECORE_STRICT_PATHS` | `false` | If enabled (`true`), the server will raise validation errors and refuse to startup if the workspace directory does not exist. |
 | `FILE_RETENTION_MINUTES` | `1440` (24 hours) | The duration in minutes after which temporary uploads and session files will be automatically reaped. |
 | `MAX_UPLOAD_SIZE` | `100000000` (100MB) | Maximum file size in bytes allowed for the `/upload` endpoint (HTTP mode). |
+| `BINWALK_MAX_EXTRACTED_BYTES` | `500000000` (500MB) | Maximum total extracted bytes from one Binwalk run. |
+| `BINWALK_MAX_EXTRACTED_FILES` | `10000` | Maximum number of extracted filesystem entries from one Binwalk run. |
 
 ### 📝 Server & Transport
 
@@ -23,7 +25,7 @@ Reversecore MCP is configured using environment variables. When the server boots
 | `MCP_TRANSPORT` | `stdio` | Transport protocol to use: `stdio` (standard input/output, for Cursor/Claude Desktop) or `http` (SSE-based HTTP server). |
 | `MCP_HOST` | `0.0.0.0` | Bind IP interface for the HTTP server. |
 | `MCP_PORT` | `8000` | Port on which the HTTP server listens. |
-| `MCP_API_KEY` | *(unset)* | An API key used to protect HTTP endpoints. If set, clients must include the header `X-API-Key: <key>` or query param `api_key=<key>`. |
+| `MCP_API_KEY` | *(unset)* | An API key used to protect HTTP endpoints. If set, clients must include `X-API-Key: <key>` or `Authorization: Bearer <key>`. |
 | `REVERSECORE_RATE_LIMIT` | `60` | Maximum requests allowed per minute per client in HTTP transport mode. |
 
 ### 🔍 Logging & Error Handling

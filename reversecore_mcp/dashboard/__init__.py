@@ -319,11 +319,17 @@ async def dashboard_report_download(report_id: str, format: str = "pdf"):
     """Download a report in pdf, html, json, or markdown formats."""
     from reversecore_mcp.tools.report.converter import convert_report
     from reversecore_mcp.tools.report.report_mcp_tools import get_report_tools
+    from reversecore_mcp.tools.report.report_tools import resolve_report_path
 
     report_tools = get_report_tools()
-    report_path = report_tools.output_dir / f"{report_id}.md"
+    report_path = resolve_report_path(report_tools.output_dir, report_id)
+    if report_path is None:
+        from fastapi import HTTPException
 
-    if not report_path.exists():
+        raise HTTPException(status_code=404, detail=f"Report {report_id} not found")
+    try:
+        report_path.resolve(strict=True).relative_to(report_tools.output_dir.resolve())
+    except (OSError, RuntimeError, ValueError):
         from fastapi import HTTPException
 
         raise HTTPException(status_code=404, detail=f"Report {report_id} not found")
@@ -480,24 +486,27 @@ async def dashboard_report_delete(
         )
 
     from reversecore_mcp.tools.report.report_mcp_tools import get_report_tools
+    from reversecore_mcp.tools.report.report_tools import resolve_report_path
 
     report_tools = get_report_tools()
-    report_path = report_tools.output_dir / f"{report_id}.md"
-
-    if report_path.exists():
-        try:
-            report_path.unlink()
-        except Exception as e:
-            return templates.TemplateResponse(
-                request,
-                "error.html",
-                {"error": f"Failed to delete report: {str(e)}"},
-            )
-    else:
+    report_path = resolve_report_path(report_tools.output_dir, report_id)
+    if report_path is None:
         return templates.TemplateResponse(
             request,
             "error.html",
             {"error": f"Report {report_id} does not exist."},
+        )
+
+    try:
+        report_path.resolve(strict=True).relative_to(report_tools.output_dir.resolve())
+        if report_path.is_symlink():
+            raise ValueError("Report path must not be a symbolic link")
+        report_path.unlink()
+    except Exception as e:
+        return templates.TemplateResponse(
+            request,
+            "error.html",
+            {"error": f"Failed to delete report: {str(e)}"},
         )
 
     return RedirectResponse(url="/dashboard/reports", status_code=303)

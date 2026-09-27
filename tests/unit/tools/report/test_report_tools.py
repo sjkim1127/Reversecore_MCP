@@ -329,7 +329,8 @@ class TestReportGeneration:
         outside.write_text("sensitive")
         result = await rt.get_report(report_id)
         assert result["success"] is False
-        assert result["error"] == "Invalid report ID"
+        assert result["error"] == "Invalid report ID or report not found"
+        assert "sensitive" not in str(result)
 
     @pytest.mark.asyncio
     async def test_list_reports(self, rt):

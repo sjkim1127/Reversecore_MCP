@@ -11,12 +11,14 @@ This module provides functions to execute subprocess commands safely with:
 import asyncio
 import os
 import shutil
+import signal
 
 # Subprocess module is required for execution; security is enforced via SandboxExecutor and limits.
 import subprocess  # nosec B404
 import sys
 import threading
 from collections.abc import Coroutine
+from pathlib import Path
 from typing import Any
 
 from reversecore_mcp.core.exceptions import (
@@ -106,10 +108,10 @@ class SandboxExecutor:
 
         if active_mode == "host":
             if not shutil.which("docker"):
-                logger.warning(
-                    "Sandbox enabled in 'host' mode, but 'docker' command is not available in PATH. Running locally."
+                raise RuntimeError(
+                    "Sandbox is enabled in host mode, but Docker is unavailable; "
+                    "refusing to run the command without isolation"
                 )
-                return cmd
 
             # Build Docker command
             docker_cmd = [
@@ -180,12 +182,50 @@ class SandboxExecutor:
         return cmd
 
 
+def prepare_sandbox_access(path: Path) -> None:
+    """Make an internal scratch path accessible to the configured container-mode user."""
+    from reversecore_mcp.core.config import get_config
+
+    config = get_config()
+    if not config.sandbox_enabled or config.sandbox_mode.lower() == "disabled":
+        return
+
+    mode = config.sandbox_mode.lower()
+    active_mode = "container" if mode == "auto" and is_in_container() else mode
+    if active_mode != "container" or not hasattr(os, "geteuid") or os.geteuid() != 0:
+        return
+
+    cache_dir = config.workspace / ".cache"
+    if cache_dir.is_symlink():
+        raise RuntimeError("Workspace cache directory must not be a symbolic link")
+    cache_root = cache_dir.resolve()
+    if path.is_symlink():
+        raise RuntimeError("Sandbox scratch paths must not be symbolic links")
+    try:
+        path.resolve(strict=True).relative_to(cache_root)
+    except (OSError, ValueError) as exc:
+        raise RuntimeError("Sandbox scratch paths must remain inside workspace/.cache") from exc
+
+    try:
+        import pwd
+
+        sandbox_user = pwd.getpwnam(config.sandbox_user)
+    except (ImportError, KeyError) as exc:
+        raise RuntimeError(
+            f"Cannot resolve sandbox user {config.sandbox_user!r} for scratch access"
+        ) from exc
+
+    os.chown(path, sandbox_user.pw_uid, sandbox_user.pw_gid)
+
+
 async def execute_subprocess_async(
     cmd: list[str],
     max_output_size: int = 10_000_000,  # 10 MB default
     timeout: int = 300,  # 5 minutes default
     encoding: str = "utf-8",
     errors: str = "replace",
+    capture_stderr: bool = False,
+    kill_process_group: bool = False,
 ) -> tuple[str, int]:
     """
     Execute a subprocess command asynchronously with streaming output and size limits.
@@ -200,6 +240,9 @@ async def execute_subprocess_async(
         timeout: Maximum execution time in seconds (default: 300)
         encoding: Text encoding for output (default: "utf-8")
         errors: Error handling for encoding (default: "replace")
+        capture_stderr: Include stderr in the bounded returned output.
+        kill_process_group: Start a separate POSIX process group and terminate
+            it on timeout or cancellation.
 
     Returns:
         Tuple of (output_text, bytes_read)
@@ -256,6 +299,7 @@ async def execute_subprocess_async(
             *wrapped_cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            start_new_session=kill_process_group and os.name == "posix",
             **extra_kwargs,
         )
 
@@ -276,6 +320,17 @@ async def execute_subprocess_async(
     output_chunks = []
     stderr_chunks = []
     bytes_read = 0
+    stderr_bytes_read = 0
+
+    def kill_process_tree() -> None:
+        """Terminate the launched process, including same-group children when requested."""
+        try:
+            if kill_process_group and os.name == "posix":
+                os.killpg(process.pid, signal.SIGKILL)
+            else:
+                process.kill()
+        except ProcessLookupError:
+            pass
 
     try:
         try:
@@ -292,19 +347,21 @@ async def execute_subprocess_async(
                     if not chunk:
                         break
 
-                    # Decode chunk
-                    decoded_chunk = chunk.decode(encoding, errors=errors)
                     chunk_bytes = len(chunk)
                     bytes_read += chunk_bytes
 
                     # Only append if we haven't exceeded the limit
-                    if bytes_read <= max_output_size:
-                        output_chunks.append(decoded_chunk)
+                    if capture_stderr:
+                        remaining = max_output_size - bytes_read + chunk_bytes - stderr_bytes_read
+                        if remaining > 0:
+                            output_chunks.append(chunk[:remaining].decode(encoding, errors=errors))
+                    elif bytes_read <= max_output_size:
+                        output_chunks.append(chunk.decode(encoding, errors=errors))
 
             async def read_stderr():
                 """Read stderr in chunks until EOF or size limit to prevent pipe buffer deadlock."""
                 chunk_size = 8192  # 8KB chunks
-                stderr_bytes = 0
+                nonlocal stderr_bytes_read
 
                 # Assert stderr is not None for mypy
                 assert process.stderr is not None  # nosec B101
@@ -314,15 +371,19 @@ async def execute_subprocess_async(
                         break
 
                     # Decode chunk
-                    decoded_chunk = chunk.decode(encoding, errors=errors)
                     chunk_bytes = len(chunk)
-                    stderr_bytes += chunk_bytes
+                    stderr_bytes_read += chunk_bytes
 
                     # Only append if we haven't exceeded the limit
-                    if stderr_bytes <= max_output_size:
-                        stderr_chunks.append(decoded_chunk)
+                    if capture_stderr:
+                        remaining = max_output_size - bytes_read - stderr_bytes_read + chunk_bytes
+                        if remaining > 0:
+                            stderr_chunks.append(chunk[:remaining].decode(encoding, errors=errors))
+                    elif stderr_bytes_read <= max_output_size:
+                        stderr_chunks.append(chunk.decode(encoding, errors=errors))
 
             # Wait for both streams and process to complete with timeout
+            terminate_process_tree = False
             try:
                 await asyncio.wait_for(
                     asyncio.gather(read_stdout(), read_stderr()),
@@ -331,25 +392,43 @@ async def execute_subprocess_async(
                 await asyncio.wait_for(process.wait(), timeout=1.0)
             except asyncio.TimeoutError:
                 logger.warning(f"Command timed out after {timeout}s: {' '.join(cmd)}")
+                terminate_process_tree = True
                 raise ExecutionTimeoutError(timeout)
+            except asyncio.CancelledError:
+                terminate_process_tree = True
+                raise
             finally:
                 # Critical: Ensure process is terminated to prevent zombies
-                if process.returncode is None:
+                if process.returncode is None or terminate_process_tree:
                     try:
-                        process.kill()
+                        kill_process_tree()
                         # Wait for process to die to reap the zombie
-                        try:
-                            await asyncio.wait_for(process.wait(), timeout=2.0)
-                        except asyncio.TimeoutError:
-                            logger.error(f"Process {process.pid} refused to die after kill")
+                        if process.returncode is None:
+                            try:
+                                await asyncio.wait_for(process.wait(), timeout=2.0)
+                            except asyncio.TimeoutError:
+                                logger.error(f"Process {process.pid} refused to die after kill")
                     except Exception as e:
                         logger.error(f"Failed to kill process {process.pid}: {e}")
 
             # Combine output chunks
             output_text = "".join(output_chunks)
+            stderr_text = "".join(stderr_chunks)
+            if capture_stderr:
+                output_text += stderr_text
+            reported_bytes_read = bytes_read + stderr_bytes_read if capture_stderr else bytes_read
 
             # Check if output was truncated
-            if bytes_read > max_output_size:
+            if capture_stderr:
+                output_bytes = output_text.encode(encoding, errors=errors)
+                if reported_bytes_read > max_output_size or len(output_bytes) > max_output_size:
+                    marker = b"\n[output truncated]"
+                    if max_output_size >= len(marker):
+                        output_bytes = output_bytes[: max_output_size - len(marker)] + marker
+                    else:
+                        output_bytes = output_bytes[:max_output_size]
+                    output_text = output_bytes.decode(encoding, errors="ignore")
+            elif reported_bytes_read > max_output_size:
                 truncation_warning = (
                     f"\n\n[WARNING: Output truncated at {max_output_size} bytes. "
                     f"Total output size: {bytes_read} bytes]"
@@ -361,12 +440,11 @@ async def execute_subprocess_async(
             if returncode is None:
                 returncode = -1
             if returncode != 0:
-                stderr_text = "".join(stderr_chunks)
                 raise subprocess.CalledProcessError(
                     returncode, cmd, output=output_text, stderr=stderr_text
                 )
 
-            return output_text, bytes_read
+            return output_text, reported_bytes_read
         finally:
             from reversecore_mcp.core.resource_manager import resource_manager
 

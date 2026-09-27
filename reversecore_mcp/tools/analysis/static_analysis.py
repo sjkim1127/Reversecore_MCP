@@ -1,17 +1,20 @@
 """Static analysis tools for extracting strings, scanning for versions, and detecting embedded content."""
 
+import asyncio
 import os
 import re
 import shutil
 import tempfile
+from contextlib import suppress
+from pathlib import Path
 from typing import Any
 
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
-from reversecore_mcp.core.execution import execute_subprocess_async
+from reversecore_mcp.core.execution import execute_subprocess_async, prepare_sandbox_access
 from reversecore_mcp.core.metrics import track_metrics
-from reversecore_mcp.core.result import ToolResult, success
+from reversecore_mcp.core.result import ToolResult, failure, success
 from reversecore_mcp.core.security import validate_file_path
 from reversecore_mcp.core.validators import validate_tool_parameters
 
@@ -238,23 +241,26 @@ async def run_binwalk_extract(
         >>> print(result.data["extracted_files"])
         [{"path": "squashfs-root/etc/passwd", "type": "ASCII text", "size": 1234}, ...]
     """
-    from pathlib import Path
-
     validated_path = validate_file_path(file_path)
+    settings = get_config()
 
     # Create output directory if not specified
     is_temp_dir = False
     if output_dir is None:
-        # Create temp directory for extraction inside workspace / tmp
-        workspace_tmp = get_config().workspace / "tmp"
-        workspace_tmp.mkdir(exist_ok=True)
-        temp_dir = tempfile.mkdtemp(prefix="binwalk_extract_", dir=str(workspace_tmp))
+        # The sandbox grants write access only to workspace/.cache.
+        cache_dir = settings.workspace.resolve() / ".cache"
+        if cache_dir.is_symlink():
+            return failure(
+                "INVALID_WORKSPACE", "Workspace cache directory must not be a symbolic link"
+            )
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        cache_dir.resolve().relative_to(settings.workspace.resolve())
+        temp_dir = tempfile.mkdtemp(prefix="binwalk_extract_", dir=str(cache_dir))
+        prepare_sandbox_access(Path(temp_dir))
         extraction_dir = temp_dir
         is_temp_dir = True
     else:
         # Resolve output directory path (may not exist yet)
-        from pathlib import Path
-
         from reversecore_mcp.core.exceptions import ValidationError
 
         output_path = Path(output_dir).expanduser().resolve()
@@ -281,12 +287,65 @@ async def run_binwalk_extract(
     cmd.append(str(validated_path))
 
     try:
-        # Run extraction
-        output, bytes_read = await execute_subprocess_async(
-            cmd,
-            max_output_size=max_output_size,
-            timeout=timeout,
+        # Poll filesystem output while Binwalk is still running. The stdout
+        # capture cap below is separate from these on-disk extraction budgets.
+        extraction_task = asyncio.create_task(
+            execute_subprocess_async(
+                cmd,
+                max_output_size=max_output_size,
+                timeout=timeout,
+                kill_process_group=True,
+            )
         )
+        try:
+            while not extraction_task.done():
+                await asyncio.sleep(0.1)
+                if extraction_task.done():
+                    break
+                total_size, total_files, exceeded = await asyncio.to_thread(
+                    _measure_extraction_tree,
+                    Path(extraction_dir),
+                    settings.binwalk_max_extracted_bytes,
+                    settings.binwalk_max_extracted_files,
+                )
+                if exceeded:
+                    extraction_task.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await extraction_task
+                    if is_temp_dir:
+                        shutil.rmtree(extraction_dir, ignore_errors=True)
+                    return failure(
+                        "RESOURCE_LIMIT",
+                        "Binwalk extraction stopped after exceeding its configured output budget "
+                        f"({settings.binwalk_max_extracted_bytes} bytes, "
+                        f"{settings.binwalk_max_extracted_files} files).",
+                        partial_bytes=total_size,
+                        partial_files=total_files,
+                    )
+
+            output, bytes_read = await extraction_task
+            total_size, total_files, exceeded = await asyncio.to_thread(
+                _measure_extraction_tree,
+                Path(extraction_dir),
+                settings.binwalk_max_extracted_bytes,
+                settings.binwalk_max_extracted_files,
+            )
+            if exceeded:
+                if is_temp_dir:
+                    shutil.rmtree(extraction_dir, ignore_errors=True)
+                return failure(
+                    "RESOURCE_LIMIT",
+                    "Binwalk extraction stopped after exceeding its configured output budget "
+                    f"({settings.binwalk_max_extracted_bytes} bytes, "
+                    f"{settings.binwalk_max_extracted_files} files).",
+                    partial_bytes=total_size,
+                    partial_files=total_files,
+                )
+        finally:
+            if not extraction_task.done():
+                extraction_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await extraction_task
 
         # Gather extraction results
         extracted_files: list[dict[str, Any]] = []
@@ -305,7 +364,9 @@ async def run_binwalk_extract(
                 for filename in files:
                     file_full_path = Path(root) / filename
                     try:
-                        file_size = file_full_path.stat().st_size
+                        if file_full_path.is_symlink():
+                            continue
+                        file_size = file_full_path.stat(follow_symlinks=False).st_size
                         total_size += file_size
 
                         # Try to determine file type
@@ -369,6 +430,10 @@ async def run_binwalk_extract(
             bytes_read=bytes_read,
             description=f"Extracted {len(extracted_files)} files ({_format_size(total_size)}) to {extraction_dir}",
         )
+    except asyncio.CancelledError:
+        if is_temp_dir and os.path.exists(extraction_dir):
+            shutil.rmtree(extraction_dir, ignore_errors=True)
+        raise
     except Exception:
         if is_temp_dir and os.path.exists(extraction_dir):
             shutil.rmtree(extraction_dir, ignore_errors=True)
@@ -383,6 +448,39 @@ def _format_size(size_bytes: int | float) -> str:
             return f"{size:.1f} {unit}"
         size /= 1024
     return f"{size:.1f} TB"
+
+
+def _measure_extraction_tree(root: Path, max_bytes: int, max_files: int) -> tuple[int, int, bool]:
+    """Measure extracted entries without following symlinks or walking past the limits."""
+    total_size = 0
+    total_files = 0
+    pending = [root]
+
+    while pending:
+        directory = pending.pop()
+        try:
+            entries = os.scandir(directory)
+        except OSError:
+            continue
+
+        with entries:
+            for entry in entries:
+                try:
+                    total_files += 1
+                    if total_files > max_files:
+                        return total_size, total_files, True
+                    if entry.is_dir(follow_symlinks=False):
+                        pending.append(Path(entry.path))
+                        continue
+
+                    if entry.is_file(follow_symlinks=False):
+                        total_size += entry.stat(follow_symlinks=False).st_size
+                    if total_files > max_files or total_size > max_bytes:
+                        return total_size, total_files, True
+                except OSError:
+                    continue
+
+    return total_size, total_files, False
 
 
 @log_execution(tool_name="scan_for_versions")
