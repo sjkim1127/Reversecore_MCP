@@ -21,11 +21,11 @@ from reversecore_mcp import server
 # makes this independent of dictionary insertion order and JSON whitespace.
 EXPECTED_TOOL_COUNT = 151
 # Primary canonical schema SHA-256 for fastmcp>=3.4.4 (pinned in requirements.txt)
-EXPECTED_SCHEMA_SHA256 = "cc8d360eec0b2805030a7278eafc9f92c6166564d2f90b191f310d71da51994c"
+EXPECTED_SCHEMA_SHA256 = "a791ecd78966b8706b5edfb67031f80620370bb57c797adef53b432b029a7363"
 # Allowed digests across supported FastMCP runtime versions (3.4.x vs legacy 2.14.x)
 VALID_SCHEMA_SHA256S = {
     EXPECTED_SCHEMA_SHA256,
-    "48f0ef470adb01e71a0d68bd84d1b1e4f332a46aa455b6b5a434f425e51408e7",
+    "774b132d19ccb26404f69cf6a7a91f2c1119d25b2d7a067f2e19f0b65ef7e1a2",
 }
 
 
