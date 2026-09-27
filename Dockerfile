@@ -6,8 +6,8 @@
 # Cold build time (code-only change): ~30–60 seconds
 # Base image rebuild (tool version change): ~12 minutes (rare, done separately)
 #
-# Base image is built by the `build-base-image` GitHub Actions job and stored
-# at ghcr.io/sjkim1127/reversecore-mcp/base:<VERSION_TAG>
+# Base image is built by the `build-base-image` GitHub Actions job. BASE_DIGEST
+# pins the published multi-architecture manifest and is mirrored in workflows.
 #
 # Supported Features:
 # - Basic Analysis: file, strings, binwalk
@@ -21,8 +21,8 @@
 # - FastMCP Advanced: Progress, Logging, Image Content, Dynamic Resources, Sampling
 
 ARG BASE_IMAGE=ghcr.io/sjkim1127/reversecore_mcp/base
-ARG BASE_TAG=latest
-FROM ${BASE_IMAGE}:${BASE_TAG}
+ARG BASE_DIGEST=sha256:cde0f875ebfa5d5033032b12480d5278a812839f06fdee9198b434762c4298c1
+FROM ${BASE_IMAGE}@${BASE_DIGEST}
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -53,8 +53,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends --only-upgrade \
         curl libcurl3-gnutls libcurl4 libgraphite2-3 liblzma5 xz-utils libgd3 libssh2-1 libaom3 libpcre2-8-0 libde265-0 libssl3 openssl \
     && apt-get install -y --no-install-recommends gcc g++ make python3-dev libc-dev \
-    && /opt/venv/bin/pip install --no-cache-dir --upgrade "pip>=26.2.0" "setuptools>=83.0.0" "msgpack>=1.2.1" \
-    && /opt/venv/bin/pip install --no-cache-dir -r requirements-runtime.txt \
+    && /opt/venv/bin/pip install --no-cache-dir --require-hashes -r requirements-runtime.txt \
     && apt-get purge -y --auto-remove gcc g++ make python3-dev libc-dev \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /usr/local/lib/python3.12/ensurepip \

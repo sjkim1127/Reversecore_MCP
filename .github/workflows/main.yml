@@ -28,6 +28,8 @@ env:
   RADARE2_VERSION: "6.0.4"
   # Base image tag is derived from the tool versions so cache busts automatically
   # when any tool version changes.
+  # Update BASE_DIGEST when publishing a new multi-arch base image manifest.
+  BASE_DIGEST: "sha256:cde0f875ebfa5d5033032b12480d5278a812839f06fdee9198b434762c4298c1"
   # NOTE: Ghidra/JDK are NOT installed — we use r2ghidra (embedded Ghidra decompiler in radare2).
   BASE_TAG: "yara4.3.1-r2-6.0.4-r2ghidra-v6"
 
@@ -68,11 +70,7 @@ jobs:
           cache: 'pip'
 
       - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
-          pip install "bandit[toml]" pip-audit
+        run: python -m pip install --require-hashes -r requirements.txt
 
       - name: Run Ruff check (source, tests, scripts)
         run: ruff check reversecore_mcp/ tests/ scripts/
@@ -113,19 +111,7 @@ jobs:
         run: bandit -r reversecore_mcp/ -c pyproject.toml -ll
 
       - name: Run pip-audit (dependency vulnerabilities)
-        run: |
-          pip-audit \
-            --ignore-vuln CVE-2025-69872 \
-            --ignore-vuln CVE-2026-1703 \
-            --ignore-vuln CVE-2026-3219 \
-            --ignore-vuln CVE-2026-6357 \
-            --ignore-vuln CVE-2026-0994 \
-            --ignore-vuln CVE-2024-6345 \
-            --ignore-vuln GHSA-2689-5p89-6j3j \
-            --ignore-vuln GHSA-hm2w-vr2p-hq7w \
-            --ignore-vuln PYSEC-2026-196 \
-            --ignore-vuln PYSEC-2025-49 \
-            --ignore-vuln PYSEC-2026-3544
+        run: pip-audit
 
 
       - name: Create test workspace for security tests
@@ -182,10 +168,7 @@ jobs:
           cache: 'pip'
 
       - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
+        run: python -m pip install --require-hashes -r requirements.txt
 
       - name: Create test workspace
         run: |
@@ -261,7 +244,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install build tools
-        run: pip install build twine
+        run: python -m pip install --require-hashes -r requirements-release.txt
       - name: Build distribution packages (sdist and wheel)
         run: python -m build
       - name: Validate PyPI package metadata with Twine
@@ -269,7 +252,12 @@ jobs:
       - name: Test install wheel
         run: |
           python -m venv test_env
-          test_env/bin/pip install dist/*.whl
+          test_env/bin/python -m pip install --require-hashes -r requirements-core.txt
+          wheel_path="$(find dist -maxdepth 1 -type f -name '*.whl' -print -quit)"
+          wheel_hash="$(sha256sum "$wheel_path" | awk '{print $1}')"
+          printf '%s --hash=sha256:%s\n' "$wheel_path" "$wheel_hash" > /tmp/reversecore-wheel-requirements.txt
+          test_env/bin/python -m pip install --no-deps --no-index --require-hashes \
+            -r /tmp/reversecore-wheel-requirements.txt
       - name: Verify plugin discovery
         run: |
           cd /tmp
@@ -296,10 +284,7 @@ jobs:
           cache: 'pip'
 
       - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
+        run: python -m pip install --require-hashes -r requirements.txt
 
       - name: Create test workspace
         run: |
@@ -372,7 +357,7 @@ jobs:
           echo "🐳 Building app image from base..."
           docker build \
             --build-arg BASE_IMAGE="${{ env.BASE_IMAGE }}" \
-            --build-arg BASE_TAG="${{ env.BASE_TAG }}" \
+            --build-arg BASE_DIGEST="${{ env.BASE_DIGEST }}" \
             -t reversecore-mcp:ci .
           echo "✅ Docker image built: reversecore-mcp:ci"
 
@@ -566,6 +551,7 @@ jobs:
             -v ${{ github.workspace }}/tests/fixtures/rules:/app/rules \
             -v ${{ github.workspace }}/tests:/app/tests \
             -v ${{ github.workspace }}/requirements-dev.txt:/app/requirements-dev.txt \
+            -v ${{ github.workspace }}/requirements-qiling.txt:/app/requirements-qiling.txt \
             -v ${{ github.workspace }}/pytest.ini:/app/pytest.ini \
             -v ${{ github.workspace }}/scripts:/app/scripts \
             reversecore-mcp:ci
@@ -612,8 +598,8 @@ jobs:
 
           # 3. Install dev requirements and optional python packages, then run Integration Tests inside Docker
           echo "📋 Installing python dev dependencies and optional tools inside container..."
-          docker exec -u root mcp-ci-test /opt/venv/bin/pip install -r /app/requirements-dev.txt
-          docker exec -u root mcp-ci-test /opt/venv/bin/pip install angr qiling flare-capa
+          docker exec -u root mcp-ci-test /opt/venv/bin/pip install --require-hashes -r /app/requirements-dev.txt
+          docker exec -u root mcp-ci-test /opt/venv/bin/pip install --require-hashes -r /app/requirements-qiling.txt
 
           echo "🔑 Adjusting file permissions for tests inside container..."
           docker exec -u root mcp-ci-test chown -R appuser:appuser /app /tmp
@@ -835,11 +821,7 @@ jobs:
           cache: 'pip'
 
       - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
-          pip install "bandit[toml]"
+        run: python -m pip install --require-hashes -r requirements.txt
 
       - name: Create isolated test workspace
         run: |
@@ -984,7 +966,7 @@ jobs:
           load: true
           build-args: |
             BASE_IMAGE=${{ env.BASE_IMAGE }}
-            BASE_TAG=${{ env.BASE_TAG }}
+            BASE_DIGEST=${{ env.BASE_DIGEST }}
           tags: reversecore-mcp:smoke
           cache-from: |
             type=registry,ref=${{ env.BASE_IMAGE }}:cache-${{ env.BASE_TAG }}
@@ -1083,7 +1065,7 @@ jobs:
           push: true
           build-args: |
             BASE_IMAGE=${{ env.BASE_IMAGE }}
-            BASE_TAG=${{ env.BASE_TAG }}
+            BASE_DIGEST=${{ env.BASE_DIGEST }}
           tags: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}-${{ matrix.suffix }}
           # Inline cache embeds metadata in the pushed image — readable by
           # cache-from: type=registry on subsequent runs. Compatible with driver: docker.

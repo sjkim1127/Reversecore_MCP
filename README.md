@@ -119,6 +119,10 @@ AI Client (Claude / Cursor / any MCP-compatible client)
 └──────────────────────────────────────────────────────┘
 ```
 
+The server supports Python 3.10–3.12. The optional `angr` symbolic execution
+engine is installed on Python 3.12 and newer, where a secure compatible release
+is available; Python 3.10 and 3.11 installs omit `angr`.
+
 ### Core Infrastructure (37 modules)
 
 The `reversecore_mcp/core/` directory contains the shared infrastructure that all tools build on:

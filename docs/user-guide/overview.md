@@ -24,7 +24,7 @@ The Model Context Protocol (MCP) is an open standard developed by Anthropic that
 
 ### 🧬 Dynamic & Symbolic Analysis
 - **ESIL Code Emulation**: Perform lightweight code emulation with register and memory logging without executing the untrusted binary on the host OS.
-- **angr Symbolic Execution**: Compute concrete inputs to prove path reachability and solve block constraints.
+- **angr Symbolic Execution**: On Python 3.12+, compute concrete inputs to prove path reachability and solve block constraints.
 - **Fuzzing Harness**: Generate AFL++ harnesses wrapped in Qiling emulator environments.
 
 ### 🦠 Threat Hunting & Malware Analysis

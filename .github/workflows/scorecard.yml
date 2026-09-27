@@ -38,11 +38,11 @@ jobs:
         with:
           results_file: results.sarif
           results_format: sarif
-          # (Optional) "write" PAT token. Uncomment the `repo_token` line below if:
-          # - you want to enable the Branch-Protection check on a *forked* repository, or
-          # - you are installing Scorecard on a *private* repository
-          # To create the PAT, follow the steps in https://github.com/ossf/scorecard-action#authentication-with-pat.
-          # repo_token: ${{ secrets.SCORECARD_TOKEN }}
+          # The fine-grained token lets Scorecard read classic branch protection
+          # settings that GITHUB_TOKEN cannot access. Store a token with
+          # Administration: read and Metadata: read permissions as SCORECARD_TOKEN.
+          # See https://github.com/ossf/scorecard-action/blob/main/docs/authentication/fine-grained-auth-token.md.
+          repo_token: ${{ secrets.SCORECARD_TOKEN }}
 
           # Public repositories:
           #   - Publish results to OpenSSF REST API for easy access by consumers

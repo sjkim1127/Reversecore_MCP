@@ -1,0 +1,6 @@
+-c requirements.txt
+
+# Tools used only to build and validate release artifacts.
+build>=1.5.1
+twine>=6.2.0
+check-jsonschema>=0.36.1

@@ -11,14 +11,20 @@ if [ -z "${VIRTUAL_ENV:-}" ] && [ -d ".venv" ]; then
     source .venv/bin/activate
 fi
 
-# Ensure pip-tools is installed
-if ! command -v pip-compile &> /dev/null; then
-    echo "pip-tools is not installed. Installing it now..."
-    pip install pip-tools
+# Lock generation is itself a development dependency. Do not install an
+# unpinned copy of the compiler while generating the dependency locks.
+if ! command -v uv &> /dev/null; then
+    echo "uv is not installed. Install the development dependencies first." >&2
+    exit 1
 fi
 
-echo "Compiling requirements.txt (including full features)..."
-pip-compile --upgrade --no-build-isolation --annotation-style=line --extra=full -o requirements.txt pyproject.toml
+echo "Compiling requirements.txt (all extras, including development tools)..."
+# Resolve from the minimum supported Python version so marker-gated tools such
+# as angr remain excluded from Python 3.10/3.11 installs in the universal lock.
+# uv preserves compatible pins already in requirements.txt and resolves any
+# package whose locked version no longer satisfies pyproject.toml.
+uv pip compile --quiet --all-extras --generate-hashes --universal --python-version 3.10 \
+    --output-file requirements.txt pyproject.toml
 
 # Post-process requirements.txt to replace the local absolute file path with relative editable path
 if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -26,17 +32,29 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     # so `-e .` causes failures since pyproject.toml is not available at pip-install time
     sed -i '' '/^reversecore-mcp.* @ file:\/\/\//d' requirements.txt
     sed -i '' '/^-e \./d' requirements.txt
-    # Remove hiredis C extension — Docker base image has no gcc during app layer build
-    sed -i '' '/^hiredis==/d' requirements.txt
-    sed -i '' 's|redis\[hiredis\]|redis|g' requirements.txt
 else
     sed -i '/^reversecore-mcp.* @ file:\/\/\//d' requirements.txt
     sed -i '/^-e \./d' requirements.txt
-    sed -i '/^hiredis==/d' requirements.txt
-    sed -i 's|redis\[hiredis\]|redis|g' requirements.txt
 fi
 
-echo "Compiling requirements-dev.txt (including dev features)..."
-pip-compile --upgrade --no-build-isolation --annotation-style=line --extra=dev -o requirements-dev.txt pyproject.toml
+echo "Compiling runtime-only lock..."
+uv pip compile --quiet --generate-hashes --universal --python-version 3.10 \
+    --output-file requirements-runtime.txt requirements-runtime.in
 
-echo "Done! requirements.txt and requirements-dev.txt compiled successfully."
+echo "Compiling core package lock..."
+uv pip compile --quiet --generate-hashes --universal --python-version 3.10 \
+    --constraint requirements.txt --output-file requirements-core.txt pyproject.toml
+
+echo "Compiling base-image Python toolchain lock..."
+uv pip compile --quiet --generate-hashes --universal --python-version 3.10 \
+    --output-file requirements-toolchain.txt requirements-toolchain.in
+
+echo "Compiling release-validation tools lock..."
+uv pip compile --quiet --generate-hashes --universal --python-version 3.10 \
+    --output-file requirements-release.txt requirements-release.in
+
+echo "Compiling isolated Qiling integration-test lock..."
+uv pip compile --quiet --generate-hashes --universal --python-version 3.10 \
+    --output-file requirements-qiling.txt requirements-qiling.in
+
+echo "Done! All dependency locks were compiled with artifact hashes."
