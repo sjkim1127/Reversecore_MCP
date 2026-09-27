@@ -21,7 +21,9 @@ while IFS= read -r -d '' fuzzer; do
 
     cat > "$OUT/$fuzzer_basename" <<EOF
 #!/bin/sh
-exec "\$(dirname "\$0")/$package_name" "\$@"
+# LLVMFuzzerTestOneInput for fuzzer detection.
+this_dir="\$(dirname "\$0")"
+exec "\$this_dir/$package_name" "\$@"
 EOF
     chmod +x "$OUT/$fuzzer_basename"
 done < <(find "$project_src/.clusterfuzzlite/fuzzers" -type f -name '*_fuzzer.py' -print0)
