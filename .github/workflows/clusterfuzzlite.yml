@@ -25,13 +25,14 @@ jobs:
         with:
           language: python
           sanitizer: address
+          keep-unaffected-fuzz-targets: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run fuzzer
         uses: google/clusterfuzzlite/actions/run_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          mode: code-change
+          mode: batch
           sanitizer: address
           fuzz-seconds: 60
           output-sarif: true
