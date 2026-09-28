@@ -1,0 +1,3 @@
+# Keep the Qiling test environment aligned with the secure Capstone floor used
+# by the runtime and the Python 3.12+ angr installation.
+capstone==5.0.9

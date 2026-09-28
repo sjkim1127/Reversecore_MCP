@@ -12,7 +12,7 @@ concurrency:
 env:
   IMAGE_NAME: ghcr.io/sjkim1127/reversecore_mcp
   BASE_IMAGE: ghcr.io/sjkim1127/reversecore_mcp/base
-  BASE_TAG: yara4.3.1-r2-6.0.4-r2ghidra-v6
+  BASE_DIGEST: sha256:cde0f875ebfa5d5033032b12480d5278a812839f06fdee9198b434762c4298c1
 
 permissions: read-all
 
@@ -47,7 +47,7 @@ jobs:
         run: python scripts/check_release_metadata.py --tag "${GITHUB_REF_NAME}"
 
       - name: Install build tools
-        run: python -m pip install --upgrade build twine
+        run: python -m pip install --require-hashes -r requirements-release.txt
 
       - name: Build distributions
         run: python -m build
@@ -149,7 +149,7 @@ jobs:
           push: true
           build-args: |
             BASE_IMAGE=${{ env.BASE_IMAGE }}
-            BASE_TAG=${{ env.BASE_TAG }}
+            BASE_DIGEST=${{ env.BASE_DIGEST }}
           tags: |
             ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
             ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.major_minor }}
@@ -205,6 +205,8 @@ jobs:
     name: Create GitHub release
     needs: [publish-pypi, publish-oci, publish-mcp-registry]
     runs-on: ubuntu-latest
+    outputs:
+      hashes: ${{ steps.hash-subjects.outputs.hashes }}
     permissions:
       contents: write
       id-token: write
@@ -239,11 +241,25 @@ jobs:
               base="$(basename "$file")"
               echo "Signing $file..."
               cosign sign-blob --yes "$file" \
-                --bundle "signatures/${base}.bundle" \
+                --bundle "signatures/${base}.sigstore.json" \
                 --output-signature "signatures/${base}.sig" \
                 --output-certificate "signatures/${base}.pem"
             fi
           done
+
+      - name: Hash release artifacts for SLSA provenance
+        id: hash-subjects
+        shell: bash
+        run: |
+          set -euo pipefail
+          subject_file="${RUNNER_TEMP}/release-subjects.txt"
+          : > "$subject_file"
+          for file in dist/* sbom/* signatures/*; do
+            [[ -f "$file" ]] || continue
+            digest="$(sha256sum "$file" | awk '{print $1}')"
+            printf '%s  %s\n' "$digest" "${file##*/}" >> "$subject_file"
+          done
+          printf 'hashes=%s\n' "$(base64 -w0 "$subject_file")" >> "$GITHUB_OUTPUT"
 
       - name: Create release and attach distributions, SBOMs, and Cosign signatures
         env:
@@ -257,3 +273,15 @@ jobs:
           gh release upload "${GITHUB_REF_NAME}" dist/* sbom/* signatures/* \
             --repo "${GITHUB_REPOSITORY}" \
             --clobber
+
+  provenance:
+    name: Publish SLSA provenance for release artifacts
+    needs: github-release
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@f7dd8c54c2067bafc12ca7a55595d5ee9b75204a # v2.1.0
+    with:
+      base64-subjects: "${{ needs.github-release.outputs.hashes }}"
+      upload-assets: true

@@ -24,7 +24,7 @@
 # ============================================================================
 # Stage 0: Shared build toolchain (base for all compiler stages)
 # ============================================================================
-FROM python:3.12-slim-bookworm AS compiler-toolchain
+FROM python:3.12-slim-bookworm@sha256:392307d22300de8b5986851a12d9176dfc0fc073e65bf6523ebd7dcbeb23564e AS compiler-toolchain
 ARG TARGETARCH
 ARG YARA_VERSION=4.3.1
 ARG RADARE2_VERSION=6.0.4
@@ -124,9 +124,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Use pip cache mount for faster rebuilds when requirements.txt changes
 # hadolint ignore=DL3042,DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --upgrade "pip>=26.2.0" "setuptools>=83.0.0" "msgpack>=1.2.1" \
-    && pip install -r requirements.txt \
-    && pip install "volatility3>=2.4.0" "scapy>=2.5.0" \
+    pip install --require-hashes -r requirements.txt \
     && sed -i 's/"1.1.2"/"1.2.1"/' /opt/venv/lib/python3.12/site-packages/pip/_vendor/msgpack/__init__.py 2>/dev/null || true \
     && sed -i 's/(1, 1, 2)/(1, 2, 1)/' /opt/venv/lib/python3.12/site-packages/pip/_vendor/msgpack/__init__.py 2>/dev/null || true \
     && rm -rf /opt/venv/lib/python3.12/site-packages/pip/_vendor/pkg_resources \
@@ -137,11 +135,12 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # ============================================================================
 # Stage 2: Final base image (no build toolchain, runtime-only)
 # ============================================================================
-FROM python:3.12-slim-bookworm AS base
+FROM python:3.12-slim-bookworm@sha256:392307d22300de8b5986851a12d9176dfc0fc073e65bf6523ebd7dcbeb23564e AS base
 ARG TARGETARCH
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 WORKDIR /app
+COPY requirements-toolchain.txt /tmp/requirements-toolchain.txt
 
 # Create workspace and rules directories
 RUN mkdir -p /app/workspace /app/rules
@@ -168,7 +167,7 @@ RUN apt-get update \
     # Disk forensics: Sleuth Kit CLI (fls, mmls, icat, istat, ffind, fsstat)
     sleuthkit \
     && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir --upgrade "pip>=26.2.0" "setuptools>=83.0.0" "msgpack>=1.2.1" \
+    && pip install --no-cache-dir --require-hashes -r /tmp/requirements-toolchain.txt \
     && rm -rf /usr/local/lib/python3.12/ensurepip \
     && rm -rf /usr/local/lib/python3.12/site-packages/pip/_vendor/pkg_resources \
     && rm -rf /usr/local/lib/python3.12/site-packages/pip/_vendor/vendor.txt \

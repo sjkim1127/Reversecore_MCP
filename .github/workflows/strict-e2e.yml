@@ -11,6 +11,7 @@ on:
       - "Dockerfile"
       - "Dockerfile.base"
       - "requirements*.txt"
+      - "requirements*.in"
       - "pyproject.toml"
       - ".github/workflows/strict-e2e.yml"
   pull_request:
@@ -23,6 +24,7 @@ on:
       - "Dockerfile"
       - "Dockerfile.base"
       - "requirements*.txt"
+      - "requirements*.in"
       - "pyproject.toml"
       - ".github/workflows/strict-e2e.yml"
   workflow_dispatch:
@@ -33,6 +35,7 @@ env:
   YARA_VERSION: "4.3.1"
   RADARE2_VERSION: "6.0.4"
   BASE_TAG: "yara4.3.1-r2-6.0.4-r2ghidra-v6"
+  BASE_DIGEST: "sha256:cde0f875ebfa5d5033032b12480d5278a812839f06fdee9198b434762c4298c1"
 
 jobs:
   strict-e2e:
@@ -103,7 +106,7 @@ jobs:
           fi
           docker build \
             --build-arg BASE_IMAGE="$BASE_IMAGE" \
-            --build-arg BASE_TAG="$BASE_TAG" \
+            --build-arg BASE_DIGEST="$BASE_DIGEST" \
             -t reversecore-mcp:strict-e2e .
 
       - name: Start MCP container

@@ -6,6 +6,7 @@
 set -euo pipefail
 
 runtime_manifest="requirements-runtime.txt"
+runtime_source="requirements-runtime.in"
 all_extras_lock="requirements.txt"
 
 echo "🔍 Checking Docker runtime dependency separation..."
@@ -22,7 +23,7 @@ for file in "$runtime_manifest" "$all_extras_lock"; do
     fi
 done
 
-if ! grep -qE '^-c requirements\.txt$' "$runtime_manifest"; then
+if ! grep -qE '^-c requirements\.txt$' "$runtime_source"; then
     echo "❌ Runtime manifest must constrain versions with requirements.txt"
     exit 1
 fi
