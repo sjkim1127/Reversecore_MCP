@@ -90,9 +90,8 @@ async def triage_crash(
         timeout: Maximum execution time in seconds.
 
     Returns:
-        ToolResult containing ``signal``, ``faulting_address``, ``registers``,
-        ``backtrace``, and a structured ``exploitability`` assessment with
-        ``status``, ``description``, and ``tags``.
+        ToolResult containing parsed GDB output, including signal, registers, backtrace,
+        and an exploitability assessment.
     """
     valid_bin = validate_file_path(binary_path)
     valid_crash = validate_file_path(crash_file)
