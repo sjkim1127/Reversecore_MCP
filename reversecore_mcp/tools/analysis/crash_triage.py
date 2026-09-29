@@ -11,7 +11,8 @@ import os
 import re
 import shlex
 import tempfile
-from typing import Any
+from collections.abc import Mapping
+from typing import Any, Literal, TypedDict
 
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.decorators import log_execution
@@ -22,6 +23,53 @@ from reversecore_mcp.core.result import ToolResult, failure, success
 from reversecore_mcp.core.security import validate_file_path
 
 DEFAULT_TIMEOUT = get_config().default_tool_timeout
+
+ExploitabilityStatus = Literal["CONFIRMED", "LIKELY", "POSSIBLE", "UNLIKELY", "UNKNOWN"]
+
+
+class NormalizedCrashTriage(TypedDict):
+    """Stable summary consumed by downstream crash-analysis pipelines."""
+
+    exploitability: ExploitabilityStatus
+    faulting_address: str | None
+
+
+_EXPLOITABILITY_STATUS_MAP: dict[str, ExploitabilityStatus] = {
+    "CRITICAL": "CONFIRMED",
+    "CONFIRMED": "CONFIRMED",
+    "HIGH": "LIKELY",
+    "LIKELY": "LIKELY",
+    "MEDIUM": "POSSIBLE",
+    "POSSIBLE": "POSSIBLE",
+    "LOW": "UNLIKELY",
+    "UNLIKELY": "UNLIKELY",
+    "UNKNOWN": "UNKNOWN",
+}
+
+
+def normalize_crash_triage_result(data: Mapping[str, Any]) -> NormalizedCrashTriage:
+    """Normalize the structured GDB assessment for downstream consumers.
+
+    Args:
+        data: Raw ``triage_crash`` result data.
+
+    Returns:
+        A stable exploitability classification and the crash's faulting address.
+    """
+    assessment = data.get("exploitability")
+    raw_status = assessment.get("status") if isinstance(assessment, Mapping) else assessment
+    status = (
+        _EXPLOITABILITY_STATUS_MAP.get(raw_status.upper(), "UNKNOWN")
+        if isinstance(raw_status, str)
+        else "UNKNOWN"
+    )
+
+    faulting_address = data.get("faulting_address")
+    if not isinstance(faulting_address, str):
+        legacy_address = data.get("crash_address")
+        faulting_address = legacy_address if isinstance(legacy_address, str) else None
+
+    return {"exploitability": status, "faulting_address": faulting_address}
 
 
 @log_execution(tool_name="triage_crash")
@@ -42,8 +90,9 @@ async def triage_crash(
         timeout: Maximum execution time in seconds.
 
     Returns:
-        ToolResult containing parsed GDB output, including signal, registers, backtrace,
-        and an exploitability assessment.
+        ToolResult containing ``signal``, ``faulting_address``, ``registers``,
+        ``backtrace``, and a structured ``exploitability`` assessment with
+        ``status``, ``description``, and ``tags``.
     """
     valid_bin = validate_file_path(binary_path)
     valid_crash = validate_file_path(crash_file)

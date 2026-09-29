@@ -12,6 +12,7 @@ from reversecore_mcp.tools.analysis.fuzzing_campaign import (
     _afl_available,
     _collect_crashes,
     _crash_signature,
+    _triage_crashes,
     _validate_afl_extra_args,
     run_fuzzing_campaign,
 )
@@ -102,6 +103,48 @@ class TestCollectCrashes:
 
         result = _collect_crashes(tmp_path, max_crashes=5)
         assert len(result) == 5
+
+
+class TestTriageCrashes:
+    """Tests for normalizing the real triage_crash result contract."""
+
+    @pytest.mark.asyncio
+    async def test_normalizes_nested_assessment_and_faulting_address(self, tmp_path):
+        from reversecore_mcp.core.result import success
+
+        binary = tmp_path / "target"
+        binary.write_bytes(b"ELF")
+        crash_file = tmp_path / "crash"
+        crash_file.write_bytes(b"AAAA")
+        triage_data = {
+            "crashed": True,
+            "signal": "SIGSEGV",
+            "faulting_address": "0x41414141",
+            "exploitability": {
+                "status": "CRITICAL",
+                "description": "Instruction pointer controlled by payload",
+                "tags": ["pc_control"],
+            },
+            "backtrace": ["#0 target"],
+        }
+
+        with patch(
+            "reversecore_mcp.tools.analysis.crash_triage.triage_crash",
+            return_value=success(triage_data),
+        ):
+            results = await _triage_crashes(
+                binary_path=binary,
+                crash_files=[crash_file],
+                use_stdin=True,
+                triage_timeout=5,
+                ctx=None,
+            )
+
+        assert results[0]["exploitability"] == "CONFIRMED"
+        assert results[0]["exploitability_score"] == 100
+        assert results[0]["is_exploitable"] is True
+        assert results[0]["crash_address"] == "0x41414141"
+        assert results[0]["triage_details"] == triage_data
 
 
 class TestAflAvailable:
