@@ -105,7 +105,8 @@ def generate_c_poc_harness(
     Returns:
         C source code reproducing the crash.
     """
-    byte_array_str = ", ".join(f"0x{b:02x}" for b in payload_bytes[:512])
+    emitted_payload = payload_bytes[:512]
+    byte_array_str = ", ".join(f"0x{b:02x}" for b in emitted_payload)
 
     c_code = f"""/*
  * Standalone C Reproduction Harness for {cwe_id}
@@ -123,7 +124,7 @@ extern int {target_function}(const uint8_t *data, size_t size);
 static const uint8_t g_poc_payload[] = {{
     {byte_array_str}
 }};
-static const size_t g_poc_size = {len(payload_bytes)};
+static const size_t g_poc_size = {len(emitted_payload)};
 
 int main(int argc, char **argv) {{
     printf("[*] Running PoC testcase against {target_function} (Size: %zu bytes)\\n", g_poc_size);

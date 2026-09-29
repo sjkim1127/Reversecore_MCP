@@ -54,6 +54,21 @@ class TestPocMinimizer:
         assert "g_poc_payload" in c_code
         assert "0x41, 0x42, 0x43, 0x44" in c_code
 
+    @pytest.mark.parametrize("payload_size", [512, 513, 1024])
+    def test_generate_c_poc_harness_declares_emitted_payload_size(self, payload_size):
+        c_code = generate_c_poc_harness(
+            target_function="parse_header",
+            payload_bytes=b"A" * payload_size,
+        )
+
+        array_body = c_code.split("g_poc_payload[] = {", 1)[1].split("};", 1)[0]
+        emitted_elements = [element.strip() for element in array_body.split(",") if element.strip()]
+        size_declaration = next(line for line in c_code.splitlines() if "g_poc_size =" in line)
+        declared_size = int(size_declaration.split("=", 1)[1].strip().rstrip(";"))
+
+        assert len(emitted_elements) == min(payload_size, 512)
+        assert declared_size == len(emitted_elements)
+
     @pytest.mark.asyncio
     async def test_test_input_causes_crash_subprocess(self, workspace_file):
         import subprocess
