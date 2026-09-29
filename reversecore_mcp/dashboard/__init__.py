@@ -20,6 +20,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.concurrency import run_in_threadpool
 
 from reversecore_mcp.core.logging_config import get_logger
 
@@ -119,6 +120,34 @@ def _sanitize_for_display(text: Any, max_length: int = 1000) -> str:
     return str(html.escape(s))
 
 
+def _analyze_file_sync(file_path: Path) -> tuple[list[dict[str, Any]], str]:
+    """Open, analyze, and close a binary with Radare2 in a worker thread."""
+    from reversecore_mcp.tools.radare2.r2_session import R2Session
+
+    session = R2Session(str(file_path))
+    try:
+        if not session.open(str(file_path)):
+            raise RuntimeError(session.last_error or "Failed to open file with Radare2")
+
+        session.analyze(level=1)
+
+        functions = []
+        funcs_json = session.cmdj("aflj") or []
+        for func in funcs_json[:50]:
+            functions.append(
+                {
+                    "name": _sanitize_for_display(func.get("name", "unknown"), 100),
+                    "offset": hex(func.get("offset", 0)),
+                    "size": func.get("size", 0),
+                }
+            )
+
+        raw_disasm = session.cmd("pdf @ entry0") or "No disassembly available"
+        return functions, _sanitize_for_display(raw_disasm, 50000)
+    finally:
+        session.close()
+
+
 def get_router() -> APIRouter:
     """Get the dashboard router."""
     return router
@@ -192,34 +221,11 @@ async def dashboard_analysis(request: Request, filename: str):
         "size": validated_path.stat().st_size,
     }
 
-    # Try to get functions list
-    functions = []
-    disasm = ""
-
     try:
-        from reversecore_mcp.tools.radare2.r2_session import R2Session
-
-        session = R2Session(str(validated_path))
-        session.analyze(level=1)
-
-        # Get functions
-        funcs_json = session.cmdj("aflj") or []
-        for func in funcs_json[:50]:  # Limit to 50
-            # SECURITY: Sanitize function names from binary
-            functions.append(
-                {
-                    "name": _sanitize_for_display(func.get("name", "unknown"), 100),
-                    "offset": hex(func.get("offset", 0)),
-                    "size": func.get("size", 0),
-                }
-            )
-
-        # Get entry point disassembly
-        raw_disasm = session.cmd("pdf @ entry0") or "No disassembly available"
-        # SECURITY: Sanitize disassembly output
-        disasm = _sanitize_for_display(raw_disasm, 50000)
+        functions, disasm = await run_in_threadpool(_analyze_file_sync, validated_path)
 
     except Exception as e:
+        functions = []
         disasm = f"Error: {_sanitize_for_display(str(e))}"
 
     return templates.TemplateResponse(
@@ -257,7 +263,7 @@ async def dashboard_iocs(request: Request, filename: str):
     try:
         from reversecore_mcp.tools.malware.ioc_tools import extract_iocs
 
-        result = extract_iocs(str(validated_path))
+        result = await run_in_threadpool(extract_iocs, str(validated_path))
         if result.status == "success" and isinstance(result.data, dict):
             raw_iocs = result.data
             # SECURITY: Sanitize all IOC values extracted from binary
@@ -362,7 +368,9 @@ async def dashboard_report_view(request: Request, report_id: str):
 
     md_content = report_res["content"]
     # Convert markdown to html body (styled in the template)
-    html_content = markdown_to_html(md_content, title=f"Report {report_id}")
+    html_content = await run_in_threadpool(
+        markdown_to_html, md_content, title=f"Report {report_id}"
+    )
 
     return templates.TemplateResponse(
         request,
@@ -395,7 +403,7 @@ async def dashboard_report_download(report_id: str, format: str = "pdf"):
         raise HTTPException(status_code=404, detail=f"Report {report_id} not found")
 
     try:
-        converted_path = convert_report(report_path, format)
+        converted_path = await run_in_threadpool(convert_report, report_path, format)
     except Exception as e:
         from fastapi import HTTPException
 
@@ -471,7 +479,7 @@ async def dashboard_report_create(
 
         # Enhance report by extracting IOCs from binary
         try:
-            ioc_result = extract_iocs(str(validated_path))
+            ioc_result = await run_in_threadpool(extract_iocs, str(validated_path))
             if ioc_result.status == "success" and isinstance(ioc_result.data, dict):
                 raw_iocs = ioc_result.data
 

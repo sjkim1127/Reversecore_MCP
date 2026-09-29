@@ -1,5 +1,8 @@
 """Tests for reversecore_mcp.dashboard."""
 
+import asyncio
+import threading
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -279,9 +282,89 @@ class TestDashboardRoutes:
                 "reversecore_mcp.core.security.validate_file_path",
                 return_value=workspace / "test.exe",
             ):
-                with patch("starlette.templating.Jinja2Templates.TemplateResponse") as mock_tr:
-                    mock_tr.return_value = MagicMock()
-                    request = MagicMock()
-                    result = await dashboard_analysis(request, "test.exe")
+                with patch(
+                    "reversecore_mcp.dashboard._analyze_file_sync", return_value=([], "test")
+                ):
+                    with patch("starlette.templating.Jinja2Templates.TemplateResponse") as mock_tr:
+                        mock_tr.return_value = MagicMock()
+                        request = MagicMock()
+                        result = await dashboard_analysis(request, "test.exe")
 
         assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_dashboard_analysis_does_not_block_the_event_loop(self, tmp_path):
+        from reversecore_mcp.dashboard import dashboard_analysis
+
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        binary_path = workspace / "test.exe"
+        binary_path.write_bytes(b"MZ")
+        worker_started = threading.Event()
+        worker_threads = []
+
+        def slow_analysis(path):
+            worker_threads.append(threading.get_ident())
+            worker_started.set()
+            time.sleep(0.2)
+            return [], "analysis complete"
+
+        with patch("reversecore_mcp.core.config.get_config") as mock_get_config:
+            mock_config = MagicMock()
+            mock_config.workspace = workspace
+            mock_get_config.return_value = mock_config
+            with patch(
+                "reversecore_mcp.core.security.validate_file_path", return_value=binary_path
+            ):
+                with patch(
+                    "reversecore_mcp.dashboard._analyze_file_sync", side_effect=slow_analysis
+                ):
+                    with patch("starlette.templating.Jinja2Templates.TemplateResponse") as mock_tr:
+                        mock_tr.return_value = MagicMock()
+                        request = MagicMock()
+                        loop_thread = threading.get_ident()
+                        loop = asyncio.get_running_loop()
+                        responsive_tick = asyncio.Event()
+                        loop.call_later(0.01, responsive_tick.set)
+
+                        task = asyncio.create_task(dashboard_analysis(request, "test.exe"))
+                        await asyncio.wait_for(responsive_tick.wait(), timeout=0.1)
+                        assert not task.done()
+                        assert await asyncio.to_thread(worker_started.wait, 0.1)
+                        await task
+
+        assert worker_threads
+        assert worker_threads[0] != loop_thread
+
+    @pytest.mark.asyncio
+    async def test_dashboard_iocs_offloads_extraction(self, tmp_path):
+        from reversecore_mcp.dashboard import dashboard_iocs
+
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        binary_path = workspace / "test.exe"
+        binary_path.write_bytes(b"MZ")
+
+        with patch("reversecore_mcp.core.config.get_config") as mock_get_config:
+            mock_config = MagicMock()
+            mock_config.workspace = workspace
+            mock_get_config.return_value = mock_config
+            with patch(
+                "reversecore_mcp.core.security.validate_file_path", return_value=binary_path
+            ):
+                with patch("reversecore_mcp.tools.malware.ioc_tools.extract_iocs") as mock_extract:
+                    mock_extract.return_value = MagicMock(
+                        status="success",
+                        data={"urls": ["https://example.test"], "ips": ["192.0.2.1"]},
+                    )
+                    with patch("starlette.templating.Jinja2Templates.TemplateResponse") as mock_tr:
+                        mock_tr.return_value = MagicMock()
+                        request = MagicMock()
+
+                        result = await dashboard_iocs(request, "test.exe")
+
+        assert result is not None
+        mock_extract.assert_called_once_with(str(binary_path))
+        context = mock_tr.call_args.args[2]
+        assert context["iocs"]["urls"] == ["https://example.test"]
+        assert context["iocs"]["ips"] == ["192.0.2.1"]

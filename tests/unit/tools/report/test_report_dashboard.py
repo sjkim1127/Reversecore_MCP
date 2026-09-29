@@ -352,10 +352,9 @@ class TestReportDashboardRoutes:
                         mock_tools.end_session = AsyncMock()
                         mock_get_tools.return_value = mock_tools
 
-                        # Mock IOC extraction using AsyncMock since extract_iocs is async
+                        # Mock the synchronous extraction function that runs in a worker.
                         with patch(
-                            "reversecore_mcp.tools.malware.ioc_tools.extract_iocs",
-                            new_callable=AsyncMock,
+                            "reversecore_mcp.tools.malware.ioc_tools.extract_iocs"
                         ) as mock_extract:
                             mock_ioc_res = MagicMock()
                             mock_ioc_res.status = "success"
