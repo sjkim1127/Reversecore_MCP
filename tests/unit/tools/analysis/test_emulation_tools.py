@@ -86,7 +86,8 @@ class TestEmulateBinary:
             result = await emulate_binary("sample.elf")
             assert result.status == "error"
             assert result.error_code == "EMULATION_ERROR"
-            assert "Qiling framework is not installed" in result.message
+            assert "Qiling is optional" in result.message
+            assert "docs/EMULATION.md" in result.message
 
     @pytest.mark.asyncio
     @patch("reversecore_mcp.tools.analysis.emulation_tools.validate_file_path")

@@ -1,7 +1,7 @@
 """Real MCP Client End-to-End (E2E) Integration Tests.
 
 Exercises full toolchains over real MCP stdio subprocess sessions:
-- Scenario 1: ELF Happy Path (static profile)
+- Scenario 1: Native Binary Happy Path (static profile)
 - Scenario 5: Crash Complex Path (vuln-research profile)
 
 Validates profile exposure, schema serialization, cross-tool chaining,
@@ -10,6 +10,7 @@ semantic contracts, and error propagation.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -27,6 +28,30 @@ from mcp.client.stdio import StdioServerParameters, stdio_client
 
 ROOT = Path(__file__).parent.parent.parent.resolve()
 FIXTURES_DIR = ROOT / "tests" / "fixtures"
+
+
+def _synthetic_malware_payload() -> bytes:
+    """Build the inert PE-like payload used to test indicator extraction."""
+    payload = bytearray(0x80)
+    payload[:2] = b"MZ"
+    payload[0x3C:0x40] = (0x80).to_bytes(4, "little")
+    payload.extend(b"PE\0\0" + bytes(20))
+
+    indicators = (
+        "REVERSECORE_TEST_PAYLOAD_SIGNATURE_2026",
+        "http://update-check-service.org/check.php",
+        "198.51.100.42",
+        "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
+        "CVE-2024-38077",
+        r"HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Run",
+        "powershell.exe -ExecutionPolicy Bypass -Command IEX (New-Object Net.WebClient)",
+        "VMwareVMware",
+        "vboxguest.sys",
+        "CheckRemoteDebuggerPresent",
+    )
+    for indicator in indicators:
+        payload.extend(indicator.encode("ascii") + b"\0")
+    return bytes(payload)
 
 
 @asynccontextmanager
@@ -104,8 +129,8 @@ async def call_tool_json(
 class TestMcpClientE2EWorkflows:
     """E2E test suite running analysis pipelines through actual MCP stdio sessions."""
 
-    async def test_scenario_1_elf_happy_path(self):
-        """Scenario 1: ELF Happy Path in static profile.
+    async def test_scenario_1_native_binary_happy_path(self):
+        """Scenario 1: Native binary happy path in the static profile.
 
         Verifies:
         1. static profile tool exposure (97 tools, no malware-only tools).
@@ -122,7 +147,7 @@ class TestMcpClientE2EWorkflows:
             ws_path = Path(temp_ws).resolve()
 
             # Copy deterministic test ELF into workspace
-            fixture_elf = FIXTURES_DIR / "binaries" / "hello_elf_x64"
+            fixture_elf = FIXTURES_DIR / "workspace" / "binaries" / "hello_x64"
             assert fixture_elf.exists(), f"Missing fixture ELF at {fixture_elf}"
             target_elf = ws_path / "hello_elf_x64"
             shutil.copy2(fixture_elf, target_elf)
@@ -159,8 +184,11 @@ class TestMcpClientE2EWorkflows:
                 diagnostics["step1_run_file_seconds"] = d_time
                 assert ident_data.get("status") == "success"
                 file_info = ident_data.get("data", {}).get("file_type", "")
-                assert "ELF" in file_info, f"Binary not recognized as ELF: {file_info}"
-                assert "x86-64" in file_info or "x86_64" in file_info
+                if "ELF" in file_info:
+                    assert "x86-64" in file_info or "x86_64" in file_info
+                else:
+                    assert "Mach-O" in file_info, f"Unrecognized native binary: {file_info}"
+                    assert any(arch in file_info for arch in ("arm64", "x86_64", "x86-64"))
 
                 # -------------------------------------------------------------
                 # 3. Step 2: Function Enumeration via Radare2
@@ -228,10 +256,8 @@ class TestMcpClientE2EWorkflows:
                 diagnostics["step4_create_report_seconds"] = d_time
                 assert report_res.get("success") is True, f"Report generation failed: {report_res}"
                 report_text = report_res.get("report_content", "")
-                assert (
-                    "6ad7a95ce4f1c9d0528372c1a8e1aaa9f4b5e38da84073cce0bf35a175d6f0d2"
-                    in report_text
-                )
+                expected_sha256 = hashlib.sha256(target_elf.read_bytes()).hexdigest()
+                assert expected_sha256 in report_text
                 assert "hello_elf_x64" in report_text
 
                 # -------------------------------------------------------------
@@ -269,10 +295,8 @@ class TestMcpClientE2EWorkflows:
             ws_path = Path(temp_ws).resolve()
 
             # Copy deterministic test malware payload into workspace
-            fixture_payload = FIXTURES_DIR / "binaries" / "sample_malware.bin"
-            assert fixture_payload.exists(), f"Missing fixture payload at {fixture_payload}"
             target_bin = ws_path / "sample_malware.exe"
-            shutil.copy2(fixture_payload, target_bin)
+            target_bin.write_bytes(_synthetic_malware_payload())
             target_bin.chmod(0o755)
 
             # Write custom YARA rule to test rule matching
@@ -388,7 +412,7 @@ class TestMcpClientE2EWorkflows:
             ws_path = Path(temp_ws).resolve()
 
             # Create original and modified binary variants
-            fixture_elf = FIXTURES_DIR / "binaries" / "hello_elf_x64"
+            fixture_elf = FIXTURES_DIR / "workspace" / "binaries" / "hello_x64"
             assert fixture_elf.exists(), f"Missing fixture ELF at {fixture_elf}"
             bin_v1 = ws_path / "app_v1"
             bin_v2 = ws_path / "app_v2"

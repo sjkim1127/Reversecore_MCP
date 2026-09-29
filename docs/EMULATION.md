@@ -10,6 +10,7 @@ For that reason:
 
 - the normal and `full` Reversecore installations use Pillow 12.3 or newer;
 - Qiling and `python-fx` are absent from the server lock file and release artifacts;
+- CI does not install the incompatible Qiling dependency tree or run real Qiling emulation. Unit tests cover the missing-runtime error and mocked wrapper behavior;
 - harness generation remains supported;
 - harness execution must happen in a separate disposable sandbox.
 

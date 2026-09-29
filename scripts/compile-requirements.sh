@@ -53,8 +53,4 @@ echo "Compiling release-validation tools lock..."
 uv pip compile --quiet --generate-hashes --universal --python-version 3.10 \
     --output-file requirements-release.txt requirements-release.in
 
-echo "Compiling isolated Qiling integration-test lock..."
-uv pip compile --quiet --generate-hashes --universal --python-version 3.10 \
-    --output-file requirements-qiling.txt requirements-qiling.in
-
 echo "Done! All dependency locks were compiled with artifact hashes."

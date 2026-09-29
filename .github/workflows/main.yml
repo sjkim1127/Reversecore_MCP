@@ -551,7 +551,6 @@ jobs:
             -v ${{ github.workspace }}/tests/fixtures/rules:/app/rules \
             -v ${{ github.workspace }}/tests:/app/tests \
             -v ${{ github.workspace }}/requirements-dev.txt:/app/requirements-dev.txt \
-            -v ${{ github.workspace }}/requirements-qiling.txt:/app/requirements-qiling.txt \
             -v ${{ github.workspace }}/pytest.ini:/app/pytest.ini \
             -v ${{ github.workspace }}/scripts:/app/scripts \
             reversecore-mcp:ci
@@ -599,7 +598,6 @@ jobs:
           # 3. Install dev requirements and optional python packages, then run Integration Tests inside Docker
           echo "📋 Installing python dev dependencies and optional tools inside container..."
           docker exec -u root mcp-ci-test /opt/venv/bin/pip install --require-hashes -r /app/requirements-dev.txt
-          docker exec -u root mcp-ci-test /opt/venv/bin/pip install --require-hashes -r /app/requirements-qiling.txt
 
           echo "🔑 Adjusting file permissions for tests inside container..."
           docker exec -u root mcp-ci-test chown -R appuser:appuser /app /tmp
