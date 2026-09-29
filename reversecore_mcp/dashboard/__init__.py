@@ -11,10 +11,12 @@ SECURITY NOTES:
 
 import html
 import secrets
+import time
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any, cast
 
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -34,21 +36,73 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 # Setup templates with auto-escaping enabled (default)
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
-# CSRF token storage (in production, use Redis or database)
-_csrf_tokens: dict[str, str] = {}
+# CSRF token storage (in production, use Redis or database).
+_CSRF_TOKEN_TTL_SECONDS = 60 * 60
+_CSRF_TOKEN_MAX_SESSIONS = 10_000
+_LEGACY_SESSION_ID = "default_session"
+_csrf_tokens: OrderedDict[str, tuple[str, float]] = OrderedDict()
+
+
+def _prune_csrf_tokens(now: float | None = None) -> None:
+    """Remove expired tokens from the oldest end of the ordered token store."""
+    current_time = time.monotonic() if now is None else now
+    while _csrf_tokens:
+        session_id, (_, expires_at) = next(iter(_csrf_tokens.items()))
+        if expires_at > current_time:
+            break
+        _csrf_tokens.popitem(last=False)
+
+
+def _resolve_csrf_session_id(request: Request) -> str:
+    """Return an active server-issued session ID or mint a new one.
+
+    Unknown IDs are not adopted from cookies. This also migrates clients that
+    still carry the legacy shared ``default_session`` cookie.
+    """
+    now = time.monotonic()
+    _prune_csrf_tokens(now)
+
+    session_id = request.cookies.get("session_id")
+    if session_id and session_id != _LEGACY_SESSION_ID and session_id in _csrf_tokens:
+        return session_id
+
+    return secrets.token_urlsafe(32)
 
 
 def _generate_csrf_token(session_id: str) -> str:
     """Generate a CSRF token for a session."""
+    now = time.monotonic()
+    _prune_csrf_tokens(now)
+
+    # Refreshing a session moves it to the newest end so expired sessions can
+    # be pruned in order. Never evict a live session to make room for a new one.
+    existing_token = _csrf_tokens.pop(session_id, None)
+    if existing_token is None and len(_csrf_tokens) >= _CSRF_TOKEN_MAX_SESSIONS:
+        raise HTTPException(
+            status_code=503,
+            detail="Dashboard CSRF session capacity reached; retry after inactive sessions expire.",
+        )
+
     token = secrets.token_urlsafe(32)
-    _csrf_tokens[session_id] = token
+    _csrf_tokens[session_id] = (token, now + _CSRF_TOKEN_TTL_SECONDS)
     return token
 
 
 def _verify_csrf_token(session_id: str, token: str) -> bool:
     """Verify a CSRF token."""
-    expected = _csrf_tokens.get(session_id)
-    return expected is not None and secrets.compare_digest(expected, token)
+    if not session_id or session_id == _LEGACY_SESSION_ID:
+        return False
+
+    entry = _csrf_tokens.get(session_id)
+    if entry is None:
+        return False
+
+    expected, expires_at = entry
+    if time.monotonic() >= expires_at:
+        _csrf_tokens.pop(session_id, None)
+        return False
+
+    return secrets.compare_digest(expected, token)
 
 
 def _sanitize_for_display(text: Any, max_length: int = 1000) -> str:
@@ -253,8 +307,8 @@ async def dashboard_reports(request: Request):
             if f.is_file() and not f.name.startswith(".") and not f.suffix == ".tmp":
                 workspace_files.append(f.name)
 
-    # Use a secure CSRF token for delete/create actions
-    session_id = request.cookies.get("session_id", "default_session")
+    # Use a unique, server-issued session for create/delete CSRF tokens.
+    session_id = _resolve_csrf_session_id(request)
     csrf_token = _generate_csrf_token(session_id)
 
     # Format the reports list with human-readable values
@@ -269,7 +323,7 @@ async def dashboard_reports(request: Request):
             }
         )
 
-    # Prepare response, set session cookie if not exists
+    # Refresh the cookie alongside the token expiry, including existing sessions.
     response = templates.TemplateResponse(
         request,
         "reports.html",
@@ -279,8 +333,14 @@ async def dashboard_reports(request: Request):
             "csrf_token": csrf_token,
         },
     )
-    if "session_id" not in request.cookies:
-        response.set_cookie("session_id", session_id, httponly=True)
+    response.set_cookie(
+        "session_id",
+        session_id,
+        max_age=_CSRF_TOKEN_TTL_SECONDS,
+        httponly=True,
+        secure=request.url.scheme == "https",
+        samesite="lax",
+    )
     return response
 
 
@@ -371,7 +431,7 @@ async def dashboard_report_create(
     csrf_token: str = Form(...),
 ):
     """Create a new report based on an existing file inside the workspace."""
-    session_id = request.cookies.get("session_id", "default_session")
+    session_id = request.cookies.get("session_id", "")
     if not _verify_csrf_token(session_id, csrf_token):
         return templates.TemplateResponse(
             request,
@@ -477,7 +537,7 @@ async def dashboard_report_delete(
     csrf_token: str = Form(...),
 ):
     """Delete a generated report."""
-    session_id = request.cookies.get("session_id", "default_session")
+    session_id = request.cookies.get("session_id", "")
     if not _verify_csrf_token(session_id, csrf_token):
         return templates.TemplateResponse(
             request,
