@@ -424,7 +424,9 @@ nh3==0.3.7 \
     --hash=sha256:f04b7d333b27f13ca439da3cf1c75c2fba34f104969f6ce4ac8e7079699c2f4a \
     --hash=sha256:f266d3f1b3647449923a8e406524632220dd5d8b647078dfe45b885d33d10479 \
     --hash=sha256:fd4a70efb45d5372174f718878eb7a35c12677626a63b2f103b23b833457dcac
-    # via readme-renderer
+    # via
+    #   -c requirements.txt
+    #   readme-renderer
 packaging==26.2 \
     --hash=sha256:5fc45236b9446107ff2415ce77c807cee2862cb6fac22b8a73826d0693b0980e \
     --hash=sha256:ff452ff5a3e828ce110190feff1178bb1f2ea2281fa2075aadb987c2fb221661

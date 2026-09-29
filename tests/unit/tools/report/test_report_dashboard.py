@@ -24,6 +24,41 @@ class TestReportConverter:
         assert "<strong>Report ID:</strong> MAR-TEST" in html
         assert "<h2>Summary</h2>" in html
 
+    def test_markdown_to_html_escapes_raw_html_and_sanitizes_links(self):
+        md = (
+            "# Safe Markdown\n\n"
+            '<h1 id="injected">Injected heading</h1>\n'
+            "<script>alert(1)</script>\n"
+            '<svg onload="alert(2)"><script>alert(3)</script></svg>\n'
+            '<img src=x onerror="alert(4)">\n\n'
+            "**formatted text**\n\n"
+            "[unsafe](javascript:alert(5)) [safe](https://example.com)\n\n"
+            "| Column | Value |\n|---|---|\n| name | sample |\n\n"
+            '```python\nprint("<script>")\n```'
+        )
+
+        html = markdown_to_html(md, title='Report </title><script>alert("title")</script>')
+
+        assert (
+            "<title>Report &lt;/title&gt;&lt;script&gt;alert(&quot;title&quot;)&lt;/script&gt;</title>"
+            in html
+        )
+        assert "<h1>Safe Markdown</h1>" in html
+        assert '&lt;h1 id="injected"&gt;Injected heading&lt;/h1&gt;' in html
+        assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+        assert '&lt;svg onload="alert(2)"&gt;' in html
+        assert '&lt;img src=x onerror="alert(4)"&gt;' in html
+        assert "<strong>formatted text</strong>" in html
+        assert '<a rel="noopener noreferrer">unsafe</a>' in html
+        assert '<a href="https://example.com" rel="noopener noreferrer">safe</a>' in html
+        assert "<table>" in html
+        assert "<th>Column</th>" in html
+        assert '<code class="language-python">print("&lt;script&gt;")' in html
+        assert "<svg " not in html
+        assert "<script>" not in html
+        assert "<img " not in html
+        assert 'href="javascript:' not in html
+
     @patch("reversecore_mcp.tools.report.converter.pisa.CreatePDF")
     def test_html_to_pdf(self, mock_create_pdf, tmp_path):
         # Simulate pisa creating a PDF by writing to the dest file
@@ -113,6 +148,41 @@ class TestReportConverter:
             assert res_json.suffix == ".json"
             assert res_json.exists()
 
+    @patch("reversecore_mcp.tools.report.converter.pisa.CreatePDF")
+    def test_convert_report_sanitizes_html_and_pdf(self, mock_create_pdf, tmp_path):
+        def fake_create(src, dest, **kwargs):
+            assert "<script>" not in src
+            assert "&lt;script&gt;alert(1)&lt;/script&gt;" in src
+            dest.write(b"%PDF-1.4\n...")
+            return MagicMock(err=0)
+
+        mock_create_pdf.side_effect = fake_create
+
+        report_dir = tmp_path / "reports"
+        report_dir.mkdir()
+        report_file = report_dir / "MAR-TEST.md"
+        report_file.write_text(
+            "# Report\n\n"
+            '<h1 id="injected">INJECTED</h1>\n'
+            "<script>alert(1)</script>\n"
+            "[unsafe](javascript:alert(2))",
+            encoding="utf-8",
+        )
+
+        with patch("reversecore_mcp.core.config.get_config") as mock_get_config:
+            mock_config = MagicMock()
+            mock_config.workspace = tmp_path
+            mock_get_config.return_value = mock_config
+
+            html_path = convert_report(report_file, "html")
+            html = html_path.read_text(encoding="utf-8")
+            assert "<script>" not in html
+            assert '&lt;h1 id="injected"&gt;INJECTED&lt;/h1&gt;' in html
+            assert 'href="javascript:' not in html
+
+            pdf_path = convert_report(report_file, "pdf")
+            assert pdf_path.exists()
+
 
 class TestReportDashboardRoutes:
     """Tests for the dashboard routes related to report management."""
@@ -178,7 +248,7 @@ class TestReportDashboardRoutes:
             mock_tools.get_report = AsyncMock(
                 return_value={
                     "success": True,
-                    "content": "# Test Report",
+                    "content": "# Test Report\n\n<script>alert(1)</script>",
                 }
             )
             mock_get_tools.return_value = mock_tools
@@ -194,6 +264,8 @@ class TestReportDashboardRoutes:
                 assert args[1] == "report_view.html"
                 assert args[2]["report_id"] == "MAR-TEST"
                 assert "<h1>Test Report</h1>" in args[2]["html_content"]
+                assert "<script>" not in args[2]["html_content"]
+                assert "&lt;script&gt;alert(1)&lt;/script&gt;" in args[2]["html_content"]
 
     @pytest.mark.asyncio
     async def test_dashboard_report_view_not_found(self):

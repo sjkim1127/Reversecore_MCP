@@ -9,16 +9,55 @@ Provides functionality to convert Markdown reports into:
 
 import os
 import re
+from html import escape as escape_html
 from pathlib import Path
 from typing import Any
 
 import markdown
+import nh3
 from xhtml2pdf import pisa
 
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.logging_config import get_logger
 
 logger = get_logger(__name__)
+
+_REPORT_HTML_TAGS = frozenset(
+    {
+        "a",
+        "blockquote",
+        "br",
+        "code",
+        "del",
+        "em",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "hr",
+        "li",
+        "ol",
+        "p",
+        "pre",
+        "strong",
+        "table",
+        "tbody",
+        "td",
+        "th",
+        "thead",
+        "tr",
+        "ul",
+    }
+)
+_REPORT_HTML_ATTRIBUTES = {
+    "a": {"href", "title"},
+    "code": {"class"},
+    "td": {"align"},
+    "th": {"align"},
+}
+_REPORT_URL_SCHEMES = {"http", "https", "mailto"}
 
 # CSS Stylesheet for HTML and PDF outputs
 # Uses print-friendly, standard CSS supported by xhtml2pdf (CSS 2.1 subset)
@@ -127,16 +166,29 @@ def markdown_to_html(md_content: str, title: str = "Analysis Report") -> str:
     Returns:
         Full HTML document string
     """
-    # Convert markdown to HTML body
-    # Use extra extension for tables, code blocks, etc.
-    html_body = markdown.markdown(md_content, extensions=["extra", "sane_lists"])
+    # Keep Markdown formatting while treating raw HTML in report data as text.
+    # The Markdown library otherwise preserves it, including complete tags such
+    # as <h1> that would remain active even after a tag allowlist sanitizer.
+    converter = markdown.Markdown(extensions=["extra", "sane_lists"])
+    converter.preprocessors.deregister("html_block")
+    converter.inlinePatterns.deregister("html")
+    html_body = converter.convert(md_content)
+
+    # Markdown-generated HTML is still untrusted (for example, links can use a
+    # javascript: URL), so enforce a narrow output allowlist as a second guard.
+    html_body = nh3.clean(
+        html_body,
+        tags=_REPORT_HTML_TAGS,
+        attributes=_REPORT_HTML_ATTRIBUTES,
+        url_schemes=_REPORT_URL_SCHEMES,
+    )
 
     # Wrap in full HTML document template with CSS injected
     html_document = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <title>{title}</title>
+    <title>{escape_html(title, quote=True)}</title>
     <style>
         {REPORT_CSS}
     </style>
