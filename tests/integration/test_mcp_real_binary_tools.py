@@ -13,7 +13,6 @@ import pytest
 from reversecore_mcp.tools.analysis.capa_tools import run_capa
 from reversecore_mcp.tools.analysis.die_tools import detect_packer
 from reversecore_mcp.tools.analysis.diff_tools import diff_binaries, patch_diff_1day
-from reversecore_mcp.tools.analysis.emulation_tools import emulate_binary
 from reversecore_mcp.tools.analysis.lief_tools import parse_binary_with_lief
 from reversecore_mcp.tools.analysis.static_analysis import run_strings
 from reversecore_mcp.tools.analysis.symbolic_analysis import verify_path_and_get_args
@@ -257,20 +256,6 @@ async def test_patch_diff_1day_tool(real_binaries, patched_workspace_config):
     result = await patch_diff_1day(str(file_a), str(file_b))
     assert result.status == "success"
     assert "patch_analysis" in result.data
-
-
-@pytest.mark.asyncio
-async def test_emulate_binary_tool(real_binaries, patched_workspace_config):
-    """Test Qiling machine code emulation on a real binary."""
-    try:
-        import qiling  # noqa: F401
-    except Exception:
-        pytest.skip("qiling is not installed or has import issues")
-
-    hello_path = real_binaries["hello_x64"]
-    # Run emulation with very low instruction limit to ensure it returns quickly
-    result = await emulate_binary(str(hello_path), verbose="off")
-    assert result.status in ("success", "error")
 
 
 @pytest.mark.asyncio

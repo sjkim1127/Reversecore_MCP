@@ -1,6 +1,0 @@
--c requirements-qiling-constraints.in
-
-# Qiling is installed only in the isolated integration-test container. Its
-# python-fx dependency requires Pillow below 11, so keep that resolution out of
-# the production runtime lock.
-qiling==1.4.6

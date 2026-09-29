@@ -150,8 +150,9 @@ async def emulate_binary(
         from qiling.const import QL_VERBOSE
     except ImportError:
         raise EmulationError(
-            "Qiling framework is not installed in the python environment. "
-            "Please run: pip install 'reversecore-mcp[emulation]'"
+            "Qiling is optional and is not installed in the Reversecore MCP runtime because its "
+            "current dependency set requires an outdated Pillow version. See docs/EMULATION.md "
+            "for the supported isolated harness workflow."
         )
 
     # 2. Detect OS and architecture
