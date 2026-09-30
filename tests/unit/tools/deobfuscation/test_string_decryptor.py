@@ -125,32 +125,41 @@ class TestStringDecryptor:
         assert data["total_strings_recovered"] >= 1
         assert any("cmd.exe" in item["string"] for item in data["recovered_strings"])
 
+    @pytest.mark.parametrize(
+        ("stack_base", "index_register", "stack_register", "loop_register"),
+        [("ebp", "eax", "esp", "eax"), ("rbp", "rax", "rsp", "rax")],
+    )
     @pytest.mark.asyncio
-    async def test_emulated_loop_string_extraction(self, workspace_file):
+    async def test_emulated_loop_reads_state_in_same_session(
+        self, workspace_file, stack_base, index_register, stack_register, loop_register
+    ):
         test_bin = workspace_file("xor_loop.exe")
 
         afl_json = '[{"offset": 4198400, "name": "sym.xor_loop"}]'
         # Loop jumping backwards (offset 4198420 jumps to 4198410)
-        pdf_json = """{
+        pdf_json = f"""{{
             "ops": [
-                {"offset": 4198400, "disasm": "xor eax, eax", "type": "xor"},
-                {"offset": 4198410, "disasm": "xor byte ptr [rbp + rax], 0x5a", "type": "xor"},
-                {"offset": 4198415, "disasm": "inc rax", "type": "add"},
-                {"offset": 4198418, "disasm": "cmp rax, 10", "type": "cmp"},
-                {"offset": 4198420, "disasm": "jl 0x40100a", "type": "cjmp", "jump": 4198410}
+                {{"offset": 4198400, "disasm": "xor eax, eax", "type": "xor"}},
+                {{"offset": 4198410, "disasm": "xor byte ptr [{stack_base} + {index_register}], 0x5a", "type": "xor"}},
+                {{"offset": 4198415, "disasm": "inc {loop_register}", "type": "add"}},
+                {{"offset": 4198418, "disasm": "cmp {loop_register}, 10", "type": "cmp"}},
+                {{"offset": 4198420, "disasm": "jl 0x40100a", "type": "cjmp", "jump": 4198410}}
             ]
-        }"""
-        # pxj returns decrypted bytes for 'secret_payload_url'
+        }}"""
+        # The plaintext exists only in the memory JSON returned by the same
+        # command that performs ESIL emulation. A separate pxj session is empty.
         decrypted_bytes = list(b"https://malicious-c2.net/payload.bin\x00\x00")
         px_json = str(decrypted_bytes)
+        commands = []
 
         async def mock_r2_cmd(path, cmd, timeout=30):
+            commands.append(cmd)
             if "aflj" in cmd:
                 return afl_json
             if "pdfj" in cmd:
                 return pdf_json
             if "pxj" in cmd:
-                return px_json
+                return px_json if "aes 500" in cmd else "[]"
             return "{}"
 
         with patch(
@@ -165,3 +174,8 @@ class TestStringDecryptor:
         assert any(
             "https://malicious-c2.net" in item["string"] for item in data["recovered_strings"]
         )
+        emulation_commands = [cmd for cmd in commands if "aei;" in cmd]
+        assert len(emulation_commands) == 1
+        assert "aes 500" in emulation_commands[0]
+        assert f"pxj 128 @ {stack_register}" in emulation_commands[0]
+        assert not any(cmd.strip().startswith("pxj") for cmd in commands)
