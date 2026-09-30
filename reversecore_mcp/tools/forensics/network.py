@@ -45,6 +45,127 @@ _BEACON_INTERVALS_SEC = [60, 120, 180, 240, 300, 600]
 
 # Minimum packet count per host to consider as beaconing
 _BEACON_MIN_PACKETS = 5
+_TCP_SEQUENCE_MASK = (1 << 32) - 1
+_TCP_SEQUENCE_HALF = 1 << 31
+
+
+def _reassemble_tcp_payloads(
+    payload_segments: list[tuple[int, bytes]], max_bytes: int
+) -> dict[str, Any]:
+    """Reassemble one TCP direction by sequence number.
+
+    Overlapping bytes keep the data from the earliest sequence segment. Exact
+    duplicate segments and conflicting overlap bytes are reported separately.
+    Gaps remain separate runs instead of being filled with fabricated bytes.
+    """
+    if not payload_segments:
+        return {
+            "segments": [],
+            "gaps": [],
+            "payload_bytes": 0,
+            "overlap_bytes": 0,
+            "retransmission_count": 0,
+            "conflicting_overlap_bytes": 0,
+            "truncated": False,
+        }
+
+    max_bytes = max(0, max_bytes)
+    anchor = int(payload_segments[0][0]) & _TCP_SEQUENCE_MASK
+    positioned = []
+    for capture_index, (sequence, payload) in enumerate(payload_segments):
+        sequence = int(sequence) & _TCP_SEQUENCE_MASK
+        relative_sequence = (
+            (sequence - anchor + _TCP_SEQUENCE_HALF) & _TCP_SEQUENCE_MASK
+        ) - _TCP_SEQUENCE_HALF
+        positioned.append((relative_sequence, capture_index, bytes(payload)))
+    positioned.sort(key=lambda item: (item[0], item[1]))
+
+    runs: list[dict[str, Any]] = []
+    payload_byte_count = 0
+    overlap_byte_count = 0
+    retransmission_count = 0
+    conflicting_overlap_byte_count = 0
+    truncated = False
+
+    for sequence_offset, _, payload in positioned:
+        if not payload:
+            continue
+
+        if not runs or sequence_offset > runs[-1]["end"]:
+            available = max_bytes - payload_byte_count
+            if available <= 0:
+                truncated = True
+                continue
+            accepted = payload[:available]
+            runs.append(
+                {
+                    "start": sequence_offset,
+                    "end": sequence_offset + len(accepted),
+                    "payload": bytearray(accepted),
+                }
+            )
+            payload_byte_count += len(accepted)
+            if len(accepted) < len(payload):
+                truncated = True
+            continue
+
+        run = runs[-1]
+        overlap_length = max(0, min(run["end"], sequence_offset + len(payload)) - sequence_offset)
+        if overlap_length:
+            payload_offset = sequence_offset - run["start"]
+            existing = run["payload"][payload_offset : payload_offset + overlap_length]
+            overlapping_payload = payload[:overlap_length]
+            conflicting = sum(
+                existing_byte != incoming_byte
+                for existing_byte, incoming_byte in zip(existing, overlapping_payload, strict=True)
+            )
+            overlap_byte_count += overlap_length
+            conflicting_overlap_byte_count += conflicting
+            if overlap_length == len(payload) and conflicting == 0:
+                retransmission_count += 1
+
+        payload_offset = max(0, run["end"] - sequence_offset)
+        new_payload = payload[payload_offset:]
+        if new_payload:
+            available = max_bytes - payload_byte_count
+            accepted = new_payload[:available]
+            run["payload"].extend(accepted)
+            run["end"] += len(accepted)
+            payload_byte_count += len(accepted)
+            if len(accepted) < len(new_payload):
+                truncated = True
+
+    gaps = []
+    for previous, following in zip(runs, runs[1:], strict=False):
+        missing_bytes = following["start"] - previous["end"]
+        if missing_bytes > 0:
+            gaps.append(
+                {
+                    "sequence_start": (anchor + previous["end"]) & _TCP_SEQUENCE_MASK,
+                    "sequence_end": (anchor + following["start"]) & _TCP_SEQUENCE_MASK,
+                    "missing_bytes": missing_bytes,
+                }
+            )
+
+    sequence_segments = [
+        {
+            "sequence_start": (anchor + run["start"]) & _TCP_SEQUENCE_MASK,
+            "sequence_end": (anchor + run["end"]) & _TCP_SEQUENCE_MASK,
+            "payload": bytes(run["payload"]),
+        }
+        for run in runs
+        if run["payload"]
+    ]
+
+    return {
+        "segments": sequence_segments,
+        "gaps": gaps,
+        "payload_bytes": payload_byte_count,
+        "overlap_bytes": overlap_byte_count,
+        "retransmission_count": retransmission_count,
+        "conflicting_overlap_bytes": conflicting_overlap_byte_count,
+        "truncated": truncated,
+    }
 
 
 def _import_scapy() -> Any:
@@ -519,22 +640,32 @@ async def pcap_reconstruct_stream(
     dst_port: int,
     max_packets: int = 10000,
     max_bytes: int = 1024 * 1024,  # 1 MB
+    src_port: int | None = None,
 ) -> ToolResult:
     """Reconstruct TCP stream payload from a PCAP capture.
 
-    Reassembles the raw payload of a specific TCP conversation, useful for
-    extracting transferred files, command output, or HTTP request/response bodies.
+    Selects one TCP flow using its four endpoint values and reassembles each
+    direction independently by TCP sequence number. Gaps remain explicit, and
+    retransmissions or conflicting overlaps are counted rather than duplicated.
 
     Args:
         pcap_path: Path to a PCAP or PCAPNG capture file.
         src_ip: Source IP address of the stream.
         dst_ip: Destination IP address of the stream.
         dst_port: Destination TCP port of the stream.
+        src_port: Optional source TCP port. If omitted, a source port is inferred
+            only when exactly one flow matches the IP addresses and destination port.
         max_packets: Maximum packets to process (default: 10,000).
-        max_bytes: Maximum payload bytes to reconstruct (default: 1 MB).
+        max_bytes: Maximum unique payload bytes to reconstruct per direction
+            (default: 1 MB).
 
     Returns:
-        ToolResult with reconstructed stream payload (hex + printable ASCII).
+        ToolResult with separate source-to-destination and reverse streams,
+        including sequence ranges, explicit gaps, duplicate retransmission counts,
+        and conflicting overlap counts. The top-level hex and ASCII fields show
+        source-to-destination bytes; reverse bytes are in ``reverse_stream``.
+        Top-level hex omits missing gap bytes, which are listed in
+        ``forward_stream.gaps``.
 
     Example:
         >>> result = await pcap_reconstruct_stream(
@@ -542,8 +673,14 @@ async def pcap_reconstruct_stream(
         ...     src_ip="192.168.1.5",
         ...     dst_ip="10.0.0.1",
         ...     dst_port=4444,
+        ...     src_port=52314,
         ... )
     """
+    if src_port is not None and (
+        isinstance(src_port, bool) or not isinstance(src_port, int) or not 0 <= src_port <= 65535
+    ):
+        return failure("INVALID_PARAMETER", "src_port must be an integer between 0 and 65535")
+
     validated = validate_file_path(pcap_path)
 
     try:
@@ -560,8 +697,8 @@ async def pcap_reconstruct_stream(
     except Exception as exc:
         return failure("PCAP_PARSE_ERROR", f"Failed to parse PCAP: {exc}")
 
-    payload_bytes = bytearray()
-    packet_count = 0
+    flow_packets: list[tuple[Any, str, str, int, int]] = []
+    candidate_source_ports: set[int] = set()
 
     for pkt in packets:
         if not (pkt.haslayer("IP") and pkt.haslayer("TCP")):
@@ -569,46 +706,177 @@ async def pcap_reconstruct_stream(
 
         pkt_src = pkt["IP"].src
         pkt_dst = pkt["IP"].dst
-        pkt_dport = pkt["TCP"].dport
-        pkt_sport = pkt["TCP"].sport
+        tcp = pkt["TCP"]
+        pkt_sport = int(tcp.sport)
+        pkt_dport = int(tcp.dport)
 
-        # Match in either direction
-        is_forward = pkt_src == src_ip and pkt_dst == dst_ip and pkt_dport == dst_port
-        is_reverse = pkt_src == dst_ip and pkt_dst == src_ip and pkt_sport == dst_port
+        is_forward_endpoint = pkt_src == src_ip and pkt_dst == dst_ip and pkt_dport == dst_port
+        is_reverse_endpoint = pkt_src == dst_ip and pkt_dst == src_ip and pkt_sport == dst_port
 
-        if is_forward or is_reverse:
-            if pkt.haslayer("Raw"):
-                raw = bytes(pkt["Raw"].load)
-                if len(payload_bytes) + len(raw) > max_bytes:
-                    payload_bytes.extend(raw[: max_bytes - len(payload_bytes)])
-                    break
-                payload_bytes.extend(raw)
-                packet_count += 1
+        if is_forward_endpoint:
+            candidate_source_ports.add(pkt_sport)
+        if is_reverse_endpoint:
+            candidate_source_ports.add(pkt_dport)
+        if is_forward_endpoint or is_reverse_endpoint:
+            flow_packets.append((pkt, pkt_src, pkt_dst, pkt_sport, pkt_dport))
 
-    if not payload_bytes:
-        return success(
-            {
-                "pcap_path": str(validated),
-                "src_ip": src_ip,
-                "dst_ip": dst_ip,
-                "dst_port": dst_port,
-                "message": "No payload found for the specified stream. Check IP/port values.",
-            }
+    if src_port is None and len(candidate_source_ports) > 1:
+        return failure(
+            "AMBIGUOUS_TCP_FLOW",
+            "Multiple TCP flows match these IP addresses and destination port; specify src_port.",
+            candidate_source_ports=sorted(candidate_source_ports),
         )
 
-    raw = bytes(payload_bytes)
-    printable = "".join(chr(b) if 32 <= b < 127 else "." for b in raw)
+    selected_src_port = src_port
+    if selected_src_port is None and candidate_source_ports:
+        selected_src_port = next(iter(candidate_source_ports))
+
+    forward_segments: list[tuple[int, bytes]] = []
+    reverse_segments: list[tuple[int, bytes]] = []
+    for pkt, pkt_src, pkt_dst, pkt_sport, pkt_dport in flow_packets:
+        is_forward = (
+            selected_src_port is not None
+            and pkt_src == src_ip
+            and pkt_dst == dst_ip
+            and pkt_sport == selected_src_port
+            and pkt_dport == dst_port
+        )
+        is_reverse = (
+            selected_src_port is not None
+            and pkt_src == dst_ip
+            and pkt_dst == src_ip
+            and pkt_sport == dst_port
+            and pkt_dport == selected_src_port
+        )
+        if not (is_forward or is_reverse) or not pkt.haslayer("Raw"):
+            continue
+
+        tcp = pkt["TCP"]
+        try:
+            sequence = int(tcp.seq)
+            flags = int(tcp.flags)
+        except (AttributeError, TypeError, ValueError) as exc:
+            logger.debug("TCP sequence parse error: %s", exc)
+            continue
+        if flags & 0x02:  # SYN consumes one sequence number before its payload.
+            sequence += 1
+
+        payload = bytes(pkt["Raw"].load)
+        if is_forward:
+            forward_segments.append((sequence, payload))
+        else:
+            reverse_segments.append((sequence, payload))
+
+    forward_data = _reassemble_tcp_payloads(forward_segments, max_bytes)
+    reverse_data = _reassemble_tcp_payloads(reverse_segments, max_bytes)
+
+    def describe_direction(
+        direction: str,
+        direction_src_ip: str,
+        direction_src_port: int | None,
+        direction_dst_ip: str,
+        direction_dst_port: int | None,
+        segments: list[tuple[int, bytes]],
+        assembled: dict[str, Any],
+    ) -> dict[str, Any]:
+        described_segments = []
+        display_budget = 4096
+        for segment in assembled["segments"][:1000]:
+            payload = segment["payload"]
+            display_payload = payload[:display_budget]
+            display_budget -= len(display_payload)
+            described_segments.append(
+                {
+                    "sequence_start": segment["sequence_start"],
+                    "sequence_end": segment["sequence_end"],
+                    "payload_bytes": len(payload),
+                    "hex_dump": display_payload.hex(),
+                    "printable_ascii": "".join(
+                        chr(byte) if 32 <= byte < 127 else "." for byte in display_payload
+                    ),
+                    "display_truncated": len(display_payload) < len(payload),
+                }
+            )
+        omitted_segments = max(0, len(assembled["segments"]) - len(described_segments))
+        omitted_gaps = max(0, len(assembled["gaps"]) - 1000)
+        return {
+            "direction": direction,
+            "src_ip": direction_src_ip,
+            "src_port": direction_src_port,
+            "dst_ip": direction_dst_ip,
+            "dst_port": direction_dst_port,
+            "matching_packets": len(segments),
+            "payload_bytes": assembled["payload_bytes"],
+            "segments": described_segments,
+            "segments_omitted": omitted_segments,
+            "gaps": assembled["gaps"][:1000],
+            "gaps_omitted": omitted_gaps,
+            "overlap_bytes": assembled["overlap_bytes"],
+            "retransmission_count": assembled["retransmission_count"],
+            "conflicting_overlap_bytes": assembled["conflicting_overlap_bytes"],
+            "truncated": assembled["truncated"],
+        }
+
+    forward_stream = describe_direction(
+        "src_to_dst",
+        src_ip,
+        selected_src_port,
+        dst_ip,
+        dst_port,
+        forward_segments,
+        forward_data,
+    )
+    reverse_stream = describe_direction(
+        "dst_to_src",
+        dst_ip,
+        dst_port,
+        src_ip,
+        selected_src_port,
+        reverse_segments,
+        reverse_data,
+    )
+
+    forward_payload = b"".join(segment["payload"] for segment in forward_data["segments"])
+    printable_parts = []
+    for index, segment in enumerate(forward_data["segments"]):
+        if index:
+            gap = forward_data["gaps"][index - 1]
+            printable_parts.append(f"<GAP:{gap['missing_bytes']} bytes>")
+        printable_parts.append(
+            "".join(chr(byte) if 32 <= byte < 127 else "." for byte in segment["payload"])
+        )
+    printable = "".join(printable_parts)
+
+    flow = {
+        "src_ip": src_ip,
+        "src_port": selected_src_port,
+        "dst_ip": dst_ip,
+        "dst_port": dst_port,
+    }
+    total_payload_bytes = forward_data["payload_bytes"] + reverse_data["payload_bytes"]
+    total_packet_count = len(forward_segments) + len(reverse_segments)
 
     return success(
         {
             "pcap_path": str(validated),
             "src_ip": src_ip,
+            "src_port": selected_src_port,
             "dst_ip": dst_ip,
             "dst_port": dst_port,
-            "matching_packets": packet_count,
-            "payload_bytes": len(raw),
-            "hex_dump": raw[:4096].hex(),
+            "flow": flow,
+            "matching_packets": total_packet_count,
+            "payload_bytes": total_payload_bytes,
+            "hex_dump": forward_payload[:4096].hex(),
             "printable_ascii": printable[:4096],
-            "truncated": len(raw) >= max_bytes,
+            "forward_stream": forward_stream,
+            "reverse_stream": reverse_stream,
+            "truncated": forward_data["truncated"] or reverse_data["truncated"],
+            **(
+                {
+                    "message": "No payload found for the specified TCP flow. Check the IP and port values."
+                }
+                if total_payload_bytes == 0
+                else {}
+            ),
         }
     )

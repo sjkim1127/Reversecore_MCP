@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from reversecore_mcp.tools.forensics.network import (
+    _reassemble_tcp_payloads,
     pcap_analyze,
     pcap_extract_c2,
     pcap_extract_dns,
@@ -670,7 +671,7 @@ async def test_pcap_reconstruct_stream_success(tmp_pcap):
     packets.append(pkt_non)
 
     # Helper to build mock TCP packet with Raw payload
-    def build_mock_tcp(src_ip, dst_ip, sport, dport, payload_bytes):
+    def build_mock_tcp(src_ip, dst_ip, sport, dport, sequence, payload_bytes):
         pkt = MagicMock()
         pkt.haslayer = lambda lyr: lyr in ("IP", "TCP", "Raw")
 
@@ -681,6 +682,8 @@ async def test_pcap_reconstruct_stream_success(tmp_pcap):
         tcp = MagicMock()
         tcp.sport = sport
         tcp.dport = dport
+        tcp.seq = sequence
+        tcp.flags = 0x10
 
         raw = MagicMock()
         raw.load = payload_bytes
@@ -691,11 +694,11 @@ async def test_pcap_reconstruct_stream_success(tmp_pcap):
         return pkt
 
     # Forward packet
-    pkt_fwd = build_mock_tcp("1.2.3.4", "5.6.7.8", 12345, 80, b"Hello ")
+    pkt_fwd = build_mock_tcp("1.2.3.4", "5.6.7.8", 12345, 80, 100, b"Hello ")
     packets.append(pkt_fwd)
 
     # Reverse packet
-    pkt_rev = build_mock_tcp("5.6.7.8", "1.2.3.4", 80, 12345, b"World!")
+    pkt_rev = build_mock_tcp("5.6.7.8", "1.2.3.4", 80, 12345, 1000, b"World!")
     packets.append(pkt_rev)
 
     with patch("reversecore_mcp.tools.forensics.network._import_scapy") as mock_scapy_import:
@@ -710,7 +713,97 @@ async def test_pcap_reconstruct_stream_success(tmp_pcap):
     assert result.status == "success"
     assert result.data["matching_packets"] == 2
     assert result.data["payload_bytes"] == 12
-    assert result.data["printable_ascii"] == "Hello World!"
+    assert result.data["src_ip"] == "1.2.3.4"
+    assert result.data["src_port"] == 12345
+    assert result.data["dst_ip"] == "5.6.7.8"
+    assert result.data["dst_port"] == 80
+    assert result.data["flow"]["src_port"] == 12345
+    assert result.data["printable_ascii"] == "Hello "
+    assert result.data["forward_stream"]["direction"] == "src_to_dst"
+    assert result.data["reverse_stream"]["direction"] == "dst_to_src"
+    assert result.data["reverse_stream"]["segments"][0]["printable_ascii"] == "World!"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_pcap_reconstruct_stream_selects_and_reassembles_one_flow(tmp_pcap):
+    """A PCAP with concurrent flows, retransmits, reordering, and gaps stays explicit."""
+    scapy = pytest.importorskip("scapy.all")
+
+    def tcp_packet(src_ip, dst_ip, src_port, dst_port, sequence, payload):
+        return (
+            scapy.IP(src=src_ip, dst=dst_ip)
+            / scapy.TCP(sport=src_port, dport=dst_port, seq=sequence, flags="PA")
+            / scapy.Raw(load=payload)
+        )
+
+    packets = [
+        tcp_packet("1.2.3.4", "5.6.7.8", 54321, 80, 5000, b"DECOY"),
+        tcp_packet("1.2.3.4", "5.6.7.8", 12345, 80, 1006, b"World"),
+        tcp_packet("5.6.7.8", "1.2.3.4", 80, 12345, 9001, b"PONG"),
+        tcp_packet("1.2.3.4", "5.6.7.8", 12345, 80, 1001, b"Hello"),
+        tcp_packet("1.2.3.4", "5.6.7.8", 12345, 80, 1001, b"Hello"),
+        tcp_packet("1.2.3.4", "5.6.7.8", 12345, 80, 1004, b"loWo"),
+        tcp_packet("1.2.3.4", "5.6.7.8", 12345, 80, 1012, b"tail"),
+        tcp_packet("5.6.7.8", "1.2.3.4", 80, 12345, 8996, b"PING "),
+    ]
+    scapy.wrpcap(tmp_pcap, packets)
+
+    result = await pcap_reconstruct_stream(
+        tmp_pcap,
+        src_ip="1.2.3.4",
+        dst_ip="5.6.7.8",
+        dst_port=80,
+        src_port=12345,
+    )
+
+    assert result.status == "success"
+    assert result.data["flow"]["src_port"] == 12345
+    assert result.data["matching_packets"] == 7
+    assert result.data["payload_bytes"] == 23
+    assert result.data["printable_ascii"] == "HelloWorld<GAP:1 bytes>tail"
+
+    forward = result.data["forward_stream"]
+    assert [segment["printable_ascii"] for segment in forward["segments"]] == [
+        "HelloWorld",
+        "tail",
+    ]
+    assert forward["gaps"] == [{"sequence_start": 1011, "sequence_end": 1012, "missing_bytes": 1}]
+    assert forward["retransmission_count"] == 1
+    assert forward["overlap_bytes"] == 9
+
+    reverse = result.data["reverse_stream"]
+    assert reverse["direction"] == "dst_to_src"
+    assert [segment["printable_ascii"] for segment in reverse["segments"]] == ["PING PONG"]
+
+    ambiguous = await pcap_reconstruct_stream(
+        tmp_pcap, src_ip="1.2.3.4", dst_ip="5.6.7.8", dst_port=80
+    )
+    assert ambiguous.status == "error"
+    assert ambiguous.error_code == "AMBIGUOUS_TCP_FLOW"
+    assert ambiguous.details["candidate_source_ports"] == [12345, 54321]
+
+
+@pytest.mark.unit
+def test_reassemble_tcp_payloads_reports_conflicting_overlap():
+    """Conflicting bytes use the earlier sequence segment and remain visible."""
+    result = _reassemble_tcp_payloads([(100, b"abcd"), (102, b"XYef")], max_bytes=64)
+
+    assert result["segments"][0]["payload"] == b"abcdef"
+    assert result["overlap_bytes"] == 2
+    assert result["conflicting_overlap_bytes"] == 2
+    assert result["retransmission_count"] == 0
+
+
+@pytest.mark.unit
+def test_reassemble_tcp_payloads_handles_sequence_wraparound():
+    """TCP sequence numbers that wrap at 2^32 remain in stream order."""
+    result = _reassemble_tcp_payloads([(0xFFFFFFFE, b"AB"), (0, b"CD")], max_bytes=64)
+
+    assert result["segments"] == [
+        {"sequence_start": 0xFFFFFFFE, "sequence_end": 2, "payload": b"ABCD"}
+    ]
+    assert result["gaps"] == []
 
 
 @pytest.mark.unit
@@ -836,6 +929,8 @@ async def test_pcap_reconstruct_stream_truncation(tmp_pcap):
     tcp = MagicMock()
     tcp.sport = 12345
     tcp.dport = 80
+    tcp.seq = 100
+    tcp.flags = 0x10
     raw = MagicMock()
     raw.load = b"0123456789"
     pkt.__getitem__.side_effect = lambda key: (
