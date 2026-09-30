@@ -1,5 +1,6 @@
 """Unit tests for dead code and opaque predicate eliminator."""
 
+import json
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -98,3 +99,195 @@ class TestDeadCodeEliminator:
         assert "zero_xor_test" in pred_types
         assert "stc_jnc" in pred_types
         assert len(data["cfg_simplifications"]) >= 1
+        assert data["total_opaque_predicates"] == len(data["opaque_predicates"])
+        assert data["total_dead_blocks"] == len(data["dead_blocks"]) == 0
+        assert data["total_redundant_jumps"] == len(data["redundant_jumps"]) == 1
+        assert data["summary_counts"] == {
+            "opaque_predicates": 2,
+            "dead_blocks": 0,
+            "redundant_jumps": 1,
+        }
+
+    @pytest.mark.asyncio
+    async def test_reports_unreachable_blocks_and_separates_redundant_jumps(self, workspace_file):
+        test_bin = workspace_file("unreachable_blocks.bin")
+        functions = [
+            {"addr": 0x1000, "name": "first_function", "size": 0x40},
+            {"offset": 0x2000, "name": "second_function", "size": 0x30},
+        ]
+        blocks_by_entry = {
+            0x1000: [
+                {"addr": 0x1000, "size": 5, "jump": 0x1005},
+                {"addr": 0x1005, "size": 5, "jump": 0x1010},
+                {"addr": 0x1010, "size": 1},
+                {"addr": 0x1020, "size": 2, "jump": 0x1030},
+                {"addr": 0x1030, "size": 1},
+            ],
+            0x2000: [
+                {
+                    "offset": 0x2000,
+                    "size": 4,
+                    "jump": 0x2010,
+                    "instrs": [0x2000],
+                },
+                {"offset": 0x2010, "size": 8, "instrs": [0x2010, 0x2014]},
+            ],
+        }
+        disassembly_by_entry = {
+            0x1000: {
+                "ops": [
+                    {
+                        "addr": 0x1000,
+                        "size": 5,
+                        "type": "jmp",
+                        "jump": 0x1005,
+                        "disasm": "jmp 0x1005",
+                    }
+                ]
+            },
+            0x2000: {"ops": []},
+        }
+        linear_disassembly_by_entry = {
+            0x1000: [],
+            0x2000: [
+                {"addr": 0x2000, "size": 4, "type": "jmp", "jump": 0x2010},
+                {"addr": 0x2004, "size": 4, "type": "nop", "disasm": "nop"},
+                {"addr": 0x2008, "size": 4, "type": "nop", "disasm": "nop"},
+                {"addr": 0x2010, "size": 4, "type": "mov", "disasm": "mov w0, 0"},
+                {"addr": 0x2014, "size": 4, "type": "ret", "disasm": "ret"},
+            ],
+        }
+
+        async def mock_r2_cmd(path, cmd, timeout=30):
+            if "aflj" in cmd:
+                return json.dumps(functions)
+            entry = int(cmd.rsplit("@", maxsplit=1)[1].strip(), 0)
+            if "afbj" in cmd:
+                assert f"af @ {entry}" in cmd
+                return json.dumps(blocks_by_entry[entry])
+            if "pDj" in cmd:
+                return json.dumps(linear_disassembly_by_entry[entry])
+            if "pdfj" in cmd:
+                assert f"af @ {entry}" in cmd
+                return json.dumps(disassembly_by_entry[entry])
+            return "{}"
+
+        with patch(
+            "reversecore_mcp.tools.deobfuscation.dead_code_eliminator._run_r2_command",
+            side_effect=mock_r2_cmd,
+        ):
+            res = await eliminate_dead_code_impl(str(test_bin))
+
+        assert res.status == "success"
+        data = res.data
+        assert data is not None
+        assert [(item["function"], item["address"]) for item in data["dead_blocks"]] == [
+            ("first_function", "0x1020"),
+            ("first_function", "0x1030"),
+            ("second_function", "0x2004"),
+        ]
+        assert all(item["type"] == "unreachable_basic_block" for item in data["dead_blocks"])
+        assert data["dead_blocks"][1]["evidence"]["incoming_edges"] == ["0x1020"]
+        assert data["total_opaque_predicates"] == len(data["opaque_predicates"]) == 0
+        assert data["total_dead_blocks"] == len(data["dead_blocks"]) == 3
+        assert data["dead_blocks"][2]["evidence"]["instructions"] == [
+            {"address": "0x2004", "size": 4, "type": "nop", "instruction": "nop"},
+            {"address": "0x2008", "size": 4, "type": "nop", "instruction": "nop"},
+        ]
+        assert data["total_redundant_jumps"] == len(data["redundant_jumps"]) == 1
+        assert data["redundant_jumps"][0]["function"] == "first_function"
+        assert data["summary_counts"] == {
+            "opaque_predicates": 0,
+            "dead_blocks": 3,
+            "redundant_jumps": 1,
+        }
+        assert "3 unreachable dead blocks" in data["summary"]
+        assert "0 opaque predicates" in data["summary"]
+        assert "1 redundant jumps" in data["summary"]
+        assert [
+            (
+                item["function"],
+                item["original_blocks"],
+                item["effective_blocks"],
+                item["unreachable_blocks"],
+            )
+            for item in data["cfg_simplifications"]
+        ] == [
+            ("first_function", 5, 3, 2),
+            ("second_function", 3, 2, 1),
+        ]
+        assert data["analysis_complete"] is True
+        assert data["linear_sweep_skipped_functions"] == []
+
+    @pytest.mark.asyncio
+    async def test_cfg_simplifications_only_include_current_function_findings(self, workspace_file):
+        test_bin = workspace_file("function_scoped_cfg.bin")
+        functions = [
+            {"offset": 0x1000, "name": "function_with_predicate", "size": 0x20},
+            {"offset": 0x2000, "name": "clean_function", "size": 0x20},
+        ]
+        blocks_by_entry = {
+            0x1000: [{"offset": 0x1000, "size": 6, "instrs": [0x1000, 0x1002, 0x1004]}],
+            0x2000: [{"offset": 0x2000, "size": 4, "instrs": [0x2000, 0x2002]}],
+        }
+        disassembly_by_entry = {
+            0x1000: {
+                "ops": [
+                    {"offset": 0x1000, "size": 2, "type": "xor", "disasm": "xor eax, eax"},
+                    {"offset": 0x1002, "size": 2, "type": "cmp", "disasm": "test eax, eax"},
+                    {
+                        "offset": 0x1004,
+                        "size": 2,
+                        "type": "cjmp",
+                        "jump": 0x1010,
+                        "disasm": "jz 0x1010",
+                    },
+                ]
+            },
+            0x2000: {
+                "ops": [
+                    {"offset": 0x2000, "size": 2, "type": "mov", "disasm": "mov eax, 0"},
+                    {"offset": 0x2002, "size": 2, "type": "ret", "disasm": "ret"},
+                ]
+            },
+        }
+
+        async def mock_r2_cmd(path, cmd, timeout=30):
+            if "aflj" in cmd:
+                return json.dumps(functions)
+            entry = int(cmd.rsplit("@", maxsplit=1)[1].strip(), 0)
+            if "afbj" in cmd:
+                assert f"af @ {entry}" in cmd
+                return json.dumps(blocks_by_entry[entry])
+            if "pDj" in cmd:
+                return json.dumps(disassembly_by_entry[entry]["ops"])
+            if "pdfj" in cmd:
+                assert f"af @ {entry}" in cmd
+                return json.dumps(disassembly_by_entry[entry])
+            return "{}"
+
+        with patch(
+            "reversecore_mcp.tools.deobfuscation.dead_code_eliminator._run_r2_command",
+            side_effect=mock_r2_cmd,
+        ):
+            res = await eliminate_dead_code_impl(str(test_bin))
+
+        assert res.status == "success"
+        data = res.data
+        assert data is not None
+        assert [item["function"] for item in data["opaque_predicates"]] == [
+            "function_with_predicate"
+        ]
+        assert data["cfg_simplifications"] == [
+            {
+                "function": "function_with_predicate",
+                "address": "0x1000",
+                "original_blocks": 1,
+                "effective_blocks": 1,
+                "unreachable_blocks": 0,
+                "opaque_predicates": 1,
+                "redundant_jumps": 0,
+                "reduction_percent": "0.0%",
+            }
+        ]
+        assert data["summary_counts"]["opaque_predicates"] == len(data["opaque_predicates"])
