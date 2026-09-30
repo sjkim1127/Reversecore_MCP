@@ -304,37 +304,112 @@ def _scan_c_use_after_free(source_code: str) -> list[dict[str, Any]]:
     """Find direct pointer dereferences after free within one function body."""
     findings: list[dict[str, Any]] = []
     lines = source_code.splitlines()
+    free_pattern = re.compile(r"\bfree\s*\(\s*([A-Za-z_]\w*)\s*\)")
+    assignment_pattern = re.compile(r"(?<![A-Za-z0-9_>.])\b([A-Za-z_]\w*)\s*=(?!=)")
+    dereference_pattern = r"\b{pointer}\s*(?:->|\[)|\*\s*{pointer}\b"
+
     for function in _iter_c_functions(lines):
         freed: dict[str, int] = {}
+        in_block_comment = False
         for rel_line, code in enumerate(function["lines"], start=1):
             line_no = function["start_line"] + rel_line - 1
-            for pointer in re.findall(r"\bfree\s*\(\s*([A-Za-z_]\w*)\s*\)", code):
-                freed[pointer] = line_no
-            for pointer, free_line in list(freed.items()):
-                if line_no <= free_line or re.search(
-                    rf"\b{re.escape(pointer)}\s*(?:->|\[)|\*\s*{re.escape(pointer)}\b", code
-                ):
-                    findings.append(
-                        {
-                            "category": "Use After Free",
-                            "severity": "high",
-                            "rule_id": "RCMCP-SAST-C-015",
-                            "message": f"Pointer '{pointer}' is dereferenced after being freed on line {free_line}.",
-                            "line": line_no,
-                            "code": code.strip(),
-                            "evidence_type": "static",
-                            "vulnerability_class": "use_after_free",
-                            "confidence": "high",
-                            "verification_status": "candidate",
-                            "next_validation_steps": [
-                                "Confirm the pointer aliases the allocation released at the free site.",
-                                "Run AddressSanitizer with an input reaching both statements.",
-                                "Check whether ownership is transferred or the pointer is reset before use.",
-                            ],
-                        }
-                    )
-                    freed.pop(pointer)
+            statements, in_block_comment = _split_c_statements(code, in_block_comment)
+            for statement in statements:
+                for pointer, free_line in list(freed.items()):
+                    if re.search(dereference_pattern.format(pointer=re.escape(pointer)), statement):
+                        findings.append(
+                            {
+                                "category": "Use After Free",
+                                "severity": "high",
+                                "rule_id": "RCMCP-SAST-C-015",
+                                "message": f"Pointer '{pointer}' is dereferenced after being freed on line {free_line}.",
+                                "line": line_no,
+                                "code": code.strip(),
+                                "evidence_type": "static",
+                                "vulnerability_class": "use_after_free",
+                                "confidence": "high",
+                                "verification_status": "candidate",
+                                "next_validation_steps": [
+                                    "Confirm the pointer aliases the allocation released at the free site.",
+                                    "Run AddressSanitizer with an input reaching both statements.",
+                                    "Check whether ownership is transferred or the pointer is reset before use.",
+                                ],
+                            }
+                        )
+                        freed.pop(pointer)
+
+                # Reassignment may point the variable at a new allocation or
+                # another live owner, so the old freed state no longer applies.
+                for pointer in assignment_pattern.findall(statement):
+                    freed.pop(pointer, None)
+
+                for pointer in free_pattern.findall(statement):
+                    freed[pointer] = line_no
     return findings
+
+
+def _split_c_statements(code: str, in_block_comment: bool) -> tuple[list[str], bool]:
+    """Split a C source line at statement semicolons outside strings/comments."""
+    statements: list[str] = []
+    current: list[str] = []
+    parenthesis_depth = 0
+    quote: str | None = None
+    escaped = False
+    index = 0
+
+    while index < len(code):
+        char = code[index]
+        next_char = code[index + 1] if index + 1 < len(code) else ""
+
+        if in_block_comment:
+            if char == "*" and next_char == "/":
+                in_block_comment = False
+                index += 2
+            else:
+                index += 1
+            continue
+
+        if quote is not None:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == quote:
+                quote = None
+                current.append(" ")
+            index += 1
+            continue
+
+        if char == "/" and next_char == "/":
+            break
+        if char == "/" and next_char == "*":
+            in_block_comment = True
+            index += 2
+            continue
+        if char in {"'", '"'}:
+            quote = char
+            current.append(" ")
+            index += 1
+            continue
+        if char == "(":
+            parenthesis_depth += 1
+        elif char == ")":
+            parenthesis_depth = max(0, parenthesis_depth - 1)
+        elif char == ";" and parenthesis_depth == 0:
+            statement = "".join(current).strip()
+            if statement:
+                statements.append(statement)
+            current.clear()
+            index += 1
+            continue
+
+        current.append(char)
+        index += 1
+
+    tail = "".join(current).strip()
+    if tail:
+        statements.append(tail)
+    return statements, in_block_comment
 
 
 def _scan_c_cleanup_call_graph(source_code: str) -> list[dict[str, Any]]:

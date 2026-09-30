@@ -4,7 +4,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from reversecore_mcp.tools.analysis.source_auditor import audit_source_code
+from reversecore_mcp.tools.analysis.source_auditor import (
+    _scan_c_use_after_free,
+    audit_source_code,
+)
 
 
 @pytest.mark.asyncio
@@ -53,6 +56,22 @@ async def test_audit_source_code_c_detects_lifecycle_risks(tmp_path, name, code,
     ):
         result = await audit_source_code(str(test_file))
     assert any(f["rule_id"] == rule_id for f in result.metadata["structured_findings"])
+
+
+@pytest.mark.parametrize(
+    ("code", "expected_count"),
+    [
+        ("void f(char *p) { free(p); }", 0),
+        ("void f(char *p) { p->value; free(p); }", 0),
+        ("void f(char *p) { free(p); p->value; }", 1),
+        ("void f(char *p, char *q) { free(p); p = q; p->value; }", 0),
+        ("void f(char *p) { free(p); p = malloc(8); p[0] = 'x'; }", 0),
+    ],
+)
+def test_scan_c_use_after_free_respects_statement_order_and_reassignment(code, expected_count):
+    findings = _scan_c_use_after_free(code)
+
+    assert len(findings) == expected_count
 
 
 @pytest.mark.asyncio
