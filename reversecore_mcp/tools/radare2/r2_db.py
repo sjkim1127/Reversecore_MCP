@@ -34,6 +34,7 @@ from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.r2_helpers import execute_r2_command as _execute_r2_command
 from reversecore_mcp.core.result import (
+    PaginationMeta,
     ToolError,
     ToolResult,
     ToolSuccess,
@@ -49,6 +50,8 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 _DB_PATH = Path(os.environ.get("R2GHIDRA_DB_PATH", "/app/workspace/.r2db"))
+MAX_ANNOTATION_PAGE_SIZE = 500
+_MAX_SQLITE_INTEGER = (1 << 63) - 1
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS structures (
@@ -91,6 +94,45 @@ CREATE TABLE IF NOT EXISTS analysis_cache (
 
 _db_init_lock = threading.Lock()
 _initialized_db_paths: set[str] = set()
+
+
+def _validate_annotation_pagination(limit: int, offset: int) -> ToolError | None:
+    """Return a validation error when an annotation-list page is out of bounds."""
+    if (
+        not isinstance(limit, int)
+        or isinstance(limit, bool)
+        or not 1 <= limit <= MAX_ANNOTATION_PAGE_SIZE
+    ):
+        return failure(
+            "VALIDATION_ERROR",
+            f"limit must be an integer between 1 and {MAX_ANNOTATION_PAGE_SIZE}.",
+        )
+    if (
+        not isinstance(offset, int)
+        or isinstance(offset, bool)
+        or not 0 <= offset <= _MAX_SQLITE_INTEGER
+    ):
+        return failure(
+            "VALIDATION_ERROR",
+            f"offset must be an integer between 0 and {_MAX_SQLITE_INTEGER}.",
+        )
+    return None
+
+
+def _annotation_pagination(
+    offset: int, limit: int, total_items: int, item_count: int
+) -> PaginationMeta:
+    """Build offset-pagination metadata for an annotation-list response."""
+    has_more = offset + item_count < total_items
+    next_offset = offset + item_count if has_more else None
+    return PaginationMeta(
+        has_more=has_more,
+        next_cursor=str(next_offset) if next_offset is not None else None,
+        total_items=total_items,
+        page=(offset // limit) + 1,
+        page_size=limit,
+        truncated=has_more,
+    )
 
 
 def _ensure_schema_initialized(db_path: Path) -> None:
@@ -140,15 +182,18 @@ def _sha256(path: Path) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _list_structures_sync(bh: str, limit: int, offset: int) -> list[dict]:
+def _list_structures_sync(bh: str, limit: int, offset: int) -> tuple[list[dict], int]:
     with _get_db_sync() as db:
+        total_items = db.execute(
+            "SELECT COUNT(*) FROM structures WHERE binary_hash=?", (bh,)
+        ).fetchone()[0]
         cursor = db.execute(
             "SELECT name, fields_json, created_at FROM structures "
             "WHERE binary_hash=? ORDER BY name LIMIT ? OFFSET ?",
             (bh, limit, offset),
         )
         rows = cursor.fetchall()
-        return [
+        structures = [
             {
                 "name": row["name"],
                 "fields": json.loads(row["fields_json"]),
@@ -156,6 +201,7 @@ def _list_structures_sync(bh: str, limit: int, offset: int) -> list[dict]:
             }
             for row in rows
         ]
+        return structures, total_items
 
 
 @log_execution(tool_name="r2_list_structures")
@@ -167,11 +213,18 @@ async def r2_list_structures(
     limit: int = 50,
 ) -> ToolResult:
     """List all saved C struct definitions for a binary."""
+    pagination_error = _validate_annotation_pagination(limit, offset)
+    if pagination_error is not None:
+        return pagination_error
+
     validated = validate_file_path(file_path)
     bh = _sha256(validated)
 
-    structs = await asyncio.to_thread(_list_structures_sync, bh, limit, offset)
-    return success({"structures": structs, "count": len(structs)})
+    structs, total_items = await asyncio.to_thread(_list_structures_sync, bh, limit, offset)
+    return success(
+        {"structures": structs, "count": len(structs)},
+        pagination=_annotation_pagination(offset, limit, total_items, len(structs)),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -255,15 +308,18 @@ async def r2_create_structure(
 # ---------------------------------------------------------------------------
 
 
-def _list_types_sync(bh: str, limit: int, offset: int) -> list[dict]:
+def _list_types_sync(bh: str, limit: int, offset: int) -> tuple[list[dict], int]:
     with _get_db_sync() as db:
+        total_items = db.execute(
+            "SELECT COUNT(*) FROM types WHERE binary_hash=?", (bh,)
+        ).fetchone()[0]
         cursor = db.execute(
             "SELECT name, definition, created_at FROM types "
             "WHERE binary_hash=? ORDER BY name LIMIT ? OFFSET ?",
             (bh, limit, offset),
         )
         rows = cursor.fetchall()
-        return [
+        types = [
             {
                 "name": row["name"],
                 "definition": row["definition"],
@@ -272,6 +328,7 @@ def _list_types_sync(bh: str, limit: int, offset: int) -> list[dict]:
             }
             for row in rows
         ]
+        return types, total_items
 
 
 @log_execution(tool_name="r2_list_types")
@@ -283,10 +340,14 @@ async def r2_list_types(
     limit: int = 100,
 ) -> ToolResult:
     """List all custom type definitions saved for a binary."""
+    pagination_error = _validate_annotation_pagination(limit, offset)
+    if pagination_error is not None:
+        return pagination_error
+
     validated = validate_file_path(file_path)
     bh = _sha256(validated)
 
-    db_types = await asyncio.to_thread(_list_types_sync, bh, limit, offset)
+    db_types, db_total = await asyncio.to_thread(_list_types_sync, bh, limit, offset)
 
     # r2 native types
     r2_output, _ = await _execute_r2_command(
@@ -308,8 +369,21 @@ async def r2_list_types(
     except (json.JSONDecodeError, ValueError):
         pass
 
-    all_types = db_types + r2_types
-    return success({"types": all_types, "count": len(all_types)})
+    r2_types.sort(
+        key=lambda item: (
+            str(item.get("name", "")).casefold(),
+            str(item.get("name", "")),
+            str(item.get("definition", "")),
+        )
+    )
+    r2_offset = 0 if offset < db_total else offset - db_total
+    remaining = max(0, limit - len(db_types))
+    page_types = db_types + r2_types[r2_offset : r2_offset + remaining]
+    total_items = db_total + len(r2_types)
+    return success(
+        {"types": page_types, "count": len(page_types)},
+        pagination=_annotation_pagination(offset, limit, total_items, len(page_types)),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -317,22 +391,31 @@ async def r2_list_types(
 # ---------------------------------------------------------------------------
 
 
-def _list_bookmarks_sync(bh: str, category: str | None, limit: int, offset: int) -> list[dict]:
+def _list_bookmarks_sync(
+    bh: str, category: str | None, limit: int, offset: int
+) -> tuple[list[dict], int]:
     with _get_db_sync() as db:
         if category:
+            total_items = db.execute(
+                "SELECT COUNT(*) FROM bookmarks WHERE binary_hash=? AND category=?",
+                (bh, category),
+            ).fetchone()[0]
             cursor = db.execute(
                 "SELECT address, comment, category, created_at FROM bookmarks "
                 "WHERE binary_hash=? AND category=? ORDER BY address LIMIT ? OFFSET ?",
                 (bh, category, limit, offset),
             )
         else:
+            total_items = db.execute(
+                "SELECT COUNT(*) FROM bookmarks WHERE binary_hash=?", (bh,)
+            ).fetchone()[0]
             cursor = db.execute(
                 "SELECT address, comment, category, created_at FROM bookmarks "
                 "WHERE binary_hash=? ORDER BY address LIMIT ? OFFSET ?",
                 (bh, limit, offset),
             )
         rows = cursor.fetchall()
-        return [
+        bookmarks = [
             {
                 "address": row["address"],
                 "comment": row["comment"],
@@ -341,6 +424,7 @@ def _list_bookmarks_sync(bh: str, category: str | None, limit: int, offset: int)
             }
             for row in rows
         ]
+        return bookmarks, total_items
 
 
 @log_execution(tool_name="r2_list_bookmarks")
@@ -353,11 +437,20 @@ async def r2_list_bookmarks(
     limit: int = 100,
 ) -> ToolResult:
     """List all saved bookmarks / address annotations for a binary."""
+    pagination_error = _validate_annotation_pagination(limit, offset)
+    if pagination_error is not None:
+        return pagination_error
+
     validated = validate_file_path(file_path)
     bh = _sha256(validated)
 
-    bookmarks = await asyncio.to_thread(_list_bookmarks_sync, bh, category, limit, offset)
-    return success({"bookmarks": bookmarks, "count": len(bookmarks)})
+    bookmarks, total_items = await asyncio.to_thread(
+        _list_bookmarks_sync, bh, category, limit, offset
+    )
+    return success(
+        {"bookmarks": bookmarks, "count": len(bookmarks)},
+        pagination=_annotation_pagination(offset, limit, total_items, len(bookmarks)),
+    )
 
 
 # ---------------------------------------------------------------------------
