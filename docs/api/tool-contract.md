@@ -73,3 +73,8 @@ Generate a harness with `cve_synthesize_harness`, compile and link it with the
 target using LibFuzzer, then pass the executable path. Successful analysis
 results include `fuzzed_executable`; the field is `null` when no fuzzing run
 succeeded.
+
+`cve_fuzz_target.corpus_dir`, when provided, is copied into a private run
+directory under `workspace/.cache/fuzz/<run_id>/seeds`; generated angr seeds and
+crash artifacts stay within that run. Without an explicit corpus, the run uses
+only its own initial seed and does not reuse a neighboring `cve_seeds` folder.

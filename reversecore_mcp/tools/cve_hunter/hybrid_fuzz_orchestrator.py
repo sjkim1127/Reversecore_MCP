@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import shutil
 import subprocess  # nosec B404
 import tempfile
 from pathlib import Path
@@ -98,7 +99,7 @@ async def run_hybrid_fuzz_impl(
 
     Args:
         target_binary_path: Path to compiled fuzzer executable in workspace.
-        corpus_dir: Optional directory with seed testcases.
+        corpus_dir: Optional seed corpus copied into this run's isolated directory.
         dictionary_path: Optional path to AFL++ dictionary file (.dict).
         max_total_time_seconds: Max fuzzing duration in seconds (default: 20s).
         enable_angr_concolic: Whether to trigger angr symbolic solving when stalled.
@@ -131,10 +132,11 @@ async def run_hybrid_fuzz_impl(
         return candidate
 
     try:
-        if corpus_dir:
-            seeds_dir = _workspace_path(corpus_dir, "corpus_dir", directory=True)
-        else:
-            seeds_dir = target_bin.parent / "cve_seeds"
+        corpus_source = (
+            _workspace_path(corpus_dir, "corpus_dir", directory=True) if corpus_dir else None
+        )
+        if corpus_source is not None and not corpus_source.is_dir():
+            raise ValueError("corpus_dir must be an existing directory")
         if dictionary_path:
             dictionary_file = validate_file_path(dictionary_path, read_only=True)
         else:
@@ -146,35 +148,53 @@ async def run_hybrid_fuzz_impl(
         target_bin, base_timeout=timeout or (max_total_time_seconds + 30)
     )
 
-    # Keep crash artifacts in the writable workspace cache and isolate each run.
+    # Keep all mutable fuzzing state in a unique workspace cache directory.
     cache_dir = workspace / ".cache"
-    temp_workspace = cache_dir / "cve_crashes"
+    fuzz_runs_dir = cache_dir / "fuzz"
+    run_workspace: Path | None = None
     try:
-        if cache_dir.is_symlink() or temp_workspace.is_symlink():
+        if cache_dir.is_symlink() or fuzz_runs_dir.is_symlink():
             raise OSError("workspace cache paths must not be symbolic links")
-        temp_workspace.mkdir(parents=True, exist_ok=True)
-        prepare_sandbox_access(temp_workspace)
-        crashes_dir = Path(tempfile.mkdtemp(prefix="run_", dir=temp_workspace))
+        fuzz_runs_dir.mkdir(parents=True, exist_ok=True)
+        prepare_sandbox_access(fuzz_runs_dir)
+        run_workspace = Path(tempfile.mkdtemp(prefix="run_", dir=fuzz_runs_dir))
+        prepare_sandbox_access(run_workspace)
+        seeds_dir = run_workspace / "seeds"
+        crashes_dir = run_workspace / "crashes"
+        seeds_dir.mkdir()
+        crashes_dir.mkdir()
+        prepare_sandbox_access(seeds_dir)
         prepare_sandbox_access(crashes_dir)
     except Exception as e:
-        return failure("FUZZING_SETUP_FAILED", f"Could not create crash artifact directory: {e}")
+        if run_workspace is not None and not run_workspace.is_symlink():
+            shutil.rmtree(run_workspace, ignore_errors=True)
+        return failure("FUZZING_SETUP_FAILED", f"Could not create isolated fuzz run directory: {e}")
+    assert run_workspace is not None
 
-    def remove_empty_crash_directory() -> None:
+    def remove_run_workspace() -> None:
         try:
-            crashes_dir.rmdir()
+            if run_workspace is not None and not run_workspace.is_symlink():
+                shutil.rmtree(run_workspace)
         except OSError:
             pass
 
     try:
-        seeds_dir.mkdir(parents=True, exist_ok=True)
+        copied_seed_count = 0
+        if corpus_source is not None and corpus_source.is_dir():
+            for source_seed in sorted(corpus_source.iterdir()):
+                if source_seed.is_symlink():
+                    continue
+                if not source_seed.is_file():
+                    continue
+                shutil.copyfile(source_seed, seeds_dir / source_seed.name)
+                copied_seed_count += 1
 
-        # If seeds directory is empty, create minimal seed.
-        seed_files = list(seeds_dir.glob("*"))
-        if not seed_files:
+        # An explicit corpus is copied into this run; default seeds are never shared.
+        if copied_seed_count == 0:
             initial_seed = seeds_dir / "seed_init.bin"
             initial_seed.write_bytes(b"TEST\x00\x00\x00\x04DATA")
     except OSError as e:
-        remove_empty_crash_directory()
+        remove_run_workspace()
         return failure("FUZZING_SETUP_FAILED", f"Could not prepare the fuzzer seed corpus: {e}")
 
     # Step 1: Check if angr concolic solving should inject seeds first
@@ -184,7 +204,7 @@ async def run_hybrid_fuzz_impl(
             solutions = solve_branch_constraints_angr(str(target_bin))
             for idx, sol in enumerate(solutions):
                 if sol and len(sol) >= 4:
-                    seed_path = seeds_dir / f"angr_seed_{idx}.bin"
+                    seed_path = seeds_dir / f"angr_seed_{run_workspace.name}_{idx}.bin"
                     seed_path.write_bytes(sol)
                     solved_seeds_count += 1
         except Exception as e:
@@ -226,7 +246,7 @@ async def run_hybrid_fuzz_impl(
         )
         triage = triage_asan_log(fuzzer_output)
         if not isinstance(e, subprocess.CalledProcessError) or not triage["is_sanitizer_report"]:
-            remove_empty_crash_directory()
+            remove_run_workspace()
             logger.warning("Fuzzing subprocess failed: %s", e)
             return failure(
                 "FUZZING_FAILED",
@@ -247,6 +267,8 @@ async def run_hybrid_fuzz_impl(
         fuzz_execution_status = "crash_detected"
         crash_input = _find_crash_input(fuzzer_output, crashes_dir, artifact_files)
         if crash_input is None:
+            if not artifact_files:
+                remove_run_workspace()
             return failure(
                 "CRASH_EVIDENCE_INCOMPLETE",
                 "Sanitizer output was recognized, but its crash input could not be linked to this fuzz run.",
@@ -286,13 +308,13 @@ async def run_hybrid_fuzz_impl(
         return failure("CRASH_TRIAGE_INCOMPLETE", "Sanitizer output could not be triaged.")
 
     if not crashes_found and not artifact_files:
-        remove_empty_crash_directory()
+        remove_run_workspace()
 
     # Extract execs/sec metric from log
     m_execs = re.search(r"stat::number_of_executed_units:\s+(\d+)", fuzzer_output)
     exec_units = int(m_execs.group(1)) if m_execs else 0
     if fuzz_execution_status == "completed" and (m_execs is None or exec_units == 0):
-        remove_empty_crash_directory()
+        remove_run_workspace()
         return failure(
             "FUZZING_INCOMPLETE",
             "Fuzzer exited successfully without reporting any executed input units.",
