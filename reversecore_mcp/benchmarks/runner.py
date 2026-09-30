@@ -390,9 +390,10 @@ class BenchmarkRunner:
             simulated_execs = 1000 * options.fuzz_duration_seconds
 
         cwe_id = triage.get("cwe_id") or target.cwe_id
-        cvss_score = triage.get("cvss", {}).get("cvss_v31_score", target.cvss.expected_score)
-        cvss_sev = triage.get("cvss", {}).get("severity", target.cvss.severity)
-        cvss_vec = triage.get("cvss", {}).get("cvss_vector", target.cvss.expected_vector)
+        triage_cvss = triage.get("cvss") or {}
+        cvss_score = triage_cvss.get("cvss_v31_score", target.cvss.expected_score)
+        cvss_sev = triage_cvss.get("severity", target.cvss.severity)
+        cvss_vec = triage_cvss.get("cvss_vector", target.cvss.expected_vector)
 
         crashes_detected = 1 if (rc != 0 or "AddressSanitizer" in stderr or triage) else 1
 
@@ -419,13 +420,11 @@ class BenchmarkRunner:
                     "faulting_function": triage.get("faulting_function", target.faulting_symbol),
                     "access_type": triage.get("access_type"),
                     "access_size": triage.get("access_size"),
-                    "cvss": triage.get(
-                        "cvss",
-                        {
-                            "cvss_v31_score": cvss_score,
-                            "severity": cvss_sev,
-                        },
-                    ),
+                    "cvss": triage.get("cvss")
+                    or {
+                        "cvss_v31_score": cvss_score,
+                        "severity": cvss_sev,
+                    },
                     "crash_callstack": triage.get("crash_callstack", []),
                 }
             ],

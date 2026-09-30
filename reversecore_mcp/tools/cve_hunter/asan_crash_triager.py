@@ -175,25 +175,43 @@ def triage_asan_log(asan_output: str) -> dict[str, Any]:
         asan_output: Raw stderr/stdout containing ASan crash trace.
 
     Returns:
-        Structured triage dictionary with bug type, CWE, callstacks, and CVSS.
+        Structured sanitizer triage data, with CWE and CVSS fields populated only
+        for recognized error classes that have an explicit mapping.
     """
     lines = asan_output.splitlines()
+    error_match = next(
+        (match for line in lines if (match := _ASAN_ERROR_PATTERN.search(line))),
+        None,
+    )
+    if error_match is None:
+        return {
+            "crash_signature_id": None,
+            "bug_type": "unknown_crash",
+            "is_sanitizer_report": False,
+            "classification_status": "no_crash_evidence",
+            "cwe_id": None,
+            "cwe_name": None,
+            "access_type": "UNKNOWN",
+            "access_size": 0,
+            "fault_address": None,
+            "faulting_function": "unknown",
+            "faulting_source_location": "unknown",
+            "cvss": None,
+            "crash_callstack": [],
+            "allocation_callstack": [],
+            "free_callstack": [],
+            "is_heap_corruption": False,
+            "exploitability_assessment": (
+                "Not assessed because no recognized sanitizer diagnostic was found."
+            ),
+        }
 
-    bug_type = "unknown_crash"
-    fault_address = "0x0"
+    bug_type = error_match.group(1).lower()
+    fault_address = error_match.group(2)
     access_type = "UNKNOWN"
     access_size = 0
 
-    # 1. Parse ERROR line
-    for line in lines:
-        m_err = _ASAN_ERROR_PATTERN.search(line)
-        if m_err:
-            bug_type = m_err.group(1).lower()
-            if m_err.group(2):
-                fault_address = m_err.group(2)
-            break
-
-    # 2. Parse Access type
+    # Parse access type only after a sanitizer error record has been recognized.
     for line in lines:
         m_acc = _ACCESS_PATTERN.search(line)
         if m_acc:
@@ -202,7 +220,7 @@ def triage_asan_log(asan_output: str) -> dict[str, Any]:
             fault_address = m_acc.group(3)
             break
 
-    # 3. Split into sections: Crash trace, Allocation trace, Free trace
+    # Split into sections: Crash trace, Allocation trace, Free trace.
     crash_lines: list[str] = []
     alloc_lines: list[str] = []
     free_lines: list[str] = []
@@ -227,26 +245,19 @@ def triage_asan_log(asan_output: str) -> dict[str, Any]:
     alloc_frames = parse_asan_stack_trace(alloc_lines)
     free_frames = parse_asan_stack_trace(free_lines)
 
-    # 4. Generate deduplication crash signature hash
+    # Generate a signature only for a recognized sanitizer diagnostic.
     # Based on top 3 non-sanitizer stack frames
     user_frames = [f for f in crash_frames if not f.get("is_sanitizer_internal")]
     sig_components = [
         f"{f.get('symbol')}@{f.get('source_file')}:{f.get('line')}" for f in user_frames[:3]
     ]
     if not sig_components:
-        sig_components = [bug_type, fault_address]
+        sig_components = [bug_type, fault_address or "unknown"]
     crash_signature = hashlib.sha256(":".join(sig_components).encode()).hexdigest()[:16]
 
-    # 5. Determine CWE and CVSS
-    cwe_info = CWE_MAP.get(
-        bug_type,
-        {
-            "cwe_id": "CWE-119",
-            "cwe_name": "Memory Corruption",
-            "base_severity": "MEDIUM",
-        },
-    )
-    cvss_info = calculate_cvss_score(bug_type, access_type, access_size)
+    # Assign CWE and CVSS only when the sanitizer class has a known mapping.
+    cwe_info = CWE_MAP.get(bug_type)
+    cvss_info = calculate_cvss_score(bug_type, access_type, access_size) if cwe_info else None
 
     faulting_function = user_frames[0].get("symbol", "unknown") if user_frames else "unknown"
     faulting_source = (
@@ -258,8 +269,10 @@ def triage_asan_log(asan_output: str) -> dict[str, Any]:
     return {
         "crash_signature_id": crash_signature,
         "bug_type": bug_type,
-        "cwe_id": cwe_info["cwe_id"],
-        "cwe_name": cwe_info["cwe_name"],
+        "is_sanitizer_report": True,
+        "classification_status": "classified" if cwe_info else "unknown_sanitizer_error",
+        "cwe_id": cwe_info["cwe_id"] if cwe_info else None,
+        "cwe_name": cwe_info["cwe_name"] if cwe_info else None,
         "access_type": access_type,
         "access_size": access_size,
         "fault_address": fault_address,
@@ -269,11 +282,15 @@ def triage_asan_log(asan_output: str) -> dict[str, Any]:
         "crash_callstack": crash_frames,
         "allocation_callstack": alloc_frames,
         "free_callstack": free_frames,
-        "is_heap_corruption": "heap" in bug_type or "free" in bug_type,
+        "is_heap_corruption": bool(cwe_info) and ("heap" in bug_type or "free" in bug_type),
         "exploitability_assessment": (
             "High likelihood of Remote Code Execution (RCE) via arbitrary memory write"
-            if access_type == "WRITE" and ("heap" in bug_type or "stack" in bug_type)
-            else "Potential Information Disclosure or Denial of Service (Crash)"
+            if cwe_info and access_type == "WRITE" and ("heap" in bug_type or "stack" in bug_type)
+            else (
+                "Potential Information Disclosure or Denial of Service (Crash)"
+                if cwe_info
+                else "Not assessed because the sanitizer error class has no CWE mapping."
+            )
         ),
     }
 
@@ -289,7 +306,7 @@ async def triage_crash_impl(
         timeout: Maximum execution timeout in seconds.
 
     Returns:
-        ToolResult with structured crash diagnostics and CVSS assessment.
+        ToolResult with structured sanitizer diagnostics or a NOT_SANITIZER_LOG error.
     """
     raw_text = crash_log_or_text.strip()
     if not raw_text:
@@ -311,12 +328,28 @@ async def triage_crash_impl(
             pass  # Treat as direct raw log string
 
     triage_result = triage_asan_log(raw_text)
+    if not triage_result["is_sanitizer_report"]:
+        return failure(
+            "NOT_SANITIZER_LOG",
+            "Input does not contain a recognized sanitizer diagnostic.",
+            hint="Provide an ASan, UBSan, LeakSanitizer, or ThreadSanitizer error record.",
+        )
 
-    summary = (
-        f"Triaged {triage_result['bug_type'].upper()} ({triage_result['cwe_id']}: {triage_result['cwe_name']}) "
-        f"in {triage_result['faulting_function']} [{triage_result['faulting_source_location']}]. "
-        f"CVSS v3.1: {triage_result['cvss']['cvss_v31_score']} ({triage_result['cvss']['severity']})."
-    )
+    if triage_result["cvss"] is None:
+        summary = (
+            f"Recognized sanitizer diagnostic {triage_result['bug_type']} in "
+            f"{triage_result['faulting_function']} "
+            f"[{triage_result['faulting_source_location']}]; no CWE/CVSS mapping is available."
+        )
+    else:
+        summary = (
+            f"Triaged {triage_result['bug_type'].upper()} "
+            f"({triage_result['cwe_id']}: {triage_result['cwe_name']}) "
+            f"in {triage_result['faulting_function']} "
+            f"[{triage_result['faulting_source_location']}]. "
+            f"CVSS v3.1: {triage_result['cvss']['cvss_v31_score']} "
+            f"({triage_result['cvss']['severity']})."
+        )
 
     triage_result["summary"] = summary
     return success(triage_result)

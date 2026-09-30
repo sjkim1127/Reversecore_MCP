@@ -225,10 +225,7 @@ async def run_hybrid_fuzz_impl(
             if value and (value is output or str(value) not in str(output))
         )
         triage = triage_asan_log(fuzzer_output)
-        if (
-            not isinstance(e, subprocess.CalledProcessError)
-            or triage["bug_type"] == "unknown_crash"
-        ):
+        if not isinstance(e, subprocess.CalledProcessError) or not triage["is_sanitizer_report"]:
             remove_empty_crash_directory()
             logger.warning("Fuzzing subprocess failed: %s", e)
             return failure(
@@ -246,7 +243,7 @@ async def run_hybrid_fuzz_impl(
         + list(crashes_dir.glob("oom-*"))
     )
     triage = triage_asan_log(fuzzer_output)
-    if triage["bug_type"] != "unknown_crash":
+    if triage["is_sanitizer_report"]:
         fuzz_execution_status = "crash_detected"
         crash_input = _find_crash_input(fuzzer_output, crashes_dir, artifact_files)
         if crash_input is None:
@@ -262,12 +259,13 @@ async def run_hybrid_fuzz_impl(
                 "CRASH_EVIDENCE_INCOMPLETE",
                 f"Could not read the crash input artifact: {type(e).__name__}",
             )
+        cvss = triage.get("cvss") or {}
         triage.update(
             {
                 "crash_type": triage["bug_type"],
                 "cwe": triage["cwe_id"],
-                "severity": triage["cvss"]["severity"],
-                "cvss_score": triage["cvss"]["cvss_v31_score"],
+                "severity": cvss.get("severity"),
+                "cvss_score": cvss.get("cvss_v31_score"),
                 "location": triage["faulting_source_location"],
                 "artifact_count": len(artifact_files),
                 "evidence_source": "hybrid_fuzzer",

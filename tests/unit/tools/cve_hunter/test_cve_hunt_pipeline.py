@@ -385,6 +385,42 @@ READ of size 8 at 0x602000000010
         assert res.error_code == "INVALID_CRASH_LOG"
 
     @pytest.mark.asyncio
+    async def test_hunt_cve_pipeline_preserves_unmapped_sanitizer_without_cve_claim(
+        self, workspace_file
+    ):
+        target_h = workspace_file("unmapped_external_log_target.h")
+        with (
+            patch(
+                "reversecore_mcp.tools.cve_hunter.cve_hunt_pipeline.synthesize_fuzz_harness_impl",
+                new_callable=AsyncMock,
+                return_value=success({}),
+            ),
+            patch(
+                "reversecore_mcp.tools.cve_hunter.cve_hunt_pipeline.run_hybrid_fuzz_impl",
+                new_callable=AsyncMock,
+                return_value=failure("FUZZING_FAILED", "fuzzer binary was unavailable"),
+            ),
+        ):
+            res = await hunt_cve_pipeline_impl(
+                target_path_str=str(target_h),
+                options={
+                    "crash_log": (
+                        "==1234==ERROR: AddressSanitizer: container-overflow "
+                        "on address 0x602000000010"
+                    )
+                },
+            )
+
+        assert res.status == "success"
+        assert res.data["finding_status"] == "unclassified"
+        assert res.data["cwe_id"] is None
+        assert res.data["cvss_v31_score"] is None
+        assert res.data["standalone_python_poc"] is None
+        assert res.data["cve_security_advisory_markdown"] is None
+        assert res.data["triaged_crashes"][0]["bug_type"] == "container-overflow"
+        assert "no CWE/CVSS mapping" in res.data["summary"]
+
+    @pytest.mark.asyncio
     async def test_hunt_cve_pipeline_propagates_fuzz_failure_without_external_log(
         self, workspace_file
     ):
