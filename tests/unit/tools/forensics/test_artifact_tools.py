@@ -8,6 +8,7 @@ Also covers edge cases: empty input, insufficient patterns, no flagged IoCs.
 from unittest.mock import MagicMock, patch
 
 import pytest
+import yara
 
 from reversecore_mcp.tools.forensics.artifact import (
     ARTIFACT_TYPES,
@@ -245,6 +246,80 @@ async def test_artifact_generate_yara_success(normalized_artifacts):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+async def test_artifact_generate_yara_escapes_untrusted_literals():
+    """Quoted, multiline, path, process, and Unicode values remain literal data."""
+    network_value = 'evil.example"\n}\nrule injected { condition: true } //'
+    process_value = 'evil"\nprocess.exe'
+    artifacts = [
+        {"type": "string", "value": r"C:\Windows\Temp\evil.exe"},
+        {"type": "string", "value": "의심 문자열"},
+        {"type": "dns_query", "value": network_value},
+        {"type": "process", "value": process_value},
+    ]
+
+    result = await artifact_generate_yara(artifacts, rule_name="safe_rule")
+
+    assert result.status == "success"
+    rule_source = result.data["yara_rule"]
+    assert r"C:\\Windows\\Temp\\evil.exe" in rule_source
+    assert r"evil.example\"\n}\nrule injected { condition: true } //" in rule_source
+    assert r"evil\"\nprocess.exe" in rule_source
+    compiled_rule = yara.compile(source=rule_source)
+    assert compiled_rule.match(data=rb"C:\Windows\Temp\evil.exe")
+    assert compiled_rule.match(data="의심 문자열".encode())
+    assert compiled_rule.match(data=network_value.encode())
+    assert compiled_rule.match(data=process_value.encode())
+    assert not compiled_rule.match(data=b"unrelated data")
+    assert not compiled_rule.match(data=b"rule injected { condition: true }")
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "rule_name",
+    [
+        "bad-name",
+        "1bad",
+        "safe { condition: true } rule injected { condition: true",
+        "safe\nrule injected",
+        "règle",
+    ],
+)
+@pytest.mark.asyncio
+async def test_artifact_generate_yara_rejects_invalid_rule_names(rule_name):
+    """Rule identifiers cannot alter generated YARA syntax."""
+    result = await artifact_generate_yara(
+        [{"type": "dns_query", "value": "evil.example"}],
+        rule_name=rule_name,
+    )
+
+    assert result.status == "error"
+    assert result.error_code == "INVALID_RULE_NAME"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_artifact_generate_yara_compile_error_does_not_save(
+    workspace_dir, patched_workspace_config, monkeypatch
+):
+    """A compile failure is returned before any rule file is created."""
+    output = workspace_dir / "rules" / "invalid.yar"
+
+    def reject_rule(*, source):
+        raise yara.SyntaxError("forced compile failure")
+
+    monkeypatch.setattr(yara, "compile", reject_rule)
+    result = await artifact_generate_yara(
+        [{"type": "dns_query", "value": "evil.example"}],
+        output_path=str(output),
+    )
+
+    assert result.status == "error"
+    assert result.error_code == "YARA_COMPILE_ERROR"
+    assert not output.exists()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
 async def test_artifact_generate_yara_saves_file(
     normalized_artifacts, workspace_dir, patched_workspace_config
 ):
@@ -365,7 +440,11 @@ async def test_artifact_timeline_places_unknown_timestamps_last_in_both_orders()
     """Invalid and missing timestamps remain last for ascending and descending."""
     artifacts = [
         {"type": "string", "value": "invalid", "metadata": {"mtime": "not a date"}},
-        {"type": "string", "value": "known", "metadata": {"mtime": "2024-01-01T00:00:00Z"}},
+        {
+            "type": "string",
+            "value": "known",
+            "metadata": {"mtime": "2024-01-01T00:00:00Z"},
+        },
         {"type": "string", "value": "missing", "metadata": {}},
     ]
 
@@ -639,11 +718,12 @@ async def test_artifact_report_include_yara_uncovered(normalized_artifacts):
     ]
     result = await artifact_report(
         artifacts=yara_artifacts,
-        case_name="yara_report_case",
+        case_name="incident-2026 #1",
         include_yara=True,
     )
     assert result.status == "success"
     assert "## Auto-Generated YARA Rule" in result.data["report_markdown"]
+    assert "rule incident_2026__1_detection {" in result.data["report_markdown"]
 
 
 @pytest.mark.unit
