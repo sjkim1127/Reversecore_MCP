@@ -58,6 +58,32 @@ _FUNC_SIGNATURE_PATTERN = re.compile(
     r"^\s*(?:extern\s+[\"']C[\"']\s+)?(?:static\s+|inline\s+)?([A-Za-z0-9_]+(?:\s*\*+)?)\s+([A-Za-z0-9_]+)\s*\(([^)]*)\)",
     re.MULTILINE,
 )
+_POINTER_PARAMETER_PATTERN = re.compile(
+    r"^\s*(?P<base_type>[A-Za-z_][A-Za-z0-9_\s]*?)\s*\*\s*(?:[A-Za-z_][A-Za-z0-9_]*)?\s*$"
+)
+_BUFFER_POINTEE_TYPES = {
+    "char",
+    "signed char",
+    "unsigned char",
+    "uint8_t",
+    "int8_t",
+    "void",
+}
+_TYPE_QUALIFIERS = {"const", "volatile", "restrict", "__restrict", "__restrict__"}
+
+
+def _parse_input_buffer_pointer(parameter: str) -> tuple[str, bool] | None:
+    """Return the byte-buffer pointee type and constness for supported parameters."""
+    match = _POINTER_PARAMETER_PATTERN.fullmatch(parameter)
+    if not match:
+        return None
+
+    type_tokens = match.group("base_type").split()
+    is_const = "const" in type_tokens
+    pointee_type = " ".join(token for token in type_tokens if token not in _TYPE_QUALIFIERS)
+    if pointee_type not in _BUFFER_POINTEE_TYPES:
+        return None
+    return pointee_type, is_const
 
 
 def extract_format_tokens_from_sample(sample_bytes: bytes, max_tokens: int = 50) -> list[str]:
@@ -216,17 +242,29 @@ def generate_libfuzzer_harness(
 
     # Analyze parameters to construct suitable invocation
     call_args: list[str] = []
+    uses_mutable_buffer = False
 
     for raw_p in parameters.split(","):
         p = raw_p.strip()
         if not p or p == "void":
             continue
         p_lower = p.lower()
-        if any(t in p_lower for t in ["char *", "uint8_t *", "void *", "unsigned char *", "char*"]):
-            if "const" in p_lower or "char *" in p_lower or "uint8_t *" in p_lower:
-                call_args.append("(const uint8_t *)Data")
+        buffer_pointer = _parse_input_buffer_pointer(p)
+        if buffer_pointer:
+            pointee_type, is_const = buffer_pointer
+            if is_const:
+                if pointee_type == "void":
+                    call_args.append("static_cast<const void *>(Data)")
+                else:
+                    call_args.append(f"reinterpret_cast<const {pointee_type} *>(Data)")
             else:
-                call_args.append("(uint8_t *)Data")
+                uses_mutable_buffer = True
+                if pointee_type == "void":
+                    call_args.append("static_cast<void *>(mutable_data.data())")
+                elif pointee_type == "uint8_t":
+                    call_args.append("mutable_data.data()")
+                else:
+                    call_args.append(f"reinterpret_cast<{pointee_type} *>(mutable_data.data())")
         elif any(
             t in p_lower
             for t in [
@@ -248,9 +286,13 @@ def generate_libfuzzer_harness(
             call_args.append("NULL")
 
     if not call_args:
-        call_args = ["(const uint8_t *)Data", "Size"]
+        call_args = ["reinterpret_cast<const uint8_t *>(Data)", "Size"]
 
     args_str = ", ".join(call_args)
+    vector_include = "#include <vector>" if uses_mutable_buffer else ""
+    mutable_buffer_setup = (
+        "    std::vector<uint8_t> mutable_data(Data, Data + Size);\n" if uses_mutable_buffer else ""
+    )
 
     harness_code = f"""/*
  * Auto-Generated LibFuzzer Harness by Reversecore_MCP
@@ -261,6 +303,7 @@ def generate_libfuzzer_harness(
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+{vector_include}
 
 #ifdef __cplusplus
 extern "C" {{
@@ -274,7 +317,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {{
     }}
 
     // Target parser entry point invocation
-    {target_function}({args_str});
+{mutable_buffer_setup}    {target_function}({args_str});
 
     return 0;
 }}
