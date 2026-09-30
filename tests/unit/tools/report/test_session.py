@@ -109,9 +109,10 @@ class TestAnalysisSession:
         assert session.tags == ["ransomware"]
 
 
-def test_fallback_zoneinfo(monkeypatch):
-    """Test fallback ZoneInfo when zoneinfo is not available."""
+def test_fallback_timezone_without_zoneinfo(monkeypatch):
+    """Known zones remain usable with fixed offsets when zoneinfo is unavailable."""
     import sys
+    from datetime import timedelta, timezone
     from importlib import reload
 
     # Block zoneinfo
@@ -123,23 +124,16 @@ def test_fallback_zoneinfo(monkeypatch):
     reload(session)
 
     try:
-        # Now session.ZoneInfo is the fallback class
-        fallback_zi = session.ZoneInfo("Asia/Seoul")
-        assert fallback_zi.key == "Asia/Seoul"
-
-        # Test utcoffset
-        from datetime import timedelta
-
-        offset = fallback_zi.utcoffset(None)
-        assert offset == timedelta(hours=9)
-
-        # Test fallback get_timezone and offsets
+        assert session.ZoneInfo is None
         tz = session.get_timezone("Asia/Seoul")
-        assert tz.key == "Asia/Seoul"
+        assert isinstance(tz, timezone)
+        assert datetime(2026, 1, 1, tzinfo=timezone.utc).astimezone(tz).utcoffset() == timedelta(
+            hours=9
+        )
 
-        # Test get_timezone fallback behavior for invalid zone
+        # Unknown zones safely fall back to UTC.
         tz_invalid = session.get_timezone("Invalid/Timezone")
-        assert tz_invalid.key == "Invalid/Timezone"
+        assert tz_invalid is timezone.utc
     finally:
         # Restore zoneinfo and reload back to normal
         monkeypatch.undo()

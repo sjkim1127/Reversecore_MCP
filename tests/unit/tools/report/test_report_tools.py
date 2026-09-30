@@ -1,5 +1,6 @@
 """Unit tests for ReportTools module."""
 
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -87,6 +88,168 @@ class TestTimezoneManagement:
         assert result["current_timezone"] == "UTC"
         assert "utc_offset" in result
         assert "available_timezones" in result
+
+    @pytest.mark.parametrize(
+        ("utc_now", "zone", "expected_time", "expected_abbr", "expected_offset"),
+        [
+            (
+                datetime(2026, 3, 8, 6, 59, tzinfo=timezone.utc),
+                "America/New_York",
+                "01:59:00",
+                "EST",
+                "UTC-5",
+            ),
+            (
+                datetime(2026, 3, 8, 7, 1, tzinfo=timezone.utc),
+                "America/New_York",
+                "03:01:00",
+                "EDT",
+                "UTC-4",
+            ),
+            (
+                datetime(2026, 11, 1, 5, 59, tzinfo=timezone.utc),
+                "America/New_York",
+                "01:59:00",
+                "EDT",
+                "UTC-4",
+            ),
+            (
+                datetime(2026, 11, 1, 6, 1, tzinfo=timezone.utc),
+                "America/New_York",
+                "01:01:00",
+                "EST",
+                "UTC-5",
+            ),
+            (
+                datetime(2026, 3, 8, 9, 59, tzinfo=timezone.utc),
+                "America/Los_Angeles",
+                "01:59:00",
+                "PST",
+                "UTC-8",
+            ),
+            (
+                datetime(2026, 3, 8, 10, 1, tzinfo=timezone.utc),
+                "America/Los_Angeles",
+                "03:01:00",
+                "PDT",
+                "UTC-7",
+            ),
+            (
+                datetime(2026, 11, 1, 8, 59, tzinfo=timezone.utc),
+                "America/Los_Angeles",
+                "01:59:00",
+                "PDT",
+                "UTC-7",
+            ),
+            (
+                datetime(2026, 11, 1, 9, 1, tzinfo=timezone.utc),
+                "America/Los_Angeles",
+                "01:01:00",
+                "PST",
+                "UTC-8",
+            ),
+            (
+                datetime(2026, 3, 29, 0, 59, tzinfo=timezone.utc),
+                "Europe/Paris",
+                "01:59:00",
+                "CET",
+                "UTC+1",
+            ),
+            (
+                datetime(2026, 3, 29, 1, 1, tzinfo=timezone.utc),
+                "Europe/Paris",
+                "03:01:00",
+                "CEST",
+                "UTC+2",
+            ),
+            (
+                datetime(2026, 10, 25, 0, 59, tzinfo=timezone.utc),
+                "Europe/Paris",
+                "02:59:00",
+                "CEST",
+                "UTC+2",
+            ),
+            (
+                datetime(2026, 10, 25, 1, 1, tzinfo=timezone.utc),
+                "Europe/Paris",
+                "02:01:00",
+                "CET",
+                "UTC+1",
+            ),
+            (
+                datetime(2026, 3, 29, 0, 59, tzinfo=timezone.utc),
+                "Europe/London",
+                "00:59:00",
+                "GMT",
+                "UTC+0",
+            ),
+            (
+                datetime(2026, 3, 29, 1, 1, tzinfo=timezone.utc),
+                "Europe/London",
+                "02:01:00",
+                "BST",
+                "UTC+1",
+            ),
+            (
+                datetime(2026, 10, 25, 0, 59, tzinfo=timezone.utc),
+                "Europe/London",
+                "01:59:00",
+                "BST",
+                "UTC+1",
+            ),
+            (
+                datetime(2026, 10, 25, 1, 1, tzinfo=timezone.utc),
+                "Europe/London",
+                "01:01:00",
+                "GMT",
+                "UTC+0",
+            ),
+            (
+                datetime(2026, 1, 1, 0, 0, tzinfo=timezone.utc),
+                "Asia/Seoul",
+                "09:00:00",
+                "KST",
+                "UTC+9",
+            ),
+            (
+                datetime(2026, 7, 1, 0, 0, tzinfo=timezone.utc),
+                "Asia/Seoul",
+                "09:00:00",
+                "KST",
+                "UTC+9",
+            ),
+        ],
+    )
+    def test_timezone_conversion_tracks_dst_and_fixed_offsets(
+        self, tmp_path, utc_now, zone, expected_time, expected_abbr, expected_offset
+    ):
+        rt = ReportTools(template_dir=tmp_path, output_dir=tmp_path)
+        with patch("reversecore_mcp.tools.report.report_tools.datetime") as datetime_mock:
+            datetime_mock.now.return_value = utc_now
+            result = rt.get_timestamp_data(zone)
+
+        assert result["time"] == expected_time
+        assert result["timezone_abbr"] == expected_abbr
+        assert result["timezone_offset"] == expected_offset
+        assert rt._format_time(utc_now, tz_name=zone).endswith(f"({expected_abbr})")
+
+    def test_timezone_info_uses_current_dst_offset(self, tmp_path):
+        rt = ReportTools(
+            template_dir=tmp_path,
+            output_dir=tmp_path,
+            default_timezone="America/New_York",
+        )
+        summer_utc = datetime(2026, 7, 1, 12, 0, tzinfo=timezone.utc)
+        with patch("reversecore_mcp.tools.report.report_tools.datetime") as datetime_mock:
+            datetime_mock.now.return_value = summer_utc
+            result = rt.get_timezone_info()
+
+        assert result["utc_offset"] == -4
+        assert result["abbreviation"] == "EDT"
+        assert result["available_timezones"]["America/New_York"] == {
+            "offset": "UTC-4",
+            "abbreviation": "EDT",
+        }
 
 
 class TestTimestampGeneration:
