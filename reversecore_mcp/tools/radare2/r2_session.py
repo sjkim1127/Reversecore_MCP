@@ -10,10 +10,15 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+import threading
+import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from functools import lru_cache
 from typing import Any
+
+import regex as timeout_regex
 
 # Lazy import for r2pipe to allow tests to run without it
 try:
@@ -34,6 +39,18 @@ logger = get_logger(__name__)
 DEFAULT_TIMEOUT = get_config().default_tool_timeout
 DEFAULT_PAGE_SIZE = 1000
 MAX_PAGE_SIZE = 10000
+_REGEX_MATCH_MIN_TIMEOUT_SECONDS = 0.1
+_REGEX_MATCH_MAX_TIMEOUT_SECONDS = 1.0
+_REGEX_MATCH_CHARS_PER_SECOND = 10_000_000
+_REGEX_FILTER_MAX_WORKERS = 4
+_REGEX_FILTER_MAX_IN_FLIGHT = _REGEX_FILTER_MAX_WORKERS * 2
+_REGEX_FILTER_EXECUTOR = ThreadPoolExecutor(
+    max_workers=_REGEX_FILTER_MAX_WORKERS,
+    thread_name_prefix="r2-regex-filter",
+)
+_REGEX_FILTER_CAPACITY = threading.BoundedSemaphore(_REGEX_FILTER_MAX_IN_FLIGHT)
+_REGEX_MATCH_TIMEOUT_ERROR_PREFIX = "Error: Regex matching timed out"
+_REGEX_FILTER_CAPACITY_ERROR_PREFIX = "Error: Regex filter capacity exceeded"
 
 # =============================================================================
 # Security Validators
@@ -384,11 +401,11 @@ class R2Session:
 
 
 @lru_cache(maxsize=64)
-def _compile_regex_cached(pattern: str) -> re.Pattern | None:
+def _compile_regex_cached(pattern: str) -> timeout_regex.Pattern | None:
     """Compile and cache regex pattern."""
     try:
-        return re.compile(pattern)
-    except re.error:
+        return timeout_regex.compile(pattern)
+    except timeout_regex.error:
         return None
 
 
@@ -405,9 +422,62 @@ def _filter_lines_by_regex(text: str, pattern: str) -> str:
     if regex is None:
         return f"Invalid regex pattern: {pattern}"
 
-    lines = text.split("\n")
-    filtered = [line for line in lines if regex.search(line)]
+    timeout_seconds = min(
+        _REGEX_MATCH_MAX_TIMEOUT_SECONDS,
+        max(_REGEX_MATCH_MIN_TIMEOUT_SECONDS, len(text) / _REGEX_MATCH_CHARS_PER_SECOND),
+    )
+    deadline = time.monotonic() + timeout_seconds
+    filtered = []
+    try:
+        # Walk the original output without materializing a second list of every
+        # line. Keep split("\n") semantics, including empty and trailing lines.
+        line_start = 0
+        while True:
+            newline = text.find("\n", line_start)
+            line_end = len(text) if newline == -1 else newline
+            line = text[line_start:line_end]
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError
+            if regex.search(line, timeout=remaining):
+                filtered.append(line)
+            if newline == -1:
+                break
+            line_start = newline + 1
+    except TimeoutError:
+        return f"{_REGEX_MATCH_TIMEOUT_ERROR_PREFIX} (max {timeout_seconds:.1f} seconds)"
+
     return "\n".join(filtered)
+
+
+def _is_regex_filter_error(result: str) -> bool:
+    """Return whether a filter result reports a timeout or capacity limit."""
+    return result.startswith(
+        (_REGEX_MATCH_TIMEOUT_ERROR_PREFIX, _REGEX_FILTER_CAPACITY_ERROR_PREFIX)
+    )
+
+
+async def _filter_lines_by_regex_async(text: str, pattern: str) -> str:
+    """Filter caller regexes in an isolated worker pool with bounded admission.
+
+    The dedicated executor keeps adversarial filters from occupying the shared
+    default executor used by Radare2 I/O and unrelated asynchronous operations.
+    Admission is capped so queued jobs cannot retain unbounded Radare2 output.
+    """
+    if not _REGEX_FILTER_CAPACITY.acquire(blocking=False):
+        return f"{_REGEX_FILTER_CAPACITY_ERROR_PREFIX} (retry after current filters finish)"
+
+    try:
+        future = _REGEX_FILTER_EXECUTOR.submit(_filter_lines_by_regex, text, pattern)
+    except Exception:
+        _REGEX_FILTER_CAPACITY.release()
+        raise
+
+    future.add_done_callback(lambda _: _REGEX_FILTER_CAPACITY.release())
+    # Keep the admission slot until the executor work item actually finishes.
+    # If the request task is cancelled, cancelling the wrapped future could mark
+    # a queued job done while its arguments remain in ThreadPoolExecutor's queue.
+    return await asyncio.shield(asyncio.wrap_future(future))
 
 
 def _filter_named_functions(text: str) -> str:

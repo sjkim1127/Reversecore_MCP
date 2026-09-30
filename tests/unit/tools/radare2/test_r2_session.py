@@ -1,14 +1,20 @@
 """Unit tests for R2Session and r2_session utilities."""
 
+import asyncio
+import threading
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from reversecore_mcp.core.exceptions import ValidationError
 from reversecore_mcp.tools.radare2.r2_session import (
+    _REGEX_FILTER_CAPACITY,
+    _REGEX_FILTER_MAX_IN_FLIGHT,
+    _REGEX_FILTER_MAX_WORKERS,
     R2Session,
     _compile_regex_cached,
     _filter_lines_by_regex,
+    _filter_lines_by_regex_async,
     _filter_named_functions,
     _paginate_text,
     _sanitize_for_r2_cmd,
@@ -372,6 +378,16 @@ class TestFilterLinesByRegex:
         """Should return empty when no matches."""
         assert _filter_lines_by_regex("abc\ndef", "zzz") == ""
 
+    def test_lookaround_and_line_anchors_remain_supported(self):
+        """Safe Python-style regex features keep their per-line semantics."""
+        text = "sym.main\nsym.helper\nprefixmain"
+        assert _filter_lines_by_regex(text, r"(?<=sym\.)main$") == "sym.main"
+
+    def test_simple_pattern_filters_large_output(self):
+        """Large normal outputs receive a size-aware budget instead of 100 ms."""
+        text = "\n".join(["ordinary string output"] * 200_000)
+        assert _filter_lines_by_regex(text, "ordinary") == text
+
     def test_invalid_pattern(self):
         """Should return error message for invalid pattern."""
         text = "line1\nline2"
@@ -382,6 +398,187 @@ class TestFilterLinesByRegex:
         text = "line1\nline2"
         result = _filter_lines_by_regex(text, "a" * 501)
         assert "too long" in result
+
+    @pytest.mark.parametrize("pattern", (r"^(a+)+$", r"^(a|aa)+$"))
+    def test_catastrophic_patterns_time_out(self, pattern):
+        """Short pathological patterns must not run without a deadline."""
+        result = _filter_lines_by_regex("a" * 100_000 + "!", pattern)
+        assert "Regex matching timed out" in result
+
+    @pytest.mark.asyncio
+    async def test_catastrophic_filter_does_not_block_event_loop(self):
+        """A slow caller pattern yields while the worker enforces its timeout."""
+        task = asyncio.create_task(_filter_lines_by_regex_async("a" * 100_000 + "!", r"^(a+)+$"))
+
+        await asyncio.sleep(0.01)
+
+        assert not task.done()
+        assert "Regex matching timed out" in await task
+
+    @pytest.mark.asyncio
+    async def test_regex_worker_keeps_event_loop_responsive(self):
+        """Filtering stays off-loop even if a worker is briefly occupied."""
+        worker_started = threading.Event()
+        release_worker = threading.Event()
+
+        def blocking_filter(_text, _pattern):
+            worker_started.set()
+            release_worker.wait(timeout=0.5)
+            return "filtered"
+
+        with patch(
+            "reversecore_mcp.tools.radare2.r2_session._filter_lines_by_regex",
+            side_effect=blocking_filter,
+        ):
+            task = asyncio.create_task(_filter_lines_by_regex_async("text", "pattern"))
+            await asyncio.sleep(0.01)
+
+            assert worker_started.is_set()
+            assert not task.done()
+            release_worker.set()
+            assert await task == "filtered"
+
+    @pytest.mark.asyncio
+    async def test_regex_workers_do_not_starve_default_executor(self):
+        """Pathological filters cannot occupy Radare2's shared worker pool."""
+        workers_started = threading.Event()
+        release_workers = threading.Event()
+        started_count = 0
+        started_lock = threading.Lock()
+
+        def blocked_filter(_text, _pattern):
+            nonlocal started_count
+            with started_lock:
+                started_count += 1
+                if started_count == _REGEX_FILTER_MAX_WORKERS:
+                    workers_started.set()
+            release_workers.wait(timeout=1)
+            return "filtered"
+
+        with patch(
+            "reversecore_mcp.tools.radare2.r2_session._filter_lines_by_regex",
+            side_effect=blocked_filter,
+        ):
+            tasks = [
+                asyncio.create_task(_filter_lines_by_regex_async("text", "pattern"))
+                for _ in range(_REGEX_FILTER_MAX_WORKERS)
+            ]
+            try:
+                await asyncio.wait_for(
+                    asyncio.to_thread(workers_started.wait, timeout=1),
+                    timeout=1.5,
+                )
+                sentinel = await asyncio.wait_for(
+                    asyncio.to_thread(lambda: "default executor responsive"),
+                    timeout=0.5,
+                )
+                assert sentinel == "default executor responsive"
+            finally:
+                release_workers.set()
+                await asyncio.gather(*tasks, return_exceptions=True)
+
+    @pytest.mark.asyncio
+    async def test_regex_filter_admission_bounds_pending_jobs(self):
+        """A burst cannot queue more output buffers than the admission limit."""
+        workers_started = threading.Event()
+        release_workers = threading.Event()
+        started_count = 0
+        started_lock = threading.Lock()
+
+        def blocked_filter(_text, _pattern):
+            nonlocal started_count
+            with started_lock:
+                started_count += 1
+                if started_count == _REGEX_FILTER_MAX_WORKERS:
+                    workers_started.set()
+            release_workers.wait(timeout=1)
+            return "filtered"
+
+        with patch(
+            "reversecore_mcp.tools.radare2.r2_session._filter_lines_by_regex",
+            side_effect=blocked_filter,
+        ):
+            tasks = [
+                asyncio.create_task(_filter_lines_by_regex_async("text", "pattern"))
+                for _ in range(_REGEX_FILTER_MAX_IN_FLIGHT)
+            ]
+            try:
+                await asyncio.wait_for(
+                    asyncio.to_thread(workers_started.wait, timeout=1),
+                    timeout=1.5,
+                )
+                await asyncio.sleep(0)
+                assert all(not task.done() for task in tasks)
+
+                result = await _filter_lines_by_regex_async("overflow", "pattern")
+                assert "Regex filter capacity exceeded" in result
+            finally:
+                release_workers.set()
+                await asyncio.gather(*tasks, return_exceptions=True)
+
+    @pytest.mark.asyncio
+    async def test_cancelled_regex_waiters_keep_their_admission_slots(self):
+        """Cancelling queued callers cannot grow the executor's retained queue."""
+        workers_started = threading.Event()
+        all_jobs_finished = threading.Event()
+        release_workers = threading.Event()
+        started_count = 0
+        finished_count = 0
+        counts_lock = threading.Lock()
+
+        def blocked_filter(_text, _pattern):
+            nonlocal started_count, finished_count
+            with counts_lock:
+                started_count += 1
+                if started_count == _REGEX_FILTER_MAX_WORKERS:
+                    workers_started.set()
+            release_workers.wait(timeout=1)
+            with counts_lock:
+                finished_count += 1
+                if finished_count == _REGEX_FILTER_MAX_IN_FLIGHT:
+                    all_jobs_finished.set()
+            return "filtered"
+
+        with patch(
+            "reversecore_mcp.tools.radare2.r2_session._filter_lines_by_regex",
+            side_effect=blocked_filter,
+        ):
+            tasks = [
+                asyncio.create_task(_filter_lines_by_regex_async("text", "pattern"))
+                for _ in range(_REGEX_FILTER_MAX_IN_FLIGHT)
+            ]
+            try:
+                await asyncio.wait_for(
+                    asyncio.to_thread(workers_started.wait, timeout=1),
+                    timeout=1.5,
+                )
+                for _ in range(100):
+                    if not _REGEX_FILTER_CAPACITY.acquire(blocking=False):
+                        break
+                    _REGEX_FILTER_CAPACITY.release()
+                    await asyncio.sleep(0.01)
+                else:
+                    pytest.fail("all regex admission slots were not reserved")
+
+                queued_tasks = tasks[_REGEX_FILTER_MAX_WORKERS:]
+                for task in queued_tasks:
+                    task.cancel()
+                await asyncio.gather(*queued_tasks, return_exceptions=True)
+
+                result = await _filter_lines_by_regex_async("overflow", "pattern")
+                assert "Regex filter capacity exceeded" in result
+            finally:
+                release_workers.set()
+                await asyncio.gather(*tasks[:_REGEX_FILTER_MAX_WORKERS], return_exceptions=True)
+                await asyncio.wait_for(
+                    asyncio.to_thread(all_jobs_finished.wait, timeout=1.5),
+                    timeout=2,
+                )
+                for _ in range(100):
+                    if _REGEX_FILTER_CAPACITY.acquire(blocking=False):
+                        _REGEX_FILTER_CAPACITY.release()
+                        break
+                    await asyncio.sleep(0.01)
 
 
 class TestFilterNamedFunctions:

@@ -44,8 +44,9 @@ from reversecore_mcp.tools.radare2.r2_session import (
     DEFAULT_PAGE_SIZE,
     MAX_PAGE_SIZE,
     R2Session,
-    _filter_lines_by_regex,
+    _filter_lines_by_regex_async,
     _filter_named_functions,
+    _is_regex_filter_error,
     _paginate_text,
     _sanitize_for_r2_cmd,
     _validate_expression,
@@ -535,7 +536,9 @@ class Radare2ToolsPlugin(Plugin):
                 result = _filter_named_functions(result)
 
             if filter:
-                result = _filter_lines_by_regex(result, filter)
+                result = await _filter_lines_by_regex_async(result, filter)
+                if _is_regex_filter_error(result):
+                    return {"status": "error", "message": result}
 
             lines = [line for line in result.strip().split("\n") if line]
             return {
@@ -766,7 +769,9 @@ class Radare2ToolsPlugin(Plugin):
             result = await self._run_session_cmd(session, "ii")
 
             if filter:
-                result = _filter_lines_by_regex(result, filter)
+                result = await _filter_lines_by_regex_async(result, filter)
+                if _is_regex_filter_error(result):
+                    return {"status": "error", "message": result}
 
             return {"status": "success", "imports": result}
 
@@ -792,7 +797,9 @@ class Radare2ToolsPlugin(Plugin):
             result = await self._run_session_cmd(session, "is")
 
             if filter:
-                result = _filter_lines_by_regex(result, filter)
+                result = await _filter_lines_by_regex_async(result, filter)
+                if _is_regex_filter_error(result):
+                    return {"status": "error", "message": result}
 
             return {"status": "success", "symbols": result}
 
@@ -865,7 +872,9 @@ class Radare2ToolsPlugin(Plugin):
             result = await self._run_session_cmd(session, "iz")
 
             if filter:
-                result = _filter_lines_by_regex(result, filter)
+                result = await _filter_lines_by_regex_async(result, filter)
+                if _is_regex_filter_error(result):
+                    return {"status": "error", "message": result}
 
             paginated, has_more, next_cursor = _paginate_text(result, cursor, page_size)
 
@@ -907,7 +916,9 @@ class Radare2ToolsPlugin(Plugin):
             result = await self._run_session_cmd(session, "izz")
 
             if filter:
-                result = _filter_lines_by_regex(result, filter)
+                result = await _filter_lines_by_regex_async(result, filter)
+                if _is_regex_filter_error(result):
+                    return {"status": "error", "message": result}
 
             paginated, has_more, next_cursor = _paginate_text(result, cursor, page_size)
 
@@ -944,7 +955,9 @@ class Radare2ToolsPlugin(Plugin):
             result = await self._run_session_cmd(session, "ic")
 
             if filter:
-                result = _filter_lines_by_regex(result, filter)
+                result = await _filter_lines_by_regex_async(result, filter)
+                if _is_regex_filter_error(result):
+                    return {"status": "error", "message": result}
 
             return {"status": "success", "classes": result}
 
