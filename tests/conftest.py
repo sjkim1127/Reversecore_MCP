@@ -181,11 +181,13 @@ def config_isolation():
 
 
 @pytest.fixture(autouse=True)
-def mock_shutil_which():
+def mock_shutil_which(request):
     """Mock shutil.which to return dummy paths for forensics tools during tests."""
     orig_which = shutil.which
 
     def patched_which(cmd, mode=os.F_OK, path=None):
+        if cmd == "vol" and request.node.get_closest_marker("integration"):
+            return orig_which(cmd, mode, path)
         if cmd in (
             "fls",
             "vol",

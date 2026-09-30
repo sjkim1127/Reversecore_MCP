@@ -117,22 +117,38 @@ def _iter_ascii_strings(
 
 # Supported Volatility3 plugins
 _SUPPORTED_PLUGINS: dict[str, str] = {
-    "pslist": "List all running processes",
-    "pstree": "Display process tree",
-    "psscan": "Scan for EPROCESS structures (finds hidden processes)",
-    "netscan": "Scan for network connections",
-    "malfind": "Detect injected code / suspicious memory regions",
-    "dlllist": "List DLLs loaded by each process",
-    "handles": "List open handles per process",
-    "cmdline": "Extract command-line arguments for each process",
-    "filescan": "Scan for FILE_OBJECT structures",
-    "hivelist": "List registry hives",
-    "hashdump": "Dump password hashes from registry",
-    "lsadump": "Dump LSA secrets",
+    "windows.pslist": "List all running Windows processes",
+    "windows.pstree": "Display the Windows process tree",
+    "windows.psscan": "Scan for EPROCESS structures (finds hidden processes)",
+    "windows.netscan": "Scan for Windows network connections",
+    "windows.malfind": "Detect injected code / suspicious Windows memory regions",
+    "windows.dlllist": "List DLLs loaded by Windows processes",
+    "windows.handles": "List open handles per Windows process",
+    "windows.cmdline": "Extract command-line arguments for Windows processes",
+    "windows.filescan": "Scan for Windows FILE_OBJECT structures",
+    "windows.hivelist": "List Windows registry hives",
+    "windows.hashdump": "Dump Windows password hashes from registry",
+    "windows.lsadump": "Dump Windows LSA secrets",
     "linux.pslist": "Linux process list",
     "linux.bash": "Recover bash history from memory",
     "mac.pslist": "macOS process list",
 }
+_PLUGIN_NAMESPACES = ("windows.", "linux.", "mac.", "banners.")
+
+
+def _plugin_namespace_error(plugin: str) -> str | None:
+    """Describe why an unqualified or unsupported Volatility plugin is invalid."""
+    if plugin.startswith(_PLUGIN_NAMESPACES):
+        return None
+
+    matching_plugins = [
+        supported for supported in _SUPPORTED_PLUGINS if supported.endswith(f".{plugin}")
+    ]
+    if matching_plugins:
+        return (
+            f"Plugin '{plugin}' is not OS-qualified. Choose one of: {', '.join(matching_plugins)}."
+        )
+    return f"Plugin '{plugin}' must use an OS-qualified name such as 'windows.pslist'."
 
 
 def _run_vol3(dump_path: str, plugin: str, extra_args: list[str] | None = None) -> dict[str, Any]:
@@ -140,7 +156,7 @@ def _run_vol3(dump_path: str, plugin: str, extra_args: list[str] | None = None) 
 
     Args:
         dump_path: Path to the memory dump file.
-        plugin: Volatility3 plugin name (e.g., 'pslist', 'malfind').
+        plugin: OS-qualified Volatility3 plugin name (e.g., 'windows.pslist').
         extra_args: Additional arguments to pass to the plugin.
 
     Returns:
@@ -150,6 +166,10 @@ def _run_vol3(dump_path: str, plugin: str, extra_args: list[str] | None = None) 
         FileNotFoundError: If volatility3 (vol.py / vol3) is not installed.
         subprocess.TimeoutExpired: If the plugin exceeds the execution timeout.
     """
+    namespace_error = _plugin_namespace_error(plugin)
+    if namespace_error:
+        raise ValueError(namespace_error)
+
     cmd = ["vol", "-f", dump_path, "-r", "json", plugin]
     if extra_args:
         cmd.extend(extra_args)
@@ -266,7 +286,7 @@ async def memory_list_symbols(dump_path: str) -> ToolResult:
 @handle_tool_errors
 async def memory_analyze(
     dump_path: str,
-    plugin: str = "pslist",
+    plugin: str = "windows.pslist",
     symbol_path: str | None = None,
     extra_args: str | None = None,
     _bypass_queue: bool = False,
@@ -278,8 +298,9 @@ async def memory_analyze(
 
     Args:
         dump_path: Path to the memory dump file (.raw, .vmem, .mem, .dmp).
-        plugin: Volatility3 plugin name. Run ``memory_analyze`` with plugin='help'
-            to see all supported plugins.
+        plugin: OS-qualified Volatility3 plugin name. Run ``memory_analyze`` with
+            plugin='help' to see supported plugins. Bare names such as ``pslist``
+            are rejected because they can match plugins from multiple operating systems.
         symbol_path: Optional path to an ISF symbol table file. Required for some
             plugins on unknown OS versions.
         extra_args: Additional plugin arguments as a space-separated string
@@ -293,11 +314,23 @@ async def memory_analyze(
         ValidationError: If dump_path is not accessible.
 
     Example:
-        >>> result = await memory_analyze("/app/workspace/memdump.raw", plugin="pslist")
+        >>> result = await memory_analyze(
+        ...     "/app/workspace/memdump.raw", plugin="windows.pslist"
+        ... )
         >>> print(result.data["rows"])
     """
     if plugin == "help":
         return success({"supported_plugins": _SUPPORTED_PLUGINS, "total": len(_SUPPORTED_PLUGINS)})
+
+    namespace_error = _plugin_namespace_error(plugin)
+    if namespace_error:
+        is_ambiguous = "not OS-qualified" in namespace_error
+        return failure(
+            "AMBIGUOUS_PLUGIN" if is_ambiguous else "UNSUPPORTED_PLUGIN",
+            namespace_error,
+            hint=f"Choose an OS-qualified plugin. Supported plugins: {', '.join(_SUPPORTED_PLUGINS)}. "
+            "Pass plugin='help' to list all supported plugins.",
+        )
 
     if not _bypass_queue:
         try:
@@ -316,16 +349,6 @@ async def memory_analyze(
             logger.warning("Task queue unavailable, running directly: %s", exc)
 
     validated = validate_file_path(dump_path)
-
-    if plugin not in _SUPPORTED_PLUGINS and not plugin.startswith(
-        ("windows.", "linux.", "mac.", "banners.")
-    ):
-        return failure(
-            "UNSUPPORTED_PLUGIN",
-            f"Plugin '{plugin}' is not in the supported list",
-            hint=f"Supported plugins: {', '.join(_SUPPORTED_PLUGINS.keys())}. "
-            "Pass plugin='help' to list all.",
-        )
 
     args: list[str] = []
     if symbol_path:
@@ -366,7 +389,7 @@ async def memory_list_processes(
     dump_path: str,
     include_hidden: bool = True,
 ) -> ToolResult:
-    """List all running processes from a memory dump.
+    """List Windows processes from a memory dump.
 
     Args:
         dump_path: Path to the memory dump file.
@@ -377,14 +400,14 @@ async def memory_list_processes(
         ToolResult with process list and optional hidden process scan results.
 
     Example:
-        >>> result = await memory_list_processes("/app/workspace/memdump.raw")
+        >>> result = await memory_list_processes("/app/workspace/windows_memdump.raw")
         >>> for proc in result.data["processes"]:
         ...     print(proc["ImageFileName"], proc["PID"])
     """
     validated = validate_file_path(dump_path)
 
     try:
-        pslist_data = await _run_vol3_async(str(validated), "pslist")
+        pslist_data = await _run_vol3_async(str(validated), "windows.pslist")
     except FileNotFoundError:
         return failure(
             "DEPENDENCY_MISSING",
@@ -402,7 +425,7 @@ async def memory_list_processes(
 
     if include_hidden:
         try:
-            psscan_data = await _run_vol3_async(str(validated), "psscan")
+            psscan_data = await _run_vol3_async(str(validated), "windows.psscan")
             scan_rows = psscan_data.get("rows", [])
             list_pids = {r.get("PID") for r in pslist_data.get("rows", []) if "PID" in r}
             hidden = [r for r in scan_rows if r.get("PID") not in list_pids]
@@ -424,7 +447,7 @@ async def memory_detect_injections(
     dump_path: str,
     _bypass_queue: bool = False,
 ) -> ToolResult:
-    """Detect process injection and suspicious memory regions using Volatility3 malfind.
+    """Detect Windows process injection using the Volatility3 windows.malfind plugin.
 
     Uses the ``malfind`` plugin to identify memory regions with executable permissions
     that contain suspicious patterns (MZ headers, shellcode signatures).
@@ -456,7 +479,7 @@ async def memory_detect_injections(
     validated = validate_file_path(dump_path)
 
     try:
-        data = await _run_vol3_async(str(validated), "malfind")
+        data = await _run_vol3_async(str(validated), "windows.malfind")
     except FileNotFoundError:
         return failure(
             "DEPENDENCY_MISSING",
@@ -571,7 +594,7 @@ async def memory_dump_module(
     module_name: str | None = None,
     output_dir: str | None = None,
 ) -> ToolResult:
-    """Dump a loaded module or DLL from a memory dump via Volatility3.
+    """Dump a Windows module or DLL from a memory dump via Volatility3.
 
     Args:
         dump_path: Path to the memory dump file.
@@ -613,7 +636,7 @@ async def memory_dump_module(
 
     try:
         # First find the PID
-        pslist_data = await _run_vol3_async(str(validated), "pslist")
+        pslist_data = await _run_vol3_async(str(validated), "windows.pslist")
         processes = pslist_data.get("rows", [])
         target_procs = [
             p for p in processes if process_name.lower() in str(p.get("ImageFileName", "")).lower()
@@ -631,7 +654,7 @@ async def memory_dump_module(
         if pid:
             extra_args.append(f"--pid={pid}")
 
-        data = await _run_vol3_async(str(validated), "dlllist", extra_args)
+        data = await _run_vol3_async(str(validated), "windows.dlllist", extra_args)
         dumped_files = list(out_path.glob("*.dmp")) + list(out_path.glob("*.exe"))
 
         return success(
