@@ -560,7 +560,6 @@ jobs:
             -v ${{ github.workspace }}/tests/fixtures/workspace:/app/workspace \
             -v ${{ github.workspace }}/tests/fixtures/rules:/app/rules \
             -v ${{ github.workspace }}/tests:/app/tests \
-            -v ${{ github.workspace }}/requirements-dev.txt:/app/requirements-dev.txt \
             -v ${{ github.workspace }}/pytest.ini:/app/pytest.ini \
             -v ${{ github.workspace }}/scripts:/app/scripts \
             reversecore-mcp:ci
@@ -605,9 +604,8 @@ jobs:
           docker cp scripts/test-mcp-docker-tools.py mcp-ci-test:/tmp/test-mcp-docker-tools.py
           docker exec mcp-ci-test python /tmp/test-mcp-docker-tools.py
 
-          # 3. Install dev requirements and optional python packages, then run Integration Tests inside Docker
-          echo "📋 Installing python dev dependencies and optional tools inside container..."
-          docker exec -u root mcp-ci-test /opt/venv/bin/pip install --require-hashes -r /app/requirements-dev.txt
+          # 3. The image already contains the complete hash-locked requirements.txt environment.
+          echo "📋 Using preinstalled, hash-locked Python dependencies inside container..."
 
           echo "🔑 Adjusting file permissions for tests inside container..."
           docker exec -u root mcp-ci-test chown -R appuser:appuser /app /tmp
@@ -1015,7 +1013,9 @@ jobs:
           echo "=== Container logs ==="
           docker logs mcp-smoke --tail 100 || true
           echo "=== Installed packages ==="
-          docker exec mcp-smoke /opt/venv/bin/pip list | grep -E 'fastmcp|lief|yara|r2pipe|radare' || true
+          docker exec mcp-smoke /opt/venv/bin/python -c \
+            "import importlib.metadata as m; print(' '.join(f'{p}=={m.version(p)}' for p in ('fastmcp', 'lief', 'yara-python', 'r2pipe')))" || true
+          docker exec mcp-smoke /opt/radare2/bin/r2 -v || true
 
       - name: Cleanup
         if: always()
