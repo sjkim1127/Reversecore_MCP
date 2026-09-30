@@ -106,6 +106,8 @@ viz = [
 cli = [
     "psutil>=5.9.0",
     "requests>=2.33.0",
+    # Keep requests' urllib3 transport dependency on a security-fixed release.
+    "urllib3>=2.8.0",
     "typer>=0.25.1",
     "rich>=13.0.0",
 ]
