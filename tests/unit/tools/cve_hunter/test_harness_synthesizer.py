@@ -1,5 +1,7 @@
 """Unit tests for Harness and Dictionary Synthesizer."""
 
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -68,7 +70,76 @@ class TestHarnessSynthesizer:
         )
         assert "LLVMFuzzerTestOneInput" in harness
         assert '#include "my_parser.h"' in harness
-        assert "parse_image_chunk((const uint8_t *)Data, Size, 0);" in harness
+        assert "parse_image_chunk(reinterpret_cast<const uint8_t *>(Data), Size, 0);" in harness
+
+    @pytest.mark.parametrize(
+        ("buffer_parameter", "expected_argument", "uses_mutable_copy"),
+        [
+            (
+                "const uint8_t *data",
+                "reinterpret_cast<const uint8_t *>(Data)",
+                False,
+            ),
+            ("uint8_t *data", "mutable_data.data()", True),
+            (
+                "const char *data",
+                "reinterpret_cast<const char *>(Data)",
+                False,
+            ),
+            ("char *data", "reinterpret_cast<char *>(mutable_data.data())", True),
+            ("void *data", "static_cast<void *>(mutable_data.data())", True),
+        ],
+    )
+    def test_generated_harness_compiles_buffer_mutability_cases(
+        self, tmp_path, buffer_parameter, expected_argument, uses_mutable_copy
+    ):
+        clangxx = shutil.which("clang++")
+        if clangxx is None:
+            pytest.skip("clang++ is not installed")
+
+        parameters = f"{buffer_parameter}, size_t size"
+        header_path = tmp_path / "target.h"
+        header_path.write_text(
+            "#include <stddef.h>\n"
+            "#include <stdint.h>\n"
+            '#ifdef __cplusplus\nextern "C" {\n#endif\n'
+            f"int parse_buffer({parameters});\n"
+            "#ifdef __cplusplus\n}\n#endif\n"
+        )
+        harness_path = tmp_path / "harness.cc"
+        harness = generate_libfuzzer_harness(
+            header_include=header_path.name,
+            target_function="parse_buffer",
+            parameters=parameters,
+        )
+        harness_path.write_text(harness)
+
+        assert f"parse_buffer({expected_argument}, Size);" in harness
+        assert ("std::vector<uint8_t> mutable_data(Data, Data + Size);" in harness) == (
+            uses_mutable_copy
+        )
+        assert "const_cast" not in harness
+
+        result = subprocess.run(
+            [
+                clangxx,
+                "-std=c++17",
+                "-fsanitize=fuzzer,address,undefined",
+                "-g",
+                "-O1",
+                "-I",
+                str(tmp_path),
+                "-c",
+                str(harness_path),
+                "-o",
+                str(tmp_path / "harness.o"),
+            ],
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+
+        assert result.returncode == 0, result.stderr
 
     @pytest.mark.asyncio
     async def test_invalid_path_raises(self):
