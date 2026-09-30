@@ -103,10 +103,63 @@ class TestAsanCrashTriager:
         assert triage["faulting_function"] == "process_node"
         assert len(triage["free_callstack"]) >= 1
 
+    def test_triage_asan_rejects_plain_text_without_classification(self):
+        triage = triage_asan_log("hello world\nmain.c:12: error: expected ';'")
+
+        assert triage["is_sanitizer_report"] is False
+        assert triage["classification_status"] == "no_crash_evidence"
+        assert triage["bug_type"] == "unknown_crash"
+        assert triage["crash_signature_id"] is None
+        assert triage["cwe_id"] is None
+        assert triage["cvss"] is None
+        assert triage["crash_callstack"] == []
+
+    def test_triage_asan_preserves_unknown_sanitizer_class_without_fallback_cwe(self):
+        triage = triage_asan_log(
+            "==1234==ERROR: AddressSanitizer: container-overflow on address 0x602000000010"
+        )
+
+        assert triage["is_sanitizer_report"] is True
+        assert triage["classification_status"] == "unknown_sanitizer_error"
+        assert triage["bug_type"] == "container-overflow"
+        assert triage["crash_signature_id"]
+        assert triage["cwe_id"] is None
+        assert triage["cvss"] is None
+
+    def test_triage_asan_accepts_truncated_recognizable_report(self):
+        triage = triage_asan_log(
+            "==1234==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x602000000010"
+        )
+
+        assert triage["is_sanitizer_report"] is True
+        assert triage["classification_status"] == "classified"
+        assert triage["bug_type"] == "heap-buffer-overflow"
+        assert triage["cwe_id"] == "CWE-122"
+        assert triage["cvss"] is not None
+
     @pytest.mark.asyncio
     async def test_triage_crash_impl_empty(self):
         res = await triage_crash_impl("   ")
         assert res.status == "error"
+
+    @pytest.mark.asyncio
+    async def test_triage_crash_impl_rejects_non_sanitizer_text(self):
+        res = await triage_crash_impl("hello world")
+
+        assert res.status == "error"
+        assert res.error_code == "NOT_SANITIZER_LOG"
+
+    @pytest.mark.asyncio
+    async def test_triage_crash_impl_preserves_unknown_sanitizer_class(self):
+        res = await triage_crash_impl(
+            "==1234==ERROR: AddressSanitizer: container-overflow on address 0x602000000010"
+        )
+
+        assert res.status == "success"
+        assert res.data["bug_type"] == "container-overflow"
+        assert res.data["cwe_id"] is None
+        assert res.data["cvss"] is None
+        assert "no CWE/CVSS mapping" in res.data["summary"]
 
     @pytest.mark.asyncio
     async def test_triage_crash_impl_success(self):

@@ -212,6 +212,42 @@ class TestHybridFuzzOrchestrator:
         assert res.error_code == "CRASH_EVIDENCE_INCOMPLETE"
 
     @pytest.mark.asyncio
+    async def test_run_hybrid_fuzz_preserves_unmapped_sanitizer_class(self, workspace_file):
+        test_bin = workspace_file("unmapped_crash_fuzzer.bin", content=b"\x7fELF" + b"\x00" * 100)
+
+        async def execute_with_unmapped_crash(cmd, **kwargs):
+            artifact_prefix = next(
+                arg.split("=", 1)[1] for arg in cmd if arg.startswith("-artifact_prefix=")
+            )
+            artifact = Path(artifact_prefix) / "crash-unmapped-input"
+            artifact.write_bytes(b"UNKNOWN_SANITIZER_CRASH")
+            output = (
+                "==1234==ERROR: AddressSanitizer: container-overflow on address 0x602000000010\n"
+                f"Test unit written to {artifact}\n"
+                "stat::number_of_executed_units: 11\n"
+            )
+            return output, len(output)
+
+        with patch(
+            "reversecore_mcp.tools.cve_hunter.hybrid_fuzz_orchestrator.execute_subprocess_async",
+            new=AsyncMock(side_effect=execute_with_unmapped_crash),
+        ):
+            res = await run_hybrid_fuzz_impl(
+                target_binary_path=str(test_bin),
+                enable_angr_concolic=False,
+            )
+
+        assert res.status == "success"
+        assert res.data["execution_status"] == "crash_detected"
+        triage = res.data["triaged_crashes"][0]
+        assert triage["bug_type"] == "container-overflow"
+        assert triage["cwe_id"] is None
+        assert triage["cvss"] is None
+        assert (
+            triage["crash_input_sha256"] == hashlib.sha256(b"UNKNOWN_SANITIZER_CRASH").hexdigest()
+        )
+
+    @pytest.mark.asyncio
     async def test_run_hybrid_fuzz_timeout_handling(self, workspace_file):
         test_bin = workspace_file("timeout_fuzzer.bin", content=b"\x7fELF" + b"\x00" * 100)
 

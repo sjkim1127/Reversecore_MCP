@@ -37,9 +37,9 @@ def generate_cve_advisory_markdown(
     poc_note: str | None = None,
 ) -> str:
     """Generate a formal Markdown Security Advisory draft for vendor/NVD submission."""
-    cwe_id = triage.get("cwe_id", "Unknown CWE")
-    cwe_name = triage.get("cwe_name", "Unclassified sanitizer finding")
-    cvss = triage.get("cvss", {})
+    cwe_id = triage.get("cwe_id") or "Unknown CWE"
+    cwe_name = triage.get("cwe_name") or "Unclassified sanitizer finding"
+    cvss = triage.get("cvss") or {}
     score = cvss.get("cvss_v31_score", "Not calculated")
     severity = cvss.get("severity", "Not rated")
     vector = cvss.get("cvss_vector", "Not available")
@@ -219,7 +219,7 @@ async def hunt_cve_pipeline_impl(
             )
 
         external_triage = triage_asan_log(raw_crash_log)
-        if external_triage["bug_type"] == "unknown_crash":
+        if not external_triage["is_sanitizer_report"]:
             return failure(
                 "INVALID_CRASH_LOG",
                 "The supplied text does not contain a recognized sanitizer crash report.",
@@ -357,6 +357,46 @@ async def hunt_cve_pipeline_impl(
 
     primary_triage = triaged_crashes[0]
     primary_payload = crash_payloads[0] if crash_payloads else None
+
+    if primary_triage.get("cwe_id") is None or not isinstance(primary_triage.get("cvss"), dict):
+        reported_crashes = fuzz_data.get("crashes_detected", 0)
+        crash_count = reported_crashes if isinstance(reported_crashes, int) else 0
+        artifact_paths = fuzz_data.get("crash_artifacts", [])
+        analysis_status = "complete" if fuzz_completed else "partial"
+        return success(
+            {
+                "target_file": str(safe_path),
+                "finding_status": "unclassified",
+                "analysis_status": analysis_status,
+                "execution_status": fuzz_execution_status,
+                "target_function": primary_triage.get("faulting_function"),
+                "vulnerability_class": None,
+                "cwe_id": None,
+                "cvss_v31_score": None,
+                "cvss_severity": None,
+                "cvss_vector": None,
+                "harness_synthesis": {
+                    "candidate_functions": harness_data.get("candidate_functions", []),
+                    "dictionary_token_count": harness_data.get("dictionary_token_count", 0),
+                },
+                "fuzzing_stats": {
+                    "executions": fuzz_data.get("total_executions", 0),
+                    "crashes_detected": crash_count,
+                    "findings_count": 0,
+                    "unclassified_sanitizer_reports": len(triaged_crashes),
+                    "crash_artifacts": artifact_paths,
+                },
+                "triaged_crashes": triaged_crashes,
+                "standalone_python_poc": None,
+                "standalone_c_poc": None,
+                "cve_security_advisory_markdown": None,
+                "summary": (
+                    f"Sanitizer evidence for '{safe_path.name}' was preserved as "
+                    f"'{primary_triage.get('bug_type', 'unknown')}', but its error class has "
+                    "no CWE/CVSS mapping; no vulnerability classification, PoC, or advisory was generated."
+                ),
+            }
+        )
 
     # Stage 4: Generate PoCs only from the linked crash artifact bytes.
     py_poc: str | None = None
