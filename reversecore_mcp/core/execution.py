@@ -17,7 +17,7 @@ import signal
 import subprocess  # nosec B404
 import sys
 import threading
-from collections.abc import Coroutine
+from collections.abc import Callable, Coroutine
 from pathlib import Path
 from typing import Any
 
@@ -459,6 +459,290 @@ async def execute_subprocess_async(
         ):
             logger.error(f"Command execution failed: {e}")
         raise
+
+
+async def _execute_subprocess_stream_async(
+    cmd: list[str],
+    on_line: Callable[[str, bool], None] | None,
+    *,
+    on_chunk: Callable[[bytes], None] | None = None,
+    max_output_size: int = 10_000_000,
+    max_line_size: int = 65_536,
+    timeout: int = 300,
+    encoding: str = "utf-8",
+    errors: str = "replace",
+    stderr_limit: int = 16_384,
+) -> tuple[int, str, int, bool, bool]:
+    """Stream subprocess output to bounded line or byte consumers.
+
+    The optional line callback receives each decoded line and a flag indicating
+    whether the line exceeded ``max_line_size``. The optional chunk callback
+    receives bounded raw byte chunks. When stdout exceeds ``max_output_size``,
+    the process is terminated and the result is marked truncated.
+
+    Args:
+        cmd: Command and arguments as a list.
+        on_line: Callback invoked as ``on_line(text, line_truncated)``.
+        on_chunk: Callback invoked with each raw stdout byte chunk.
+        max_output_size: Maximum stdout bytes to process before terminating.
+        max_line_size: Maximum bytes buffered for one line.
+        timeout: Maximum execution time in seconds.
+        encoding: Text encoding used for streamed output.
+        errors: Decoding error handling policy.
+        stderr_limit: Maximum stderr bytes retained for the returned error text.
+
+    Returns:
+        A tuple of return code, bounded stderr text, stdout bytes processed, and
+        flags for output-limit termination and capped overlong lines.
+
+    Raises:
+        ToolNotFoundError: If the executable is unavailable.
+        ExecutionTimeoutError: If the command exceeds ``timeout``.
+    """
+    if not cmd:
+        raise ValueError("Command cannot be empty")
+    if on_line is None and on_chunk is None:
+        raise ValueError("At least one output callback is required")
+    if max_output_size < 1 or max_line_size < 1 or stderr_limit < 0:
+        raise ValueError("Output and line limits must be positive")
+
+    try:
+        wrapped_cmd = SandboxExecutor.wrap_cmd(cmd)
+        extra_kwargs: dict[str, Any] = {}
+        from reversecore_mcp.core.config import get_config
+
+        config = get_config()
+        if config.sandbox_enabled:
+            mode = config.sandbox_mode.lower()
+            if mode != "disabled":
+                in_container = is_in_container()
+                active_mode = (
+                    "container"
+                    if (mode == "auto" and in_container) or mode == "container"
+                    else mode
+                )
+                if (
+                    active_mode == "container"
+                    and hasattr(os, "geteuid")
+                    and os.geteuid() == 0
+                    and not shutil.which("setpriv")
+                    and sys.platform != "win32"
+                    and config.sandbox_user
+                ):
+                    try:
+                        import pwd
+
+                        pw = pwd.getpwnam(config.sandbox_user)
+                        extra_kwargs["user"] = pw.pw_uid
+                        extra_kwargs["group"] = pw.pw_gid
+                        extra_kwargs["extra_groups"] = ()
+                    except Exception as err:
+                        logger.warning(
+                            "Failed to resolve sandbox user %s for process %s: %s",
+                            config.sandbox_user,
+                            cmd[0],
+                            err,
+                        )
+                        extra_kwargs["user"] = config.sandbox_user
+
+        process = await asyncio.create_subprocess_exec(
+            *wrapped_cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            start_new_session=os.name == "posix",
+            **extra_kwargs,
+        )
+        from reversecore_mcp.core.resource_manager import resource_manager
+
+        resource_manager.track_pid(process.pid)
+    except FileNotFoundError:
+        raise ToolNotFoundError(cmd[0]) from None
+
+    stdout = process.stdout
+    stderr = process.stderr
+    if stdout is None or stderr is None:
+        raise RuntimeError("Process output streams are unavailable")
+
+    stderr_buffer = bytearray()
+    bytes_read = 0
+    line_truncated_output = False
+    output_limit_reached = False
+
+    def kill_process_tree() -> None:
+        try:
+            if os.name == "posix":
+                os.killpg(process.pid, signal.SIGKILL)
+            elif process.returncode is None:
+                process.kill()
+        except ProcessLookupError:
+            pass
+
+    async def read_stderr() -> None:
+        while chunk := await stderr.read(8192):
+            stderr_buffer.extend(chunk)
+            if len(stderr_buffer) > stderr_limit:
+                del stderr_buffer[: len(stderr_buffer) - stderr_limit]
+
+    async def read_stdout() -> None:
+        nonlocal bytes_read, line_truncated_output, output_limit_reached
+        pending = bytearray()
+        dropping_line = False
+
+        def emit_line(segment: bytes) -> None:
+            nonlocal line_truncated_output, dropping_line
+            assert on_line is not None
+            line_truncated = dropping_line or len(pending) + len(segment) > max_line_size
+            remaining = max(0, max_line_size - len(pending))
+            if remaining:
+                pending.extend(segment[:remaining])
+            if line_truncated:
+                line_truncated_output = True
+            on_line(pending.decode(encoding, errors=errors), line_truncated)
+            pending.clear()
+            dropping_line = False
+
+        while True:
+            chunk = await stdout.read(8192)
+            if not chunk:
+                break
+            remaining_output = max_output_size - bytes_read
+            if remaining_output <= 0:
+                output_limit_reached = True
+                break
+            if len(chunk) > remaining_output:
+                chunk = chunk[:remaining_output]
+                output_limit_reached = True
+            bytes_read += len(chunk)
+
+            if on_chunk is not None:
+                on_chunk(chunk)
+
+            if on_line is not None:
+                segments = chunk.split(b"\n")
+                for segment in segments[:-1]:
+                    emit_line(segment)
+                tail = segments[-1]
+                if not dropping_line:
+                    remaining_line = max(0, max_line_size - len(pending))
+                    pending.extend(tail[:remaining_line])
+                    if len(tail) > remaining_line:
+                        dropping_line = True
+                        line_truncated_output = True
+
+            if output_limit_reached:
+                break
+
+        if on_line is not None and (pending or dropping_line):
+            on_line(pending.decode(encoding, errors=errors), dropping_line or output_limit_reached)
+
+    stderr_task = asyncio.create_task(read_stderr())
+    stdout_task = asyncio.create_task(read_stdout())
+    loop = asyncio.get_running_loop()
+    started_at = loop.time()
+    try:
+        await asyncio.wait_for(stdout_task, timeout=timeout)
+        if output_limit_reached:
+            kill_process_tree()
+            try:
+                await asyncio.wait_for(process.wait(), timeout=2.0)
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+        else:
+            remaining_timeout = max(0.001, timeout - (loop.time() - started_at))
+            await asyncio.wait_for(process.wait(), timeout=remaining_timeout)
+        await asyncio.wait_for(stderr_task, timeout=2.0)
+    except asyncio.TimeoutError as exc:
+        kill_process_tree()
+        try:
+            await asyncio.wait_for(process.wait(), timeout=2.0)
+        except asyncio.TimeoutError:
+            process.kill()
+            await process.wait()
+        raise ExecutionTimeoutError(timeout) from exc
+    except asyncio.CancelledError:
+        kill_process_tree()
+        await process.wait()
+        raise
+    finally:
+        if process.returncode is None:
+            kill_process_tree()
+            await process.wait()
+        if not stdout_task.done():
+            stdout_task.cancel()
+        if not stderr_task.done():
+            stderr_task.cancel()
+        await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
+        from reversecore_mcp.core.resource_manager import resource_manager
+
+        resource_manager.untrack_pid(process.pid)
+
+    return (
+        process.returncode if process.returncode is not None else -1,
+        stderr_buffer.decode(encoding, errors=errors).strip(),
+        bytes_read,
+        output_limit_reached,
+        line_truncated_output,
+    )
+
+
+async def execute_subprocess_lines_async(
+    cmd: list[str],
+    on_line: Callable[[str, bool], None],
+    *,
+    max_output_size: int = 10_000_000,
+    max_line_size: int = 65_536,
+    timeout: int = 300,
+    encoding: str = "utf-8",
+    errors: str = "replace",
+    stderr_limit: int = 16_384,
+) -> tuple[int, str, int, bool, bool]:
+    """Stream subprocess output one bounded line at a time."""
+    return await _execute_subprocess_stream_async(
+        cmd,
+        on_line,
+        max_output_size=max_output_size,
+        max_line_size=max_line_size,
+        timeout=timeout,
+        encoding=encoding,
+        errors=errors,
+        stderr_limit=stderr_limit,
+    )
+
+
+async def execute_subprocess_bytes_async(
+    cmd: list[str],
+    on_chunk: Callable[[bytes], None],
+    *,
+    max_output_size: int = 10_000_000,
+    timeout: int = 300,
+    stderr_limit: int = 16_384,
+) -> tuple[int, str, int, bool]:
+    """Stream raw subprocess stdout in bounded chunks.
+
+    A chunk crossing the limit is clipped before it is delivered, then the
+    process is terminated.
+
+    Returns:
+        A tuple of return code, bounded stderr text, stdout bytes processed, and
+        whether output exceeded the configured byte limit.
+    """
+    (
+        returncode,
+        stderr,
+        bytes_read,
+        output_limit_reached,
+        _,
+    ) = await _execute_subprocess_stream_async(
+        cmd,
+        None,
+        on_chunk=on_chunk,
+        max_output_size=max_output_size,
+        max_line_size=1,
+        timeout=timeout,
+        stderr_limit=stderr_limit,
+    )
+    return returncode, stderr, bytes_read, output_limit_reached
 
 
 def execute_subprocess_streaming(

@@ -41,6 +41,7 @@ class TestConfigDefaults:
             "MCP_TRANSPORT",
         ):
             monkeypatch.delenv(key, raising=False)
+        monkeypatch.delenv("REVERSECORE_FORENSICS_MAX_RECOVERED_BYTES", raising=False)
 
         config = reset_config()
 
@@ -53,6 +54,7 @@ class TestConfigDefaults:
         assert config.structured_errors is False
         assert config.rate_limit == 60
         assert config.lief_max_file_size == 1_000_000_000
+        assert config.forensics_max_recovered_bytes == 500_000_000
         assert config.mcp_transport == "stdio"
 
     def test_environment_overrides(self, monkeypatch, tmp_path):
@@ -72,6 +74,7 @@ class TestConfigDefaults:
         monkeypatch.setenv("REVERSECORE_STRUCTURED_ERRORS", "true")
         monkeypatch.setenv("REVERSECORE_RATE_LIMIT", "120")
         monkeypatch.setenv("REVERSECORE_LIEF_MAX_FILE_SIZE", "2000000")  # Must meet minimum
+        monkeypatch.setenv("REVERSECORE_FORENSICS_MAX_RECOVERED_BYTES", "2000000")
         monkeypatch.setenv("MCP_TRANSPORT", "http")
 
         config = reset_config()
@@ -87,6 +90,7 @@ class TestConfigDefaults:
         assert config.structured_errors is True
         assert config.rate_limit == 120
         assert config.lief_max_file_size == 2000000
+        assert config.forensics_max_recovered_bytes == 2000000
         assert config.mcp_transport == "http"
 
 

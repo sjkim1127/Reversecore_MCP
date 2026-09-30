@@ -670,6 +670,7 @@ All settings can be provided via environment variables or a `.env` file (see [`.
 | `REVERSECORE_STRUCTURED_ERRORS` | `false` | Enable structured error responses with error codes |
 | `REVERSECORE_DEFAULT_TOOL_TIMEOUT` | `120` | Default tool execution timeout in seconds |
 | `REVERSECORE_MAX_OUTPUT_SIZE` | `10000000` | Maximum output size for tools (bytes) |
+| `REVERSECORE_FORENSICS_MAX_RECOVERED_BYTES` | `500000000` | Maximum bytes recovered from one disk inode |
 
 ### HTTP Mode Settings
 

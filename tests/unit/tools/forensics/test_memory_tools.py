@@ -245,12 +245,20 @@ async def test_memory_detect_injections_vol_error(tmp_dump):
 @pytest.mark.asyncio
 async def test_memory_extract_strings_success(tmp_dump):
     """Happy path: strings extracted from dump file."""
-    mock_result = MagicMock()
-    mock_result.stdout = "cmd.exe\n192.168.1.1\nhttps://evil.com/c2\npowershell\n"
-    mock_result.stderr = ""
-    mock_result.returncode = 0
+    output = "cmd.exe\n192.168.1.1\nhttps://evil.com/c2\npowershell\n"
 
-    with patch("subprocess.run", return_value=mock_result):
+    async def stream_output(_cmd, on_line, **_kwargs):
+        for line in output.splitlines():
+            on_line(line, False)
+        return 0, "", len(output), False, False
+
+    with (
+        patch("reversecore_mcp.tools.forensics.memory.shutil.which", return_value="strings"),
+        patch(
+            "reversecore_mcp.tools.forensics.memory.execute_subprocess_lines_async",
+            side_effect=stream_output,
+        ),
+    ):
         result = await memory_extract_strings(tmp_dump)
 
     assert result.status == "success"
@@ -276,18 +284,72 @@ async def test_memory_extract_strings_large_file(workspace_dir, patched_workspac
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_memory_extract_strings_no_strings(tmp_dump):
-    """Edge case: strings binary returns empty output, falls back to Python."""
-    mock_result = MagicMock()
-    mock_result.stdout = ""
-    mock_result.stderr = ""
-    mock_result.returncode = 0
+    """Edge case: streamed strings command returns no matches."""
 
-    with patch("subprocess.run", return_value=mock_result):
+    async def empty_output(_cmd, _on_line, **_kwargs):
+        return 0, "", 0, False, False
+
+    with (
+        patch("reversecore_mcp.tools.forensics.memory.shutil.which", return_value="strings"),
+        patch(
+            "reversecore_mcp.tools.forensics.memory.execute_subprocess_lines_async",
+            side_effect=empty_output,
+        ),
+    ):
         result = await memory_extract_strings(tmp_dump)
 
     assert result.status == "success"
     # Should gracefully return 0 strings
     assert result.data["string_count"] == 0
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_memory_extract_strings_counts_without_retaining_every_match(tmp_dump):
+    """The full count is streamed while only the requested result prefix is kept."""
+    total = 20_000
+
+    async def stream_output(_cmd, on_line, **_kwargs):
+        for index in range(total):
+            on_line(f"suspicious-{index:05d}", False)
+        return 0, "", total * 16, False, False
+
+    with (
+        patch("reversecore_mcp.tools.forensics.memory.shutil.which", return_value="strings"),
+        patch(
+            "reversecore_mcp.tools.forensics.memory.execute_subprocess_lines_async",
+            side_effect=stream_output,
+        ),
+    ):
+        result = await memory_extract_strings(tmp_dump, limit=3)
+
+    assert result.status == "success"
+    assert result.data["string_count"] == total
+    assert result.data["strings"] == [
+        "suspicious-00000",
+        "suspicious-00001",
+        "suspicious-00002",
+    ]
+    assert result.data["truncated"] is True
+    assert result.data["count_complete"] is True
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_memory_extract_strings_python_fallback_streams_long_runs(
+    workspace_dir, patched_workspace_config
+):
+    """The Python fallback reads chunks and caps individual returned strings."""
+    dump = workspace_dir / "long-strings.raw"
+    dump.write_bytes(b"prefix1\x00" + b"A" * (65_536 + 100) + b"\x00tail99")
+
+    with patch("reversecore_mcp.tools.forensics.memory.shutil.which", return_value=None):
+        result = await memory_extract_strings(str(dump), min_length=6, limit=10)
+
+    assert result.status == "success"
+    assert result.data["string_count"] == 3
+    assert result.data["strings"] == ["prefix1", "tail99"]
+    assert result.data["truncated"] is True
 
 
 # ── memory_dump_module ────────────────────────────────────────────────────────

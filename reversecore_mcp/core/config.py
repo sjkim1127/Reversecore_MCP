@@ -19,6 +19,7 @@ Environment Variables:
     REVERSECORE_R2_POOL_TIMEOUT: Radare2 pool connection timeout (default: 30)
     REVERSECORE_GHIDRA_MAX_PROJECTS: Max Ghidra projects to cache for multi-malware analysis (default: 3)
     REVERSECORE_STRICT_PATHS: Strict path validation mode (default: false)
+    REVERSECORE_FORENSICS_MAX_RECOVERED_BYTES: Max bytes recovered per inode (default: 500MB)
 """
 
 from __future__ import annotations
@@ -132,6 +133,11 @@ class Settings(BaseSettings):
         ge=1_000_000,
         alias="BINWALK_MAX_EXTRACTED_BYTES",
         description="Maximum total bytes produced by one Binwalk extraction",
+    )
+    forensics_max_recovered_bytes: int = Field(
+        default=500_000_000,
+        ge=1,
+        description="Maximum bytes recovered from one forensic inode",
     )
     binwalk_max_extracted_files: int = Field(
         default=10_000,
@@ -558,6 +564,10 @@ class Config:
     @property
     def binwalk_max_extracted_bytes(self) -> int:
         return self._settings.binwalk_max_extracted_bytes
+
+    @property
+    def forensics_max_recovered_bytes(self) -> int:
+        return self._settings.forensics_max_recovered_bytes
 
     @property
     def binwalk_max_extracted_files(self) -> int:

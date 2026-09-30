@@ -5,20 +5,115 @@ with Redis caching to avoid redundant re-analysis of the same dump.
 """
 
 import asyncio
+import re
 import shutil
 import subprocess  # nosec B404
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 from reversecore_mcp.core import json_utils as json
+from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
+from reversecore_mcp.core.execution import execute_subprocess_lines_async
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.result import ToolResult, failure, success
 from reversecore_mcp.core.security import get_workspace_config, validate_file_path
 
 logger = get_logger(__name__)
+_MAX_MEMORY_DUMP_BYTES = 512 * 1024 * 1024
+_MAX_STRING_LINE_BYTES = 65_536
+_MAX_RETURNED_STRINGS = 10_000
+
+
+class _StringSummary:
+    """Accumulate bounded memory-string results and notable indicators."""
+
+    def __init__(self, limit: int, max_result_bytes: int) -> None:
+        self.limit = min(max(limit, 0), _MAX_RETURNED_STRINGS)
+        self.max_result_bytes = max_result_bytes
+        self.strings: list[str] = []
+        self.string_count = 0
+        self.returned_bytes = 0
+        self.truncated = False
+        self._ips_seen: set[str] = set()
+        self.ips: list[str] = []
+        self.urls: list[str] = []
+        self._ip_pattern = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+        self._url_pattern = re.compile(r"https?://[^\s]{8,}")
+        self._url_bytes = 0
+
+    def add(self, value: str, line_truncated: bool = False) -> None:
+        """Count one extracted string, retaining only bounded result data."""
+        if not value and not line_truncated:
+            return
+        self.string_count += 1
+        if line_truncated:
+            self.truncated = True
+
+        encoded_size = len(value.encode("utf-8", errors="replace"))
+        if (
+            not line_truncated
+            and len(self.strings) < self.limit
+            and self.returned_bytes + encoded_size <= self.max_result_bytes
+        ):
+            self.strings.append(value)
+            self.returned_bytes += encoded_size
+        else:
+            self.truncated = True
+
+        for ip in self._ip_pattern.findall(value):
+            if ip not in self._ips_seen and len(self.ips) < 50:
+                self._ips_seen.add(ip)
+                self.ips.append(ip)
+        if len(self.urls) < 50 and self._url_pattern.search(value):
+            if self._url_bytes + encoded_size <= self.max_result_bytes:
+                self.urls.append(value)
+                self._url_bytes += encoded_size
+
+
+def _iter_ascii_strings(
+    path: Path,
+    min_length: int,
+    *,
+    chunk_size: int = 65_536,
+) -> Iterator[tuple[str, bool]]:
+    """Yield bounded ASCII strings from a file without reading it all at once."""
+    pattern = re.compile(rb"[\x20-\x7E]+")
+    carry = b""
+    carry_length = 0
+    with path.open("rb") as source:
+        while chunk := source.read(chunk_size):
+            data = carry + chunk
+            trailing_match = False
+            for match in pattern.finditer(data):
+                starts_with_carry = bool(carry) and match.start() == 0
+                string_length = match.end() - match.start()
+                if starts_with_carry:
+                    string_length = carry_length + match.end() - len(carry)
+                string_bytes = data[match.start() : match.end()]
+                if match.end() == len(data):
+                    carry = string_bytes[:_MAX_STRING_LINE_BYTES]
+                    carry_length = string_length
+                    trailing_match = True
+                    continue
+                if string_length >= min_length:
+                    yield (
+                        string_bytes[:_MAX_STRING_LINE_BYTES].decode("ascii", errors="replace"),
+                        string_length > _MAX_STRING_LINE_BYTES,
+                    )
+            if not trailing_match:
+                carry = b""
+                carry_length = 0
+
+    if carry_length >= min_length:
+        yield (
+            carry.decode("ascii", errors="replace"),
+            carry_length > _MAX_STRING_LINE_BYTES,
+        )
+
 
 # Supported Volatility3 plugins
 _SUPPORTED_PLUGINS: dict[str, str] = {
@@ -416,63 +511,53 @@ async def memory_extract_strings(
         >>> result = await memory_extract_strings("/app/workspace/memdump.raw", limit=100)
         >>> print(result.data["string_count"])
     """
-    import re
-
     validated = validate_file_path(dump_path)
     file_size = validated.stat().st_size
 
-    # Cap at 512 MB to avoid OOM
-    if file_size > 512 * 1024 * 1024:
+    if file_size > _MAX_MEMORY_DUMP_BYTES:
         return failure(
             "FILE_TOO_LARGE",
             f"Memory dump is {file_size // (1024 * 1024)} MB — too large for in-process string extraction",
             hint="Use the 'strings' CLI tool directly or reduce dump size.",
         )
 
-    try:
-        resolved_exe = shutil.which("strings")
-        if not resolved_exe:
-            raise FileNotFoundError()
+    summary = _StringSummary(limit, get_config().max_output_size)
+    resolved_exe = shutil.which("strings")
+    output_limit_reached = False
+    command_incomplete = False
+    if resolved_exe:
 
-        def run_strings():
-            return subprocess.run(  # nosec B603
-                [resolved_exe, f"-n{min_length}", str(validated)],
-                capture_output=True,
-                text=True,
-                timeout=120,
-            )
+        def add_line(line: str, line_truncated: bool) -> None:
+            summary.add(line.rstrip("\r"), line_truncated)
 
-        result = await asyncio.to_thread(run_strings)
-        all_strings = result.stdout.splitlines()
-    except FileNotFoundError:
-        # Fallback: pure Python extraction in background thread to avoid blocking event loop
-        def _extract_py() -> list[str]:
-            data = validated.read_bytes()
-            pattern = rb"[\x20-\x7E]{%d,}" % min_length
-            return [
-                m.group(0).decode("ascii", errors="replace") for m in re.finditer(pattern, data)
-            ]
+        returncode, _, _, output_limit_reached, _ = await execute_subprocess_lines_async(
+            [resolved_exe, f"-n{min_length}", str(validated)],
+            add_line,
+            # Each printable run adds a newline, so allow a conservative
+            # two bytes per input byte while keeping process memory bounded.
+            max_output_size=max(file_size * 2 + 1, 1),
+            max_line_size=_MAX_STRING_LINE_BYTES,
+            timeout=120,
+        )
+        command_incomplete = returncode != 0
+    else:
 
-        all_strings = await asyncio.to_thread(_extract_py)
+        def extract_strings() -> None:
+            for value, line_truncated in _iter_ascii_strings(validated, min_length):
+                summary.add(value, line_truncated)
 
-    # Detect notable patterns in background thread
-    def _extract_notable(strings_list: list[str]) -> dict[str, Any]:
-        ip_pattern = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
-        url_pattern = re.compile(r"https?://[^\s]{8,}")
-        return {
-            "ips": list({m for s in strings_list for m in ip_pattern.findall(s)})[:50],
-            "urls": [s for s in strings_list if url_pattern.search(s)][:50],
-        }
+        await asyncio.to_thread(extract_strings)
 
-    notable = await asyncio.to_thread(_extract_notable, all_strings)
+    notable = {"ips": summary.ips, "urls": summary.urls}
 
     return success(
         {
             "dump_path": str(validated),
-            "string_count": len(all_strings),
-            "strings": all_strings[:limit],
+            "string_count": summary.string_count,
+            "strings": summary.strings,
             "notable": notable,
-            "truncated": len(all_strings) > limit,
+            "truncated": summary.truncated or output_limit_reached or command_incomplete,
+            "count_complete": not output_limit_reached and not command_incomplete,
         }
     )
 

@@ -7,52 +7,34 @@ compilation issues. All tools gracefully degrade if Sleuth Kit is absent.
 
 import asyncio
 import hashlib
+import os
 import shutil
-import subprocess  # nosec B404
+import tempfile
 from pathlib import Path
 from typing import Any
 
+from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
+from reversecore_mcp.core.exceptions import ExecutionTimeoutError, ToolNotFoundError
+from reversecore_mcp.core.execution import (
+    execute_subprocess_bytes_async,
+    execute_subprocess_lines_async,
+)
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.result import ToolResult, failure, success
 from reversecore_mcp.core.security import get_workspace_config, validate_file_path
 
 logger = get_logger(__name__)
+_MAX_RETURNED_ENTRIES = 10_000
+_MAX_OUTPUT_LINE_BYTES = 65_536
+
 
 # Sleuth Kit CLI binary names
-_TSK_TOOLS = {
-    "mmls": "List partition layout of disk image",
-    "fls": "List files and directories in filesystem image",
-    "icat": "Extract file content by inode number",
-    "istat": "Display metadata for an inode",
-    "fsstat": "Display filesystem statistics",
-    "blkstat": "Display statistics for a data block",
-    "ffind": "Find filename(s) associated with an inode",
-}
-
-
 def _check_tsk_available() -> bool:
     """Check if Sleuth Kit CLI tools are available."""
     return shutil.which("fls") is not None
-
-
-async def _run_tsk(cmd: list[str], timeout: int = 120) -> tuple[str, str, int]:
-    """Run a Sleuth Kit command and return (stdout, stderr, returncode)."""
-    if not cmd:
-        return "", "Empty command", -1
-    resolved_exe = shutil.which(cmd[0])
-    if not resolved_exe:
-        return "", f"Executable {cmd[0]} not found in PATH", -1
-
-    def run():
-        return subprocess.run(
-            [resolved_exe] + cmd[1:], capture_output=True, text=True, timeout=timeout
-        )  # nosec B603
-
-    result = await asyncio.to_thread(run)
-    return result.stdout, result.stderr, result.returncode
 
 
 @log_execution(tool_name="disk_list_partition")
@@ -81,40 +63,71 @@ async def disk_list_partition(image_path: str) -> ToolResult:
             hint="Install with: apt-get install sleuthkit",
         )
 
-    stdout, stderr, rc = await _run_tsk(["mmls", str(validated)])
+    partitions: list[dict[str, str]] = []
+    raw_output: list[str] = []
+    raw_output_chars = 0
+    total_count = 0
 
-    if rc != 0 and not stdout:
+    def add_partition(line: str, line_truncated: bool) -> None:
+        nonlocal raw_output_chars, total_count
+        if raw_output_chars < 3000:
+            remaining = 3000 - raw_output_chars
+            piece = (line + "\n")[:remaining]
+            raw_output.append(piece)
+            raw_output_chars += len(piece)
+        if line_truncated:
+            return
+        stripped = line.strip()
+        if not stripped or stripped.startswith("DOS") or stripped.startswith("Description"):
+            return
+        # Parse mmls output: "000: Meta 0000000000 0000000000 0000000001 ..."
+        parts = stripped.split(None, 5)
+        if len(parts) >= 5 and parts[0].rstrip(":").isdigit():
+            total_count += 1
+            if len(partitions) < _MAX_RETURNED_ENTRIES:
+                partitions.append(
+                    {
+                        "slot": parts[0].rstrip(":"),
+                        "address": parts[1],
+                        "start": parts[2],
+                        "end": parts[3],
+                        "length": parts[4],
+                        "description": parts[5] if len(parts) > 5 else "",
+                    }
+                )
+
+    output_limit = get_config().max_output_size
+    (
+        rc,
+        stderr,
+        bytes_read,
+        output_limit_reached,
+        line_truncated,
+    ) = await execute_subprocess_lines_async(
+        ["mmls", str(validated)],
+        add_partition,
+        max_output_size=output_limit,
+        max_line_size=min(_MAX_OUTPUT_LINE_BYTES, output_limit),
+        timeout=120,
+    )
+
+    if rc != 0 and bytes_read == 0 and not output_limit_reached and not line_truncated:
         return failure(
             "TSK_ERROR",
             f"mmls failed (exit {rc}): {stderr.strip()}",
             hint="Ensure the image file is a valid disk image, not a filesystem image.",
         )
 
-    partitions = []
-    for line in stdout.splitlines():
-        line = line.strip()
-        if not line or line.startswith("DOS") or line.startswith("Description"):
-            continue
-        # Parse mmls output: "000: Meta 0000000000 0000000000 0000000001 ..."
-        parts = line.split(None, 5)
-        if len(parts) >= 5 and parts[0].rstrip(":").isdigit():
-            partitions.append(
-                {
-                    "slot": parts[0].rstrip(":"),
-                    "address": parts[1],
-                    "start": parts[2],
-                    "end": parts[3],
-                    "length": parts[4],
-                    "description": parts[5] if len(parts) > 5 else "",
-                }
-            )
-
     return success(
         {
             "image_path": str(validated),
             "partitions": partitions,
-            "partition_count": len(partitions),
-            "raw_output": stdout[:3000],
+            "partition_count": total_count,
+            "raw_output": "".join(raw_output),
+            "truncated": (
+                output_limit_reached or line_truncated or rc != 0 or total_count > len(partitions)
+            ),
+            "count_complete": not output_limit_reached and not line_truncated and rc == 0,
         }
     )
 
@@ -170,26 +183,27 @@ async def disk_list_files(
         # fls takes inode number for subdirs — skip if path provided
         cmd.append(directory)
 
-    stdout, stderr, rc = await _run_tsk(cmd, timeout=180)
-
-    if rc != 0 and not stdout:
-        return failure(
-            "TSK_ERROR",
-            f"fls failed (exit {rc}): {stderr.strip()}",
-            hint="Check offset with disk_list_partition or verify image integrity.",
-        )
-
     files: list[dict[str, Any]] = []
-    for line in stdout.splitlines()[:limit]:
-        # fls format: "r/r 12:   filename" or "* r/r 12:   deleted_file"
+    total_count = 0
+    deleted_count = 0
+    entry_limit = min(max(limit, 0), _MAX_RETURNED_ENTRIES)
+
+    def add_file(line: str, line_truncated: bool) -> None:
+        nonlocal total_count, deleted_count
+        if line_truncated:
+            return
         deleted = line.startswith("*")
         clean_line = line.lstrip("* ").strip()
         parts = clean_line.split(None, 2)
-        if len(parts) >= 3:
-            type_part = parts[0]
-            inode_part = parts[1].rstrip(":")
-            name = parts[2]
-            is_dir = type_part.startswith("d")
+        if len(parts) < 3:
+            return
+        type_part = parts[0]
+        inode_part = parts[1].rstrip(":")
+        name = parts[2]
+        is_dir = type_part.startswith("d")
+        total_count += 1
+        deleted_count += int(deleted)
+        if len(files) < entry_limit:
             files.append(
                 {
                     "name": name,
@@ -200,16 +214,33 @@ async def disk_list_files(
                 }
             )
 
-    deleted_files = [f for f in files if f["deleted"]]
+    output_limit = get_config().max_output_size
+    rc, stderr, _, output_limit_reached, line_truncated = await execute_subprocess_lines_async(
+        ["fls", *cmd[1:]],
+        add_file,
+        max_output_size=output_limit,
+        max_line_size=min(_MAX_OUTPUT_LINE_BYTES, output_limit),
+        timeout=180,
+    )
+
+    if rc != 0 and total_count == 0 and not output_limit_reached and not line_truncated:
+        return failure(
+            "TSK_ERROR",
+            f"fls failed (exit {rc}): {stderr.strip()}",
+            hint="Check offset with disk_list_partition or verify image integrity.",
+        )
 
     return success(
         {
             "image_path": str(validated),
             "directory": directory,
             "files": files,
-            "total_count": len(files),
-            "deleted_count": len(deleted_files),
-            "truncated": len(files) >= limit,
+            "total_count": total_count,
+            "deleted_count": deleted_count,
+            "truncated": (
+                output_limit_reached or line_truncated or rc != 0 or total_count > len(files)
+            ),
+            "count_complete": not output_limit_reached and not line_truncated and rc == 0,
         }
     )
 
@@ -253,6 +284,8 @@ async def disk_recover_deleted(
             "PATH_TRAVERSAL_DETECTED",
             f"output_path '{output_path}' must reside within the workspace directory",
         )
+    if resolved_out == Path(validated).resolve():
+        return failure("INVALID_OUTPUT_PATH", "output_path must not overwrite the disk image")
     resolved_out.parent.mkdir(parents=True, exist_ok=True)
 
     if not _check_tsk_available():
@@ -271,33 +304,78 @@ async def disk_recover_deleted(
     if not resolved_exe:
         return failure("DEPENDENCY_MISSING", "Sleuth Kit (icat) is not installed")
 
-    def _run_icat():
-        return subprocess.run([resolved_exe] + cmd[1:], capture_output=True, timeout=120)  # nosec B603
+    max_recovered_bytes = get_config().forensics_max_recovered_bytes
+    fd, temporary_name = tempfile.mkstemp(
+        prefix=f".{resolved_out.name}.",
+        suffix=".partial",
+        dir=resolved_out.parent,
+    )
+    os.close(fd)
+    temporary_path = Path(temporary_name)
+    recovered_bytes = 0
+    hasher = hashlib.sha256()
 
-    result = await asyncio.to_thread(_run_icat)
+    try:
+        with temporary_path.open("wb") as output:
 
-    if result.returncode != 0 and not result.stdout:
+            def write_recovered_chunk(chunk: bytes) -> None:
+                nonlocal recovered_bytes
+                output.write(chunk)
+                hasher.update(chunk)
+                recovered_bytes += len(chunk)
+
+            returncode, stderr, _, output_limit_reached = await execute_subprocess_bytes_async(
+                [resolved_exe, *cmd[1:]],
+                write_recovered_chunk,
+                max_output_size=max_recovered_bytes,
+                timeout=120,
+            )
+    except ToolNotFoundError:
+        temporary_path.unlink(missing_ok=True)
+        return failure("DEPENDENCY_MISSING", "Sleuth Kit (icat) is not installed")
+    except ExecutionTimeoutError:
+        temporary_path.unlink(missing_ok=True)
+        return failure("RECOVERY_TIMEOUT", f"icat timed out while recovering inode {inode}")
+    except asyncio.CancelledError:
+        temporary_path.unlink(missing_ok=True)
+        raise
+    except Exception:
+        temporary_path.unlink(missing_ok=True)
+        raise
+    if output_limit_reached:
+        temporary_path.unlink(missing_ok=True)
+        return failure(
+            "RECOVERY_LIMIT_EXCEEDED",
+            f"Recovered data exceeds the configured {max_recovered_bytes:,}-byte limit",
+            max_recovered_bytes=max_recovered_bytes,
+        )
+    if returncode != 0:
+        temporary_path.unlink(missing_ok=True)
         return failure(
             "RECOVERY_FAILED",
-            f"icat failed for inode {inode}: {result.stderr.decode(errors='replace').strip()}",
+            f"icat failed for inode {inode} (exit {returncode}): {stderr.strip()}",
             hint="Verify inode number with disk_list_files or disk_analyze_mft.",
         )
-
-    if not result.stdout:
+    if recovered_bytes == 0:
+        temporary_path.unlink(missing_ok=True)
         return failure(
             "EMPTY_INODE",
             f"Inode {inode} contains no data (may be fully overwritten)",
         )
 
-    resolved_out.write_bytes(result.stdout)
-    sha256 = hashlib.sha256(result.stdout).hexdigest()
+    try:
+        os.replace(temporary_path, resolved_out)
+    except Exception:
+        temporary_path.unlink(missing_ok=True)
+        raise
+    sha256 = hasher.hexdigest()
 
     return success(
         {
             "image_path": str(validated),
             "inode": inode,
             "output_path": str(resolved_out),
-            "recovered_bytes": len(result.stdout),
+            "recovered_bytes": recovered_bytes,
             "sha256": sha256,
             "status": "recovered",
         }
@@ -344,20 +422,20 @@ async def disk_analyze_mft(
         cmd.extend(["-o", str(offset)])
     cmd.append(str(validated))
 
-    stdout, stderr, rc = await _run_tsk(cmd, timeout=300)
-
-    if rc != 0 and not stdout:
-        return failure(
-            "TSK_ERROR",
-            f"MFT analysis failed (exit {rc}): {stderr.strip()}",
-            hint="Ensure this is an NTFS partition. Use disk_list_partition to find offsets.",
-        )
-
     entries: list[dict[str, Any]] = []
-    for line in stdout.splitlines()[:limit]:
+    entry_count = 0
+    entry_limit = min(max(limit, 0), _MAX_RETURNED_ENTRIES)
+
+    def add_entry(line: str, line_truncated: bool) -> None:
+        nonlocal entry_count
+        if line_truncated:
+            return
         # mactime format: "0|/path/to/file|inode|perms|uid|gid|size|atime|mtime|ctime|crtime"
         parts = line.split("|")
-        if len(parts) >= 11:
+        if len(parts) < 11:
+            return
+        entry_count += 1
+        if len(entries) < entry_limit:
             entries.append(
                 {
                     "path": parts[1],
@@ -371,12 +449,31 @@ async def disk_analyze_mft(
                 }
             )
 
+    output_limit = get_config().max_output_size
+    rc, stderr, _, output_limit_reached, line_truncated = await execute_subprocess_lines_async(
+        ["fls", *cmd[1:]],
+        add_entry,
+        max_output_size=output_limit,
+        max_line_size=min(_MAX_OUTPUT_LINE_BYTES, output_limit),
+        timeout=300,
+    )
+
+    if rc != 0 and entry_count == 0 and not output_limit_reached and not line_truncated:
+        return failure(
+            "TSK_ERROR",
+            f"MFT analysis failed (exit {rc}): {stderr.strip()}",
+            hint="Ensure this is an NTFS partition. Use disk_list_partition to find offsets.",
+        )
+
     return success(
         {
             "image_path": str(validated),
             "mft_entries": entries,
-            "entry_count": len(entries),
-            "truncated": len(entries) >= limit,
+            "entry_count": entry_count,
+            "truncated": (
+                output_limit_reached or line_truncated or rc != 0 or entry_count > len(entries)
+            ),
+            "count_complete": not output_limit_reached and not line_truncated and rc == 0,
         }
     )
 

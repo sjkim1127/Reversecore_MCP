@@ -17,6 +17,7 @@ Reversecore MCP is configured using environment variables. When the server boots
 | `MAX_UPLOAD_SIZE` | `100000000` (100MB) | Maximum file size in bytes allowed for the `/upload` endpoint (HTTP mode). |
 | `BINWALK_MAX_EXTRACTED_BYTES` | `500000000` (500MB) | Maximum total extracted bytes from one Binwalk run. |
 | `BINWALK_MAX_EXTRACTED_FILES` | `10000` | Maximum number of extracted filesystem entries from one Binwalk run. |
+| `REVERSECORE_FORENSICS_MAX_RECOVERED_BYTES` | `500000000` (500MB) | Maximum bytes recovered from one disk inode. |
 
 ### 📝 Server & Transport
 
