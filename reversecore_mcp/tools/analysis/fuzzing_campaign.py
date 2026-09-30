@@ -27,12 +27,16 @@ from fastmcp import Context
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
-from reversecore_mcp.core.exceptions import ExecutionTimeoutError, ToolNotFoundError
+from reversecore_mcp.core.exceptions import (
+    ExecutionTimeoutError,
+    ToolNotFoundError,
+    ValidationError,
+)
 from reversecore_mcp.core.execution import execute_subprocess_async, prepare_sandbox_access
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.result import ToolResult, failure, success
-from reversecore_mcp.core.security import validate_file_path
+from reversecore_mcp.core.security import validate_directory_path, validate_file_path
 
 logger = get_logger(__name__)
 DEFAULT_TIMEOUT = get_config().default_tool_timeout
@@ -436,13 +440,28 @@ async def run_fuzzing_campaign(
 
         # ── Setup seed corpus ────────────────────────────────────────────────
         if seed_corpus:
-            validated_seed = validate_file_path(seed_corpus)
-            if validated_seed.is_dir():
-                for sf in validated_seed.iterdir():
-                    if sf.is_file():
-                        shutil.copy(sf, seed_dir / sf.name)
-            else:
-                shutil.copy(validated_seed, seed_dir / validated_seed.name)
+            try:
+                validated_seed = validate_directory_path(seed_corpus)
+                seed_files = [
+                    validate_file_path(str(candidate))
+                    for candidate in validated_seed.iterdir()
+                    if candidate.is_file()
+                ]
+            except ValidationError as exc:
+                if exc.details.get("expected_type") != "directory":
+                    raise
+                validated_seed = validate_file_path(seed_corpus)
+                seed_files = [validated_seed]
+
+            if not seed_files:
+                return failure(
+                    "EMPTY_SEED_CORPUS",
+                    f"Seed corpus contains no files: {validated_seed}",
+                    hint="Provide a directory with at least one seed file or a single seed file.",
+                )
+
+            for seed_file in seed_files:
+                shutil.copy(seed_file, seed_dir / seed_file.name)
         else:
             # Minimal default corpus
             (seed_dir / "empty").write_bytes(b"")
