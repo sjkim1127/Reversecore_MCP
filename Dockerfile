@@ -4,10 +4,10 @@
 # from the base image. This stage ONLY adds application source code.
 #
 # Cold build time (code-only change): ~30–60 seconds
-# Base image rebuild (tool version change): ~12 minutes (rare, done separately)
+# Base image rebuild (tool or dependency-lock change): ~12 minutes (rare, done separately)
 #
-# Base image is built by the `build-base-image` GitHub Actions job. BASE_DIGEST
-# pins the published multi-architecture manifest and is mirrored in workflows.
+# Base images are built by the `build-base-image` GitHub Actions job. Local builds
+# use the versioned tag; CI passes the published manifest digest as BASE_REF.
 #
 # Supported Features:
 # - Basic Analysis: file, strings, binwalk
@@ -21,8 +21,9 @@
 # - FastMCP Advanced: Progress, Logging, Image Content, Dynamic Resources, Sampling
 
 ARG BASE_IMAGE=ghcr.io/sjkim1127/reversecore_mcp/base
-ARG BASE_DIGEST=sha256:cde0f875ebfa5d5033032b12480d5278a812839f06fdee9198b434762c4298c1
-FROM ${BASE_IMAGE}@${BASE_DIGEST}
+ARG BASE_TAG=yara4.3.1-r2-6.0.4-r2ghidra-v7
+ARG BASE_REF=${BASE_IMAGE}:${BASE_TAG}
+FROM ${BASE_REF}
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 

@@ -23,15 +23,13 @@ env:
   # Keep ordering and timestamp-sensitive tests reproducible across runners.
   PYTHONHASHSEED: "0"
   TZ: UTC
-  # Tool versions — bump these to trigger a base image rebuild
+  # Bump BASE_TAG when tool versions or Python dependency lockfiles change.
   YARA_VERSION: "4.3.1"
   RADARE2_VERSION: "6.0.4"
-  # Base image tag is derived from the tool versions so cache busts automatically
-  # when any tool version changes.
-  # Update BASE_DIGEST when publishing a new multi-arch base image manifest.
+  # Used only as the PR smoke-test fallback while the base-image publish job is skipped.
   BASE_DIGEST: "sha256:cde0f875ebfa5d5033032b12480d5278a812839f06fdee9198b434762c4298c1"
   # NOTE: Ghidra/JDK are NOT installed — we use r2ghidra (embedded Ghidra decompiler in radare2).
-  BASE_TAG: "yara4.3.1-r2-6.0.4-r2ghidra-v6"
+  BASE_TAG: "yara4.3.1-r2-6.0.4-r2ghidra-v7"
 
 jobs:
   # ──────────────────────────────────────────────────────────────────────────
@@ -335,6 +333,10 @@ jobs:
           echo "🔍 Checking for base image ${BASE_IMAGE}:${BASE_TAG} in registry..."
           if docker pull "${BASE_IMAGE}:${BASE_TAG}" 2>/dev/null; then
             echo "✅ Base image pulled from GHCR registry"
+            BASE_REF="$(docker image inspect --format='{{index .RepoDigests 0}}' "${BASE_IMAGE}:${BASE_TAG}")"
+            if [[ -z "${BASE_REF}" ]]; then
+              BASE_REF="${BASE_IMAGE}:${BASE_TAG}"
+            fi
           else
             echo "⚠️  Base image not in registry — building locally from Dockerfile.base"
             echo "(This is expected on PRs and the first push before build-base-image runs)"
@@ -350,14 +352,15 @@ jobs:
               -t "${BASE_IMAGE}:${BASE_TAG}" \
               -f Dockerfile.base .
             echo "✅ Base image built locally and tagged as ${BASE_IMAGE}:${BASE_TAG}"
+            BASE_REF="${BASE_IMAGE}:${BASE_TAG}"
           fi
+          echo "BASE_REF=${BASE_REF}" >> "$GITHUB_ENV"
 
       - name: Build app Docker image
         run: |
           echo "🐳 Building app image from base..."
           docker build \
-            --build-arg BASE_IMAGE="${{ env.BASE_IMAGE }}" \
-            --build-arg BASE_DIGEST="${{ env.BASE_DIGEST }}" \
+            --build-arg BASE_REF="${BASE_REF}" \
             -t reversecore-mcp:ci .
           echo "✅ Docker image built: reversecore-mcp:ci"
 
@@ -758,6 +761,8 @@ jobs:
       needs.build-base-image.result == 'success' &&
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    outputs:
+      base_ref: ${{ steps.publish-base.outputs.base_ref }}
     permissions:
       contents: read
       packages: write
@@ -779,6 +784,7 @@ jobs:
           driver: docker
 
       - name: Create and push multi-arch manifest
+        id: publish-base
         run: |
           docker buildx imagetools create \
             --tag ${{ env.BASE_IMAGE }}:${{ env.BASE_TAG }} \
@@ -786,6 +792,8 @@ jobs:
             ${{ env.BASE_IMAGE }}:${{ env.BASE_TAG }}-amd64 \
             ${{ env.BASE_IMAGE }}:${{ env.BASE_TAG }}-arm64
           echo "✅ Multi-arch manifest created: ${{ env.BASE_IMAGE }}:${{ env.BASE_TAG }}"
+          BASE_DIGEST="$(docker buildx imagetools inspect "${{ env.BASE_IMAGE }}:${{ env.BASE_TAG }}" --format '{{.Manifest.Digest}}')"
+          echo "base_ref=${{ env.BASE_IMAGE }}@${BASE_DIGEST}" >> "$GITHUB_OUTPUT"
 
   # ──────────────────────────────────────────────────────────────────────────
   # Exploit Safety Gate: Runs security boundary tests inside a hardened
@@ -963,8 +971,7 @@ jobs:
           push: false
           load: true
           build-args: |
-            BASE_IMAGE=${{ env.BASE_IMAGE }}
-            BASE_DIGEST=${{ env.BASE_DIGEST }}
+            BASE_REF=${{ needs.merge-base-image.outputs.base_ref || format('ghcr.io/sjkim1127/reversecore_mcp/base@{0}', env.BASE_DIGEST) }}
           tags: reversecore-mcp:smoke
           cache-from: |
             type=registry,ref=${{ env.BASE_IMAGE }}:cache-${{ env.BASE_TAG }}
@@ -1062,8 +1069,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           push: true
           build-args: |
-            BASE_IMAGE=${{ env.BASE_IMAGE }}
-            BASE_DIGEST=${{ env.BASE_DIGEST }}
+            BASE_REF=${{ needs.merge-base-image.outputs.base_ref }}
           tags: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}-${{ matrix.suffix }}
           # Inline cache embeds metadata in the pushed image — readable by
           # cache-from: type=registry on subsequent runs. Compatible with driver: docker.
