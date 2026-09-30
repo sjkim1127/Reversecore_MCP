@@ -13,7 +13,7 @@ from typing import Any
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
-from reversecore_mcp.core.result import ToolResult, failure, success
+from reversecore_mcp.core.result import ToolError, ToolResult, ToolSuccess, failure, success
 from reversecore_mcp.core.security import validate_file_path
 from reversecore_mcp.tools.deobfuscation.api_hash_resolver import (
     resolve_api_hashes_impl,
@@ -69,7 +69,9 @@ async def run_deobfuscation_pipeline_impl(
         timeout: Maximum execution timeout in seconds.
 
     Returns:
-        ToolResult with the integrated deobfuscation analysis report.
+        ToolResult with the integrated analysis and per-engine status. Partial
+        runs use ``INCOMPLETE`` for ``obfuscation_level``; total engine failure
+        returns ``ANALYSIS_FAILED`` with diagnostics instead of a clean verdict.
     """
     safe_path = validate_file_path(file_path)
     if not safe_path.exists() or not safe_path.is_file():
@@ -94,21 +96,57 @@ async def run_deobfuscation_pipeline_impl(
     results: tuple[Any, ...] = await asyncio.gather(
         string_task, api_task, dead_code_task, return_exceptions=True
     )
-    string_res, api_res, dead_code_res = results[0], results[1], results[2]
+    engine_results = {
+        "strings": results[0],
+        "apis": results[1],
+        "dead_code": results[2],
+    }
+    engine_status: dict[str, dict[str, Any]] = {}
+    engine_data: dict[str, dict[str, Any]] = {}
 
-    # Unwrap results safely
-    strings_data: dict[str, Any] = {}
-    apis_data: dict[str, Any] = {}
-    dead_code_data: dict[str, Any] = {}
+    for engine_name, engine_result in engine_results.items():
+        if isinstance(engine_result, ToolSuccess) and isinstance(engine_result.data, dict):
+            engine_status[engine_name] = {"status": "success"}
+            engine_data[engine_name] = engine_result.data
+        elif isinstance(engine_result, ToolError):
+            diagnostic: dict[str, Any] = {
+                "status": "error",
+                "error_code": engine_result.error_code,
+                "message": engine_result.message,
+            }
+            if engine_result.hint:
+                diagnostic["hint"] = engine_result.hint
+            if engine_result.details:
+                diagnostic["details"] = engine_result.details
+            engine_status[engine_name] = diagnostic
+        elif isinstance(engine_result, BaseException):
+            engine_status[engine_name] = {
+                "status": "error",
+                "error_code": type(engine_result).__name__,
+                "message": str(engine_result) or type(engine_result).__name__,
+            }
+        else:
+            engine_status[engine_name] = {
+                "status": "error",
+                "error_code": "INVALID_RESULT",
+                "message": (
+                    f"Engine returned an unsupported result type: {type(engine_result).__name__}"
+                ),
+            }
 
-    from reversecore_mcp.core.result import ToolSuccess
+    successful_engine_count = len(engine_data)
+    if successful_engine_count == 0:
+        return failure(
+            "ANALYSIS_FAILED",
+            "All deobfuscation engines failed; an obfuscation verdict cannot be determined.",
+            hint="Review the per-engine diagnostics and retry after resolving the reported errors.",
+            pipeline_status="failed",
+            engine_status=engine_status,
+        )
 
-    if isinstance(string_res, ToolSuccess):
-        strings_data = string_res.data or {}
-    if isinstance(api_res, ToolSuccess):
-        apis_data = api_res.data or {}
-    if isinstance(dead_code_res, ToolSuccess):
-        dead_code_data = dead_code_res.data or {}
+    strings_data = engine_data.get("strings", {})
+    apis_data = engine_data.get("apis", {})
+    dead_code_data = engine_data.get("dead_code", {})
 
     recovered_strings = strings_data.get("recovered_strings", [])
     resolved_apis = apis_data.get("resolved_apis", [])
@@ -149,15 +187,23 @@ async def run_deobfuscation_pipeline_impl(
     detected_capabilities = sorted(set(detected_capabilities))
 
     if severity_score >= 50:
-        obfuscation_level = "HIGH"
+        observed_obfuscation_level = "HIGH"
     elif severity_score >= 20:
-        obfuscation_level = "MEDIUM"
+        observed_obfuscation_level = "MEDIUM"
     else:
-        obfuscation_level = "LOW"
+        observed_obfuscation_level = "LOW"
+
+    pipeline_status = "complete" if successful_engine_count == len(engine_results) else "partial"
+    obfuscation_level = (
+        observed_obfuscation_level if pipeline_status == "complete" else "INCOMPLETE"
+    )
 
     report = {
         "file_path": str(safe_path),
+        "pipeline_status": pipeline_status,
+        "engine_status": engine_status,
         "obfuscation_level": obfuscation_level,
+        "observed_obfuscation_level": observed_obfuscation_level,
         "obfuscation_severity_score": min(severity_score, 100),
         "threat_tags": threat_tags,
         "detected_capabilities": detected_capabilities,
