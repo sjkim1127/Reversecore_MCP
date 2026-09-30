@@ -7,6 +7,7 @@ Generates comprehensive forensics reports in the standard MCP report format.
 
 import datetime
 import math
+import re
 from typing import Any
 
 from reversecore_mcp.core.decorators import log_execution
@@ -36,6 +37,33 @@ ARTIFACT_TYPES = {
     "dga_domain": "Possible DGA domain",
 }
 _EVENT_TIMESTAMP_FIELDS = ("timestamp", "mtime", "ctime", "atime", "crtime", "time")
+_YARA_IDENTIFIER_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
+
+
+def _escape_yara_string(value: str) -> str:
+    """Encode text as a safe YARA text-string literal body.
+
+    YARA string literals represent bytes, so non-ASCII text is encoded as UTF-8
+    and emitted with byte escapes. Quotes, backslashes, and control characters
+    are escaped to keep artifact data inside the generated literal.
+    """
+    escaped: list[str] = []
+    for byte in value.encode("utf-8"):
+        if byte == ord('"'):
+            escaped.append(r"\"")
+        elif byte == ord("\\"):
+            escaped.append(r"\\")
+        elif byte == ord("\n"):
+            escaped.append(r"\n")
+        elif byte == ord("\r"):
+            escaped.append(r"\r")
+        elif byte == ord("\t"):
+            escaped.append(r"\t")
+        elif 32 <= byte < 127:
+            escaped.append(chr(byte))
+        else:
+            escaped.append(f"\\x{byte:02x}")
+    return "".join(escaped)
 
 
 def _parse_timestamp(value: Any) -> datetime.datetime | None:
@@ -329,6 +357,11 @@ async def artifact_generate_yara(
     """
     if not artifacts:
         return failure("EMPTY_INPUT", "No artifacts provided for YARA rule generation")
+    if not isinstance(rule_name, str) or not _YARA_IDENTIFIER_PATTERN.fullmatch(rule_name):
+        return failure(
+            "INVALID_RULE_NAME",
+            "rule_name must start with an ASCII letter or underscore and contain only ASCII letters, digits, and underscores",
+        )
 
     # Extract string values suitable for YARA patterns
     string_patterns: list[str] = []
@@ -344,9 +377,7 @@ async def artifact_generate_yara(
             continue
 
         if atype in ("string", "injection"):
-            # Only include printable, YARA-safe strings
-            if all(32 <= ord(c) < 127 for c in val) and '"' not in val:
-                string_patterns.append(val[:200])
+            string_patterns.append(val[:200])
         elif atype in (
             "ip",
             "url",
@@ -359,7 +390,7 @@ async def artifact_generate_yara(
                 network_indicators.append(val[:200])
         elif atype == "process":
             if val.endswith(".exe") or val.endswith(".dll"):
-                process_indicators.append(val)
+                process_indicators.append(val[:200])
         elif atype == "hash":
             if len(val) in (32, 40, 64):  # MD5, SHA1, SHA256
                 hash_indicators.append(val)
@@ -388,20 +419,26 @@ async def artifact_generate_yara(
 
     yara_strings: list[str] = []
 
-    for i, pat in enumerate(string_patterns[:20]):
-        var = f"$str{i}"
-        yara_strings.append(var)
-        lines.append(f'        {var} = "{pat}"')
+    try:
+        for i, pat in enumerate(string_patterns[:20]):
+            var = f"$str{i}"
+            yara_strings.append(var)
+            lines.append(f'        {var} = "{_escape_yara_string(pat)}"')
 
-    for i, net in enumerate(network_indicators[:10]):
-        var = f"$net{i}"
-        yara_strings.append(var)
-        lines.append(f'        {var} = "{net}"')
+        for i, net in enumerate(network_indicators[:10]):
+            var = f"$net{i}"
+            yara_strings.append(var)
+            lines.append(f'        {var} = "{_escape_yara_string(net)}"')
 
-    for i, proc in enumerate(process_indicators[:5]):
-        var = f"$proc{i}"
-        yara_strings.append(var)
-        lines.append(f'        {var} = "{proc}" nocase')
+        for i, proc in enumerate(process_indicators[:5]):
+            var = f"$proc{i}"
+            yara_strings.append(var)
+            lines.append(f'        {var} = "{_escape_yara_string(proc)}" nocase')
+    except UnicodeEncodeError:
+        return failure(
+            "INVALID_ARTIFACT_VALUE",
+            "Artifact values used in YARA rules must contain valid Unicode text",
+        )
 
     # Condition: any 1 of the patterns
     condition = (
@@ -412,6 +449,19 @@ async def artifact_generate_yara(
     lines.append("}")
 
     yara_rule = "\n".join(lines)
+
+    try:
+        import yara
+    except ImportError:
+        return failure(
+            "YARA_DEPENDENCY_MISSING",
+            "The yara-python package is required to validate generated rules",
+        )
+    try:
+        yara.compile(source=yara_rule)
+    except yara.Error as exc:
+        logger.warning("Generated YARA rule failed compilation: %s", exc)
+        return failure("YARA_COMPILE_ERROR", f"Generated YARA rule is invalid: {exc}")
 
     # Optionally save to file
     saved_path = None
@@ -615,9 +665,12 @@ async def artifact_report(
     # Generate YARA if requested
     yara_section = ""
     if include_yara:
+        safe_case_name = re.sub(r"[^A-Za-z0-9_]", "_", case_name)[:80]
+        if not safe_case_name or safe_case_name[0].isdigit():
+            safe_case_name = f"_{safe_case_name}"
         yara_result = await artifact_generate_yara(
             artifacts,
-            rule_name=f"{case_name.replace(' ', '_')}_detection",
+            rule_name=f"{safe_case_name}_detection",
         )
         if yara_result.status == "success" and isinstance(yara_result.data, dict):
             yara_section = f"""
