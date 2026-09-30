@@ -180,7 +180,7 @@ def _extract_tool_record(
 
     param_summary: list[str] = []
     for prop_name, prop_meta in properties.items():
-        ptype = prop_meta.get("type", "any")
+        ptype = _schema_display_type(prop_meta)
         is_req = prop_name in required
         tag = f"`{prop_name}` ({ptype}{', req' if is_req else ''})"
         param_summary.append(tag)
@@ -195,6 +195,30 @@ def _extract_tool_record(
         "param_summary": ", ".join(param_summary) if param_summary else "*(none)*",
         "profiles": profiles,
     }
+
+
+def _schema_display_type(schema: dict[str, Any]) -> str:
+    """Return a compact type for a JSON Schema property, including nullable types."""
+    schema_type = schema.get("type")
+    if isinstance(schema_type, list):
+        non_null_types = [str(item) for item in schema_type if item != "null"]
+        return " or ".join(non_null_types) if non_null_types else "any"
+    if isinstance(schema_type, str):
+        return schema_type
+
+    variants = schema.get("anyOf") or schema.get("oneOf")
+    if isinstance(variants, list):
+        variant_types = [
+            variant["type"]
+            for variant in variants
+            if isinstance(variant, dict)
+            and isinstance(variant.get("type"), str)
+            and variant["type"] != "null"
+        ]
+        if variant_types:
+            return " or ".join(variant_types)
+
+    return "any"
 
 
 def render_tools_markdown(catalog: dict[str, Any]) -> str:

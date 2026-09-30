@@ -12,10 +12,25 @@ from scripts.benchmark_profiles import (
 from scripts.generate_tool_catalog import (
     PLUGIN_METADATA,
     RESOURCE_TEMPLATES,
+    _schema_display_type,
     collect_tool_registry,
     render_tools_markdown,
     update_readme_tool_counts,
 )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("schema", "expected"),
+    [
+        ({"type": "integer"}, "integer"),
+        ({"anyOf": [{"type": "integer"}, {"type": "null"}]}, "integer"),
+        ({"oneOf": [{"type": "string"}, {"type": "array"}]}, "string or array"),
+    ],
+)
+def test_schema_display_type(schema, expected):
+    """Nullable FastMCP parameters retain useful types in the generated catalog."""
+    assert _schema_display_type(schema) == expected
 
 
 @pytest.mark.unit

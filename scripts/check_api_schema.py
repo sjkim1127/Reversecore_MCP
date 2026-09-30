@@ -20,14 +20,10 @@ from reversecore_mcp import server
 # Update deliberately when a reviewed API change is made. The canonical form
 # makes this independent of dictionary insertion order and JSON whitespace.
 EXPECTED_TOOL_COUNT = 151
-# Primary canonical schema SHA-256 for fastmcp>=3.4.4 (pinned in requirements.txt)
-# Non-breaking description update: document the UNLIKELY triage result in fuzzing campaigns.
-EXPECTED_SCHEMA_SHA256 = "aacd46e6faf10366b55fc3eb9f58a10bdbeb07191080a9296fa79a241f9c0000"
-# Allowed digests across supported FastMCP runtime versions (3.4.x vs legacy 2.14.x)
-VALID_SCHEMA_SHA256S = {
-    EXPECTED_SCHEMA_SHA256,
-    "774b132d19ccb26404f69cf6a7a91f2c1119d25b2d7a067f2e19f0b65ef7e1a2",
-}
+# Canonical schema SHA-256 for FastMCP 3.4.4 (pinned in project requirements).
+# This reviewed API change adds the optional source port to TCP stream reconstruction.
+EXPECTED_SCHEMA_SHA256 = "26c519ec5e0e8c16abbd91b07303b3534c0bc51c52a7fdbfc4e1b3522664a6ff"
+VALID_SCHEMA_SHA256S = {EXPECTED_SCHEMA_SHA256}
 
 
 async def _canonical_schema() -> list[dict[str, Any]]:
