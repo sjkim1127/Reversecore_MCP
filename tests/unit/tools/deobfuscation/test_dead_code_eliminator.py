@@ -218,3 +218,76 @@ class TestDeadCodeEliminator:
         ]
         assert data["analysis_complete"] is True
         assert data["linear_sweep_skipped_functions"] == []
+
+    @pytest.mark.asyncio
+    async def test_cfg_simplifications_only_include_current_function_findings(self, workspace_file):
+        test_bin = workspace_file("function_scoped_cfg.bin")
+        functions = [
+            {"offset": 0x1000, "name": "function_with_predicate", "size": 0x20},
+            {"offset": 0x2000, "name": "clean_function", "size": 0x20},
+        ]
+        blocks_by_entry = {
+            0x1000: [{"offset": 0x1000, "size": 6, "instrs": [0x1000, 0x1002, 0x1004]}],
+            0x2000: [{"offset": 0x2000, "size": 4, "instrs": [0x2000, 0x2002]}],
+        }
+        disassembly_by_entry = {
+            0x1000: {
+                "ops": [
+                    {"offset": 0x1000, "size": 2, "type": "xor", "disasm": "xor eax, eax"},
+                    {"offset": 0x1002, "size": 2, "type": "cmp", "disasm": "test eax, eax"},
+                    {
+                        "offset": 0x1004,
+                        "size": 2,
+                        "type": "cjmp",
+                        "jump": 0x1010,
+                        "disasm": "jz 0x1010",
+                    },
+                ]
+            },
+            0x2000: {
+                "ops": [
+                    {"offset": 0x2000, "size": 2, "type": "mov", "disasm": "mov eax, 0"},
+                    {"offset": 0x2002, "size": 2, "type": "ret", "disasm": "ret"},
+                ]
+            },
+        }
+
+        async def mock_r2_cmd(path, cmd, timeout=30):
+            if "aflj" in cmd:
+                return json.dumps(functions)
+            entry = int(cmd.rsplit("@", maxsplit=1)[1].strip(), 0)
+            if "afbj" in cmd:
+                assert f"af @ {entry}" in cmd
+                return json.dumps(blocks_by_entry[entry])
+            if "pDj" in cmd:
+                return json.dumps(disassembly_by_entry[entry]["ops"])
+            if "pdfj" in cmd:
+                assert f"af @ {entry}" in cmd
+                return json.dumps(disassembly_by_entry[entry])
+            return "{}"
+
+        with patch(
+            "reversecore_mcp.tools.deobfuscation.dead_code_eliminator._run_r2_command",
+            side_effect=mock_r2_cmd,
+        ):
+            res = await eliminate_dead_code_impl(str(test_bin))
+
+        assert res.status == "success"
+        data = res.data
+        assert data is not None
+        assert [item["function"] for item in data["opaque_predicates"]] == [
+            "function_with_predicate"
+        ]
+        assert data["cfg_simplifications"] == [
+            {
+                "function": "function_with_predicate",
+                "address": "0x1000",
+                "original_blocks": 1,
+                "effective_blocks": 1,
+                "unreachable_blocks": 0,
+                "opaque_predicates": 1,
+                "redundant_jumps": 0,
+                "reduction_percent": "0.0%",
+            }
+        ]
+        assert data["summary_counts"]["opaque_predicates"] == len(data["opaque_predicates"])
