@@ -87,6 +87,15 @@ def _extract_printable_strings(raw_bytes: bytes, min_len: int = 4) -> list[dict[
     return results
 
 
+def _stack_pointer_register(ops: list[dict[str, Any]]) -> str:
+    """Select the x86 stack-pointer register used by the function's disassembly."""
+    for op in ops:
+        disasm = str(op.get("disasm", ""))
+        if re.search(r"\b(?:rsp|rbp)\b", disasm, re.IGNORECASE):
+            return "rsp"
+    return "esp"
+
+
 @track_metrics(tool_name="deobfuscate_strings")
 async def deobfuscate_strings_impl(
     file_path: str,
@@ -229,12 +238,11 @@ async def deobfuscate_strings_impl(
         # If loop was found with arithmetic/XOR, run short ESIL emulation step
         if has_loop:
             try:
-                # Step up to 500 instructions from function start and inspect memory
-                esil_cmd = f"aei; aeim; aeip; aes 500 @ {f_offset}; psj @ rbp-128"
-                await _run_r2_command(safe_path, esil_cmd, timeout=min(calc_timeout, 5))
-                # Also inspect stack buffer using 'pxj'
-                px_cmd = "pxj 128 @ esp"
-                px_output = await _run_r2_command(safe_path, px_cmd, timeout=min(calc_timeout, 5))
+                # Emulate and inspect memory in the same Radare2 process so the
+                # read observes the ESIL register and memory state.
+                stack_register = _stack_pointer_register(ops)
+                esil_cmd = f"aei; aeim; aeip; aes 500 @ {f_offset}; pxj 128 @ {stack_register}"
+                px_output = await _run_r2_command(safe_path, esil_cmd, timeout=min(calc_timeout, 5))
                 px_bytes = parse_json_output(px_output)
                 if px_bytes and isinstance(px_bytes, list):
                     raw_stack = bytes(px_bytes)
