@@ -53,6 +53,19 @@ Project-defined exception codes use the `RCMCP-E<3 digits>` format:
 New codes must be documented here and covered by an error-formatting test.
 Existing codes must not be reused for a different semantic failure.
 
+## Radare2 annotation list pagination (#235)
+
+`r2_list_structures`, `r2_list_types`, and `r2_list_bookmarks` accept a
+zero-based `offset` from 0 through SQLite's signed 64-bit integer maximum and a
+`limit` from 1 through 500. Invalid values return `VALIDATION_ERROR` before
+opening the annotation database or invoking radare2. Successful responses
+include `pagination.total_items`, `page`, `page_size`, `has_more`, and
+`next_cursor`; `next_cursor` is the decimal offset for the next page. The
+`count` in `data` is the number of items in the current page. Type listings
+place saved user types first in name order, then radare2-native types in name
+and definition order, and apply the same page size and offset to that combined
+list.
+
 ## Compatibility rules
 
 - Adding optional request fields or response fields is backward compatible.

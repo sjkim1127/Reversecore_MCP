@@ -4,6 +4,7 @@ Unit tests for r2_db — SQLite-based annotation persistence layer.
 All tests use a temporary in-memory SQLite DB to avoid touching the real .r2db file.
 """
 
+import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -70,6 +71,34 @@ class TestR2ListStructures:
         data = result.data
         assert data["count"] == 1
         assert data["structures"][0]["name"] == "Player"
+
+    @pytest.mark.asyncio
+    async def test_pagination_is_deterministic_and_includes_metadata(
+        self, mock_validate_file_path, patch_db_path
+    ):
+        from reversecore_mcp.tools.radare2.r2_db import (
+            r2_create_structure,
+            r2_list_structures,
+        )
+
+        for name in ("Gamma", "Alpha", "Beta"):
+            await r2_create_structure("/workspace/test.elf", name, [])
+
+        first_page = await r2_list_structures("/workspace/test.elf", offset=0, limit=2)
+        second_page = await r2_list_structures("/workspace/test.elf", offset=2, limit=2)
+        repeated_first_page = await r2_list_structures("/workspace/test.elf", offset=0, limit=2)
+
+        assert [item["name"] for item in first_page.data["structures"]] == ["Alpha", "Beta"]
+        assert first_page.data == repeated_first_page.data
+        assert first_page.pagination.total_items == 3
+        assert first_page.pagination.page == 1
+        assert first_page.pagination.page_size == 2
+        assert first_page.pagination.has_more is True
+        assert first_page.pagination.next_cursor == "2"
+        assert second_page.data["structures"][0]["name"] == "Gamma"
+        assert second_page.pagination.page == 2
+        assert second_page.pagination.has_more is False
+        assert second_page.pagination.next_cursor is None
 
 
 # ---------------------------------------------------------------------------
@@ -221,6 +250,28 @@ class TestR2Bookmarks:
         assert data["bookmarks"][0]["category"] == "note"
 
     @pytest.mark.asyncio
+    async def test_pagination_is_deterministic_and_includes_metadata(
+        self, mock_validate_file_path, patch_db_path
+    ):
+        from reversecore_mcp.tools.radare2.r2_db import r2_add_bookmark, r2_list_bookmarks
+
+        for address in ("0x401030", "0x401010", "0x401020"):
+            await r2_add_bookmark("/workspace/test.elf", address, f"note at {address}")
+
+        first_page = await r2_list_bookmarks("/workspace/test.elf", offset=0, limit=2)
+        second_page = await r2_list_bookmarks("/workspace/test.elf", offset=2, limit=2)
+
+        assert [item["address"] for item in first_page.data["bookmarks"]] == [
+            "0x401010",
+            "0x401020",
+        ]
+        assert first_page.pagination.total_items == 3
+        assert first_page.pagination.has_more is True
+        assert first_page.pagination.next_cursor == "2"
+        assert [item["address"] for item in second_page.data["bookmarks"]] == ["0x401030"]
+        assert second_page.pagination.has_more is False
+
+    @pytest.mark.asyncio
     async def test_empty_comment_returns_error(self, mock_validate_file_path, patch_db_path):
         """r2_add_bookmark rejects empty comment."""
         from reversecore_mcp.tools.radare2.r2_db import r2_add_bookmark
@@ -230,6 +281,93 @@ class TestR2Bookmarks:
 
 
 # ---------------------------------------------------------------------------
+# r2_list pagination validation and combined type pagination
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tool_name", ["r2_list_structures", "r2_list_types", "r2_list_bookmarks"])
+@pytest.mark.parametrize(
+    ("pagination_args", "field"),
+    [
+        ({"limit": -1}, "limit"),
+        ({"limit": 0}, "limit"),
+        ({"limit": 501}, "limit"),
+        ({"limit": True}, "limit"),
+        ({"offset": -1}, "offset"),
+        ({"offset": 1 << 63}, "offset"),
+        ({"offset": False}, "offset"),
+    ],
+)
+async def test_annotation_lists_reject_invalid_pagination_before_io(
+    tool_name, pagination_args, field
+):
+    import reversecore_mcp.tools.radare2.r2_db as r2_db
+
+    tool = getattr(r2_db, tool_name)
+    with (
+        patch.object(r2_db, "validate_file_path") as validate_path,
+        patch.object(r2_db, "_get_db_sync") as open_db,
+        patch.object(r2_db, "_execute_r2_command", new=AsyncMock()) as execute_r2,
+    ):
+        result = await tool("/workspace/not-opened.elf", **pagination_args)
+
+    assert result.status == "error"
+    assert result.error_code == "VALIDATION_ERROR"
+    assert field in result.message
+    validate_path.assert_not_called()
+    open_db.assert_not_called()
+    execute_r2.assert_not_awaited()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_r2_list_types_paginates_combined_user_and_native_types(
+    mock_validate_file_path, patch_db_path
+):
+    from reversecore_mcp.tools.radare2.r2_db import _get_db_sync, _sha256, r2_list_types
+
+    file_hash = _sha256(mock_validate_file_path)
+    db = _get_db_sync()
+    try:
+        db.executemany(
+            "INSERT INTO types(binary_hash, name, definition) VALUES (?, ?, ?)",
+            [
+                (file_hash, "UserB", "struct UserB"),
+                (file_hash, "UserA", "struct UserA"),
+            ],
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    native_types = [
+        {"type": "Zulu", "typestr": "struct Zulu"},
+        {"type": "Alpha", "typestr": "struct Alpha"},
+        {"type": "Bravo", "typestr": "struct Bravo"},
+    ]
+    execute_r2 = AsyncMock(return_value=(json.dumps(native_types), {}))
+
+    with patch("reversecore_mcp.tools.radare2.r2_db._execute_r2_command", new=execute_r2):
+        pages = [
+            await r2_list_types("/workspace/test.elf", offset=offset, limit=2)
+            for offset in (0, 2, 4)
+        ]
+
+    assert all(len(page.data["types"]) <= 2 for page in pages)
+    assert [(item["name"], item["source"]) for page in pages for item in page.data["types"]] == [
+        ("UserA", "user"),
+        ("UserB", "user"),
+        ("Alpha", "r2"),
+        ("Bravo", "r2"),
+        ("Zulu", "r2"),
+    ]
+    assert [page.pagination.total_items for page in pages] == [5, 5, 5]
+    assert [page.pagination.has_more for page in pages] == [True, True, False]
+    assert [page.pagination.next_cursor for page in pages] == ["2", "4", None]
+
+
 # r2_read_memory
 # ---------------------------------------------------------------------------
 
