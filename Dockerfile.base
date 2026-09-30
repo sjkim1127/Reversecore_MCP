@@ -125,12 +125,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 # hadolint ignore=DL3042,DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --require-hashes -r requirements.txt \
-    && sed -i 's/"1.1.2"/"1.2.1"/' /opt/venv/lib/python3.12/site-packages/pip/_vendor/msgpack/__init__.py 2>/dev/null || true \
-    && sed -i 's/(1, 1, 2)/(1, 2, 1)/' /opt/venv/lib/python3.12/site-packages/pip/_vendor/msgpack/__init__.py 2>/dev/null || true \
-    && rm -rf /opt/venv/lib/python3.12/site-packages/pip/_vendor/pkg_resources \
-    && rm -rf /opt/venv/lib/python3.12/site-packages/pip/_vendor/vendor.txt \
-    && find /opt/venv -name "vendor.txt" -delete \
-    && find /opt/venv -type d -name "sboms" -exec rm -rf {} + 2>/dev/null || true
+    && pip uninstall --yes pip
 
 # ============================================================================
 # Stage 2: Final base image (no build toolchain, runtime-only)
@@ -169,10 +164,16 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir --require-hashes -r /tmp/requirements-toolchain.txt \
     && rm -rf /usr/local/lib/python3.12/ensurepip \
-    && rm -rf /usr/local/lib/python3.12/site-packages/pip/_vendor/pkg_resources \
-    && rm -rf /usr/local/lib/python3.12/site-packages/pip/_vendor/vendor.txt \
+              /usr/local/lib/python3.12/site-packages/pip \
+              /usr/local/lib/python3.12/site-packages/pip-*.dist-info \
+              /usr/local/bin/pip* \
+              /usr/local/lib/python3.12/site-packages/setuptools* \
+              /usr/local/lib/python3.12/site-packages/msgpack* \
+              /usr/lib/python3*/dist-packages/msgpack* \
+              /usr/lib/python3*/dist-packages/setuptools* \
     && find /usr/local -name "vendor.txt" -delete \
-    && find /usr/local -type d -name "sboms" -exec rm -rf {} + 2>/dev/null || true
+    && find /usr/local -type d -name "sboms" -exec rm -rf {} + 2>/dev/null || true \
+    && find /usr /var /tmp /root \( -name "*msgpack*" -o -name "*setuptools*" -o -name "vendor.txt" \) -exec rm -rf {} + 2>/dev/null || true
 
 # ── Copy compiled artifacts from parallel compiler stages ─────────────────────
 RUN mkdir -p /usr/local/include /usr/local/lib/pkgconfig

@@ -44,33 +44,14 @@ COPY resources/  /app/resources/
 COPY templates/  /app/templates/
 
 # Install current Debian security updates for packages inherited from the base
-# image, then install only production/runtime Python dependencies. The complete
-# all-extras lock remains available as a constraints source so runtime versions
-# stay aligned with CI without installing pytest, linters, or documentation tools.
-COPY requirements.txt         ./
-COPY requirements-runtime.txt ./
+# image. The versioned base image already contains the complete hash-locked
+# Python environment; keeping pip out of the runtime image avoids shipping its
+# vendored dependencies.
 # hadolint ignore=DL3008,DL3013
 RUN apt-get update \
     && apt-get install -y --no-install-recommends --only-upgrade \
         curl libcurl3-gnutls libcurl4 libgraphite2-3 liblzma5 xz-utils libgd3 libssh2-1 libaom3 libpcre2-8-0 libde265-0 libssl3 openssl \
-    && apt-get install -y --no-install-recommends gcc g++ make python3-dev libc-dev \
-    && /opt/venv/bin/pip install --no-cache-dir --require-hashes -r requirements-runtime.txt \
-    && apt-get purge -y --auto-remove gcc g++ make python3-dev libc-dev \
-    && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /usr/local/lib/python3.12/ensurepip \
-              /usr/local/lib/python3.12/site-packages/pip* \
-              /usr/local/lib/python3.12/site-packages/setuptools* \
-              /usr/local/lib/python3.12/site-packages/msgpack* \
-              /usr/lib/python3*/dist-packages/msgpack* \
-              /usr/lib/python3*/dist-packages/setuptools* \
-              /root/.cache \
-    && sed -i 's/"1.1.2"/"1.2.1"/' /opt/venv/lib/python3.12/site-packages/pip/_vendor/msgpack/__init__.py 2>/dev/null || true \
-    && sed -i 's/(1, 1, 2)/(1, 2, 1)/' /opt/venv/lib/python3.12/site-packages/pip/_vendor/msgpack/__init__.py 2>/dev/null || true \
-    && rm -rf /opt/venv/lib/python3.12/site-packages/pip/_vendor/pkg_resources \
-    && rm -rf /opt/venv/lib/python3.12/site-packages/pip/_vendor/vendor.txt \
-    && find /opt/venv -name "vendor.txt" -delete \
-    && find /opt/venv -type d -name "sboms" -exec rm -rf {} + 2>/dev/null || true \
-    && find /usr /var /tmp /root \( -name "*msgpack*" -o -name "*setuptools*" -o -name "vendor.txt" \) -exec rm -rf {} + 2>/dev/null || true
+    && rm -rf /var/lib/apt/lists/*
 
 # Application source (invalidates on every code change)
 COPY scripts/            ./scripts/

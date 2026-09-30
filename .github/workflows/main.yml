@@ -364,6 +364,13 @@ jobs:
             -t reversecore-mcp:ci .
           echo "✅ Docker image built: reversecore-mcp:ci"
 
+      - name: Verify Python package installer is absent from runtime image
+        run: |
+          docker run --rm --entrypoint /bin/bash reversecore-mcp:ci -ec \
+            'test ! -d /opt/venv/lib/python3.12/site-packages/pip && \
+             test ! -d /usr/local/lib/python3.12/site-packages/pip && \
+             ! command -v pip && ! command -v pip3'
+
       - name: Run Trivy container security scan
         uses: aquasecurity/trivy-action@d2a0b60797ff03db6132bd4e2b293f9b37081297 # master
         with:

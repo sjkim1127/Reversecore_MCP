@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Verify that the production image installs the runtime-only manifest and that
-# development tooling does not leak into the runtime dependency set.
+# Verify that the versioned base image installs the hash-locked Python
+# environment and that the application image does not need a package installer.
 # Package matching supports optional extras such as mcp[cli].
 
 set -euo pipefail
@@ -9,10 +9,20 @@ runtime_manifest="requirements-runtime.txt"
 runtime_source="requirements-runtime.in"
 all_extras_lock="requirements.txt"
 
-echo "🔍 Checking Docker runtime dependency separation..."
+echo "🔍 Checking Docker base dependency and installer policy..."
 
-if ! grep -qE 'pip install.*-r requirements-runtime\.txt' Dockerfile; then
-    echo "❌ Dockerfile must install requirements-runtime.txt"
+if ! grep -qE 'pip install --require-hashes -r requirements\.txt' Dockerfile.base; then
+    echo "❌ Dockerfile.base must install the all-extras hash-locked requirements"
+    exit 1
+fi
+
+if ! grep -qE 'pip uninstall --yes pip' Dockerfile.base; then
+    echo "❌ Dockerfile.base must remove pip from the runtime virtualenv"
+    exit 1
+fi
+
+if grep -qE 'pip install.*-r requirements-runtime\.txt' Dockerfile; then
+    echo "❌ Dockerfile must not reinstall Python dependencies into the runtime image"
     exit 1
 fi
 
@@ -53,4 +63,4 @@ for package in "${dev_only[@]}"; do
     fi
 done
 
-echo "✅ Docker installs runtime dependencies without development tooling"
+echo "✅ Base image installs pinned Python dependencies and ships without pip"
