@@ -27,6 +27,8 @@ from reversecore_mcp.tools.cve_hunter.poc_minimizer import (
 
 logger = get_logger(__name__)
 
+_SOURCE_TARGET_SUFFIXES = {".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx"}
+
 
 def generate_cve_advisory_markdown(
     target_name: str,
@@ -130,16 +132,19 @@ async def hunt_cve_pipeline_impl(
     options: dict[str, Any] | None = None,
     timeout: int | None = None,
 ) -> ToolResult:
-    """Execute the complete end-to-end CVE hunting pipeline on a C/C++ target.
+    """Execute the CVE hunting pipeline against a compiled LibFuzzer executable.
 
     Args:
-        target_path_str: Path to target header (.h), source (.c/.cpp), or compiled binary.
+        target_path_str: Path to a compiled LibFuzzer executable. Source and header files must be
+            compiled with a generated harness before they can be passed to this pipeline.
         sample_file_path: Optional path to a valid sample file.
         options: Optional configuration dictionary (e.g. fuzz_duration, target_function).
         timeout: Maximum execution timeout in seconds.
 
     Returns:
-        ToolResult with complete CVE discovery findings, triaged crashes, PoCs, and advisory report.
+        ToolResult with CVE findings, triaged crashes, PoCs, and an advisory report. Successful
+        fuzzing results include the executed path in ``fuzzed_executable``; it is null when no
+        fuzzing run succeeded.
     """
     try:
         safe_path = validate_file_path(target_path_str)
@@ -148,6 +153,18 @@ async def hunt_cve_pipeline_impl(
 
     if not safe_path.exists():
         return failure("FILE_NOT_FOUND", f"Target file does not exist: {target_path_str}")
+
+    if not safe_path.is_file():
+        return failure("INVALID_TARGET_TYPE", "The fuzz target must be a regular file.")
+
+    if safe_path.suffix.lower() in _SOURCE_TARGET_SUFFIXES:
+        return failure(
+            "UNSUPPORTED_TARGET_TYPE",
+            "The CVE hunting pipeline accepts compiled LibFuzzer executables only. "
+            "It does not compile source or header files, so they will not be sent to the "
+            "fuzzer. Generate a harness with cve_synthesize_harness, compile and link it "
+            "with the target using LibFuzzer, then pass the executable path.",
+        )
 
     opts = options or {}
     fuzz_duration = int(opts.get("fuzz_duration", 15))
@@ -187,6 +204,11 @@ async def hunt_cve_pipeline_impl(
         fuzz_success = False
     fuzz_execution_status = fuzz_data.get("execution_status", "failed")
     fuzz_completed = fuzz_success and fuzz_execution_status in {"completed", "crash_detected"}
+    fuzzed_executable = (
+        fuzz_data.get("target_binary")
+        if isinstance(fuzz_data.get("target_binary"), str)
+        else (str(safe_path) if fuzz_success else None)
+    )
 
     custom_crash_log = opts.get("crash_log")
     external_triage: dict[str, Any] | None = None
@@ -326,6 +348,7 @@ async def hunt_cve_pipeline_impl(
         # A completed clean run is a valid result, but it is not a vulnerability finding.
         result_payload: dict[str, Any] = {
             "target_file": str(safe_path),
+            "fuzzed_executable": fuzzed_executable,
             "finding_status": "none",
             "analysis_status": "complete",
             "execution_status": "completed",
@@ -366,6 +389,7 @@ async def hunt_cve_pipeline_impl(
         return success(
             {
                 "target_file": str(safe_path),
+                "fuzzed_executable": fuzzed_executable,
                 "finding_status": "unclassified",
                 "analysis_status": analysis_status,
                 "execution_status": fuzz_execution_status,
@@ -447,6 +471,7 @@ async def hunt_cve_pipeline_impl(
 
     result_payload = {
         "target_file": str(safe_path),
+        "fuzzed_executable": fuzzed_executable,
         "finding_status": "found",
         "analysis_status": analysis_status,
         "execution_status": fuzz_execution_status,

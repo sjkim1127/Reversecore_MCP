@@ -92,10 +92,35 @@ class TestCveHuntPipeline:
         res = await hunt_cve_vulnerabilities("/non/existent/target.h")
         assert res.status == "error"
 
+    @pytest.mark.parametrize("suffix", [".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx"])
+    @pytest.mark.asyncio
+    async def test_hunt_cve_pipeline_rejects_source_and_header_targets_before_fuzzing(
+        self, workspace_file, suffix
+    ):
+        source_path = workspace_file(f"source_target{suffix}", content=b"int parse_data(void);")
+
+        with (
+            patch(
+                "reversecore_mcp.tools.cve_hunter.cve_hunt_pipeline.synthesize_fuzz_harness_impl",
+                new_callable=AsyncMock,
+            ) as synthesize,
+            patch(
+                "reversecore_mcp.tools.cve_hunter.cve_hunt_pipeline.run_hybrid_fuzz_impl",
+                new_callable=AsyncMock,
+            ) as fuzz,
+        ):
+            res = await hunt_cve_pipeline_impl(target_path_str=str(source_path))
+
+        assert res.status == "error"
+        assert res.error_code == "UNSUPPORTED_TARGET_TYPE"
+        assert "compiled LibFuzzer executables only" in res.message
+        synthesize.assert_not_awaited()
+        fuzz.assert_not_awaited()
+
     @pytest.mark.asyncio
     async def test_hunt_cve_pipeline_success(self, workspace_file):
         target_h = workspace_file(
-            "test_target.h",
+            "test_target.fuzzer",
             content=b"int parse_archive(const uint8_t *data, size_t size);",
         )
         sample_bin = workspace_file("sample.bin", content=b"PK\x03\x04testpayload")
@@ -112,6 +137,7 @@ class TestCveHuntPipeline:
 
         mock_fuzz_res = success(
             {
+                "target_binary": str(target_h),
                 "total_executions": 25000,
                 "crashes_detected": 1,
                 "execution_status": "crash_detected",
@@ -148,7 +174,7 @@ class TestCveHuntPipeline:
                 "reversecore_mcp.tools.cve_hunter.cve_hunt_pipeline.run_hybrid_fuzz_impl",
                 new_callable=AsyncMock,
                 return_value=mock_fuzz_res,
-            ),
+            ) as fuzz_mock,
         ):
             res = await hunt_cve_pipeline_impl(
                 target_path_str=str(target_h),
@@ -157,9 +183,11 @@ class TestCveHuntPipeline:
             )
 
         assert res.status == "success"
+        assert fuzz_mock.await_args.kwargs["target_binary_path"] == str(target_h)
         data = res.data
         assert data is not None
         assert data["finding_status"] == "found"
+        assert data["fuzzed_executable"] == str(target_h)
         assert data["cwe_id"] == "CWE-122"
         assert data["cvss_v31_score"] == 8.8
         assert "cve_security_advisory_markdown" in data
@@ -173,7 +201,7 @@ class TestCveHuntPipeline:
 
     @pytest.mark.asyncio
     async def test_hunt_cve_pipeline_omits_truncated_c_harness(self, workspace_file):
-        target_h = workspace_file("large_crash_target.h")
+        target_h = workspace_file("large_crash_target.fuzzer")
         payload = b"LARGE_CRASH_INPUT" * 40
         crash_input = workspace_file("large-crash/crash", content=payload)
         fuzz_res = success(
@@ -218,7 +246,7 @@ class TestCveHuntPipeline:
 
     @pytest.mark.asyncio
     async def test_hunt_cve_pipeline_rejects_changed_crash_input(self, workspace_file):
-        target_h = workspace_file("changed_input_target.h")
+        target_h = workspace_file("changed_input_target.fuzzer")
         crash_input = workspace_file("changed-input/crash", content=b"TAMPERED_INPUT")
         harness_res = success({})
         fuzz_res = success(
@@ -261,7 +289,7 @@ class TestCveHuntPipeline:
     @pytest.mark.asyncio
     async def test_hunt_cve_pipeline_clean_run_returns_no_finding(self, workspace_file):
         target_h = workspace_file(
-            "test_target2.h",
+            "test_target2.fuzzer",
             content=b"int parse_stream(const uint8_t *data, size_t size);",
         )
 
@@ -301,6 +329,7 @@ class TestCveHuntPipeline:
         assert res.data["finding_status"] == "none"
         assert res.data["cwe_id"] is None
         assert res.data["cvss_v31_score"] is None
+        assert res.data["fuzzed_executable"] == str(target_h)
         assert res.data["triaged_crashes"] == []
         assert res.data["standalone_python_poc"] is None
         assert res.data["cve_security_advisory_markdown"] is None
@@ -311,7 +340,7 @@ class TestCveHuntPipeline:
         self, workspace_file
     ):
         target_h = workspace_file(
-            "external_log_target.h",
+            "external_log_target.fuzzer",
             content=b"int parse_stream(const uint8_t *data, size_t size);",
         )
         harness_res = success({"selected_target_function": "parse_stream"})
@@ -348,12 +377,13 @@ READ of size 8 at 0x602000000010
         assert res.data["triaged_crashes"][0]["crash_input_path"] is None
         assert res.data["standalone_python_poc"] is None
         assert res.data["standalone_c_poc"] is None
+        assert res.data["fuzzed_executable"] is None
         assert "No PoC was generated" in res.data["cve_security_advisory_markdown"]
         assert "externally supplied sanitizer log" in res.data["summary"]
 
     @pytest.mark.asyncio
     async def test_hunt_cve_pipeline_rejects_invalid_external_log(self, workspace_file):
-        target_h = workspace_file("invalid_external_log_target.h")
+        target_h = workspace_file("invalid_external_log_target.fuzzer")
         harness_res = success({})
         fuzz_res = success(
             {
@@ -388,7 +418,7 @@ READ of size 8 at 0x602000000010
     async def test_hunt_cve_pipeline_preserves_unmapped_sanitizer_without_cve_claim(
         self, workspace_file
     ):
-        target_h = workspace_file("unmapped_external_log_target.h")
+        target_h = workspace_file("unmapped_external_log_target.fuzzer")
         with (
             patch(
                 "reversecore_mcp.tools.cve_hunter.cve_hunt_pipeline.synthesize_fuzz_harness_impl",
@@ -424,7 +454,7 @@ READ of size 8 at 0x602000000010
     async def test_hunt_cve_pipeline_propagates_fuzz_failure_without_external_log(
         self, workspace_file
     ):
-        target_h = workspace_file("fuzz_failure_target.h")
+        target_h = workspace_file("fuzz_failure_target.fuzzer")
         with (
             patch(
                 "reversecore_mcp.tools.cve_hunter.cve_hunt_pipeline.synthesize_fuzz_harness_impl",

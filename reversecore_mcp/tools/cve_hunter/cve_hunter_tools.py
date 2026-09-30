@@ -140,23 +140,28 @@ async def hunt_cve_vulnerabilities(
     options: dict[str, Any] | None = None,
     timeout: int | None = None,
 ) -> ToolResult:
-    """One-click automated CVE hunting pipeline for C/C++ libraries, parsers, and codecs.
+    """Run one-click CVE hunting against a compiled LibFuzzer target executable.
+
+    This pipeline does not compile source or header files. Generate and compile a harness for
+    those targets separately, then pass the resulting executable here.
 
     Performs end-to-end vulnerability discovery:
-    1. Harness & Dictionary auto-synthesis
-    2. Hybrid Fuzzing + angr concolic branch solving
-    3. ASan crash triage, CWE mapping, and CVSS v3.1 scoring
-    4. Testcase minimization & standalone PoC generation
-    5. Vendor-ready Security Advisory Markdown report draft
+    1. Hybrid fuzzing and angr concolic branch solving
+    2. ASan crash triage, CWE mapping, and CVSS v3.1 scoring
+    3. Testcase minimization and standalone PoC generation
+    4. Vendor-ready Security Advisory Markdown report draft
 
     Args:
-        target_path: Path to target header (.h), source (.c/.cpp), or compiled binary.
+        target_path: Path to a compiled LibFuzzer executable. Generate and compile a harness for
+            source or header targets before passing the executable to this pipeline.
         sample_file_path: Optional path to a valid sample file.
         options: Optional configuration dictionary (e.g. fuzz_duration, target_function).
         timeout: Maximum execution timeout in seconds.
 
     Returns:
-        ToolResult with complete CVE discovery findings, triaged crashes, PoCs, and advisory report.
+        ToolResult with CVE findings, triaged crashes, PoCs, and an advisory report. Successful
+        fuzzing results include the executed path in ``fuzzed_executable``; it is null when no
+        fuzzing run succeeded.
     """
     return await hunt_cve_pipeline_impl(
         target_path_str=target_path,
