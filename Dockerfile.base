@@ -6,12 +6,12 @@
 #   - r2ghidra plugin (embeds Ghidra decompiler engine inside radare2 — no JDK/Ghidra install needed)
 #   - Python venv with all pinned requirements
 #
-# This image is rebuilt ONLY when tool versions change (ARG values below).
+# Rebuild this image when native tool versions or Python dependency locks change.
 # The main Dockerfile simply does `FROM ghcr.io/.../base:TAG` and copies
 # application code — cutting cold-build time from ~12min to ~60s.
 #
-# Rebuild trigger: bump any of the ARG version values and push to main.
-# The `build-base-image` GitHub Actions job detects changes to this file.
+# Rebuild trigger: bump BASE_TAG in the GitHub Actions workflows and push to main.
+# The `build-base-image` job publishes the new versioned base tag.
 #
 # Build parallelism (BuildKit):
 #   compiler-toolchain
