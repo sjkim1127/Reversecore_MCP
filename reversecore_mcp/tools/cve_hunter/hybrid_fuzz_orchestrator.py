@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
+import subprocess  # nosec B404
+import tempfile
 from pathlib import Path
 from typing import Any
 
 from reversecore_mcp.core.config import get_config
-from reversecore_mcp.core.execution import execute_subprocess_async
+from reversecore_mcp.core.execution import execute_subprocess_async, prepare_sandbox_access
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.r2_helpers import calculate_dynamic_timeout
 from reversecore_mcp.core.result import ToolResult, failure, success
@@ -15,6 +18,29 @@ from reversecore_mcp.core.security import validate_file_path
 from reversecore_mcp.tools.cve_hunter.asan_crash_triager import triage_asan_log
 
 logger = get_logger(__name__)
+
+
+def _hash_file(path: Path) -> str:
+    """Hash a crash input incrementally so large testcases stay bounded in memory."""
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        while chunk := source.read(65_536):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _find_crash_input(fuzzer_output: str, crashes_dir: Path, artifacts: list[Path]) -> Path | None:
+    """Resolve the crash input reported by LibFuzzer within this run's artifact directory."""
+    match = re.search(r"Test unit written to\s+([^\r\n]+)", fuzzer_output)
+    if match:
+        raw_path = match.group(1).strip().strip("'\"")
+        candidate = Path(raw_path).expanduser().resolve()
+        if candidate.is_relative_to(crashes_dir.resolve()) and candidate.is_file():
+            return candidate
+        return None
+    if len(artifacts) == 1 and artifacts[0].is_file():
+        return artifacts[0].resolve()
+    return None
 
 
 def solve_branch_constraints_angr(
@@ -120,18 +146,36 @@ async def run_hybrid_fuzz_impl(
         target_bin, base_timeout=timeout or (max_total_time_seconds + 30)
     )
 
-    # Setup directories
-    temp_workspace = target_bin.parent
-    crashes_dir = temp_workspace / "cve_crashes"
-    crashes_dir.mkdir(parents=True, exist_ok=True)
+    # Keep crash artifacts in the writable workspace cache and isolate each run.
+    cache_dir = workspace / ".cache"
+    temp_workspace = cache_dir / "cve_crashes"
+    try:
+        if cache_dir.is_symlink() or temp_workspace.is_symlink():
+            raise OSError("workspace cache paths must not be symbolic links")
+        temp_workspace.mkdir(parents=True, exist_ok=True)
+        prepare_sandbox_access(temp_workspace)
+        crashes_dir = Path(tempfile.mkdtemp(prefix="run_", dir=temp_workspace))
+        prepare_sandbox_access(crashes_dir)
+    except Exception as e:
+        return failure("FUZZING_SETUP_FAILED", f"Could not create crash artifact directory: {e}")
 
-    seeds_dir.mkdir(parents=True, exist_ok=True)
+    def remove_empty_crash_directory() -> None:
+        try:
+            crashes_dir.rmdir()
+        except OSError:
+            pass
 
-    # If seeds directory is empty, create minimal seed
-    seed_files = list(seeds_dir.glob("*"))
-    if not seed_files:
-        initial_seed = seeds_dir / "seed_init.bin"
-        initial_seed.write_bytes(b"TEST\x00\x00\x00\x04DATA")
+    try:
+        seeds_dir.mkdir(parents=True, exist_ok=True)
+
+        # If seeds directory is empty, create minimal seed.
+        seed_files = list(seeds_dir.glob("*"))
+        if not seed_files:
+            initial_seed = seeds_dir / "seed_init.bin"
+            initial_seed.write_bytes(b"TEST\x00\x00\x00\x04DATA")
+    except OSError as e:
+        remove_empty_crash_directory()
+        return failure("FUZZING_SETUP_FAILED", f"Could not prepare the fuzzer seed corpus: {e}")
 
     # Step 1: Check if angr concolic solving should inject seeds first
     solved_seeds_count = 0
@@ -164,23 +208,36 @@ async def run_hybrid_fuzz_impl(
     crashes_found: list[dict[str, Any]] = []
     fuzzer_output = ""
 
+    fuzz_execution_status = "completed"
     try:
         fuzzer_output, _ = await execute_subprocess_async(
             fuzz_cmd,
             max_output_size=10_000_000,
             timeout=int(calc_timeout),
+            capture_stderr=True,
         )
     except Exception as e:
-        # The shared executor enforces sandboxing, timeout, output bounds, and
-        # process cleanup. A crashing target is expected during fuzzing; retain
-        # its diagnostic output when the executor exposes it.
-        fuzzer_output = str(getattr(e, "output", "") or "")
-        stderr = getattr(e, "stderr", None)
-        if stderr:
-            fuzzer_output += "\n" + str(stderr)
-        if not fuzzer_output:
-            fuzzer_output = str(e)
-        logger.warning(f"Fuzzing subprocess failed: {e}")
+        output = getattr(e, "output", None) or getattr(e, "stdout", None) or ""
+        stderr = getattr(e, "stderr", None) or ""
+        fuzzer_output = "\n".join(
+            value.decode(errors="replace") if isinstance(value, bytes) else str(value)
+            for value in (output, stderr)
+            if value and (value is output or str(value) not in str(output))
+        )
+        triage = triage_asan_log(fuzzer_output)
+        if (
+            not isinstance(e, subprocess.CalledProcessError)
+            or triage["bug_type"] == "unknown_crash"
+        ):
+            remove_empty_crash_directory()
+            logger.warning("Fuzzing subprocess failed: %s", e)
+            return failure(
+                "FUZZING_FAILED",
+                f"Fuzzing could not complete: {type(e).__name__}",
+                hint="Check the fuzzer binary, its sanitizer runtime, and the configured timeout.",
+            )
+        fuzz_execution_status = "crash_detected"
+        logger.info("Fuzzer exited after reporting a sanitizer crash")
 
     # Step 3: Scan crashes directory for artifacts (crash-*, leak-*, oom-*)
     artifact_files = (
@@ -188,28 +245,61 @@ async def run_hybrid_fuzz_impl(
         + list(crashes_dir.glob("leak-*"))
         + list(crashes_dir.glob("oom-*"))
     )
-    if not artifact_files:
-        # Check current working directory for crash files
-        artifact_files.extend(Path(".").glob("crash-*"))
-
-    # Parse ASan log if crash output detected
-    if "AddressSanitizer" in fuzzer_output or "ERROR: " in fuzzer_output:
-        triage = triage_asan_log(fuzzer_output)
-        crashes_found.append(
+    triage = triage_asan_log(fuzzer_output)
+    if triage["bug_type"] != "unknown_crash":
+        fuzz_execution_status = "crash_detected"
+        crash_input = _find_crash_input(fuzzer_output, crashes_dir, artifact_files)
+        if crash_input is None:
+            return failure(
+                "CRASH_EVIDENCE_INCOMPLETE",
+                "Sanitizer output was recognized, but its crash input could not be linked to this fuzz run.",
+                hint="Preserve the LibFuzzer crash artifact and its 'Test unit written to' path.",
+            )
+        try:
+            crash_input_sha256 = _hash_file(crash_input)
+        except OSError as e:
+            return failure(
+                "CRASH_EVIDENCE_INCOMPLETE",
+                f"Could not read the crash input artifact: {type(e).__name__}",
+            )
+        triage.update(
             {
                 "crash_type": triage["bug_type"],
                 "cwe": triage["cwe_id"],
                 "severity": triage["cvss"]["severity"],
                 "cvss_score": triage["cvss"]["cvss_v31_score"],
-                "faulting_function": triage["faulting_function"],
                 "location": triage["faulting_source_location"],
                 "artifact_count": len(artifact_files),
+                "evidence_source": "hybrid_fuzzer",
+                "crash_log_sha256": hashlib.sha256(fuzzer_output.encode()).hexdigest(),
+                "crash_input_path": str(crash_input),
+                "crash_input_sha256": crash_input_sha256,
             }
         )
+        crashes_found.append(triage)
+    elif artifact_files:
+        return failure(
+            "CRASH_TRIAGE_INCOMPLETE",
+            "Fuzzer produced crash artifacts without a recognized sanitizer report.",
+            hint="Inspect the crash artifacts and sanitizer configuration before reporting findings.",
+        )
+
+    if fuzz_execution_status == "crash_detected" and not crashes_found:
+        return failure("CRASH_TRIAGE_INCOMPLETE", "Sanitizer output could not be triaged.")
+
+    if not crashes_found and not artifact_files:
+        remove_empty_crash_directory()
 
     # Extract execs/sec metric from log
     m_execs = re.search(r"stat::number_of_executed_units:\s+(\d+)", fuzzer_output)
-    exec_units = int(m_execs.group(1)) if m_execs else 1000
+    exec_units = int(m_execs.group(1)) if m_execs else 0
+    if fuzz_execution_status == "completed" and (m_execs is None or exec_units == 0):
+        remove_empty_crash_directory()
+        return failure(
+            "FUZZING_INCOMPLETE",
+            "Fuzzer exited successfully without reporting any executed input units.",
+            hint="Confirm the target is a LibFuzzer-compatible binary, provide a non-empty corpus, and rerun the campaign.",
+        )
 
     result_data = {
         "target_binary": str(target_bin),
@@ -217,10 +307,14 @@ async def run_hybrid_fuzz_impl(
         "concolic_seeds_injected": solved_seeds_count,
         "total_executions": exec_units,
         "crashes_detected": len(crashes_found),
+        "execution_status": fuzz_execution_status,
         "crash_artifacts": [str(p) for p in artifact_files[:10]],
         "triaged_crashes": crashes_found,
         "summary": (
-            f"Fuzzing completed with {exec_units} executions. "
+            f"Fuzzing stopped after a sanitizer crash with {exec_units} executed units reported. "
+            f"Detected {len(crashes_found)} unique crash signatures ({len(artifact_files)} crash files saved)."
+            if fuzz_execution_status == "crash_detected"
+            else f"Fuzzing completed with {exec_units} executions. "
             f"Detected {len(crashes_found)} unique crash signatures ({len(artifact_files)} crash files saved)."
         ),
     }

@@ -16,6 +16,7 @@ from reversecore_mcp.core.result import ToolResult, failure, success
 from reversecore_mcp.core.security import validate_file_path
 
 logger = get_logger(__name__)
+MAX_C_POC_PAYLOAD_SIZE = 512
 
 
 def generate_python_poc_script(
@@ -105,7 +106,7 @@ def generate_c_poc_harness(
     Returns:
         C source code reproducing the crash.
     """
-    emitted_payload = payload_bytes[:512]
+    emitted_payload = payload_bytes[:MAX_C_POC_PAYLOAD_SIZE]
     byte_array_str = ", ".join(f"0x{b:02x}" for b in emitted_payload)
 
     c_code = f"""/*
