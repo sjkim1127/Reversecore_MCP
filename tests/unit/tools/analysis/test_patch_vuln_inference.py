@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -53,7 +55,10 @@ class TestMatchPatterns:
     def test_detects_safe_api_migration(self):
         diff_text = "strcpy\nstrncpy\nbuffer\nsize"
         matches = _match_patterns(diff_text, "func_copy", size_delta=10, block_delta=0)
-        assert any(m["pattern"] == "safe_api_migration" for m in matches)
+        migration = next(m for m in matches if m["pattern"] == "safe_api_migration")
+        assert migration["matched_indicators"] == ["strcpy", "strncpy"]
+        assert migration["structural_indicators"] == []
+        assert migration["evidence_source"] == "function_disassembly_diff"
 
     def test_detects_command_injection(self):
         diff_text = "system\nshell\nsanitize\nescape\nwhitelist"
@@ -223,3 +228,87 @@ class TestAnalyzePatchDiffAuto:
         ]
         for key in required_keys:
             assert key in result.data, f"Missing key: {key}"
+
+    @pytest.mark.asyncio
+    async def test_global_diff_indicators_do_not_contaminate_function_candidates(self, tmp_path):
+        old = tmp_path / "old.bin"
+        old.write_bytes(b"old")
+        new = tmp_path / "new.bin"
+        new.write_bytes(b"new")
+
+        async def execute_diff(cmd, *args, **kwargs):
+            if cmd[1] == "-s":
+                return "similarity: 0.950\n", 100
+            if cmd[1] == "-C":
+                return (
+                    "0x401000 0x401000 modified func_copy\n"
+                    "0x402000 0x402000 modified func_clean\n"
+                    "strcpy strncpy buffer size\n",
+                    1000,
+                )
+            raise AssertionError(f"Unexpected subprocess: {cmd}")
+
+        async def read_imports(binary_path, *args, **kwargs):
+            if Path(binary_path).name == "old.bin":
+                return "strcpy\n", 0
+            return "strncpy\n", 0
+
+        async def get_metadata(binary_path, func_name, timeout):
+            return {"size": 100, "nbbs": 5}
+
+        async def get_disasm_diff(func_name, *args, **kwargs):
+            return "strcpy\nstrncpy" if func_name == "func_copy" else "mov rax, rbx"
+
+        async def explain(*args, **kwargs):
+            return SimpleNamespace(status="success", data={})
+
+        with (
+            patch(
+                "reversecore_mcp.tools.analysis.patch_vuln_inference.validate_file_path",
+                side_effect=[old, new],
+            ),
+            patch(
+                "reversecore_mcp.tools.analysis.patch_vuln_inference.execute_subprocess_async",
+                side_effect=execute_diff,
+            ),
+            patch(
+                "reversecore_mcp.tools.analysis.patch_vuln_inference._execute_r2_command",
+                side_effect=read_imports,
+            ),
+            patch(
+                "reversecore_mcp.tools.analysis.patch_vuln_inference._get_function_metadata",
+                side_effect=get_metadata,
+            ),
+            patch(
+                "reversecore_mcp.tools.analysis.patch_vuln_inference._get_disasm_diff",
+                side_effect=get_disasm_diff,
+            ),
+            patch(
+                "reversecore_mcp.tools.analysis.patch_vuln_inference.explain_patch",
+                side_effect=explain,
+            ),
+        ):
+            result = await analyze_patch_diff_auto(str(old), str(new), top_functions=10)
+
+        assert result.status == "success"
+        functions = {item["function"]: item for item in result.data["changed_functions"]}
+        assert functions["func_clean"]["pattern_matches"] == []
+
+        copy_candidate = next(
+            candidate
+            for candidate in result.data["vulnerability_candidates"]
+            if candidate["function"] == "func_copy"
+        )
+        assert copy_candidate["pattern"] == "safe_api_migration"
+        assert copy_candidate["matched_indicators"] == ["strcpy", "strncpy"]
+        assert copy_candidate["structural_indicators"] == []
+        assert copy_candidate["evidence_source"] == "function_disassembly_diff"
+
+        import_candidate = next(
+            candidate
+            for candidate in result.data["vulnerability_candidates"]
+            if candidate["function"] == "imports"
+        )
+        assert import_candidate["evidence_source"] == "whole_binary_imports"
+        assert import_candidate["matched_indicators"] == ["strcpy"]
+        assert result.data["dangerous_api_changes"]["evidence_scope"] == "whole_binary_imports"

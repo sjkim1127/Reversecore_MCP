@@ -260,6 +260,7 @@ def _match_patterns(
     for pattern in SECURITY_PATCH_PATTERNS:
         score = 0
         matched_indicators: list[str] = []
+        structural_indicators: list[str] = []
 
         for indicator in pattern.indicators:
             if indicator.lower() in text_lower:
@@ -269,10 +270,13 @@ def _match_patterns(
         # Structural heuristics boost confidence
         if pattern.name == "bounds_check_added" and size_delta > 0 and block_delta > 0:
             score += 2
+            structural_indicators.extend(["function_size_increased", "basic_block_count_increased"])
         if pattern.name == "null_check_added" and block_delta > 0:
             score += 1
+            structural_indicators.append("basic_block_count_increased")
         if pattern.name == "input_validation_added" and size_delta > 10:
             score += 1
+            structural_indicators.append("function_size_increased_by_more_than_10_bytes")
 
         if score >= 2:
             severity_order = {"critical": 4, "high": 3, "medium": 2, "low": 1}
@@ -286,8 +290,10 @@ def _match_patterns(
                     "severity_score": severity_order.get(pattern.severity, 0),
                     "confidence": pattern.confidence,
                     "matched_indicators": matched_indicators,
+                    "structural_indicators": structural_indicators,
                     "indicator_score": score,
                     "function": func_name,
+                    "evidence_source": "function_disassembly_diff",
                     "size_change": size_delta,
                     "block_count_change": block_delta,
                     "exploitation_hint": _get_exploitation_hint(pattern),
@@ -629,6 +635,7 @@ async def analyze_patch_diff_auto(
     added_apis = imports_new - imports_old
 
     dangerous_api_changes: dict[str, Any] = {
+        "evidence_scope": "whole_binary_imports",
         "removed_dangerous_apis": list(removed_apis),
         "added_dangerous_apis": list(added_apis),
         "safe_replacements": {
@@ -669,9 +676,6 @@ async def analyze_patch_diff_auto(
                 timeout=30,
             )
 
-            # Also include the raw radiff2 -C output for this function
-            combined_diff = diff_out + "\n" + disasm_diff
-
             # Call semantic explain_patch for human-readable insights
             semantic_explanation = None
             diff_snippet = None
@@ -691,7 +695,7 @@ async def analyze_patch_diff_auto(
                 logger.debug("explain_patch failed for %s: %s", func_name, exc)
 
             # Match security patterns
-            pattern_matches = _match_patterns(combined_diff, func_name, size_delta, block_delta)
+            pattern_matches = _match_patterns(disasm_diff, func_name, size_delta, block_delta)
 
             func_analysis: dict[str, Any] = {
                 "function": func_name,
@@ -730,6 +734,7 @@ async def analyze_patch_diff_auto(
                 "matched_indicators": [api],
                 "indicator_score": 3,
                 "function": "imports",
+                "evidence_source": "whole_binary_imports",
                 "size_change": 0,
                 "block_count_change": 0,
                 "exploitation_hint": (
