@@ -312,23 +312,35 @@ async def pcap_extract_dns(
 
         dns = pkt["DNS"]
 
-        # Extract queries (qr=0)
-        if dns.qr == 0 and dns.qdcount > 0:
+        # Extract queries (qr=0). Scapy exposes parsed questions as a list;
+        # some callers and older Scapy versions expose a linked payload chain.
+        if dns.qr == 0:
             try:
-                for _ in range(dns.qdcount):
-                    qd = dns.qd
-                    if qd:
-                        name = qd.qname.decode(errors="replace").rstrip(".")
-                        qtype = qd.qtype
-                        unique_domains.add(name)
-                        queries.append(
-                            {
-                                "domain": name,
-                                "qtype": qtype,
-                                "possible_dga": bool(dga_pattern.match(name)),
-                                "src_ip": pkt["IP"].src if pkt.haslayer("IP") else None,
-                            }
-                        )
+                question_count = max(0, int(dns.qdcount))
+                question_section = dns.qd
+                if isinstance(question_section, (list, tuple)):
+                    question_records = question_section[:question_count]
+                else:
+                    question_records = []
+                    question = question_section
+                    for _ in range(question_count):
+                        if question is None or getattr(question, "name", None) == "NoPayload":
+                            break
+                        question_records.append(question)
+                        question = getattr(question, "payload", None)
+
+                for question in question_records:
+                    name = question.qname.decode(errors="replace").rstrip(".")
+                    qtype = question.qtype
+                    unique_domains.add(name)
+                    queries.append(
+                        {
+                            "domain": name,
+                            "qtype": qtype,
+                            "possible_dga": bool(dga_pattern.match(name)),
+                            "src_ip": pkt["IP"].src if pkt.haslayer("IP") else None,
+                        }
+                    )
             except Exception as exc:
                 logger.debug("DNS query parse error: %s", exc)
 

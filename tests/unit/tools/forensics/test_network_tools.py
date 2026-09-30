@@ -209,6 +209,76 @@ async def test_pcap_extract_dns_no_scapy(tmp_pcap):
     assert result.status == "error"
 
 
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_pcap_extract_dns_reads_every_question_from_pcap(tmp_pcap):
+    """A real two-question DNS packet should produce both domains and DGA counts."""
+    scapy = pytest.importorskip("scapy.all")
+    packet = (
+        scapy.IP()
+        / scapy.UDP(sport=53000, dport=53)
+        / scapy.DNS(
+            qr=0,
+            qdcount=2,
+            qd=scapy.DNSQR(qname="a.example") / scapy.DNSQR(qname="abcdefghijklmnop.com"),
+        )
+    )
+    scapy.wrpcap(tmp_pcap, [packet])
+
+    result = await pcap_extract_dns(tmp_pcap, include_responses=False)
+
+    assert result.status == "success"
+    assert result.data["total_queries"] == 2
+    assert [query["domain"] for query in result.data["queries"]] == [
+        "a.example",
+        "abcdefghijklmnop.com",
+    ]
+    assert result.data["unique_domains"] == ["a.example", "abcdefghijklmnop.com"]
+    assert result.data["unique_domain_count"] == 2
+    assert result.data["dga_count"] == 1
+    assert [query["domain"] for query in result.data["possible_dga_domains"]] == [
+        "abcdefghijklmnop.com"
+    ]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("qdcount", "expected_domains"),
+    [
+        (0, []),
+        (1, ["first.example"]),
+        (3, ["first.example", "second.example"]),
+    ],
+)
+async def test_pcap_extract_dns_respects_question_count(
+    tmp_pcap,
+    qdcount,
+    expected_domains,
+):
+    """Declared counts bound iteration and missing records are not duplicated."""
+    packet = MagicMock()
+    packet.haslayer = lambda layer: layer == "DNS"
+    dns = MagicMock()
+    dns.qr = 0
+    dns.qdcount = qdcount
+    first = MagicMock(qname=b"first.example.", qtype=1)
+    second = MagicMock(qname=b"second.example.", qtype=28)
+    dns.qd = [first, second]
+    packet.__getitem__.side_effect = lambda layer: dns if layer == "DNS" else MagicMock()
+
+    with patch("reversecore_mcp.tools.forensics.network._import_scapy") as mock_import:
+        mock_scapy = MagicMock()
+        mock_scapy.rdpcap.return_value = [packet]
+        mock_import.return_value = mock_scapy
+
+        result = await pcap_extract_dns(tmp_pcap, include_responses=False)
+
+    assert result.status == "success"
+    assert [query["domain"] for query in result.data["queries"]] == expected_domains
+    assert result.data["unique_domain_count"] == len(expected_domains)
+
+
 # ── pcap_extract_c2 ────────────────────────────────────────────────────────────
 
 
