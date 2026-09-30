@@ -333,9 +333,8 @@ async def run_fuzzing_campaign(
         file_path: Workspace-relative or absolute path to the target binary.
         timeout_seconds: How long to run the fuzzer in seconds. Default: 300 (5 min).
             For meaningful coverage, use at least 3600 (1 hour) in production.
-        seed_corpus: Optional path to a directory containing seed input files or
-            a single seed file. If ``None``, a minimal corpus (empty file + single
-            byte) is created.
+        seed_corpus: Optional path to a directory containing seed input files.
+            If ``None``, a minimal corpus (empty file + single byte) is created.
         use_stdin: If ``True``, crash files are fed via stdin for triage.
             Set to ``False`` if the binary expects a file path as argv[1].
         max_crashes_to_triage: Maximum number of unique crashes to triage with GDB.
