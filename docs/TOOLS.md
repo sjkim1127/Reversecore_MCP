@@ -189,7 +189,7 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 | 91 | `cve_minimize_poc` | Minimize crash testcase payload via delta-debugging and generate standalone PoC scripts. | `binary_path` (string, req), `crash_input_path` (string, req), `target_function` (string), `timeout` (integer) | `vuln-research` |
 | 92 | `cve_synthesize_harness` | Synthesize LibFuzzer/AFL++ C/C++ test harness and format dictionary (.dict) for target parser. | `header_or_binary_path` (string, req), `sample_file_path` (string), `target_function` (string), `timeout` (integer) | `vuln-research` |
 | 93 | `cve_triage_crash` | Triage AddressSanitizer/UBSan crash log and compute CWE and CVSS v3.1 rating. | `crash_log_or_text` (string, req), `timeout` (integer) | `vuln-research` |
-| 94 | `hunt_cve_vulnerabilities` | One-click automated CVE hunting pipeline for a compiled LibFuzzer executable. Generate a harness for source/header targets with `cve_synthesize_harness`, compile and link it with the target, then pass the executable path. | `target_path` (compiled executable string, req), `sample_file_path` (string), `options` (object), `timeout` (integer) | `vuln-research` |
+| 94 | `hunt_cve_vulnerabilities` | Run one-click CVE hunting against a compiled LibFuzzer target executable. | `target_path` (string, req), `sample_file_path` (string), `options` (object), `timeout` (integer) | `vuln-research` |
 
 ---
 
