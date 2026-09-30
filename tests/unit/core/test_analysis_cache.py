@@ -193,6 +193,176 @@ async def test_export_and_import_cache_data(patched_config):
 
 
 @pytest.mark.asyncio
+async def test_repeated_cache_exports_close_sqlite_connections(tmp_path):
+    from reversecore_mcp.core import analysis_cache
+
+    db_path = tmp_path / "analysis-cache.db"
+    setup_conn = sqlite3.connect(db_path)
+    setup_conn.execute(
+        """
+        CREATE TABLE decompilation_cache (
+            file_hash TEXT,
+            function_address TEXT,
+            decompiler TEXT,
+            status TEXT,
+            data TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            provenance TEXT NOT NULL DEFAULT 'legacy_unverified',
+            PRIMARY KEY (file_hash, function_address, decompiler)
+        )
+        """
+    )
+    file_hash = "a" * 64
+    setup_conn.execute(
+        """
+        INSERT INTO decompilation_cache
+            (file_hash, function_address, decompiler, status, data, provenance)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            file_hash,
+            "0x401000",
+            "ghidra",
+            "success",
+            _serialize_result(success("cached code")),
+            "local",
+        ),
+    )
+    setup_conn.commit()
+    setup_conn.close()
+
+    connections: list[sqlite3.Connection] = []
+
+    class TrackingConnection(sqlite3.Connection):
+        closed_by_test: bool
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.closed_by_test = False
+
+        def close(self):
+            self.closed_by_test = True
+            super().close()
+
+    def connect_with_tracking(path):
+        conn = sqlite3.connect(path, timeout=30.0, factory=TrackingConnection)
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA synchronous=NORMAL;")
+        conn.execute("PRAGMA busy_timeout=30000;")
+        connections.append(conn)
+        return conn
+
+    with (
+        patch("reversecore_mcp.core.analysis_cache._init_sqlite_db", return_value=db_path),
+        patch(
+            "reversecore_mcp.core.analysis_cache._get_sqlite_conn",
+            side_effect=connect_with_tracking,
+        ),
+    ):
+        for _ in range(10):
+            exported = await analysis_cache.export_cache_by_hash(file_hash)
+            assert len(exported["entries"]) == 1
+
+    assert len(connections) == 10
+    assert all(conn.closed_by_test for conn in connections)
+
+
+@pytest.mark.asyncio
+async def test_failed_cache_import_closes_connection_and_rolls_back(tmp_path):
+    from reversecore_mcp.core import analysis_cache
+
+    db_path = tmp_path / "analysis-cache.db"
+    setup_conn = sqlite3.connect(db_path)
+    setup_conn.execute(
+        """
+        CREATE TABLE decompilation_cache (
+            file_hash TEXT,
+            function_address TEXT,
+            decompiler TEXT,
+            status TEXT,
+            data TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            provenance TEXT NOT NULL DEFAULT 'legacy_unverified',
+            PRIMARY KEY (file_hash, function_address, decompiler)
+        )
+        """
+    )
+    setup_conn.execute(
+        """
+        CREATE TRIGGER fail_second_cache_insert
+        BEFORE INSERT ON decompilation_cache
+        WHEN NEW.function_address = '0x401004'
+        BEGIN
+            SELECT RAISE(ABORT, 'injected import failure');
+        END;
+        """
+    )
+    setup_conn.commit()
+    setup_conn.close()
+
+    connections: list[sqlite3.Connection] = []
+    rollbacks: list[bool] = []
+
+    class TrackingConnection(sqlite3.Connection):
+        closed_by_test: bool
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.closed_by_test = False
+
+        def rollback(self):
+            rollbacks.append(True)
+            super().rollback()
+
+        def close(self):
+            self.closed_by_test = True
+            super().close()
+
+    def connect_with_tracking(path):
+        conn = sqlite3.connect(path, timeout=30.0, factory=TrackingConnection)
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA synchronous=NORMAL;")
+        conn.execute("PRAGMA busy_timeout=30000;")
+        connections.append(conn)
+        return conn
+
+    file_hash = "b" * 64
+    payload = {
+        "format": "rcpack",
+        "version": "1.0",
+        "file_hash": file_hash,
+        "entries": [
+            {
+                "function_address": address,
+                "decompiler": "ghidra",
+                "status": "success",
+                "data": _serialize_result(success(f"code at {address}")),
+            }
+            for address in ("0x401000", "0x401004")
+        ],
+    }
+
+    with (
+        patch("reversecore_mcp.core.analysis_cache._init_sqlite_db", return_value=db_path),
+        patch("reversecore_mcp.core.analysis_cache.get_redis_client", return_value=None),
+        patch(
+            "reversecore_mcp.core.analysis_cache._get_sqlite_conn",
+            side_effect=connect_with_tracking,
+        ),
+    ):
+        assert await analysis_cache.import_cache_data(payload) == 0
+
+    assert len(connections) == 1
+    assert connections[0].closed_by_test
+    assert rollbacks == [True]
+    read_conn = sqlite3.connect(db_path)
+    try:
+        assert read_conn.execute("SELECT COUNT(*) FROM decompilation_cache").fetchone()[0] == 0
+    finally:
+        read_conn.close()
+
+
+@pytest.mark.asyncio
 async def test_import_cache_data_rejects_target_hash_mismatch(tmp_path):
     from reversecore_mcp.core.analysis_cache import import_cache_data
 

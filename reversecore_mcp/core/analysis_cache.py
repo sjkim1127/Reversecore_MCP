@@ -491,13 +491,16 @@ async def export_cache_by_hash(file_hash: str) -> dict:
 
         def _read_all() -> list[tuple]:
             conn = _get_sqlite_conn(db_path)
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT function_address, decompiler, status, data, provenance "
-                "FROM decompilation_cache WHERE file_hash = ?",
-                (file_hash,),
-            )
-            return cursor.fetchall()
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT function_address, decompiler, status, data, provenance "
+                    "FROM decompilation_cache WHERE file_hash = ?",
+                    (file_hash,),
+                )
+                return cursor.fetchall()
+            finally:
+                conn.close()
 
         rows = await asyncio.to_thread(_read_all)
         for row in rows:
@@ -624,17 +627,22 @@ async def import_cache_data(
 
         def _write_all() -> None:
             conn = _get_sqlite_conn(db_path)
-            cursor = conn.cursor()
-            for func_addr, decompiler, data in normalized_entries:
-                cursor.execute(
-                    """
-                    INSERT OR REPLACE INTO decompilation_cache (file_hash, function_address, decompiler, status, data, created_at, provenance)
-                    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'external_rcpack')
-                    """,
-                    (file_hash, func_addr, decompiler, "success", data),
-                )
-            conn.commit()
-            conn.close()
+            try:
+                cursor = conn.cursor()
+                for func_addr, decompiler, data in normalized_entries:
+                    cursor.execute(
+                        """
+                        INSERT OR REPLACE INTO decompilation_cache (file_hash, function_address, decompiler, status, data, created_at, provenance)
+                        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'external_rcpack')
+                        """,
+                        (file_hash, func_addr, decompiler, "success", data),
+                    )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
 
         await asyncio.to_thread(_write_all)
 
