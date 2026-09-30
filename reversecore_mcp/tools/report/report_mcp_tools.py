@@ -126,8 +126,6 @@ async def start_report_session(
     Start a new malware analysis session.
 
     Automatically tracks start time, sample hashes, IOCs, and MITRE techniques.
-    Current-session selection is isolated to the calling MCP session. Pass the
-    returned session ID when running overlapping workflows in one connection.
 
     Args:
         sample_path: Path to the malware sample to analyze
