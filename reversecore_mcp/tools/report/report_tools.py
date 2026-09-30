@@ -107,6 +107,8 @@ class ReportTools:
         # Active session management
         self.sessions: dict[str, AnalysisSession] = {}
         self.current_session_id: str | None = None
+        self.session_owners: dict[str, str] = {}
+        self.current_sessions_by_owner: dict[str, str] = {}
 
         # Email configuration
         self.email_config = email_config or EmailConfig()
@@ -246,6 +248,7 @@ class ReportTools:
         severity: str = "medium",
         malware_family: str | None = None,
         tags: list[str] | None = None,
+        owner_id: str | None = None,
     ) -> dict:
         """
         Start a new analysis session.
@@ -256,6 +259,7 @@ class ReportTools:
             severity: Severity level (low, medium, high, critical)
             malware_family: Malware family name
             tags: Tag list
+            owner_id: Optional caller identity used to isolate MCP sessions.
 
         Returns:
             Session information
@@ -287,8 +291,19 @@ class ReportTools:
                 if hash_type in sample_info:
                     session.add_ioc("hashes", f"{hash_type.upper()}: {sample_info[hash_type]}")
 
+        # Hash extraction above can yield to another concurrent start. Recheck
+        # the short public ID immediately before storing to avoid replacing its
+        # owner or session data after a collision.
+        while session_id in self.sessions:
+            session_id = f"SES-{uuid.uuid4().hex[:8].upper()}"
+            session.session_id = session_id
+
         self.sessions[session_id] = session
-        self.current_session_id = session_id
+        if owner_id is None:
+            self.current_session_id = session_id
+        else:
+            self.session_owners[session_id] = owner_id
+            self.current_sessions_by_owner[owner_id] = session_id
 
         return {
             "success": True,
@@ -304,11 +319,30 @@ class ReportTools:
             "message": f"Analysis session started. Use session_id '{session_id}' to track.",
         }
 
+    def _resolve_session_id(
+        self, session_id: str | None, owner_id: str | None = None
+    ) -> str | None:
+        """Resolve a requested or current session within its owner boundary."""
+        if session_id:
+            if owner_id is not None and self.session_owners.get(session_id) != owner_id:
+                return None
+            return session_id
+        if owner_id is None:
+            return self.current_session_id
+        return self.current_sessions_by_owner.get(owner_id)
+
+    def _session_ids_for_owner(self, owner_id: str | None = None) -> list[str]:
+        """Return session IDs visible to an owner, or all IDs for trusted callers."""
+        if owner_id is None:
+            return list(self.sessions)
+        return [sid for sid in self.sessions if self.session_owners.get(sid) == owner_id]
+
     async def end_session(
         self,
         session_id: str | None = None,
         status: str = "completed",
         summary: str | None = None,
+        owner_id: str | None = None,
     ) -> dict:
         """
         End an analysis session.
@@ -317,8 +351,9 @@ class ReportTools:
             session_id: Session ID (uses current session if not provided)
             status: End status (completed, aborted)
             summary: Analysis summary
+            owner_id: Optional caller identity used to isolate MCP sessions.
         """
-        sid = session_id or self.current_session_id
+        sid = self._resolve_session_id(session_id, owner_id)
 
         if not sid or sid not in self.sessions:
             return {"success": False, "error": "No active session found"}
@@ -344,20 +379,25 @@ class ReportTools:
             "tags": session.tags,
         }
 
-        if sid == self.current_session_id:
-            self.current_session_id = None
+        if owner_id is None:
+            if sid == self.current_session_id:
+                self.current_session_id = None
+        elif self.current_sessions_by_owner.get(owner_id) == sid:
+            self.current_sessions_by_owner.pop(owner_id, None)
 
         return result
 
-    async def get_session_info(self, session_id: str | None = None) -> dict:
+    async def get_session_info(
+        self, session_id: str | None = None, owner_id: str | None = None
+    ) -> dict:
         """Query session status"""
-        sid = session_id or self.current_session_id
+        sid = self._resolve_session_id(session_id, owner_id)
 
         if not sid or sid not in self.sessions:
             return {
                 "success": False,
                 "error": "No session found",
-                "active_sessions": list(self.sessions.keys()),
+                "active_sessions": self._session_ids_for_owner(owner_id),
             }
 
         session = self.sessions[sid]
@@ -369,15 +409,24 @@ class ReportTools:
         if session.ended_at:
             info["ended_at_formatted"] = self._format_time(session.ended_at)
 
-        info["is_current"] = sid == self.current_session_id
+        current_sid = (
+            self.current_session_id
+            if owner_id is None
+            else self.current_sessions_by_owner.get(owner_id)
+        )
+        info["is_current"] = sid == current_sid
 
         return {"success": True, "session": info}
 
     async def add_session_ioc(
-        self, ioc_type: str, value: str, session_id: str | None = None
+        self,
+        ioc_type: str,
+        value: str,
+        session_id: str | None = None,
+        owner_id: str | None = None,
     ) -> dict:
         """Add IOC to session"""
-        sid = session_id or self.current_session_id
+        sid = self._resolve_session_id(session_id, owner_id)
 
         if not sid or sid not in self.sessions:
             return {"success": False, "error": "No active session"}
@@ -403,10 +452,14 @@ class ReportTools:
         }
 
     async def add_session_note(
-        self, note: str, category: str = "general", session_id: str | None = None
+        self,
+        note: str,
+        category: str = "general",
+        session_id: str | None = None,
+        owner_id: str | None = None,
     ) -> dict:
         """Add analysis note to session"""
-        sid = session_id or self.current_session_id
+        sid = self._resolve_session_id(session_id, owner_id)
 
         if not sid or sid not in self.sessions:
             return {"success": False, "error": "No active session"}
@@ -428,9 +481,10 @@ class ReportTools:
         technique_name: str,
         tactic: str,
         session_id: str | None = None,
+        owner_id: str | None = None,
     ) -> dict:
         """Add MITRE ATT&CK technique to session"""
-        sid = session_id or self.current_session_id
+        sid = self._resolve_session_id(session_id, owner_id)
 
         if not sid or sid not in self.sessions:
             return {"success": False, "error": "No active session"}
@@ -445,9 +499,11 @@ class ReportTools:
             "total_techniques": len(session.mitre_techniques),
         }
 
-    async def add_session_tag(self, tag: str, session_id: str | None = None) -> dict:
+    async def add_session_tag(
+        self, tag: str, session_id: str | None = None, owner_id: str | None = None
+    ) -> dict:
         """Add tag to session"""
-        sid = session_id or self.current_session_id
+        sid = self._resolve_session_id(session_id, owner_id)
 
         if not sid or sid not in self.sessions:
             return {"success": False, "error": "No active session"}
@@ -457,9 +513,11 @@ class ReportTools:
 
         return {"success": True, "tag_added": tag, "all_tags": session.tags}
 
-    async def set_session_severity(self, severity: str, session_id: str | None = None) -> dict:
+    async def set_session_severity(
+        self, severity: str, session_id: str | None = None, owner_id: str | None = None
+    ) -> dict:
         """Set session severity"""
-        sid = session_id or self.current_session_id
+        sid = self._resolve_session_id(session_id, owner_id)
 
         if not sid or sid not in self.sessions:
             return {"success": False, "error": "No active session"}
@@ -477,11 +535,13 @@ class ReportTools:
 
         return {"success": True, "severity": session.severity, "session_id": sid}
 
-    async def list_sessions(self) -> dict:
-        """List all sessions"""
+    async def list_sessions(self, owner_id: str | None = None) -> dict:
+        """List sessions visible to the optional owner."""
         sessions_list = []
 
-        for sid, session in self.sessions.items():
+        visible_session_ids = self._session_ids_for_owner(owner_id)
+        for sid in visible_session_ids:
+            session = self.sessions[sid]
             sessions_list.append(
                 {
                     "session_id": sid,
@@ -494,13 +554,22 @@ class ReportTools:
                     ),
                     "duration": session.get_duration_str(),
                     "iocs_count": sum(len(v) for v in session.iocs.values()),
-                    "is_current": sid == self.current_session_id,
+                    "is_current": sid
+                    == (
+                        self.current_session_id
+                        if owner_id is None
+                        else self.current_sessions_by_owner.get(owner_id)
+                    ),
                 }
             )
 
         return {
             "total": len(sessions_list),
-            "current_session": self.current_session_id,
+            "current_session": (
+                self.current_session_id
+                if owner_id is None
+                else self.current_sessions_by_owner.get(owner_id)
+            ),
             "sessions": sessions_list,
         }
 
@@ -518,11 +587,16 @@ class ReportTools:
         custom_fields: dict | None = None,
         output_format: str = "markdown",
         timezone: str | None = None,  # Add per-request timezone
+        owner_id: str | None = None,
     ) -> dict:
         """
         Generate an analysis report.
         If a session exists, session data is automatically included.
         """
+        sid = self._resolve_session_id(session_id, owner_id)
+        if owner_id is not None and session_id and sid is None:
+            return {"success": False, "error": "No active session found"}
+
         # 타임스탬프 생성 (서버 시간 기준, 타임존 지정 가능)
         ts = self.get_timestamp_data(tz_name=timezone)
 
@@ -570,7 +644,6 @@ class ReportTools:
         }
 
         # Merge session data
-        sid = session_id or self.current_session_id
         session = self.sessions.get(sid) if sid else None
 
         if session:

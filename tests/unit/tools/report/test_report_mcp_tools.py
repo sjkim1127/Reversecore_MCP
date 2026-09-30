@@ -1,8 +1,10 @@
 """Tests for reversecore_mcp.tools.report.report_mcp_tools."""
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from fastmcp import FastMCP
 
 from reversecore_mcp.tools.report.report_mcp_tools import (
     add_analysis_note,
@@ -68,6 +70,31 @@ class TestReportMcpTools:
         assert "s1" in result
 
     @pytest.mark.asyncio
+    async def test_report_session_tools_use_mcp_session_as_owner(self):
+        ctx = SimpleNamespace(session_id="mcp-client-a")
+
+        await start_report_session(ctx=ctx)
+        self.rt.start_session.assert_awaited_with(
+            sample_path=None,
+            analyst="Security Researcher",
+            severity="medium",
+            malware_family=None,
+            tags=None,
+            owner_id="mcp-client-a",
+        )
+
+        await add_analysis_note("private note", ctx=ctx)
+        self.rt.add_session_note.assert_awaited_with(
+            note="private note",
+            category="general",
+            session_id=None,
+            owner_id="mcp-client-a",
+        )
+
+        await list_report_sessions(ctx=ctx)
+        self.rt.list_sessions.assert_awaited_with(owner_id="mcp-client-a")
+
+    @pytest.mark.asyncio
     async def test_end_report_session(self):
         result = await end_report_session(session_id="s1", status="completed")
         assert "success" in result
@@ -124,3 +151,14 @@ class TestRegisterReportTools:
         mcp = MagicMock()
         register_report_tools(mcp)
         assert mcp.tool.call_count == 14
+
+    @pytest.mark.asyncio
+    async def test_context_is_injected_not_exposed_as_a_tool_argument(self):
+        mcp = FastMCP("report-test")
+        mcp.tool(add_ioc)
+
+        tool = await mcp.get_tool("add_ioc")
+
+        assert tool is not None
+        assert "ctx" not in tool.parameters.get("properties", {})
+        assert "ctx" not in tool.parameters.get("required", [])
