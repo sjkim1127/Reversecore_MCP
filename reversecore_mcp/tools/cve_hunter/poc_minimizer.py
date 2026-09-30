@@ -9,7 +9,7 @@ from pathlib import Path
 
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.exceptions import ExecutionTimeoutError, ToolNotFoundError
-from reversecore_mcp.core.execution import execute_subprocess_async
+from reversecore_mcp.core.execution import execute_subprocess_async, prepare_sandbox_access
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.r2_helpers import calculate_dynamic_timeout
 from reversecore_mcp.core.result import ToolResult, failure, success
@@ -17,6 +17,35 @@ from reversecore_mcp.core.security import validate_file_path
 
 logger = get_logger(__name__)
 MAX_C_POC_PAYLOAD_SIZE = 512
+
+
+class _WorkspaceScratchError(RuntimeError):
+    """Raised when minimizer scratch cannot be kept inside the configured workspace."""
+
+
+def _ensure_minimizer_scratch_dir() -> Path:
+    """Create and validate the workspace-local scratch directory for test inputs."""
+    config = get_config()
+    workspace = config.workspace.resolve()
+    cache_dir = config.workspace / ".cache"
+
+    if cache_dir.is_symlink():
+        raise _WorkspaceScratchError("Workspace cache directory must not be a symbolic link.")
+
+    try:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        if cache_dir.is_symlink() or not cache_dir.is_dir():
+            raise _WorkspaceScratchError("Workspace cache path must be a real directory.")
+        resolved_cache_dir = cache_dir.resolve(strict=True)
+        resolved_cache_dir.relative_to(workspace)
+    except _WorkspaceScratchError:
+        raise
+    except (OSError, ValueError) as exc:
+        raise _WorkspaceScratchError(
+            "Workspace cache directory must resolve inside the configured workspace."
+        ) from exc
+
+    return resolved_cache_dir
 
 
 def generate_python_poc_script(
@@ -143,18 +172,29 @@ async def _test_input_causes_crash(binary_path: Path, data: bytes, timeout: int 
     Routes execution through execute_subprocess_async to enforce sandbox isolation,
     streaming output limits, timeout enforcement, and PID tracking.
     """
-    config = get_config()
-    cache_dir = config.workspace / ".cache"
-    temp_dir = cache_dir if cache_dir.is_dir() else None
-
-    with tempfile.NamedTemporaryFile(suffix=".bin", dir=temp_dir, delete=False) as tmp:
-        tmp.write(data)
-        tmp_name = tmp.name
-
+    cache_dir = _ensure_minimizer_scratch_dir()
+    tmp_name: str | None = None
     try:
         try:
+            with tempfile.NamedTemporaryFile(suffix=".bin", dir=cache_dir, delete=False) as tmp:
+                tmp_name = tmp.name
+                tmp.write(data)
+        except OSError as exc:
+            raise _WorkspaceScratchError(
+                "Could not create minimizer testcase under workspace/.cache."
+            ) from exc
+
+        candidate_path = Path(tmp_name)
+        try:
+            prepare_sandbox_access(candidate_path)
+        except (OSError, RuntimeError) as exc:
+            raise _WorkspaceScratchError(
+                "Minimizer testcase is not accessible to the configured sandbox user."
+            ) from exc
+
+        try:
             output, _ = await execute_subprocess_async(
-                [str(binary_path), tmp_name],
+                [str(binary_path), str(candidate_path)],
                 max_output_size=1_000_000,
                 timeout=timeout,
             )
@@ -169,13 +209,14 @@ async def _test_input_causes_crash(binary_path: Path, data: bytes, timeout: int 
                 or "AddressSanitizer" in stderr_str
                 or "AddressSanitizer" in output_str
             )
-    except (ExecutionTimeoutError, ToolNotFoundError, OSError):
-        return False
+        except (ExecutionTimeoutError, ToolNotFoundError, OSError):
+            return False
     finally:
-        try:
-            os.unlink(tmp_name)
-        except OSError:
-            pass
+        if tmp_name is not None:
+            try:
+                os.unlink(tmp_name)
+            except OSError:
+                pass
 
 
 async def delta_debug_minimize(
@@ -245,6 +286,11 @@ async def minimize_poc_impl(
     if not bin_path.exists() or not input_path.exists():
         return failure("FILE_NOT_FOUND", "Target binary or crash input file does not exist.")
 
+    try:
+        _ensure_minimizer_scratch_dir()
+    except _WorkspaceScratchError as e:
+        return failure("INVALID_SCRATCH_DIR", str(e))
+
     calc_timeout = calculate_dynamic_timeout(bin_path, base_timeout=timeout or 30)
 
     original_payload = input_path.read_bytes()
@@ -255,6 +301,8 @@ async def minimize_poc_impl(
         minimized_payload = await delta_debug_minimize(
             bin_path, original_payload, max_iterations=min(calc_timeout, 30)
         )
+    except _WorkspaceScratchError as e:
+        return failure("INVALID_SCRATCH_DIR", str(e))
     except Exception as e:
         logger.warning(f"Delta-debug minimization fallback: {e}")
         minimized_payload = original_payload

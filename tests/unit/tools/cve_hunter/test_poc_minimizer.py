@@ -1,10 +1,14 @@
 """Unit tests for Testcase Minimizer and PoC Generator."""
 
+import os
+import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
+from reversecore_mcp.core.exceptions import ExecutionTimeoutError
 from reversecore_mcp.core.security import get_workspace_config
 from reversecore_mcp.tools.cve_hunter.cve_hunter_tools import cve_minimize_poc
 from reversecore_mcp.tools.cve_hunter.poc_minimizer import (
@@ -71,8 +75,6 @@ class TestPocMinimizer:
 
     @pytest.mark.asyncio
     async def test_test_input_causes_crash_subprocess(self, workspace_file):
-        import subprocess
-
         test_bin = workspace_file("test_bin_crash.bin")
 
         # Case 1: CalledProcessError with ASan in stderr triggers crash detection
@@ -99,6 +101,175 @@ class TestPocMinimizer:
             return_value=("AddressSanitizer: global-buffer-overflow", 35),
         ):
             assert await _test_input_causes_crash(test_bin, b"ASAN_PAYLOAD") is True
+
+    @pytest.mark.asyncio
+    async def test_testcase_uses_new_workspace_cache_and_cleans_up(self, tmp_path, monkeypatch):
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        cache_dir = workspace / ".cache"
+        config = SimpleNamespace(
+            workspace=workspace,
+            sandbox_enabled=True,
+            sandbox_mode="host",
+            sandbox_user="nobody",
+        )
+        monkeypatch.setattr(
+            "reversecore_mcp.tools.cve_hunter.poc_minimizer.get_config", lambda: config
+        )
+        monkeypatch.setattr("reversecore_mcp.core.config.get_config", lambda: config)
+        candidate_paths: list[Path] = []
+
+        async def inspect_candidate(command, **kwargs):
+            candidate = Path(command[1])
+            assert candidate.parent == cache_dir
+            assert candidate.read_bytes() == b"HOST_SANDBOX_PAYLOAD"
+            candidate_paths.append(candidate)
+            return "normal execution", 16
+
+        with patch(
+            "reversecore_mcp.tools.cve_hunter.poc_minimizer.execute_subprocess_async",
+            side_effect=inspect_candidate,
+        ):
+            result = await _test_input_causes_crash(tmp_path / "target", b"HOST_SANDBOX_PAYLOAD")
+
+        assert result is False
+        assert cache_dir.is_dir()
+        assert len(candidate_paths) == 1
+        assert not candidate_paths[0].exists()
+
+    @pytest.mark.parametrize(
+        ("outcome", "expected_crash"),
+        [("normal", False), ("timeout", False), ("subprocess_failure", True)],
+    )
+    @pytest.mark.asyncio
+    async def test_candidate_is_cleaned_after_execution_outcomes(
+        self, outcome, expected_crash, tmp_path, monkeypatch
+    ):
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        config = SimpleNamespace(
+            workspace=workspace,
+            sandbox_enabled=False,
+            sandbox_mode="disabled",
+            sandbox_user="nobody",
+        )
+        monkeypatch.setattr(
+            "reversecore_mcp.tools.cve_hunter.poc_minimizer.get_config", lambda: config
+        )
+        monkeypatch.setattr("reversecore_mcp.core.config.get_config", lambda: config)
+        candidate_paths: list[Path] = []
+
+        async def simulate_execution(command, **kwargs):
+            candidate = Path(command[1])
+            assert candidate.is_file()
+            assert candidate.read_bytes() == b"CLEANUP_PAYLOAD"
+            candidate_paths.append(candidate)
+            if outcome == "timeout":
+                raise ExecutionTimeoutError(5)
+            if outcome == "subprocess_failure":
+                raise subprocess.CalledProcessError(1, command, output="", stderr="")
+            return "normal execution", len("normal execution")
+
+        with patch(
+            "reversecore_mcp.tools.cve_hunter.poc_minimizer.execute_subprocess_async",
+            side_effect=simulate_execution,
+        ):
+            result = await _test_input_causes_crash(tmp_path / "target", b"CLEANUP_PAYLOAD")
+
+        assert result is expected_crash
+        assert len(candidate_paths) == 1
+        assert not candidate_paths[0].exists()
+
+    @pytest.mark.asyncio
+    async def test_container_sandbox_prepares_candidate_for_dropped_user(
+        self, tmp_path, monkeypatch
+    ):
+        if not hasattr(os, "geteuid") or not hasattr(os, "getuid"):
+            pytest.skip("Container ownership preparation requires POSIX user IDs")
+
+        import pwd
+
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        sandbox_user = pwd.getpwuid(os.getuid()).pw_name
+        config = SimpleNamespace(
+            workspace=workspace,
+            sandbox_enabled=True,
+            sandbox_mode="container",
+            sandbox_user=sandbox_user,
+        )
+        monkeypatch.setattr(
+            "reversecore_mcp.tools.cve_hunter.poc_minimizer.get_config", lambda: config
+        )
+        monkeypatch.setattr("reversecore_mcp.core.config.get_config", lambda: config)
+        monkeypatch.setattr("reversecore_mcp.core.execution.os.geteuid", lambda: 0)
+        prepared_paths: list[Path] = []
+        real_prepare = __import__(
+            "reversecore_mcp.core.execution", fromlist=["prepare_sandbox_access"]
+        ).prepare_sandbox_access
+
+        def record_preparation(path):
+            prepared_paths.append(path)
+            real_prepare(path)
+
+        monkeypatch.setattr(
+            "reversecore_mcp.tools.cve_hunter.poc_minimizer.prepare_sandbox_access",
+            record_preparation,
+        )
+        candidate_paths: list[Path] = []
+
+        async def inspect_candidate(command, **kwargs):
+            candidate = Path(command[1])
+            assert candidate.read_bytes() == b"CONTAINER_PAYLOAD"
+            assert candidate.stat().st_uid == os.getuid()
+            assert candidate.stat().st_mode & 0o777 == 0o600
+            candidate_paths.append(candidate)
+            return "normal execution", len("normal execution")
+
+        with patch(
+            "reversecore_mcp.tools.cve_hunter.poc_minimizer.execute_subprocess_async",
+            side_effect=inspect_candidate,
+        ):
+            result = await _test_input_causes_crash(tmp_path / "target", b"CONTAINER_PAYLOAD")
+
+        assert result is False
+        assert candidate_paths[0] in prepared_paths
+        assert not candidate_paths[0].exists()
+
+    @pytest.mark.asyncio
+    async def test_minimize_poc_rejects_symlinked_workspace_cache(self, tmp_path, monkeypatch):
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        outside_cache = tmp_path / "outside-cache"
+        outside_cache.mkdir()
+        try:
+            (workspace / ".cache").symlink_to(outside_cache, target_is_directory=True)
+        except OSError as exc:
+            pytest.skip(f"directory symlinks are unavailable: {exc}")
+
+        target = tmp_path / "target.bin"
+        target.write_bytes(b"target")
+        crash_input = tmp_path / "crash.bin"
+        crash_input.write_bytes(b"CRASH_INPUT")
+        config = SimpleNamespace(
+            workspace=workspace,
+            sandbox_enabled=False,
+            sandbox_mode="disabled",
+            sandbox_user="nobody",
+        )
+        monkeypatch.setattr(
+            "reversecore_mcp.tools.cve_hunter.poc_minimizer.get_config", lambda: config
+        )
+        monkeypatch.setattr("reversecore_mcp.core.config.get_config", lambda: config)
+        monkeypatch.setattr(
+            "reversecore_mcp.tools.cve_hunter.poc_minimizer.validate_file_path",
+            lambda path: Path(path),
+        )
+
+        res = await minimize_poc_impl(str(target), str(crash_input))
+
+        assert res.status == "error"
+        assert res.error_code == "INVALID_SCRATCH_DIR"
 
     @pytest.mark.asyncio
     async def test_delta_debug_minimize(self, workspace_file):
