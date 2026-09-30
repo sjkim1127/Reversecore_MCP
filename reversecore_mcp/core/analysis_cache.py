@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import re
 import sqlite3
 import threading
 from pathlib import Path
@@ -19,6 +20,7 @@ from reversecore_mcp.core import json_utils as json
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.result import ToolError, ToolResult, ToolSuccess
+from reversecore_mcp.core.validators import validate_address_format
 
 logger = get_logger(__name__)
 
@@ -65,9 +67,18 @@ def _init_sqlite_db() -> Path:
                             status TEXT,
                             data TEXT,
                             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            provenance TEXT NOT NULL DEFAULT 'legacy_unverified',
                             PRIMARY KEY (file_hash, function_address, decompiler)
                         )
                     """)
+                    columns = {
+                        row[1] for row in cursor.execute("PRAGMA table_info(decompilation_cache)")
+                    }
+                    if "provenance" not in columns:
+                        cursor.execute(
+                            "ALTER TABLE decompilation_cache ADD COLUMN provenance "
+                            "TEXT NOT NULL DEFAULT 'legacy_unverified'"
+                        )
                     conn.commit()
                     _sqlite_initialized = True
                     logger.info(
@@ -83,7 +94,7 @@ def _init_sqlite_db() -> Path:
 
 def _read_from_sqlite(
     db_path: Path, file_hash: str, function_address: str, decompiler: str
-) -> str | None:
+) -> tuple[str, str] | None:
     """Read serialized data from SQLite database."""
     try:
         conn = _get_sqlite_conn(db_path)
@@ -94,12 +105,13 @@ def _read_from_sqlite(
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT data FROM decompilation_cache WHERE file_hash = ? AND function_address = ? AND decompiler = ?",
+            "SELECT data, provenance FROM decompilation_cache WHERE file_hash = ? AND function_address = ? AND decompiler = ?",
             (file_hash, function_address, decompiler),
         )
         row = cursor.fetchone()
         if row and isinstance(row[0], str):
-            return row[0]
+            provenance = row[1] if isinstance(row[1], str) else "legacy_unverified"
+            return row[0], provenance
     except Exception as e:
         logger.error(f"SQLite read error for {function_address} in {file_hash}: {e}")
     finally:
@@ -114,6 +126,7 @@ def _write_to_sqlite(
     decompiler: str,
     status: str,
     data: str,
+    provenance: str = "local",
 ) -> None:
     """Write serialized data to SQLite database."""
     try:
@@ -126,10 +139,10 @@ def _write_to_sqlite(
         cursor = conn.cursor()
         cursor.execute(
             """
-            INSERT OR REPLACE INTO decompilation_cache (file_hash, function_address, decompiler, status, data, created_at)
-            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            INSERT OR REPLACE INTO decompilation_cache (file_hash, function_address, decompiler, status, data, created_at, provenance)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
             """,
-            (file_hash, function_address, decompiler, status, data),
+            (file_hash, function_address, decompiler, status, data, provenance),
         )
         conn.commit()
     except Exception as e:
@@ -240,6 +253,82 @@ def _deserialize_result(serialized: str) -> ToolResult | None:
     return None
 
 
+def _stamp_serialized_provenance(
+    serialized: str, provenance: str, target_hash_verified: bool | None = None
+) -> str:
+    """Set authoritative cache provenance in serialized successful results."""
+    try:
+        data = json.loads(serialized)
+    except Exception:
+        return serialized
+    if not isinstance(data, dict) or data.get("status") != "success":
+        return serialized
+
+    metadata = data.get("metadata")
+    metadata = dict(metadata) if isinstance(metadata, dict) else {}
+    metadata["cache_provenance"] = provenance
+    if target_hash_verified is not None:
+        metadata["cache_target_hash_verified"] = target_hash_verified
+    elif provenance == "legacy_unverified":
+        metadata["cache_target_hash_verified"] = False
+    data["metadata"] = metadata
+    return json.dumps(data)
+
+
+def _apply_cache_provenance(result: ToolResult, provenance: str) -> ToolResult:
+    """Override serialized metadata with the trusted cache-row provenance."""
+    if not isinstance(result, ToolSuccess):
+        return result
+    if provenance not in {"local", "external_rcpack", "legacy_unverified"}:
+        provenance = "legacy_unverified"
+
+    metadata = dict(result.metadata or {})
+    for reserved_key in ("data", "pagination", "hints"):
+        metadata.pop(reserved_key, None)
+    metadata["cache_provenance"] = provenance
+    if provenance == "legacy_unverified":
+        metadata["cache_target_hash_verified"] = False
+    result.metadata = metadata
+    return result
+
+
+def _is_valid_decompilation_data(data: Any, decompiler: str, function_address: str) -> bool:
+    """Check a cache payload against the shape consumed by its analysis tool."""
+    if decompiler == "ghidra":
+        if isinstance(data, str):
+            return True
+        if not isinstance(data, dict):
+            return False
+        pseudo_c_fields = ("full_pseudo_c", "pseudo_c")
+        if not any(field in data for field in pseudo_c_fields):
+            return False
+        if any(
+            data[field] is not None and not isinstance(data[field], str)
+            for field in pseudo_c_fields
+            if field in data
+        ):
+            return False
+        if not any(isinstance(data.get(field), str) for field in pseudo_c_fields):
+            return False
+        return "function" not in data or data.get("function") == function_address
+
+    if decompiler == "radare2":
+        if not isinstance(data, dict):
+            return False
+        structures = data.get("structures")
+        field_count = data.get("field_count")
+        return (
+            data.get("function") == function_address
+            and isinstance(structures, list)
+            and all(isinstance(item, dict) for item in structures)
+            and isinstance(field_count, int)
+            and not isinstance(field_count, bool)
+            and field_count == len(structures)
+        )
+
+    return False
+
+
 async def get_cached_decompile(
     file_path: Path | str,
     function_address: str,
@@ -265,18 +354,35 @@ async def get_cached_decompile(
     # 1. Try Redis first (if enabled)
     client = get_redis_client()
     if client is not None:
-        cache_key = f"ghidra:decompile:{file_hash}:{function_address}:{decompiler}"
+        cache_key = f"ghidra:decompile:v2:{file_hash}:{function_address}:{decompiler}"
         try:
             serialized = await client.get(cache_key)
             if serialized:
                 result = _deserialize_result(serialized)
+                if result and (
+                    not isinstance(result, ToolSuccess)
+                    or not _is_valid_decompilation_data(result.data, decompiler, function_address)
+                ):
+                    logger.warning("Ignoring malformed Redis cache entry for %s", function_address)
+                    try:
+                        await client.delete(cache_key)
+                    except Exception:
+                        pass
+                    result = None
                 if result:
                     logger.info(f"Redis cache HIT for {function_address} in {file_path}")
-                    # Inject a flag indicating this result came from cache
+                    provenance = (
+                        result.metadata.get("cache_provenance")
+                        if isinstance(result, ToolSuccess) and result.metadata
+                        else "legacy_unverified"
+                    )
+                    if not isinstance(provenance, str):
+                        provenance = "legacy_unverified"
+                    result = _apply_cache_provenance(result, provenance)
                     if isinstance(result, ToolSuccess):
-                        if result.metadata is None:
-                            result.metadata = {}
-                        result.metadata["cache_hit"] = True
+                        metadata = result.metadata or {}
+                        metadata["cache_hit"] = True
+                        result.metadata = metadata
                     return result
         except Exception as e:
             logger.debug(f"Redis get error: {e}. Falling back to SQLite.")
@@ -284,18 +390,25 @@ async def get_cached_decompile(
     # 2. Try SQLite
     try:
         db_path = _init_sqlite_db()
-        serialized = await asyncio.to_thread(
+        cached_row = await asyncio.to_thread(
             _read_from_sqlite, db_path, file_hash, function_address, decompiler
         )
-        if serialized:
+        if cached_row:
+            serialized, provenance = cached_row
             result = _deserialize_result(serialized)
+            if result and (
+                not isinstance(result, ToolSuccess)
+                or not _is_valid_decompilation_data(result.data, decompiler, function_address)
+            ):
+                logger.warning("Ignoring malformed SQLite cache entry for %s", function_address)
+                result = None
             if result:
                 logger.info(f"SQLite cache HIT for {function_address} in {file_path}")
-                # Inject a flag indicating this result came from cache
+                result = _apply_cache_provenance(result, provenance)
                 if isinstance(result, ToolSuccess):
-                    if result.metadata is None:
-                        result.metadata = {}
-                    result.metadata["cache_hit"] = True
+                    metadata = result.metadata or {}
+                    metadata["cache_hit"] = True
+                    result.metadata = metadata
                 return result
     except Exception as e:
         logger.error(f"SQLite get error: {e}")
@@ -328,7 +441,7 @@ async def set_cached_decompile(
         return
 
     decompiler = "ghidra" if use_ghidra else "radare2"
-    serialized = _serialize_result(result)
+    serialized = _stamp_serialized_provenance(_serialize_result(result), "local")
     status = "success"
 
     # 1. Store in SQLite (Primary persistent local cache)
@@ -342,6 +455,7 @@ async def set_cached_decompile(
             decompiler,
             status,
             serialized,
+            "local",
         )
         logger.debug(f"Cached decompile in SQLite for {function_address} in {file_path}")
     except Exception as e:
@@ -350,7 +464,7 @@ async def set_cached_decompile(
     # 2. Store in Redis (if enabled)
     client = get_redis_client()
     if client is not None:
-        cache_key = f"ghidra:decompile:{file_hash}:{function_address}:{decompiler}"
+        cache_key = f"ghidra:decompile:v2:{file_hash}:{function_address}:{decompiler}"
         try:
             await client.setex(cache_key, ttl_seconds, serialized)
             logger.debug(
@@ -379,14 +493,19 @@ async def export_cache_by_hash(file_hash: str) -> dict:
             conn = _get_sqlite_conn(db_path)
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT function_address, decompiler, status, data FROM decompilation_cache WHERE file_hash = ?",
+                "SELECT function_address, decompiler, status, data, provenance "
+                "FROM decompilation_cache WHERE file_hash = ?",
                 (file_hash,),
             )
             return cursor.fetchall()
 
         rows = await asyncio.to_thread(_read_all)
         for row in rows:
-            func_addr, decompiler, status, data = row
+            func_addr, decompiler, status, data, provenance = row
+            data = _stamp_serialized_provenance(
+                data,
+                provenance if isinstance(provenance, str) else "legacy_unverified",
+            )
             exported_data["entries"].append(
                 {
                     "function_address": func_addr,
@@ -401,19 +520,101 @@ async def export_cache_by_hash(file_hash: str) -> dict:
     return exported_data
 
 
-async def import_cache_data(cache_data: dict) -> int:
+async def import_cache_data(
+    cache_data: dict[str, Any], target_file: Path | str | None = None
+) -> int:
     """Import cache data exported via export_cache_by_hash.
 
-    Restores data to SQLite and Redis (if enabled).
+    Restores validated data to SQLite and Redis (if enabled). Imported results
+    are always marked as external in their serialized ToolSuccess metadata. If
+    target_file is supplied, its SHA256 must match the pack's declared hash.
+
+    Args:
+        cache_data: Parsed rcpack object.
+        target_file: Optional local binary to verify against the pack hash.
+
     Returns the number of imported entries.
+
+    Raises:
+        ValueError: If the pack, an entry, a serialized result, or an optional
+            target hash is invalid.
     """
+    if not isinstance(cache_data, dict):
+        raise ValueError("Cache data must be a JSON object")
     if cache_data.get("format") != "rcpack":
         raise ValueError("Invalid cache data format")
 
     file_hash = cache_data.get("file_hash")
     entries = cache_data.get("entries", [])
-    if not file_hash or not entries:
+    if isinstance(entries, list) and not entries:
         return 0
+    if cache_data.get("version") != "1.0":
+        raise ValueError("Unsupported rcpack version")
+    if not isinstance(file_hash, str) or not re.fullmatch(r"[0-9a-f]{64}", file_hash):
+        raise ValueError("rcpack file_hash must be a lowercase SHA-256 digest")
+    if not isinstance(entries, list):
+        raise ValueError("rcpack entries must be a list")
+
+    target_hash_verified = False
+    if target_file is not None:
+        target_hash = calculate_file_sha256(target_file)
+        if not target_hash or target_hash != file_hash:
+            raise ValueError("rcpack file_hash does not match the supplied target file")
+        target_hash_verified = True
+
+    normalized_entries: list[tuple[str, str, str]] = []
+    seen_keys: set[tuple[str, str]] = set()
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            raise ValueError(f"rcpack entry {index} must be an object")
+
+        function_address = entry.get("function_address")
+        decompiler = entry.get("decompiler")
+        status = entry.get("status")
+        serialized = entry.get("data")
+        if not isinstance(function_address, str) or not function_address:
+            raise ValueError(f"rcpack entry {index} has an invalid function_address")
+        try:
+            validate_address_format(function_address, "function_address")
+        except Exception as exc:
+            raise ValueError(f"rcpack entry {index} has an invalid function_address") from exc
+        if not isinstance(decompiler, str) or decompiler not in {"ghidra", "radare2"}:
+            raise ValueError(f"rcpack entry {index} has an unsupported decompiler")
+        if status != "success":
+            raise ValueError(f"rcpack entry {index} has an unsupported status")
+        if not isinstance(serialized, str):
+            raise ValueError(f"rcpack entry {index} data must be a serialized ToolSuccess")
+
+        try:
+            result_data = json.loads(serialized)
+        except Exception as exc:
+            raise ValueError(f"rcpack entry {index} data is not valid JSON") from exc
+        if (
+            not isinstance(result_data, dict)
+            or result_data.get("status") != "success"
+            or "data" not in result_data
+            or not isinstance(result_data.get("data"), (str, dict))
+        ):
+            raise ValueError(f"rcpack entry {index} data is not a supported ToolSuccess")
+        decompilation_data = result_data["data"]
+        if not _is_valid_decompilation_data(decompilation_data, decompiler, function_address):
+            raise ValueError(f"rcpack entry {index} has invalid {decompiler} decompilation data")
+        metadata = result_data.get("metadata")
+        if metadata is not None and not isinstance(metadata, dict):
+            raise ValueError(f"rcpack entry {index} has invalid ToolSuccess metadata")
+        if {"data", "pagination", "hints"}.intersection(metadata or {}):
+            raise ValueError(f"rcpack entry {index} metadata contains reserved ToolSuccess keys")
+
+        entry_key = (function_address, decompiler)
+        if entry_key in seen_keys:
+            raise ValueError(f"rcpack contains duplicate entries for {function_address}")
+        seen_keys.add(entry_key)
+
+        imported_metadata = dict(metadata or {})
+        imported_metadata["cache_provenance"] = "external_rcpack"
+        imported_metadata["cache_target_hash_verified"] = target_hash_verified
+        result_data["metadata"] = imported_metadata
+        normalized_entries.append((function_address, decompiler, json.dumps(result_data)))
 
     imported_count = 0
     client = get_redis_client()
@@ -424,32 +625,23 @@ async def import_cache_data(cache_data: dict) -> int:
         def _write_all() -> None:
             conn = _get_sqlite_conn(db_path)
             cursor = conn.cursor()
-            for entry in entries:
-                func_addr = entry["function_address"]
-                decompiler = entry["decompiler"]
-                status = entry["status"]
-                data = entry["data"]
-
+            for func_addr, decompiler, data in normalized_entries:
                 cursor.execute(
                     """
-                    INSERT OR REPLACE INTO decompilation_cache (file_hash, function_address, decompiler, status, data, created_at)
-                    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    INSERT OR REPLACE INTO decompilation_cache (file_hash, function_address, decompiler, status, data, created_at, provenance)
+                    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'external_rcpack')
                     """,
-                    (file_hash, func_addr, decompiler, status, data),
+                    (file_hash, func_addr, decompiler, "success", data),
                 )
             conn.commit()
             conn.close()
 
         await asyncio.to_thread(_write_all)
 
-        for entry in entries:
-            func_addr = entry["function_address"]
-            decompiler = entry["decompiler"]
-            data = entry["data"]
-
+        for func_addr, decompiler, data in normalized_entries:
             # 2. Import to Redis
             if client is not None:
-                cache_key = f"ghidra:decompile:{file_hash}:{func_addr}:{decompiler}"
+                cache_key = f"ghidra:decompile:v2:{file_hash}:{func_addr}:{decompiler}"
                 await client.setex(cache_key, 3600, data)
 
             imported_count += 1

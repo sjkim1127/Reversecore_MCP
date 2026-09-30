@@ -1,5 +1,7 @@
 """Unit tests for the Redis-based analysis cache component."""
 
+import json
+import sqlite3
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -89,7 +91,7 @@ async def test_cache_operations_success(tmp_path):
         await set_cached_decompile(test_file, "main", suc, use_ghidra=True)
 
         # Verify key used in Redis
-        expected_key = f"ghidra:decompile:{file_hash}:main:ghidra"
+        expected_key = f"ghidra:decompile:v2:{file_hash}:main:ghidra"
         mock_redis.setex.assert_called_once()
         assert mock_redis.setex.call_args[0][0] == expected_key
 
@@ -162,15 +164,230 @@ async def test_export_and_import_cache_data(patched_config):
         assert len(exported["entries"]) == 1
         assert exported["entries"][0]["function_address"] == "0x401000"
 
-        # 3. Import cache
+        # 3. Import with a matching target, then verify the cached result keeps
+        # its external provenance through a normal cache lookup.
         mock_redis = AsyncMock()
         with patch(
             "reversecore_mcp.core.analysis_cache.get_redis_client",
             return_value=mock_redis,
         ):
-            count = await import_cache_data(exported)
+            count = await import_cache_data(exported, target_file=test_file)
             assert count == 1
             mock_redis.setex.assert_called_once()
+
+        with patch("reversecore_mcp.core.analysis_cache.get_redis_client", return_value=None):
+            imported = await get_cached_decompile(test_file, "0x401000", use_ghidra=True)
+        assert imported is not None
+        assert imported.status == "success"
+        assert imported.data == "int main() { return 42; }"
+        assert imported.metadata["cache_provenance"] == "external_rcpack"
+        assert imported.metadata["cache_target_hash_verified"] is True
+
+        # Offline import remains available, but is explicitly marked unverified.
+        with patch("reversecore_mcp.core.analysis_cache.get_redis_client", return_value=None):
+            assert await import_cache_data(exported) == 1
+            offline_import = await get_cached_decompile(test_file, "0x401000", use_ghidra=True)
+        assert offline_import is not None
+        assert offline_import.metadata["cache_provenance"] == "external_rcpack"
+        assert offline_import.metadata["cache_target_hash_verified"] is False
+
+
+@pytest.mark.asyncio
+async def test_import_cache_data_rejects_target_hash_mismatch(tmp_path):
+    from reversecore_mcp.core.analysis_cache import import_cache_data
+
+    target_file = tmp_path / "target.bin"
+    target_file.write_bytes(b"real target")
+    payload = {
+        "format": "rcpack",
+        "version": "1.0",
+        "file_hash": "0" * 64,
+        "entries": [
+            {
+                "function_address": "0x401000",
+                "decompiler": "ghidra",
+                "status": "success",
+                "data": _serialize_result(success("attacker-controlled output")),
+            }
+        ],
+    }
+
+    with (
+        patch("reversecore_mcp.core.analysis_cache._init_sqlite_db") as init_db,
+        patch("reversecore_mcp.core.analysis_cache.get_redis_client") as redis_client,
+        pytest.raises(ValueError, match="does not match the supplied target file"),
+    ):
+        await import_cache_data(payload, target_file=target_file)
+
+    init_db.assert_not_called()
+    redis_client.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "invalid_entry",
+    [
+        {
+            "function_address": "0x401000",
+            "decompiler": "unknown",
+            "status": "success",
+            "data": _serialize_result(success("code")),
+        },
+        {
+            "function_address": "0x401000",
+            "decompiler": "ghidra",
+            "status": "success",
+            "data": "{not json",
+        },
+        {
+            "function_address": "0x401000",
+            "decompiler": "ghidra",
+            "status": "success",
+            "data": _serialize_result(success({"full_pseudo_c": ["not source text"]})),
+        },
+        {
+            "function_address": "0x401000",
+            "decompiler": "radare2",
+            "status": "success",
+            "data": _serialize_result(success({"unrelated": "not a structure result"})),
+        },
+    ],
+)
+async def test_import_cache_data_validates_all_entries_before_writing(invalid_entry):
+    from reversecore_mcp.core.analysis_cache import import_cache_data
+
+    payload = {
+        "format": "rcpack",
+        "version": "1.0",
+        "file_hash": "a" * 64,
+        "entries": [
+            {
+                "function_address": "0x401000",
+                "decompiler": "ghidra",
+                "status": "success",
+                "data": _serialize_result(success("valid first entry")),
+            },
+            invalid_entry,
+        ],
+    }
+
+    with (
+        patch("reversecore_mcp.core.analysis_cache._init_sqlite_db") as init_db,
+        patch("reversecore_mcp.core.analysis_cache.get_redis_client") as redis_client,
+        pytest.raises(ValueError),
+    ):
+        await import_cache_data(payload)
+
+    init_db.assert_not_called()
+    redis_client.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("reserved_key", ["data", "pagination", "hints"])
+async def test_import_cache_data_rejects_reserved_metadata_keys_before_writing(reserved_key):
+    from reversecore_mcp.core.analysis_cache import import_cache_data
+
+    serialized = json.loads(_serialize_result(success("cached code")))
+    serialized["metadata"] = {reserved_key: "attacker-controlled value"}
+    payload = {
+        "format": "rcpack",
+        "version": "1.0",
+        "file_hash": "a" * 64,
+        "entries": [
+            {
+                "function_address": "0x401000",
+                "decompiler": "ghidra",
+                "status": "success",
+                "data": json.dumps(serialized),
+            }
+        ],
+    }
+
+    with (
+        patch("reversecore_mcp.core.analysis_cache._init_sqlite_db") as init_db,
+        patch("reversecore_mcp.core.analysis_cache.get_redis_client") as redis_client,
+        pytest.raises(ValueError, match="reserved ToolSuccess keys"),
+    ):
+        await import_cache_data(payload)
+
+    init_db.assert_not_called()
+    redis_client.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_existing_sqlite_cache_rows_are_marked_legacy_unverified(patched_config):
+    from reversecore_mcp.core import analysis_cache
+
+    target_file = patched_config.workspace / "legacy_target.bin"
+    target_file.write_bytes(b"legacy target")
+    file_hash = calculate_file_sha256(target_file)
+    db_path = patched_config.workspace / ".reversecore_cache.db"
+    legacy_result = json.loads(_serialize_result(success("legacy pseudo C")))
+    legacy_result["metadata"] = {
+        "cache_provenance": "local",
+        "cache_target_hash_verified": True,
+        "pagination": {"forged": True},
+        "hints": ["forged"],
+        "data": "forged",
+    }
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        """
+        CREATE TABLE decompilation_cache (
+            file_hash TEXT,
+            function_address TEXT,
+            decompiler TEXT,
+            status TEXT,
+            data TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (file_hash, function_address, decompiler)
+        )
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO decompilation_cache
+            (file_hash, function_address, decompiler, status, data)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            file_hash,
+            "0x401000",
+            "ghidra",
+            "success",
+            json.dumps(legacy_result),
+        ),
+    )
+    conn.execute(
+        """
+        INSERT INTO decompilation_cache
+            (file_hash, function_address, decompiler, status, data)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            file_hash,
+            "0x401001",
+            "radare2",
+            "success",
+            _serialize_result(success({"unrelated": "not a structure result"})),
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    with patch("reversecore_mcp.core.analysis_cache.get_redis_client", return_value=None):
+        result = await analysis_cache.get_cached_decompile(target_file, "0x401000")
+
+    assert result is not None
+    assert result.metadata["cache_provenance"] == "legacy_unverified"
+    assert result.metadata["cache_target_hash_verified"] is False
+    assert not {"data", "pagination", "hints"}.intersection(result.metadata)
+
+    with patch("reversecore_mcp.core.analysis_cache.get_redis_client", return_value=None):
+        malformed_legacy = await analysis_cache.get_cached_decompile(
+            target_file, "0x401001", use_ghidra=False
+        )
+    assert malformed_legacy is None
 
 
 @pytest.mark.asyncio
@@ -320,18 +537,20 @@ async def test_cache_errors_during_set_and_export(patched_config):
         "reversecore_mcp.core.analysis_cache._init_sqlite_db",
         side_effect=Exception("DB init failed"),
     ):
-        count = await analysis_cache.import_cache_data(
-            {
-                "format": "rcpack",
-                "file_hash": "some_hash",
-                "entries": [
-                    {
-                        "function_address": "0x1000",
-                        "decompiler": "ghidra",
-                        "status": "success",
-                        "data": "{}",
-                    }
-                ],
-            }
-        )
+        with patch("reversecore_mcp.core.analysis_cache.get_redis_client", return_value=None):
+            count = await analysis_cache.import_cache_data(
+                {
+                    "format": "rcpack",
+                    "version": "1.0",
+                    "file_hash": "a" * 64,
+                    "entries": [
+                        {
+                            "function_address": "0x1000",
+                            "decompiler": "ghidra",
+                            "status": "success",
+                            "data": _serialize_result(success("code")),
+                        }
+                    ],
+                }
+            )
         assert count == 0

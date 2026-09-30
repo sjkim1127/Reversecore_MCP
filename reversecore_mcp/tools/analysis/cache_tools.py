@@ -88,14 +88,16 @@ async def export_analysis_cache(file_path: str, output_name: str | None = None) 
 @log_execution(tool_name="import_analysis_cache")
 @track_metrics("import_analysis_cache")
 @handle_tool_errors
-async def import_analysis_cache(pack_path: str) -> ToolResult:
+async def import_analysis_cache(pack_path: str, target_file_path: str | None = None) -> ToolResult:
     """Import a decompilation cache from a portable .rcpack JSON file.
 
-    Loads the cached results into the SQLite/Redis store, enabling fast
-    cache hits for previously analyzed binaries.
+    Loads validated external results into the SQLite/Redis store. Imported
+    results keep external provenance. If target_file_path is provided, its
+    SHA256 must match the pack's declared binary hash.
 
     Args:
         pack_path: Path to the .rcpack file.
+        target_file_path: Optional binary whose SHA256 must match the pack.
 
     Returns:
         ToolResult indicating success or failure, with the number of imported entries.
@@ -112,13 +114,26 @@ async def import_analysis_cache(pack_path: str) -> ToolResult:
         logger.error(f"Failed to read or parse cache import file: {e}")
         return failure("CACHE_IMPORT_ERROR", f"Failed to parse export file: {e}")
 
+    if not isinstance(cache_data, dict):
+        return failure("CACHE_IMPORT_INVALID", "Invalid cache pack. Expected a JSON object.")
+
     if cache_data.get("format") != "rcpack":
         return failure(
             "CACHE_IMPORT_INVALID",
             "Invalid cache format. Expected 'rcpack'.",
         )
 
-    imported_count = await import_cache_data(cache_data)
+    target_file = None
+    if target_file_path is not None:
+        try:
+            target_file = validate_file_path(target_file_path, read_only=True)
+        except Exception as e:
+            return failure("CACHE_IMPORT_TARGET_INVALID", f"Invalid target file: {e}")
+
+    try:
+        imported_count = await import_cache_data(cache_data, target_file=target_file)
+    except ValueError as e:
+        return failure("CACHE_IMPORT_INVALID", str(e))
 
     if imported_count == 0:
         return failure(
@@ -132,4 +147,5 @@ async def import_analysis_cache(pack_path: str) -> ToolResult:
         f"Successfully imported {imported_count} cache entries.",
         imported_count=imported_count,
         file_hash=file_hash,
+        target_hash_verified=target_file is not None,
     )

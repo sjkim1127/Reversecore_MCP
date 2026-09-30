@@ -16,7 +16,10 @@ logger = get_logger(__name__)
 
 
 def cache_tool_result(
-    tool_name: str, ttl: int | None = None, cache_kwargs: list[str] | None = None
+    tool_name: str,
+    ttl: int | None = None,
+    cache_kwargs: list[str] | None = None,
+    cache_version: int = 1,
 ):
     """
     Decorator that caches ToolResult outputs based on binary hash and kwargs.
@@ -26,6 +29,7 @@ def cache_tool_result(
         ttl: Time to live in seconds (None = never expires).
         cache_kwargs: List of kwarg names to include in the cache key.
                      If None, all kwargs are included.
+        cache_version: Bump to invalidate results persisted under an older contract.
 
     Note:
         The decorated function must accept 'file_path' as a keyword argument
@@ -33,6 +37,12 @@ def cache_tool_result(
     """
 
     def decorator(func):
+        if (
+            not isinstance(cache_version, int)
+            or isinstance(cache_version, bool)
+            or cache_version < 1
+        ):
+            raise ValueError("cache_version must be a positive integer")
         if not iscoroutinefunction(func):
             raise TypeError(
                 f"cache_tool_result can only be applied to async functions ({func.__name__} is sync)"
@@ -72,7 +82,10 @@ def cache_tool_result(
                 logger.warning(f"Cache bypassed for {tool_name}: kwargs not JSON serializable")
                 return await func(*args, **kwargs)
 
-            cache_key = hashlib.sha256(f"{tool_name}::{sorted_json}".encode()).hexdigest()
+            key_version = f"::v{cache_version}" if cache_version > 1 else ""
+            cache_key = hashlib.sha256(
+                f"{tool_name}{key_version}::{sorted_json}".encode()
+            ).hexdigest()
 
             # Attempt to get from cache
             cached_result = await get_cached_result(file_path, cache_key)

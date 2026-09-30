@@ -15,7 +15,7 @@ from reversecore_mcp.tools.analysis.cache_tools import (
 @pytest.fixture
 def mock_cache_data():
     return {
-        "file_hash": "a1b2c3d4e5f6",
+        "file_hash": "a" * 64,
         "format": "rcpack",
         "version": "1.0",
         "entries": [
@@ -44,7 +44,7 @@ async def test_export_analysis_cache_success(mock_cache_data, tmp_path):
         mock_path.name = "test_bin"
         mock_validate.return_value = mock_path
 
-        mock_calc.return_value = "a1b2c3d4e5f6"
+        mock_calc.return_value = "a" * 64
         mock_export.return_value = mock_cache_data
 
         config = MagicMock()
@@ -62,7 +62,7 @@ async def test_export_analysis_cache_success(mock_cache_data, tmp_path):
 
         with open(export_file) as f:
             saved_data = json.load(f)
-            assert saved_data["file_hash"] == "a1b2c3d4e5f6"
+            assert saved_data["file_hash"] == "a" * 64
             assert len(saved_data["entries"]) == 1
 
 
@@ -77,7 +77,7 @@ async def test_export_analysis_cache_empty(tmp_path):
         ) as mock_export,
     ):
         mock_validate.return_value = MagicMock()
-        mock_calc.return_value = "a1b2c3d4e5f6"
+        mock_calc.return_value = "a" * 64
         mock_export.return_value = {"entries": []}
 
         result = await export_analysis_cache("fake/path")
@@ -112,7 +112,41 @@ async def test_import_analysis_cache_success(mock_cache_data, tmp_path):
 
         assert isinstance(result, ToolSuccess)
         assert result.metadata["imported_count"] == 1
-        assert result.metadata["file_hash"] == "a1b2c3d4e5f6"
+        assert result.metadata["file_hash"] == "a" * 64
+        assert result.metadata["target_hash_verified"] is False
+        mock_import.assert_awaited_once_with(mock_cache_data, target_file=None)
+
+
+@pytest.mark.asyncio
+async def test_import_analysis_cache_passes_validated_target(mock_cache_data, tmp_path):
+    pack_path = tmp_path / "test.rcpack"
+    pack_path.write_text(json.dumps(mock_cache_data), encoding="utf-8")
+    target_path = tmp_path / "target.bin"
+    target_path.write_bytes(b"target")
+
+    def validate_path(path, read_only=False):
+        if path == str(target_path):
+            assert read_only is True
+            return target_path
+        return pack_path
+
+    with (
+        patch(
+            "reversecore_mcp.tools.analysis.cache_tools.validate_file_path",
+            side_effect=validate_path,
+        ),
+        patch(
+            "reversecore_mcp.tools.analysis.cache_tools.import_cache_data",
+            new_callable=AsyncMock,
+        ) as mock_import,
+    ):
+        mock_import.return_value = 1
+
+        result = await import_analysis_cache(str(pack_path), str(target_path))
+
+    assert isinstance(result, ToolSuccess)
+    assert result.metadata["target_hash_verified"] is True
+    mock_import.assert_awaited_once_with(mock_cache_data, target_file=target_path)
 
 
 @pytest.mark.asyncio
