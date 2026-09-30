@@ -384,9 +384,14 @@ class TestFilterLinesByRegex:
         assert _filter_lines_by_regex(text, r"(?<=sym\.)main$") == "sym.main"
 
     def test_simple_pattern_filters_large_output(self):
-        """Large normal outputs receive a size-aware budget instead of 100 ms."""
+        """Large normal outputs receive a size-aware budget instead of a tiny cap."""
         text = "\n".join(["ordinary string output"] * 200_000)
-        assert _filter_lines_by_regex(text, "ordinary") == text
+        result = _filter_lines_by_regex(text, "ordinary")
+        assert not result.startswith("Error: Regex matching timed out")
+        assert len(result) == len(text)
+        assert result.count("\n") == 199_999
+        assert result.startswith("ordinary string output")
+        assert result.endswith("ordinary string output")
 
     def test_invalid_pattern(self):
         """Should return error message for invalid pattern."""
