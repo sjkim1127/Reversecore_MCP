@@ -95,6 +95,7 @@ async def _r2_run(
     "r2_decompile",
     ttl=86400,
     cache_kwargs=["function_address", "line_offset", "max_lines"],
+    cache_version=2,
 )
 async def r2_decompile(
     file_path: str,
@@ -268,7 +269,12 @@ async def r2_decompile(
 @log_execution(tool_name="r2_recover_structures")
 @track_metrics("r2_recover_structures")
 @handle_tool_errors
-@cache_tool_result("r2_recover_structures", ttl=86400, cache_kwargs=["function_address"])
+@cache_tool_result(
+    "r2_recover_structures",
+    ttl=86400,
+    cache_kwargs=["function_address"],
+    cache_version=2,
+)
 async def r2_recover_structures(
     file_path: str,
     function_address: str,

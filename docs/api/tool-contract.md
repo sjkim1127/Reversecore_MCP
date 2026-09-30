@@ -78,3 +78,20 @@ succeeded.
 directory under `workspace/.cache/fuzz/<run_id>/seeds`; generated angr seeds and
 crash artifacts stay within that run. Without an explicit corpus, the run uses
 only its own initial seed and does not reuse a neighboring `cve_seeds` folder.
+
+## Reviewed migration note: portable cache import provenance (#233)
+
+`import_analysis_cache` accepts an optional `target_file_path`. When supplied,
+the importer verifies that the local binary's SHA-256 matches the pack before
+writing any entries. Offline imports remain supported when the target is not
+available. In both cases, imported results are schema-validated and carry
+`metadata.cache_provenance = "external_rcpack"`; the boolean
+`metadata.cache_target_hash_verified` reports whether a local target hash was
+checked. Consumers should treat external cache results as untrusted analysis
+data even when the target hash matches.
+
+On upgrade, existing decompilation-cache rows without authoritative provenance
+are marked `legacy_unverified`; `r2_decompile` and `r2_recover_structures`
+result-cache keys are versioned so pre-upgrade materialized results are
+regenerated. New locally generated decompilation-cache entries are marked
+`local`.

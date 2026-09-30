@@ -69,3 +69,23 @@ class TestResultCache:
 
         assert res.status == "error"
         assert mock_set.call_count == 0  # Should not cache errors
+
+    @pytest.mark.asyncio
+    @patch("reversecore_mcp.core.result_cache.get_cached_result")
+    async def test_cache_version_bypasses_older_persisted_result(self, mock_get):
+        mock_get.return_value = None
+
+        @cache_tool_result("test_tool", cache_version=1)
+        async def old_tool(file_path: str):
+            return ToolError(error_code="MISS", message="old version")
+
+        @cache_tool_result("test_tool", cache_version=2)
+        async def new_tool(file_path: str):
+            return ToolError(error_code="MISS", message="new version")
+
+        await old_tool(file_path="/tmp/test")
+        await new_tool(file_path="/tmp/test")
+
+        old_key = mock_get.call_args_list[0].args[1]
+        new_key = mock_get.call_args_list[1].args[1]
+        assert old_key != new_key
