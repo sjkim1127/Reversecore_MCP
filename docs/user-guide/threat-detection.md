@@ -67,6 +67,8 @@ Automatically generate YARA signatures to detect the threat, along with proposed
 adaptive_vaccine(file_path="malware.elf")
 ```
 
+Binary patch previews and writes are supported only for x86 and x86-64 targets. ARM/Thumb, AArch64, MIPS, RISC-V, and unknown architectures are rejected because the required execution mode and ISA-specific neutral instructions cannot be established safely. Applying a patch requires `dry_run=False`; the tool checks the replacement length and verifies the written bytes against a backup.
+
 ---
 
 ## 5. Malware Analysis Workflow
