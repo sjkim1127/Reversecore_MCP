@@ -63,3 +63,13 @@ Existing codes must not be reused for a different semantic failure.
 - Run `python scripts/check_api_schema.py` before merging any tool signature
   change. A reviewed change must update its baseline and include migration
   notes.
+
+## Reviewed migration note: CVE hunting target contract (#229)
+
+`hunt_cve_vulnerabilities.target_path` accepts a compiled LibFuzzer executable.
+It returns `UNSUPPORTED_TARGET_TYPE` for C/C++ source and header extensions
+before harness synthesis or fuzzing; the pipeline does not compile targets.
+Generate a harness with `cve_synthesize_harness`, compile and link it with the
+target using LibFuzzer, then pass the executable path. Successful analysis
+results include `fuzzed_executable`; the field is `null` when no fuzzing run
+succeeded.

@@ -21,8 +21,9 @@ from reversecore_mcp import server
 # makes this independent of dictionary insertion order and JSON whitespace.
 EXPECTED_TOOL_COUNT = 151
 # Canonical schema SHA-256 for FastMCP 3.4.4 (pinned in project requirements).
-# This reviewed API description documents event-time, collection-time, and UTC semantics.
-EXPECTED_SCHEMA_SHA256 = "f8e0945e6f5e2f337c6c2716cdfbbf5651fe34d99068b52713c351c552313d22"
+# This baseline includes the reviewed event-time, collection-time, and UTC semantics description.
+# It also includes the issue #229 contract: CVE hunting requires a compiled LibFuzzer target.
+EXPECTED_SCHEMA_SHA256 = "71a1eab4c526dc7f532c60788d591f1e2eb6b6ee0c57fdee1fb41d84b97c126c"
 VALID_SCHEMA_SHA256S = {EXPECTED_SCHEMA_SHA256}
 
 
