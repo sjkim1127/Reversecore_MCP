@@ -12,7 +12,7 @@ concurrency:
 env:
   IMAGE_NAME: ghcr.io/sjkim1127/reversecore_mcp
   BASE_IMAGE: ghcr.io/sjkim1127/reversecore_mcp/base
-  BASE_DIGEST: sha256:cde0f875ebfa5d5033032b12480d5278a812839f06fdee9198b434762c4298c1
+  BASE_TAG: yara4.3.1-r2-6.0.4-r2ghidra-v7
 
 permissions: read-all
 
@@ -140,6 +140,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.0.0
 
+      - name: Resolve immutable base image reference
+        id: base
+        run: |
+          base_digest="$(docker buildx imagetools inspect "${BASE_IMAGE}:${BASE_TAG}" --format '{{.Manifest.Digest}}')"
+          echo "base_ref=${BASE_IMAGE}@${base_digest}" >> "$GITHUB_OUTPUT"
+
       - name: Build and publish OCI image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.0.0
         with:
@@ -148,8 +154,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
-            BASE_IMAGE=${{ env.BASE_IMAGE }}
-            BASE_DIGEST=${{ env.BASE_DIGEST }}
+            BASE_REF=${{ steps.base.outputs.base_ref }}
           tags: |
             ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
             ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.major_minor }}

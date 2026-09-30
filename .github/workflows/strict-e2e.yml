@@ -103,10 +103,12 @@ jobs:
               --build-arg RADARE2_VERSION="$RADARE2_VERSION" \
               -t "$BASE_IMAGE:${BASE_TAG}" \
               -f Dockerfile.base .
+            BASE_REF="$BASE_IMAGE:${BASE_TAG}"
+          else
+            BASE_REF="$BASE_IMAGE@$BASE_DIGEST"
           fi
           docker build \
-            --build-arg BASE_IMAGE="$BASE_IMAGE" \
-            --build-arg BASE_DIGEST="$BASE_DIGEST" \
+            --build-arg BASE_REF="$BASE_REF" \
             -t reversecore-mcp:strict-e2e .
 
       - name: Start MCP container
