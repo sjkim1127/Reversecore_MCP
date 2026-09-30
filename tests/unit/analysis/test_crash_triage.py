@@ -7,6 +7,7 @@ import pytest
 from reversecore_mcp.tools.analysis.crash_triage import (
     _assess_exploitability,
     _parse_gdb_output,
+    normalize_crash_triage_result,
     triage_crash,
 )
 
@@ -126,6 +127,43 @@ class TestAssessExploitability:
         assessment = _assess_exploitability(info)
         assert assessment["status"] == "LOW"
         assert "aborted" in assessment["tags"]
+
+
+@pytest.mark.parametrize(
+    ("raw_status", "expected_status"),
+    [
+        ("CRITICAL", "CONFIRMED"),
+        ("HIGH", "LIKELY"),
+        ("MEDIUM", "POSSIBLE"),
+        ("LOW", "UNLIKELY"),
+        ("UNKNOWN", "UNKNOWN"),
+    ],
+)
+def test_normalize_crash_triage_result_uses_stable_contract(raw_status, expected_status):
+    result = normalize_crash_triage_result(
+        {
+            "exploitability": {
+                "status": raw_status,
+                "description": "GDB assessment",
+                "tags": [],
+            },
+            "faulting_address": "0x41414141",
+        }
+    )
+
+    assert result == {
+        "exploitability": expected_status,
+        "faulting_address": "0x41414141",
+    }
+
+
+def test_normalize_crash_triage_result_accepts_legacy_address_alias():
+    result = normalize_crash_triage_result(
+        {"exploitability": {"status": "HIGH"}, "crash_address": "0x401000"}
+    )
+
+    assert result["faulting_address"] == "0x401000"
+    assert result["exploitability"] == "LIKELY"
 
 
 @pytest.mark.asyncio

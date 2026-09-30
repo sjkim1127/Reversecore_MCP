@@ -215,7 +215,10 @@ async def _triage_crashes(
     Returns:
         List of triage result dicts, sorted by exploitability score.
     """
-    from reversecore_mcp.tools.analysis.crash_triage import triage_crash
+    from reversecore_mcp.tools.analysis.crash_triage import (
+        normalize_crash_triage_result,
+        triage_crash,
+    )
 
     results: list[dict[str, Any]] = []
 
@@ -233,7 +236,8 @@ async def _triage_crashes(
 
             if triage_result.status == "success" and triage_result.data:
                 data = triage_result.data
-                exploitability = data.get("exploitability", "UNKNOWN")
+                normalized = normalize_crash_triage_result(data)
+                exploitability = normalized["exploitability"]
                 results.append(
                     {
                         "crash_file": crash_file.name,
@@ -241,7 +245,7 @@ async def _triage_crashes(
                         "exploitability": exploitability,
                         "exploitability_score": _EXPLOITABILITY_SCORE.get(exploitability, 0),
                         "signal": data.get("signal"),
-                        "crash_address": data.get("crash_address"),
+                        "crash_address": normalized["faulting_address"],
                         "backtrace": data.get("backtrace", [])[:5],
                         "is_exploitable": exploitability in ("CONFIRMED", "LIKELY"),
                         "triage_details": data,
@@ -312,7 +316,7 @@ async def run_fuzzing_campaign(
     3. **Collect**: Gathers all unique crash files from the AFL++ output
        directory, deduplicated by content signature.
     4. **Triage**: Runs ``triage_crash`` (GDB) on each unique crash to assess
-       exploitability (CONFIRMED / LIKELY / POSSIBLE / UNKNOWN).
+       exploitability (CONFIRMED / LIKELY / POSSIBLE / UNLIKELY / UNKNOWN).
     5. **Report**: Returns a structured report with crash statistics, triage
        results sorted by severity, and actionable next steps.
 
