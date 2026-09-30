@@ -17,6 +17,7 @@ pydantic>=2.13.0
 pydantic-settings>=2.0.0
 loguru>=0.7.0
 orjson>=3.11.9
+regex>=2024.11.6
 
 # Core functionality
 jinja2>=3.1.6

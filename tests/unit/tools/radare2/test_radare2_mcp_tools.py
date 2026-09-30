@@ -5,10 +5,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from reversecore_mcp.core.exceptions import ToolExecutionError, ValidationError
+from reversecore_mcp.tools.radare2.r2_session import _filter_lines_by_regex
 from reversecore_mcp.tools.radare2.radare2_mcp_tools import (
     R2Session,
     Radare2ToolsPlugin,
-    _filter_lines_by_regex,
     _filter_named_functions,
     _paginate_text,
     _sanitize_for_r2_cmd,
@@ -573,6 +573,22 @@ class TestMcpToolsMocked:
             result = await tool("/app/test.bin", filter="main")
 
         assert result["status"] == "success"
+
+    @pytest.mark.asyncio
+    async def test_Radare2_list_functions_regex_timeout_is_an_error(
+        self, registered_plugin, mock_session
+    ):
+        """A filter timeout must not be counted as a successful function list."""
+        plugin = registered_plugin
+        mock_session._analyzed = True
+        mock_session.cmd.return_value = "a" * 100_000 + "!"
+
+        with patch.object(plugin, "_get_or_create_session", return_value=mock_session):
+            tool = plugin._tools["Radare2_list_functions"]
+            result = await tool("/app/test.bin", filter=r"^(a+)+$")
+
+        assert result["status"] == "error"
+        assert "Regex matching timed out" in result["message"]
 
     @pytest.mark.asyncio
     async def test_Radare2_list_functions_tree_success(self, registered_plugin, mock_session):
