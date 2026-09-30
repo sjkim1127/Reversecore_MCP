@@ -5,6 +5,7 @@ and edge cases: missing binary, non-existent image, unsupported filesystem.
 """
 
 import hashlib
+import tracemalloc
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -43,6 +44,37 @@ def mock_tsk_unavailable():
         yield
 
 
+def _stream_tsk_output(output: str, returncode: int = 0, stderr: str = ""):
+    """Build a line-streaming fake for Sleuth Kit listing commands."""
+
+    async def stream(_cmd, on_line, **_kwargs):
+        encoded = output.encode()
+        for line in output.splitlines():
+            on_line(line, False)
+        return returncode, stderr, len(encoded), False, False
+
+    return stream
+
+
+def _stream_icat_chunks(chunks: list[bytes], returncode: int = 0, stderr: str = ""):
+    """Build a byte-streaming fake that observes the configured output cap."""
+
+    async def stream(_cmd, on_chunk, *, max_output_size, **_kwargs):
+        bytes_read = 0
+        for chunk in chunks:
+            remaining = max_output_size - bytes_read
+            if len(chunk) > remaining:
+                if remaining:
+                    on_chunk(chunk[:remaining])
+                    bytes_read += remaining
+                return -9, stderr, bytes_read, True
+            on_chunk(chunk)
+            bytes_read += len(chunk)
+        return returncode, stderr, bytes_read, False
+
+    return stream
+
+
 # ── disk_list_partition ────────────────────────────────────────────────────────
 
 
@@ -62,14 +94,16 @@ async def test_disk_list_partition_success(tmp_image, mock_tsk_available):
     )
 
     with patch(
-        "reversecore_mcp.tools.forensics.disk._run_tsk",
-        return_value=(mmls_output, "", 0),
+        "reversecore_mcp.tools.forensics.disk.execute_subprocess_lines_async",
+        side_effect=_stream_tsk_output(mmls_output),
     ):
         result = await disk_list_partition(tmp_image)
 
     assert result.status == "success"
     assert "partitions" in result.data
     assert result.data["partition_count"] >= 1
+    assert result.data["count_complete"] is True
+    assert "Linux (0x83)" in result.data["raw_output"]
 
 
 @pytest.mark.unit
@@ -94,8 +128,8 @@ async def test_disk_list_partition_invalid_image():
 async def test_disk_list_partition_tsk_error(tmp_image, mock_tsk_available):
     """Edge case: mmls returns non-zero with no output."""
     with patch(
-        "reversecore_mcp.tools.forensics.disk._run_tsk",
-        return_value=("", "Invalid image format", 1),
+        "reversecore_mcp.tools.forensics.disk.execute_subprocess_lines_async",
+        side_effect=_stream_tsk_output("", 1, "Invalid image format"),
     ):
         result = await disk_list_partition(tmp_image)
 
@@ -115,8 +149,8 @@ async def test_disk_list_files_success(tmp_image, mock_tsk_available):
     )
 
     with patch(
-        "reversecore_mcp.tools.forensics.disk._run_tsk",
-        return_value=(fls_output, "", 0),
+        "reversecore_mcp.tools.forensics.disk.execute_subprocess_lines_async",
+        side_effect=_stream_tsk_output(fls_output),
     ):
         result = await disk_list_files(tmp_image, include_deleted=True)
 
@@ -139,8 +173,8 @@ async def test_disk_list_files_no_tsk(tmp_image, mock_tsk_unavailable):
 async def test_disk_list_files_tsk_error(tmp_image, mock_tsk_available):
     """Edge case: fls returns error (wrong filesystem)."""
     with patch(
-        "reversecore_mcp.tools.forensics.disk._run_tsk",
-        return_value=("", "Cannot determine filesystem type", 1),
+        "reversecore_mcp.tools.forensics.disk.execute_subprocess_lines_async",
+        side_effect=_stream_tsk_output("", 1, "Cannot determine filesystem type"),
     ):
         result = await disk_list_files(tmp_image)
 
@@ -153,13 +187,31 @@ async def test_disk_list_files_tsk_error(tmp_image, mock_tsk_available):
 async def test_disk_list_files_empty(tmp_image, mock_tsk_available):
     """Edge case: Empty filesystem returns 0 files."""
     with patch(
-        "reversecore_mcp.tools.forensics.disk._run_tsk",
-        return_value=("", "", 0),
+        "reversecore_mcp.tools.forensics.disk.execute_subprocess_lines_async",
+        side_effect=_stream_tsk_output(""),
     ):
         result = await disk_list_files(tmp_image)
 
     assert result.status == "success"
     assert result.data["total_count"] == 0
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_disk_list_files_streams_count_beyond_return_limit(tmp_image, mock_tsk_available):
+    """The full count is streamed while returned file rows stay within limit."""
+    output = "".join(f"r/r {inode}: file-{inode}\n" for inode in range(10))
+    with patch(
+        "reversecore_mcp.tools.forensics.disk.execute_subprocess_lines_async",
+        side_effect=_stream_tsk_output(output),
+    ):
+        result = await disk_list_files(tmp_image, limit=2)
+
+    assert result.status == "success"
+    assert result.data["total_count"] == 10
+    assert len(result.data["files"]) == 2
+    assert result.data["truncated"] is True
+    assert result.data["count_complete"] is True
 
 
 # ── disk_recover_deleted ───────────────────────────────────────────────────────
@@ -170,20 +222,63 @@ async def test_disk_list_files_empty(tmp_image, mock_tsk_available):
 async def test_disk_recover_deleted_success(tmp_image, mock_tsk_available, workspace_dir):
     """Happy path: icat recovers deleted file content."""
     recovered_content = b"This is recovered content from deleted file"
-    mock_result = MagicMock()
-    mock_result.stdout = recovered_content
-    mock_result.stderr = b""
-    mock_result.returncode = 0
-
     output_path = str(workspace_dir / "recovered.txt")
 
-    with patch("subprocess.run", return_value=mock_result):
+    with (
+        patch("reversecore_mcp.tools.forensics.disk.shutil.which", return_value="/usr/bin/icat"),
+        patch(
+            "reversecore_mcp.tools.forensics.disk.execute_subprocess_bytes_async",
+            side_effect=_stream_icat_chunks([recovered_content]),
+        ),
+    ):
         result = await disk_recover_deleted(tmp_image, inode="42", output_path=output_path)
 
     assert result.status == "success"
     assert result.data["recovered_bytes"] == len(recovered_content)
     assert result.data["sha256"] == hashlib.sha256(recovered_content).hexdigest()
     assert Path(output_path).exists()
+    assert Path(output_path).read_bytes() == recovered_content
+    assert not list(workspace_dir.glob(".recovered.txt.*.partial"))
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_disk_recover_deleted_streams_large_inode_with_bounded_memory(
+    tmp_image, mock_tsk_available, workspace_dir
+):
+    """A large inode is written in fixed-size chunks without retaining its contents."""
+    chunk = b"R" * 65_536
+    chunk_count = 512
+    total_bytes = len(chunk) * chunk_count
+    expected_hash = hashlib.sha256()
+    for _ in range(chunk_count):
+        expected_hash.update(chunk)
+    output_path = workspace_dir / "large-recovered.bin"
+
+    async def stream_large_inode(_cmd, on_chunk, **_kwargs):
+        for _ in range(chunk_count):
+            on_chunk(chunk)
+        return 0, "", total_bytes, False
+
+    with (
+        patch("reversecore_mcp.tools.forensics.disk.shutil.which", return_value="/usr/bin/icat"),
+        patch(
+            "reversecore_mcp.tools.forensics.disk.execute_subprocess_bytes_async",
+            side_effect=stream_large_inode,
+        ),
+    ):
+        tracemalloc.start()
+        try:
+            result = await disk_recover_deleted(tmp_image, "42", str(output_path))
+            _, peak_bytes = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+
+    assert result.status == "success"
+    assert result.data["recovered_bytes"] == total_bytes
+    assert result.data["sha256"] == expected_hash.hexdigest()
+    assert output_path.stat().st_size == total_bytes
+    assert peak_bytes < 8 * 1024 * 1024
 
 
 @pytest.mark.unit
@@ -199,31 +294,63 @@ async def test_disk_recover_deleted_no_tsk(tmp_image, mock_tsk_unavailable, work
 @pytest.mark.asyncio
 async def test_disk_recover_deleted_icat_fails(tmp_image, mock_tsk_available, workspace_dir):
     """Edge case: icat returns failure (inode overwritten)."""
-    mock_result = MagicMock()
-    mock_result.stdout = b""
-    mock_result.stderr = b"inode 42 not found"
-    mock_result.returncode = 1
-
-    with patch("subprocess.run", return_value=mock_result):
+    with (
+        patch("reversecore_mcp.tools.forensics.disk.shutil.which", return_value="/usr/bin/icat"),
+        patch(
+            "reversecore_mcp.tools.forensics.disk.execute_subprocess_bytes_async",
+            side_effect=_stream_icat_chunks([], returncode=1, stderr="inode 42 not found"),
+        ),
+    ):
         result = await disk_recover_deleted(tmp_image, "42", str(workspace_dir / "out.bin"))
 
     assert result.status == "error"
+    assert not list(workspace_dir.glob(".out.bin.*.partial"))
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_disk_recover_deleted_empty_inode(tmp_image, mock_tsk_available, workspace_dir):
     """Edge case: icat returns empty output (fully overwritten blocks)."""
-    mock_result = MagicMock()
-    mock_result.stdout = b""
-    mock_result.stderr = b""
-    mock_result.returncode = 0
-
-    with patch("subprocess.run", return_value=mock_result):
+    with (
+        patch("reversecore_mcp.tools.forensics.disk.shutil.which", return_value="/usr/bin/icat"),
+        patch(
+            "reversecore_mcp.tools.forensics.disk.execute_subprocess_bytes_async",
+            side_effect=_stream_icat_chunks([]),
+        ),
+    ):
         result = await disk_recover_deleted(tmp_image, "42", str(workspace_dir / "out_empty.bin"))
 
     assert result.status == "error"
     assert result.error_code == "EMPTY_INODE"
+    assert not list(workspace_dir.glob(".out_empty.bin.*.partial"))
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_disk_recover_deleted_enforces_size_limit_and_removes_partial(
+    tmp_image, mock_tsk_available, workspace_dir
+):
+    """Oversized recovery is terminated and leaves no output or partial file."""
+    output = workspace_dir / "oversized.bin"
+
+    with (
+        patch("reversecore_mcp.tools.forensics.disk.shutil.which", return_value="/usr/bin/icat"),
+        patch(
+            "reversecore_mcp.tools.forensics.disk.execute_subprocess_bytes_async",
+            side_effect=_stream_icat_chunks([b"a" * 32, b"b" * 32]),
+        ) as mock_stream,
+        patch(
+            "reversecore_mcp.tools.forensics.disk.get_config",
+            return_value=MagicMock(forensics_max_recovered_bytes=48),
+        ),
+    ):
+        result = await disk_recover_deleted(tmp_image, "42", str(output))
+
+    assert result.status == "error"
+    assert result.error_code == "RECOVERY_LIMIT_EXCEEDED"
+    assert not output.exists()
+    assert not list(workspace_dir.glob(".oversized.bin.*.partial"))
+    assert mock_stream.call_args.kwargs["max_output_size"] == 48
 
 
 # ── disk_analyze_mft ───────────────────────────────────────────────────────────
@@ -239,8 +366,8 @@ async def test_disk_analyze_mft_success(tmp_image, mock_tsk_available):
     )
 
     with patch(
-        "reversecore_mcp.tools.forensics.disk._run_tsk",
-        return_value=(mft_output, "", 0),
+        "reversecore_mcp.tools.forensics.disk.execute_subprocess_lines_async",
+        side_effect=_stream_tsk_output(mft_output),
     ):
         result = await disk_analyze_mft(tmp_image)
 
@@ -263,8 +390,8 @@ async def test_disk_analyze_mft_no_tsk(tmp_image, mock_tsk_unavailable):
 async def test_disk_analyze_mft_non_ntfs(tmp_image, mock_tsk_available):
     """Edge case: Non-NTFS filesystem fails MFT analysis."""
     with patch(
-        "reversecore_mcp.tools.forensics.disk._run_tsk",
-        return_value=("", "Not an NTFS filesystem", 1),
+        "reversecore_mcp.tools.forensics.disk.execute_subprocess_lines_async",
+        side_effect=_stream_tsk_output("", 1, "Not an NTFS filesystem"),
     ):
         result = await disk_analyze_mft(tmp_image)
 
@@ -354,41 +481,6 @@ def test_disk_check_tsk_available_real():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_disk_run_tsk_real():
-    """Test _run_tsk directly runs subprocess and returns output."""
-    from reversecore_mcp.tools.forensics.disk import _run_tsk
-
-    mock_res = MagicMock()
-    mock_res.stdout = "out"
-    mock_res.stderr = "err"
-    mock_res.returncode = 0
-    with patch("subprocess.run", return_value=mock_res):
-        stdout, stderr, rc = await _run_tsk(["fls"])
-        assert stdout == "out"
-        assert stderr == "err"
-        assert rc == 0
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_disk_run_tsk_uncovered():
-    """Test _run_tsk with empty command or missing executable."""
-    from reversecore_mcp.tools.forensics.disk import _run_tsk
-
-    # 1. empty cmd
-    out, err, code = await _run_tsk([])
-    assert code == -1
-    assert "Empty command" in err
-
-    # 2. missing exe
-    with patch("shutil.which", return_value=None):
-        out, err, code = await _run_tsk(["fls"])
-        assert code == -1
-        assert "not found in PATH" in err
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
 async def test_disk_recover_deleted_icat_missing(tmp_image, workspace_dir):
     """Test disk_recover_deleted when icat executable is missing."""
     from reversecore_mcp.tools.forensics.disk import disk_recover_deleted
@@ -405,8 +497,8 @@ async def test_disk_recover_deleted_icat_missing(tmp_image, workspace_dir):
 async def test_disk_list_files_options(tmp_image, mock_tsk_available):
     """Happy path: disk_list_files with offset, recursive, and custom directory."""
     with patch(
-        "reversecore_mcp.tools.forensics.disk._run_tsk",
-        return_value=("d/d 42:\tsubdir", "", 0),
+        "reversecore_mcp.tools.forensics.disk.execute_subprocess_lines_async",
+        side_effect=_stream_tsk_output("d/d 42:\tsubdir"),
     ) as mock_run:
         result = await disk_list_files(tmp_image, offset=2048, recursive=True, directory="/subdir")
         # Verify custom args are passed to cmd
@@ -423,15 +515,16 @@ async def test_disk_list_files_options(tmp_image, mock_tsk_available):
 @pytest.mark.asyncio
 async def test_disk_recover_deleted_offset(tmp_image, mock_tsk_available, workspace_dir):
     """Happy path: disk_recover_deleted with offset parameter."""
-    mock_result = MagicMock()
-    mock_result.stdout = b"recovered content"
-    mock_result.stderr = b""
-    mock_result.returncode = 0
-
     output = str(workspace_dir / "recovered_offset.bin")
-    with patch("subprocess.run", return_value=mock_result) as mock_sub:
+    with (
+        patch("reversecore_mcp.tools.forensics.disk.shutil.which", return_value="/usr/bin/icat"),
+        patch(
+            "reversecore_mcp.tools.forensics.disk.execute_subprocess_bytes_async",
+            side_effect=_stream_icat_chunks([b"recovered content"]),
+        ) as mock_sub,
+    ):
         result = await disk_recover_deleted(tmp_image, "123", output, offset=2048)
-        called_args = mock_sub.call_args[0][0]
+        called_args = mock_sub.call_args.args[0]
         assert "-o" in called_args
         assert "2048" in called_args
 
@@ -443,8 +536,8 @@ async def test_disk_recover_deleted_offset(tmp_image, mock_tsk_available, worksp
 async def test_disk_analyze_mft_offset(tmp_image, mock_tsk_available):
     """Happy path: disk_analyze_mft with offset parameter."""
     with patch(
-        "reversecore_mcp.tools.forensics.disk._run_tsk",
-        return_value=("", "", 0),
+        "reversecore_mcp.tools.forensics.disk.execute_subprocess_lines_async",
+        side_effect=_stream_tsk_output(""),
     ) as mock_run:
         await disk_analyze_mft(tmp_image, offset=2048)
         called_args = mock_run.call_args[0][0]
@@ -458,13 +551,14 @@ async def test_disk_extract_file_success(tmp_image, mock_tsk_available, workspac
     """Happy path: disk_extract_file calls disk_recover_deleted internally."""
     from reversecore_mcp.tools.forensics.disk import disk_extract_file
 
-    mock_result = MagicMock()
-    mock_result.stdout = b"live file data"
-    mock_result.stderr = b""
-    mock_result.returncode = 0
-
     output = str(workspace_dir / "extracted.bin")
-    with patch("subprocess.run", return_value=mock_result):
+    with (
+        patch("reversecore_mcp.tools.forensics.disk.shutil.which", return_value="/usr/bin/icat"),
+        patch(
+            "reversecore_mcp.tools.forensics.disk.execute_subprocess_bytes_async",
+            side_effect=_stream_icat_chunks([b"live file data"]),
+        ),
+    ):
         result = await disk_extract_file(tmp_image, "500", output)
 
     assert result.status == "success"

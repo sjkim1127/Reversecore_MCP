@@ -1,6 +1,7 @@
 """Tests for reversecore_mcp.core.execution."""
 
 import subprocess
+import sys
 from unittest.mock import patch
 
 import pytest
@@ -144,6 +145,108 @@ class TestExecuteSubprocessStreaming:
 
         with pytest.raises(ToolNotFoundError):
             execute_subprocess_streaming(["nonexistent_command_12345"], timeout=10)
+
+
+class TestExecuteSubprocessLinesAsync:
+    """Tests for bounded line-oriented subprocess output."""
+
+    @pytest.mark.asyncio
+    async def test_streams_lines_without_accumulating_them(self):
+        from reversecore_mcp.core.execution import execute_subprocess_lines_async
+
+        retained: list[str] = []
+        line_count = 0
+
+        def consume(line: str, line_truncated: bool) -> None:
+            nonlocal line_count
+            assert not line_truncated
+            line_count += 1
+            if len(retained) < 3:
+                retained.append(line)
+
+        code = "import sys; [print(f'line-{i}') for i in range(1000)]"
+        with patch.object(ResourceManager, "track_pid"):
+            (
+                returncode,
+                stderr,
+                bytes_read,
+                output_limited,
+                line_truncated,
+            ) = await execute_subprocess_lines_async(
+                [sys.executable, "-c", code],
+                consume,
+                max_output_size=100_000,
+                timeout=10,
+            )
+
+        assert returncode == 0
+        assert stderr == ""
+        assert bytes_read > 0
+        assert line_count == 1000
+        assert retained == ["line-0", "line-1", "line-2"]
+        assert not output_limited
+        assert not line_truncated
+
+    @pytest.mark.asyncio
+    async def test_terminates_when_output_byte_limit_is_exceeded(self):
+        from reversecore_mcp.core.execution import execute_subprocess_lines_async
+
+        observed: list[tuple[str, bool]] = []
+        code = (
+            "import sys,time; sys.stdout.write('x' * 10000000); sys.stdout.flush(); time.sleep(30)"
+        )
+        with patch.object(ResourceManager, "track_pid"):
+            (
+                returncode,
+                _,
+                bytes_read,
+                output_limited,
+                line_truncated,
+            ) = await execute_subprocess_lines_async(
+                [sys.executable, "-c", code],
+                lambda line, line_truncated: observed.append((line, line_truncated)),
+                max_output_size=4096,
+                max_line_size=512,
+                timeout=10,
+            )
+
+        assert returncode != 0
+        assert bytes_read == 4096
+        assert output_limited
+        assert line_truncated
+        assert observed
+        assert observed[0][1]
+
+
+class TestExecuteSubprocessBytesAsync:
+    """Tests for bounded raw-byte subprocess output."""
+
+    @pytest.mark.asyncio
+    async def test_streams_binary_chunks_and_terminates_at_output_limit(self):
+        from reversecore_mcp.core.execution import execute_subprocess_bytes_async
+
+        captured = bytearray()
+        code = (
+            "import sys,time; sys.stdout.buffer.write(b'\\x00' * 10000000); "
+            "sys.stdout.flush(); time.sleep(30)"
+        )
+        with (
+            patch.object(ResourceManager, "track_pid"),
+            patch.object(ResourceManager, "untrack_pid"),
+        ):
+            returncode, stderr, bytes_read, output_limited = await execute_subprocess_bytes_async(
+                [sys.executable, "-c", code],
+                captured.extend,
+                max_output_size=4096,
+                timeout=10,
+            )
+
+        assert returncode != 0
+        assert stderr == ""
+        assert bytes_read == 4096
+        assert len(captured) == 4096
+        assert captured == b"\x00" * 4096
+        assert output_limited
 
 
 class TestBackgroundLoopRunner:
