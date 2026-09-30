@@ -18,6 +18,26 @@ from reversecore_mcp.tools.analysis.fuzzing_campaign import (
 )
 
 
+def _configure_seed_campaign(monkeypatch, workspace_dir, config):
+    """Use real workspace validation while replacing external AFL execution."""
+    from reversecore_mcp.tools.analysis import fuzzing_campaign
+
+    monkeypatch.setattr(fuzzing_campaign, "get_config", lambda: config)
+    monkeypatch.setattr(fuzzing_campaign, "_afl_available", lambda: True)
+    captured = {"afl_called": False}
+
+    async def fake_run_afl(**kwargs):
+        captured["afl_called"] = True
+        captured["seeds"] = {path.name: path.read_bytes() for path in kwargs["seed_dir"].iterdir()}
+        return 0, ""
+
+    monkeypatch.setattr(fuzzing_campaign, "_run_afl", fake_run_afl)
+    binary = workspace_dir / "target"
+    binary.write_bytes(b"\x7fELF")
+    binary.chmod(0o755)
+    return binary, captured
+
+
 class TestCrashSignature:
     """Tests for _crash_signature helper."""
 
@@ -333,3 +353,103 @@ class TestRunFuzzingCampaign:
         kwargs = mock_gen_harness.call_args.kwargs
         assert kwargs["target_function_or_addr"] == "0x401000"
         assert kwargs["save_to_workspace"] is True
+
+    @pytest.mark.asyncio
+    async def test_accepts_seed_corpus_directory(
+        self,
+        workspace_dir,
+        patched_workspace_config,
+        patched_config,
+        monkeypatch,
+    ):
+        binary, captured = _configure_seed_campaign(monkeypatch, workspace_dir, patched_config)
+        seed_dir = workspace_dir / "seeds"
+        seed_dir.mkdir()
+        (seed_dir / "empty-input").write_bytes(b"")
+        (seed_dir / "sample").write_bytes(b"seed data")
+
+        result = await run_fuzzing_campaign(str(binary), seed_corpus=str(seed_dir))
+
+        assert result.status == "success"
+        assert captured["afl_called"] is True
+        assert captured["seeds"] == {"empty-input": b"", "sample": b"seed data"}
+
+    @pytest.mark.asyncio
+    async def test_still_accepts_single_seed_file(
+        self,
+        workspace_dir,
+        patched_workspace_config,
+        patched_config,
+        monkeypatch,
+    ):
+        binary, captured = _configure_seed_campaign(monkeypatch, workspace_dir, patched_config)
+        seed_file = workspace_dir / "seed"
+        seed_file.write_bytes(b"single seed")
+
+        result = await run_fuzzing_campaign(str(binary), seed_corpus=str(seed_file))
+
+        assert result.status == "success"
+        assert captured["seeds"] == {"seed": b"single seed"}
+
+    @pytest.mark.asyncio
+    async def test_rejects_empty_seed_corpus_directory(
+        self,
+        workspace_dir,
+        patched_workspace_config,
+        patched_config,
+        monkeypatch,
+    ):
+        binary, captured = _configure_seed_campaign(monkeypatch, workspace_dir, patched_config)
+        seed_dir = workspace_dir / "empty-seeds"
+        seed_dir.mkdir()
+
+        result = await run_fuzzing_campaign(str(binary), seed_corpus=str(seed_dir))
+
+        assert result.status == "error"
+        assert result.error_code == "EMPTY_SEED_CORPUS"
+        assert captured["afl_called"] is False
+
+    @pytest.mark.asyncio
+    async def test_rejects_seed_corpus_outside_workspace(
+        self,
+        workspace_dir,
+        patched_workspace_config,
+        patched_config,
+        monkeypatch,
+    ):
+        binary, captured = _configure_seed_campaign(monkeypatch, workspace_dir, patched_config)
+        outside_dir = workspace_dir.parent / "outside-seeds"
+        outside_dir.mkdir()
+        (outside_dir / "seed").write_bytes(b"outside")
+
+        result = await run_fuzzing_campaign(
+            str(binary), seed_corpus=str(workspace_dir / ".." / outside_dir.name)
+        )
+
+        assert result.status == "error"
+        assert result.error_code == "VALIDATION_ERROR"
+        assert captured["afl_called"] is False
+
+    @pytest.mark.asyncio
+    async def test_rejects_seed_corpus_directory_symlink_outside_workspace(
+        self,
+        workspace_dir,
+        patched_workspace_config,
+        patched_config,
+        monkeypatch,
+    ):
+        binary, captured = _configure_seed_campaign(monkeypatch, workspace_dir, patched_config)
+        outside_dir = workspace_dir.parent / "outside-seeds"
+        outside_dir.mkdir()
+        (outside_dir / "seed").write_bytes(b"outside")
+        linked_dir = workspace_dir / "linked-seeds"
+        try:
+            linked_dir.symlink_to(outside_dir, target_is_directory=True)
+        except (NotImplementedError, OSError) as exc:
+            pytest.skip(f"directory symlinks are unavailable: {exc}")
+
+        result = await run_fuzzing_campaign(str(binary), seed_corpus=str(linked_dir))
+
+        assert result.status == "error"
+        assert result.error_code == "VALIDATION_ERROR"
+        assert captured["afl_called"] is False
