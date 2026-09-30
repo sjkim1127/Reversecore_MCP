@@ -1,6 +1,7 @@
 """Unit tests for ReportTools module."""
 
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -249,6 +250,101 @@ class TestSessionManagement:
         result = await rt.list_sessions()
         assert result["total"] == 2
         assert len(result["sessions"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_sessions_are_isolated_by_owner(self, rt):
+        """Implicit and explicit session access stays within the caller boundary."""
+        session_a = await rt.start_session(analyst="Alice", owner_id="client-a")
+        session_b = await rt.start_session(analyst="Bob", owner_id="client-b")
+        sid_a = session_a["session_id"]
+        sid_b = session_b["session_id"]
+        assert rt.current_session_id is None
+
+        note_a = await rt.add_session_note("A note", owner_id="client-a")
+        assert note_a["success"] is True
+        assert note_a["total_notes"] == 1
+        assert (await rt.add_session_ioc("ips", "192.0.2.1", owner_id="client-a"))["success"]
+        assert (await rt.add_session_note("B note", owner_id="client-b"))["success"]
+        assert (await rt.add_session_ioc("ips", "198.51.100.2", owner_id="client-b"))["success"]
+
+        info_a = await rt.get_session_info(owner_id="client-a")
+        info_b = await rt.get_session_info(owner_id="client-b")
+        assert info_a["session"]["session_id"] == sid_a
+        assert info_a["session"]["analyst"] == "Alice"
+        assert info_a["session"]["notes"][0]["note"] == "A note"
+        assert info_a["session"]["iocs"]["ips"] == ["192.0.2.1"]
+        assert info_b["session"]["session_id"] == sid_b
+        assert info_b["session"]["analyst"] == "Bob"
+        assert info_b["session"]["notes"][0]["note"] == "B note"
+        assert info_b["session"]["iocs"]["ips"] == ["198.51.100.2"]
+
+        sessions_a = await rt.list_sessions(owner_id="client-a")
+        sessions_b = await rt.list_sessions(owner_id="client-b")
+        assert sessions_a["total"] == 1
+        assert sessions_a["current_session"] == sid_a
+        assert [item["session_id"] for item in sessions_a["sessions"]] == [sid_a]
+        assert sessions_b["total"] == 1
+        assert sessions_b["current_session"] == sid_b
+        assert [item["session_id"] for item in sessions_b["sessions"]] == [sid_b]
+
+        cross_owner_status = await rt.get_session_info(sid_b, owner_id="client-a")
+        assert cross_owner_status["success"] is False
+        assert cross_owner_status["active_sessions"] == [sid_a]
+        cross_owner_note = await rt.add_session_note(
+            "Should not be written", session_id=sid_b, owner_id="client-a"
+        )
+        assert cross_owner_note["success"] is False
+        cross_owner_end = await rt.end_session(session_id=sid_b, owner_id="client-a")
+        assert cross_owner_end["success"] is False
+        assert rt.sessions[sid_b].status == "in_progress"
+
+        explicit_note = await rt.add_session_note(
+            "Explicit A note", session_id=sid_a, owner_id="client-a"
+        )
+        assert explicit_note["success"] is True
+        ended_a = await rt.end_session(owner_id="client-a")
+        assert ended_a["session_id"] == sid_a
+        assert (await rt.get_session_info(owner_id="client-b"))["session"]["session_id"] == sid_b
+
+    @pytest.mark.asyncio
+    async def test_owner_cannot_create_report_from_another_owners_session(self, rt):
+        template = rt.template_dir / "full_analysis.md"
+        template.write_text("{{SESSION_ID}}", encoding="utf-8")
+        session_a = await rt.start_session(owner_id="client-a")
+        session_b = await rt.start_session(owner_id="client-b")
+        existing_files = set(rt.output_dir.glob("*.md"))
+
+        result = await rt.create_report(
+            template_type="full_analysis",
+            session_id=session_b["session_id"],
+            owner_id="client-a",
+        )
+
+        assert result == {"success": False, "error": "No active session found"}
+        assert set(rt.output_dir.glob("*.md")) == existing_files
+        assert session_a["session_id"] != session_b["session_id"]
+
+    @pytest.mark.asyncio
+    async def test_session_id_collision_does_not_replace_existing_owner(self, rt):
+        existing = await rt.start_session(owner_id="client-a")
+        duplicate_hex = existing["session_id"].removeprefix("SES-").lower()
+
+        with (
+            patch(
+                "reversecore_mcp.tools.report.report_tools.uuid.uuid4",
+                side_effect=[
+                    SimpleNamespace(hex=duplicate_hex),
+                    SimpleNamespace(hex="12345678abcdef00"),
+                ],
+            ),
+            patch.object(rt, "_extract_sample_info", new=AsyncMock(return_value={})),
+        ):
+            created = await rt.start_session(sample_path="/tmp/sample.bin", owner_id="client-b")
+
+        assert created["session_id"] != existing["session_id"]
+        assert rt.sessions[existing["session_id"]].analyst == "Security Researcher"
+        assert rt.session_owners[existing["session_id"]] == "client-a"
+        assert rt.session_owners[created["session_id"]] == "client-b"
 
 
 class TestReportGeneration:

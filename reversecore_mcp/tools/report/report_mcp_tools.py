@@ -6,6 +6,8 @@ Register these tools in your MCP server
 from pathlib import Path
 from typing import Any
 
+from fastmcp import Context
+
 from reversecore_mcp.core import json_utils as json
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.plugin import Plugin
@@ -15,6 +17,12 @@ from .sigma_generator import generate_sigma_rule
 from .vex_generator import generate_csaf_vex
 
 logger = get_logger(__name__)
+
+
+def _get_owner_id(ctx: Context | None) -> str | None:
+    """Return the FastMCP session identity for report-session isolation."""
+    return ctx.session_id if ctx is not None else None
+
 
 # Global report_tools instance (initialized on first plugin registration)
 _report_tools: ReportTools | None = None
@@ -112,6 +120,7 @@ async def start_report_session(
     severity: str = "medium",
     malware_family: str = "",
     tags: str = "",
+    ctx: Context | None = None,
 ) -> str:
     """
     Start a new malware analysis session.
@@ -136,12 +145,16 @@ async def start_report_session(
         severity=severity,
         malware_family=malware_family if malware_family else None,
         tags=tags_list,
+        owner_id=_get_owner_id(ctx),
     )
     return json.dumps(result, indent=2, ensure_ascii=False)
 
 
 async def end_report_session(
-    session_id: str = "", status: str = "completed", summary: str = ""
+    session_id: str = "",
+    status: str = "completed",
+    summary: str = "",
+    ctx: Context | None = None,
 ) -> str:
     """
     End the current analysis session.
@@ -159,11 +172,12 @@ async def end_report_session(
         session_id=session_id if session_id else None,
         status=status,
         summary=summary if summary else None,
+        owner_id=_get_owner_id(ctx),
     )
     return json.dumps(result, indent=2, ensure_ascii=False)
 
 
-async def get_report_session_status(session_id: str = "") -> str:
+async def get_report_session_status(session_id: str = "", ctx: Context | None = None) -> str:
     """
     Get current session information and collected data.
 
@@ -174,11 +188,14 @@ async def get_report_session_status(session_id: str = "") -> str:
         Complete session data including IOCs, techniques, notes, duration
     """
     report_tools = get_report_tools()
-    result = await report_tools.get_session_info(session_id=session_id if session_id else None)
+    result = await report_tools.get_session_info(
+        session_id=session_id if session_id else None,
+        owner_id=_get_owner_id(ctx),
+    )
     return json.dumps(result, indent=2, ensure_ascii=False)
 
 
-async def list_report_sessions() -> str:
+async def list_report_sessions(ctx: Context | None = None) -> str:
     """
     List all analysis sessions with their status and duration.
 
@@ -186,11 +203,13 @@ async def list_report_sessions() -> str:
         List of all sessions with summary information
     """
     report_tools = get_report_tools()
-    result = await report_tools.list_sessions()
+    result = await report_tools.list_sessions(owner_id=_get_owner_id(ctx))
     return json.dumps(result, indent=2, ensure_ascii=False)
 
 
-async def add_ioc(ioc_type: str, value: str, session_id: str = "") -> str:
+async def add_ioc(
+    ioc_type: str, value: str, session_id: str = "", ctx: Context | None = None
+) -> str:
     """
     Add an Indicator of Compromise to the current session.
 
@@ -204,12 +223,20 @@ async def add_ioc(ioc_type: str, value: str, session_id: str = "") -> str:
     """
     report_tools = get_report_tools()
     result = await report_tools.add_session_ioc(
-        ioc_type=ioc_type, value=value, session_id=session_id if session_id else None
+        ioc_type=ioc_type,
+        value=value,
+        session_id=session_id if session_id else None,
+        owner_id=_get_owner_id(ctx),
     )
     return json.dumps(result, indent=2, ensure_ascii=False)
 
 
-async def add_analysis_note(note: str, category: str = "general", session_id: str = "") -> str:
+async def add_analysis_note(
+    note: str,
+    category: str = "general",
+    session_id: str = "",
+    ctx: Context | None = None,
+) -> str:
     """
     Add a timestamped note to the analysis session.
 
@@ -223,13 +250,20 @@ async def add_analysis_note(note: str, category: str = "general", session_id: st
     """
     report_tools = get_report_tools()
     result = await report_tools.add_session_note(
-        note=note, category=category, session_id=session_id if session_id else None
+        note=note,
+        category=category,
+        session_id=session_id if session_id else None,
+        owner_id=_get_owner_id(ctx),
     )
     return json.dumps(result, indent=2, ensure_ascii=False)
 
 
 async def add_mitre_technique(
-    technique_id: str, technique_name: str, tactic: str, session_id: str = ""
+    technique_id: str,
+    technique_name: str,
+    tactic: str,
+    session_id: str = "",
+    ctx: Context | None = None,
 ) -> str:
     """
     Add a MITRE ATT&CK technique to the session.
@@ -249,11 +283,12 @@ async def add_mitre_technique(
         technique_name=technique_name,
         tactic=tactic,
         session_id=session_id if session_id else None,
+        owner_id=_get_owner_id(ctx),
     )
     return json.dumps(result, indent=2, ensure_ascii=False)
 
 
-async def set_severity(severity: str, session_id: str = "") -> str:
+async def set_severity(severity: str, session_id: str = "", ctx: Context | None = None) -> str:
     """
     Update the severity level of the analysis.
 
@@ -266,7 +301,9 @@ async def set_severity(severity: str, session_id: str = "") -> str:
     """
     report_tools = get_report_tools()
     result = await report_tools.set_session_severity(
-        severity=severity, session_id=session_id if session_id else None
+        severity=severity,
+        session_id=session_id if session_id else None,
+        owner_id=_get_owner_id(ctx),
     )
     return json.dumps(result, indent=2, ensure_ascii=False)
 
@@ -278,6 +315,7 @@ async def create_analysis_report(
     analyst: str = "Security Researcher",
     classification: str = "TLP:AMBER",
     output_format: str = "markdown",
+    ctx: Context | None = None,
 ) -> str:
     """
     Generate a comprehensive analysis report.
@@ -310,6 +348,7 @@ async def create_analysis_report(
         analyst=analyst,
         classification=classification,
         output_format=output_format,
+        owner_id=_get_owner_id(ctx),
     )
     return json.dumps(result, indent=2, ensure_ascii=False)
 
