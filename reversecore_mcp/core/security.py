@@ -13,6 +13,7 @@ import threading
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.exceptions import ValidationError
@@ -107,82 +108,53 @@ def _resolve_path_cached(path_str: str) -> tuple[Path, bool, str]:
         return (Path(path_str), False, str(e))
 
 
-def validate_file_path(
+def _validate_path(
     path: str,
+    expected_type: Literal["file", "directory"],
     read_only: bool = False,
     config: WorkspaceConfig | None = None,
     bypass_cache: bool = True,
 ) -> Path:
-    """
-    Validate and normalize a file path.
-
-    This function ensures that:
-    1. The path exists and points to a file (not a directory)
-    2. The path is within the allowed workspace directory (REVERSECORE_WORKSPACE)
-       or within allowed read-only directories (if read_only=True)
-    3. The path is resolved to an absolute path
-
-    The workspace directory is determined by an immutable WorkspaceConfig that
-    is loaded once from environment variables (REVERSECORE_WORKSPACE and
-    REVERSECORE_READ_DIRS).
-
-    Performance: Uses LRU cache for path resolution to avoid repeated
-    filesystem calls for frequently accessed files if bypass_cache=False.
-    By default, bypass_cache=True is used to prevent TOCTOU vulnerabilities.
-
-    Args:
-        path: The file path to validate
-        read_only: If True, also allow files from configured read-only directories
-        config: Optional WorkspaceConfig override (useful for tests)
-        bypass_cache: If True, bypass the LRU path resolution cache.
-
-    Returns:
-        The normalized absolute file path as a Path instance
-
-    Raises:
-        ValueError: If the path is invalid, doesn't exist, or is outside
-                   the allowed directories
-    """
+    """Validate and normalize a file or directory path within allowed roots."""
     active_config = config or get_workspace_config()
+    path_label = "File" if expected_type == "file" else "Directory"
 
     if not isinstance(path, str):
         raise ValidationError(
-            f"File path must be a string, got {type(path).__name__}",
+            f"{path_label} path must be a string, got {type(path).__name__}",
             details={"path": str(path)},
         )
 
     # Reject control characters (null bytes, newlines, carriage returns) to prevent injection
     if any(c in path for c in ("\0", "\r", "\n")):
         raise ValidationError(
-            f"File path contains forbidden control characters: {path!r}",
+            f"{path_label} path contains forbidden control characters: {path!r}",
             details={"path": path},
         )
 
-    # Handle relative paths: resolve them relative to workspace directory
-    # This allows users to specify just the filename (e.g., "sample.exe")
-    # instead of the full path ("/app/workspace/sample.exe")
-    file_path = Path(path)
+    candidate_path = Path(path)
 
     # Defense against AI mistakes: if a host-side absolute path is passed
     # (e.g., "/Users/john/Reversecore_Workspace/sample.exe"), extract just
     # the filename and try to find it in the workspace directory.
     # This handles cases where AI ignores the prompt instructions.
-    if file_path.is_absolute() and not str(file_path).startswith(str(active_config.workspace)):
+    if candidate_path.is_absolute() and not str(candidate_path).startswith(
+        str(active_config.workspace)
+    ):
         # Path is absolute but not in workspace - likely a host path
         # Extract filename and try workspace
-        filename_only = file_path.name
+        filename_only = candidate_path.name
         workspace_path = active_config.workspace / filename_only
         if workspace_path.exists():
             path = str(workspace_path)
         # If not found, continue with original path (will error with helpful message)
 
-    if not file_path.is_absolute():
+    if not Path(path).is_absolute():
         # Try workspace-relative path first
         workspace_path = active_config.workspace / path
         if workspace_path.exists():
             path = str(workspace_path)
 
-    # Use cached or real-time path resolution
     if bypass_cache:
         try:
             temp_path = Path(path)
@@ -195,20 +167,26 @@ def validate_file_path(
         abs_path, is_file, error = _resolve_path_cached(path)
 
     if error:
+        hint = (
+            "Ensure the file is in the workspace directory"
+            if expected_type == "file"
+            else "Ensure the directory is in an allowed directory"
+        )
         raise ValidationError(
-            f"Invalid file path: {path}. Error: {error}",
+            f"Invalid {path_label.lower()} path: {path}. Error: {error}",
             details={
                 "path": path,
                 "error": error,
-                "hint": "Ensure the file is in the workspace directory",
+                "hint": hint,
             },
         )
 
-    # Check that it's a file, not a directory
-    if not is_file:
+    path_exists_as_expected = is_file if expected_type == "file" else abs_path.is_dir()
+    if not path_exists_as_expected:
+        expected_label = "file" if expected_type == "file" else "directory"
         raise ValidationError(
-            f"Path does not point to a file: {abs_path}",
-            details={"path": str(abs_path)},
+            f"Path does not point to a {expected_label}: {abs_path}",
+            details={"path": str(abs_path), "expected_type": expected_type},
         )
 
     def _is_relative_to(base: Path) -> bool:
@@ -234,10 +212,58 @@ def validate_file_path(
         if read_only:
             allowed_dirs.extend(str(d) for d in active_config.read_only_dirs)
         raise ValidationError(
-            f"File path is outside allowed directories: {abs_path}. "
+            f"{path_label} path is outside allowed directories: {abs_path}. "
             f"Allowed directories: {allowed_dirs}. "
             f"Set REVERSECORE_WORKSPACE or REVERSECORE_READ_DIRS environment variables to change allowed paths.",
             details={"path": str(abs_path), "allowed_directories": allowed_dirs},
         )
 
     return abs_path
+
+
+def validate_file_path(
+    path: str,
+    read_only: bool = False,
+    config: WorkspaceConfig | None = None,
+    bypass_cache: bool = True,
+) -> Path:
+    """Validate and normalize a file path within the workspace or read-only roots.
+
+    Args:
+        path: File path to validate.
+        read_only: Also allow paths inside configured read-only directories.
+        config: Optional workspace configuration override, primarily for tests.
+        bypass_cache: Resolve the path directly instead of using the LRU cache.
+
+    Returns:
+        The normalized absolute file path.
+
+    Raises:
+        ValidationError: If the path is invalid, is not a file, or is outside
+            the allowed directories.
+    """
+    return _validate_path(path, "file", read_only, config, bypass_cache)
+
+
+def validate_directory_path(
+    path: str,
+    read_only: bool = False,
+    config: WorkspaceConfig | None = None,
+    bypass_cache: bool = True,
+) -> Path:
+    """Validate and normalize a directory path within the workspace or read-only roots.
+
+    Args:
+        path: Directory path to validate.
+        read_only: Also allow paths inside configured read-only directories.
+        config: Optional workspace configuration override, primarily for tests.
+        bypass_cache: Resolve the path directly instead of using the LRU cache.
+
+    Returns:
+        The normalized absolute directory path.
+
+    Raises:
+        ValidationError: If the path is invalid, is not a directory, or is outside
+            the allowed directories.
+    """
+    return _validate_path(path, "directory", read_only, config, bypass_cache)

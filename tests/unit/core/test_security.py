@@ -7,7 +7,11 @@ from pathlib import Path
 import pytest
 
 from reversecore_mcp.core.exceptions import ValidationError
-from reversecore_mcp.core.security import WorkspaceConfig, validate_file_path
+from reversecore_mcp.core.security import (
+    WorkspaceConfig,
+    validate_directory_path,
+    validate_file_path,
+)
 
 
 @pytest.mark.security
@@ -151,3 +155,58 @@ class TestValidateFilePath:
         validate_file_path(str(sample_binary_path), config=workspace_config, bypass_cache=False)
         info = _resolve_path_cached.cache_info()
         assert info.currsize == 1
+
+
+@pytest.mark.security
+class TestValidateDirectoryPath:
+    """Test directory validation preserves workspace confinement."""
+
+    def test_valid_directory_in_workspace(self, workspace_dir, workspace_config):
+        result = validate_directory_path(str(workspace_dir), config=workspace_config)
+        assert result == workspace_dir.resolve()
+
+    def test_read_only_directory_access(self, workspace_dir, read_only_dir):
+        config = WorkspaceConfig(workspace=workspace_dir, read_only_dirs=(read_only_dir,))
+
+        result = validate_directory_path(str(read_only_dir), read_only=True, config=config)
+        assert result == read_only_dir.resolve()
+
+        with pytest.raises(ValidationError, match="outside allowed"):
+            validate_directory_path(str(read_only_dir), read_only=False, config=config)
+
+    def test_rejects_file_instead_of_directory(self, sample_binary_path, workspace_config):
+        with pytest.raises(ValidationError, match="does not point to a directory"):
+            validate_directory_path(str(sample_binary_path), config=workspace_config)
+
+    def test_rejects_path_traversal_outside_allowed_roots(self, workspace_dir, workspace_config):
+        outside_dir = workspace_dir.parent / "outside-rules"
+        outside_dir.mkdir()
+
+        traversal_path = workspace_dir / ".." / outside_dir.name
+        with pytest.raises(ValidationError, match="outside allowed"):
+            validate_directory_path(str(traversal_path), config=workspace_config)
+
+    def test_rejects_symlink_to_directory_outside_allowed_roots(
+        self, workspace_dir, tmp_path, workspace_config
+    ):
+        outside_dir = tmp_path / "outside-rules"
+        outside_dir.mkdir()
+        symlink = workspace_dir / "external-rules"
+        try:
+            symlink.symlink_to(outside_dir, target_is_directory=True)
+        except OSError:
+            pytest.skip("Symlinks not supported or insufficient privileges")
+
+        with pytest.raises(ValidationError, match="outside allowed"):
+            validate_directory_path(str(symlink), config=workspace_config)
+
+    def test_rejects_nonexistent_directory(self, workspace_dir, workspace_config):
+        nonexistent = workspace_dir / "missing-rules"
+        with pytest.raises(ValidationError, match="Invalid directory path"):
+            validate_directory_path(str(nonexistent), config=workspace_config)
+
+    def test_bypass_cache_false_resolves_directory(self, workspace_dir, workspace_config):
+        result = validate_directory_path(
+            str(workspace_dir), config=workspace_config, bypass_cache=False
+        )
+        assert result == workspace_dir.resolve()
