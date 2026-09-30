@@ -44,13 +44,41 @@ class TestTimezoneManagement:
         assert result["timezone"] == "Asia/Seoul"
         assert "current_time" in result
 
+    def test_set_timezone_updates_state_used_by_time_operations(self, tmp_path):
+        rt = ReportTools(
+            template_dir=tmp_path,
+            output_dir=tmp_path,
+            default_timezone="Asia/Seoul",
+        )
+
+        rt.set_timezone("UTC")
+        utc_info = rt.get_timezone_info()
+        utc_timestamp = rt.get_timestamp_data()
+        assert utc_info["current_timezone"] == "UTC"
+        assert utc_info["utc_offset"] == 0
+        assert utc_timestamp["timezone"] == "UTC"
+        assert utc_timestamp["timezone_offset"] == "UTC+0"
+
+        rt.set_timezone("Asia/Tokyo")
+        tokyo_info = rt.get_timezone_info()
+        tokyo_timestamp = rt.get_timestamp_data()
+        assert tokyo_info["current_timezone"] == "Asia/Tokyo"
+        assert tokyo_info["utc_offset"] == 9
+        assert tokyo_timestamp["timezone"] == "Asia/Tokyo"
+        assert tokyo_timestamp["timezone_offset"] == "UTC+9"
+
     def test_set_timezone_invalid(self, tmp_path):
         """Should reject unknown timezone."""
-        rt = ReportTools(template_dir=tmp_path, output_dir=tmp_path)
+        rt = ReportTools(
+            template_dir=tmp_path,
+            output_dir=tmp_path,
+            default_timezone="Asia/Seoul",
+        )
         result = rt.set_timezone("Mars/Colony")
         assert result["success"] is False
         assert "Unknown timezone" in result["error"]
         assert "available" in result
+        assert rt.get_timezone_info()["current_timezone"] == "Asia/Seoul"
 
     def test_get_timezone_info(self, tmp_path):
         """Should return timezone config."""
@@ -360,6 +388,21 @@ class TestReportGeneration:
         result = await rt.create_report()
         assert result["success"] is False
         assert "Template not found" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_create_report_uses_updated_default_timezone(self, rt):
+        template = rt.template_dir / "full_analysis.md"
+        template.write_text("{{TIMEZONE}}|{{TIMEZONE_ABBR}}|{{DATETIME_FULL}}", encoding="utf-8")
+
+        rt.set_timezone("UTC")
+        utc_result = await rt.create_report(template_type="full_analysis")
+        assert utc_result["success"] is True
+        assert "UTC|UTC|" in utc_result["report_content"]
+
+        rt.set_timezone("Asia/Tokyo")
+        tokyo_result = await rt.create_report(template_type="full_analysis")
+        assert tokyo_result["success"] is True
+        assert "Asia/Tokyo|JST|" in tokyo_result["report_content"]
 
     @pytest.mark.asyncio
     async def test_create_report_full(self, rt):

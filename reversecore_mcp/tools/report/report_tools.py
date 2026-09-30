@@ -135,6 +135,8 @@ class ReportTools:
             }
 
         offset = TIMEZONE_OFFSETS.get(tz, 0)
+        self.default_timezone = tz
+        self.timezone_offset = offset
         return {
             "success": True,
             "timezone": tz,
