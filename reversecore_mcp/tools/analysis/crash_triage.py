@@ -7,11 +7,15 @@ to determine exploitability and extract crash context using GDB.
 
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 import shlex
+import shutil
 import tempfile
 from collections.abc import Mapping
+from contextlib import ExitStack
+from pathlib import Path
 from typing import Any, Literal, TypedDict
 
 from reversecore_mcp.core.config import get_config
@@ -107,75 +111,90 @@ async def triage_crash(
             "Binary or crash file path contains characters forbidden in GDB scripts",
         )
 
-    if not os.access(valid_bin, os.X_OK):
-        # We might need to ensure it's executable for GDB to run it
-        try:
-            os.chmod(valid_bin, 0o755)  # nosec B103
-        except Exception:  # nosec B110
-            pass
+    with ExitStack() as cleanup_stack:
+        gdb_binary = valid_bin
+        if not os.access(valid_bin, os.X_OK):
+            # Keep the evidence file untouched; make a private executable copy for GDB.
+            scratch_root = get_config().workspace / ".cache" / "crash_triage"
+            scratch_root.mkdir(parents=True, exist_ok=True)
+            scratch_dir = cleanup_stack.enter_context(
+                tempfile.TemporaryDirectory(prefix="run-", dir=scratch_root)
+            )
+            gdb_binary = Path(scratch_dir) / valid_bin.name
+            copy_task = asyncio.create_task(
+                asyncio.to_thread(shutil.copyfile, valid_bin, gdb_binary)
+            )
+            try:
+                await asyncio.shield(copy_task)
+            except asyncio.CancelledError:
+                # Let the worker finish before TemporaryDirectory removes its output path.
+                try:
+                    await copy_task
+                except Exception:
+                    pass
+                raise
+            gdb_binary.chmod(0o700)
 
-    # Create a GDB script to run and extract info
-    # We use a temporary script file to avoid complex escaping in command line arguments
-    # and to ensure GDB does exactly what we want without interactivity.
-    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".gdb") as f:
-        gdb_script_path = f.name
+        # Create a GDB script to run and extract info without shell-string escaping.
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".gdb") as f:
+            gdb_script_path = f.name
 
-        f.write("set width 0\n")
-        f.write("set height 0\n")
-        f.write("set pagination off\n")
-        f.write("set confirm off\n")
+            f.write("set width 0\n")
+            f.write("set height 0\n")
+            f.write("set pagination off\n")
+            f.write("set confirm off\n")
 
-        if use_stdin:
-            f.write(f"run < {shlex.quote(str(valid_crash))}\n")
-        else:
-            f.write(f"run {shlex.quote(str(valid_crash))}\n")
-
-        f.write("echo \\n---CRASH_INFO_START---\\n\n")
-        f.write("echo \\n[SIGNAL]\\n\n")
-        f.write("info program\n")
-        f.write("echo \\n[REGISTERS]\\n\n")
-        f.write("info registers\n")
-        f.write("echo \\n[BACKTRACE]\\n\n")
-        f.write("bt full\n")
-        f.write("echo \\n[INSTRUCTION]\\n\n")
-        f.write("x/i $pc\n")
-        f.write("echo \\n---CRASH_INFO_END---\\n\n")
-        f.write("quit\n")
-
-    try:
-        cmd = ["gdb", "--batch", "--quiet", "-x", gdb_script_path, str(valid_bin)]
-
-        stdout, _ = await execute_subprocess_async(cmd, timeout=timeout)
-
-        # Parse GDB output
-        if "---CRASH_INFO_START---" not in stdout:
-            # Maybe it didn't crash? Or GDB failed to run
-            if "exited normally" in stdout.lower() or "exited with code" in stdout.lower():
-                return success(
-                    {
-                        "crashed": False,
-                        "message": "The program did not crash with the provided input.",
-                        "raw_output": stdout[:1000],
-                    }
-                )
+            if use_stdin:
+                f.write(f"run < {shlex.quote(str(valid_crash))}\n")
             else:
-                return failure(
-                    "GDB_ERROR",
-                    "Failed to get crash info from GDB.",
-                    details={"stdout": stdout[-1000:]},
-                )
+                f.write(f"run {shlex.quote(str(valid_crash))}\n")
 
-        crash_info = _parse_gdb_output(stdout)
+            f.write("echo \\n---CRASH_INFO_START---\\n\n")
+            f.write("echo \\n[SIGNAL]\\n\n")
+            f.write("info program\n")
+            f.write("echo \\n[REGISTERS]\\n\n")
+            f.write("info registers\n")
+            f.write("echo \\n[BACKTRACE]\\n\n")
+            f.write("bt full\n")
+            f.write("echo \\n[INSTRUCTION]\\n\n")
+            f.write("x/i $pc\n")
+            f.write("echo \\n---CRASH_INFO_END---\\n\n")
+            f.write("quit\n")
 
-        # Add assessment
-        crash_info["exploitability"] = _assess_exploitability(crash_info)
-        crash_info["crashed"] = True
+        try:
+            cmd = ["gdb", "--batch", "--quiet", "-x", gdb_script_path, str(gdb_binary)]
 
-        return success(crash_info)
+            stdout, _ = await execute_subprocess_async(cmd, timeout=timeout)
 
-    finally:
-        if os.path.exists(gdb_script_path):
-            os.remove(gdb_script_path)
+            # Parse GDB output
+            if "---CRASH_INFO_START---" not in stdout:
+                # Maybe it didn't crash? Or GDB failed to run
+                if "exited normally" in stdout.lower() or "exited with code" in stdout.lower():
+                    return success(
+                        {
+                            "crashed": False,
+                            "message": "The program did not crash with the provided input.",
+                            "raw_output": stdout[:1000],
+                        }
+                    )
+                else:
+                    return failure(
+                        "GDB_ERROR",
+                        "Failed to get crash info from GDB.",
+                        details={"stdout": stdout[-1000:]},
+                    )
+
+            crash_info = _parse_gdb_output(stdout)
+
+            # Add assessment
+            crash_info["exploitability"] = _assess_exploitability(crash_info)
+            crash_info["crashed"] = True
+
+            return success(crash_info)
+
+        finally:
+            if os.path.exists(gdb_script_path):
+                os.remove(gdb_script_path)
 
 
 def _parse_gdb_output(output: str) -> dict[str, Any]:

@@ -1,5 +1,8 @@
 """Unit tests for the crash triage tool."""
 
+import asyncio
+import stat
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -206,3 +209,81 @@ class TestTriageCrash:
 
         assert data["crashed"] is False
         assert "message" in data
+
+    @pytest.mark.parametrize("outcome", ["success", "gdb_failure", "timeout", "cancel"])
+    async def test_non_executable_source_permissions_are_preserved(
+        self, outcome, config, monkeypatch
+    ):
+        import reversecore_mcp.tools.analysis.crash_triage as crash_triage_module
+        from reversecore_mcp.core.exceptions import ExecutionTimeoutError
+
+        binary = config.workspace / "non_executable_sample"
+        binary.write_bytes(b"test binary")
+        binary.chmod(0o644)
+        crash_file = config.workspace / "crash_input"
+        crash_file.write_bytes(b"crash input")
+        cache_root = config.workspace / ".cache" / "crash_triage"
+        executed_paths: list[Path] = []
+
+        monkeypatch.setattr(crash_triage_module, "get_config", lambda: config)
+        monkeypatch.setattr(crash_triage_module, "validate_file_path", lambda path: Path(path))
+
+        async def execute_gdb(command, timeout):
+            executed_path = Path(command[-1])
+            executed_paths.append(executed_path)
+            assert executed_path != binary
+            assert executed_path.exists()
+            assert stat.S_IMODE(executed_path.stat().st_mode) == 0o700
+
+            if outcome == "gdb_failure":
+                return "GDB could not run the target", ""
+            if outcome == "timeout":
+                raise ExecutionTimeoutError(timeout)
+            if outcome == "cancel":
+                raise asyncio.CancelledError
+            return GDB_OUTPUT_SIGSEGV_PC_CONTROL, ""
+
+        monkeypatch.setattr(crash_triage_module, "execute_subprocess_async", execute_gdb)
+
+        if outcome == "cancel":
+            with pytest.raises(asyncio.CancelledError):
+                await triage_crash(str(binary), str(crash_file), timeout=3)
+        else:
+            result = await triage_crash(str(binary), str(crash_file), timeout=3)
+            if outcome == "success":
+                assert result.status == "success"
+            elif outcome == "gdb_failure":
+                assert result.status == "error"
+                assert result.error_code == "GDB_ERROR"
+            else:
+                assert result.status == "error"
+                assert result.error_code == "TIMEOUT"
+
+        assert len(executed_paths) == 1
+        assert stat.S_IMODE(binary.stat().st_mode) == 0o644
+        assert list(cache_root.iterdir()) == []
+
+    async def test_executable_source_is_run_without_changing_its_mode(self, config, monkeypatch):
+        import reversecore_mcp.tools.analysis.crash_triage as crash_triage_module
+
+        binary = config.workspace / "executable_sample"
+        binary.write_bytes(b"test binary")
+        binary.chmod(0o751)
+        crash_file = config.workspace / "crash_input"
+        crash_file.write_bytes(b"crash input")
+        executed_paths: list[Path] = []
+
+        monkeypatch.setattr(crash_triage_module, "get_config", lambda: config)
+        monkeypatch.setattr(crash_triage_module, "validate_file_path", lambda path: Path(path))
+
+        async def execute_gdb(command, timeout):
+            executed_paths.append(Path(command[-1]))
+            return GDB_OUTPUT_NORMAL, ""
+
+        monkeypatch.setattr(crash_triage_module, "execute_subprocess_async", execute_gdb)
+
+        result = await triage_crash(str(binary), str(crash_file), timeout=3)
+
+        assert result.status == "success"
+        assert executed_paths == [binary]
+        assert stat.S_IMODE(binary.stat().st_mode) == 0o751
