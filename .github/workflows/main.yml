@@ -343,8 +343,6 @@ jobs:
               --target base \
               --build-arg YARA_VERSION="${{ env.YARA_VERSION }}" \
               --build-arg RADARE2_VERSION="${{ env.RADARE2_VERSION }}" \
-              --build-arg GHIDRA_VERSION="${{ env.GHIDRA_VERSION }}" \
-              --build-arg GHIDRA_DATE="${{ env.GHIDRA_DATE }}" \
               --cache-from "type=registry,ref=${BASE_IMAGE}:${BASE_TAG}" \
               --cache-to "type=inline" \
               -t "${BASE_IMAGE}:${BASE_TAG}" \
@@ -744,8 +742,6 @@ jobs:
           build-args: |
             YARA_VERSION=${{ env.YARA_VERSION }}
             RADARE2_VERSION=${{ env.RADARE2_VERSION }}
-            GHIDRA_VERSION=${{ env.GHIDRA_VERSION }}
-            GHIDRA_DATE=${{ env.GHIDRA_DATE }}
           tags: ${{ env.BASE_IMAGE }}:${{ env.BASE_TAG }}-${{ matrix.suffix }}
           # Inline cache embeds metadata in the pushed image — readable by
           # cache-from: type=registry on subsequent runs. Compatible with driver: docker.
@@ -982,8 +978,6 @@ jobs:
               --target base \
               --build-arg YARA_VERSION="${YARA_VERSION}" \
               --build-arg RADARE2_VERSION="${RADARE2_VERSION}" \
-              --build-arg GHIDRA_VERSION="${GHIDRA_VERSION}" \
-              --build-arg GHIDRA_DATE="${GHIDRA_DATE}" \
               --cache-from "type=registry,ref=${BASE_IMAGE}:${BASE_TAG}" \
               --cache-to "type=inline" \
               -t "${BASE_IMAGE}:${BASE_TAG}" \
