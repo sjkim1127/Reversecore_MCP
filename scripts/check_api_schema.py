@@ -21,8 +21,8 @@ from reversecore_mcp import server
 # makes this independent of dictionary insertion order and JSON whitespace.
 EXPECTED_TOOL_COUNT = 151
 # Canonical schema SHA-256 for FastMCP 3.4.4 (pinned in project requirements).
-# This reviewed API change adds the optional source port to TCP stream reconstruction.
-EXPECTED_SCHEMA_SHA256 = "26c519ec5e0e8c16abbd91b07303b3534c0bc51c52a7fdbfc4e1b3522664a6ff"
+# This reviewed API description documents event-time, collection-time, and UTC semantics.
+EXPECTED_SCHEMA_SHA256 = "f8e0945e6f5e2f337c6c2716cdfbbf5651fe34d99068b52713c351c552313d22"
 VALID_SCHEMA_SHA256S = {EXPECTED_SCHEMA_SHA256}
 
 

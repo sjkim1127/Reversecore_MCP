@@ -6,6 +6,7 @@ Generates comprehensive forensics reports in the standard MCP report format.
 """
 
 import datetime
+import math
 from typing import Any
 
 from reversecore_mcp.core.decorators import log_execution
@@ -34,6 +35,89 @@ ARTIFACT_TYPES = {
     "beacon": "C2 beaconing pattern",
     "dga_domain": "Possible DGA domain",
 }
+_EVENT_TIMESTAMP_FIELDS = ("timestamp", "mtime", "ctime", "atime", "crtime", "time")
+
+
+def _parse_timestamp(value: Any) -> datetime.datetime | None:
+    """Parse a forensic timestamp and normalize it to UTC.
+
+    Naive date-times are treated as UTC because their source timezone is unknown.
+    Numeric values and numeric strings are Unix timestamps in seconds; values in
+    the millisecond range are converted before parsing.
+    """
+    if isinstance(value, bool) or value is None:
+        return None
+
+    if isinstance(value, datetime.datetime):
+        parsed = value
+    elif isinstance(value, datetime.date):
+        parsed = datetime.datetime.combine(value, datetime.time.min)
+    elif isinstance(value, (int, float)):
+        try:
+            timestamp_seconds = float(value)
+        except OverflowError:
+            return None
+        if not math.isfinite(timestamp_seconds):
+            return None
+        if abs(timestamp_seconds) >= 100_000_000_000:
+            timestamp_seconds /= 1000
+        try:
+            return datetime.datetime.fromtimestamp(timestamp_seconds, datetime.timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return None
+    elif isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            timestamp_seconds = float(text)
+        except ValueError:
+            normalized = text[:-1] + "+00:00" if text.endswith(("Z", "z")) else text
+            try:
+                parsed = datetime.datetime.fromisoformat(normalized)
+            except ValueError:
+                return None
+        else:
+            if not math.isfinite(timestamp_seconds):
+                return None
+            if abs(timestamp_seconds) >= 100_000_000_000:
+                timestamp_seconds /= 1000
+            try:
+                return datetime.datetime.fromtimestamp(timestamp_seconds, datetime.timezone.utc)
+            except (OverflowError, OSError, ValueError):
+                return None
+    else:
+        return None
+
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        parsed = parsed.replace(tzinfo=datetime.timezone.utc)
+    return parsed.astimezone(datetime.timezone.utc)
+
+
+def _format_timestamp(timestamp: datetime.datetime) -> str:
+    """Format a normalized timestamp as an ISO 8601 UTC value."""
+    timespec = "microseconds" if timestamp.microsecond else "seconds"
+    return timestamp.isoformat(timespec=timespec).replace("+00:00", "Z")
+
+
+def _get_event_timestamp(
+    artifact: dict[str, Any],
+) -> tuple[datetime.datetime | None, str | None]:
+    """Find an artifact's source timestamp, falling back to collection time."""
+    metadata = artifact.get("metadata")
+    metadata = metadata if isinstance(metadata, dict) else {}
+
+    for field in _EVENT_TIMESTAMP_FIELDS:
+        for container, prefix in ((artifact, ""), (metadata, "metadata.")):
+            timestamp = _parse_timestamp(container.get(field))
+            if timestamp is not None:
+                return timestamp, f"{prefix}{field}"
+
+    for container, prefix in ((artifact, ""), (metadata, "metadata.")):
+        timestamp = _parse_timestamp(container.get("collected_at"))
+        if timestamp is not None:
+            return timestamp, f"{prefix}collected_at"
+    return None, None
 
 
 def _normalize_artifact(artifact_type: str, data: dict[str, Any]) -> dict[str, Any]:
@@ -374,11 +458,16 @@ async def artifact_timeline(
 
     Args:
         artifacts: List of artifacts (from ``artifact_collect`` or ``artifact_correlate_ioc``).
-            Artifacts with ``collected_at`` or timestamp fields will be sorted.
+            Source timestamps such as ``mtime`` are preferred; ``collected_at`` is
+            retained separately and used only when no source timestamp is available.
+            Timestamps without a timezone are interpreted as UTC.
         sort_order: Sort order — 'asc' (oldest first) or 'desc' (newest first).
 
     Returns:
-        ToolResult with chronological event timeline and pivot points.
+        ToolResult with chronologically ordered events and pivot points. Event
+        timestamps are normalized to UTC; each event keeps ``collected_at`` as
+        separate provenance. Events with unknown timestamps appear last in either
+        sort order.
 
     Example:
         >>> result = await artifact_timeline(all_artifacts)
@@ -395,17 +484,16 @@ async def artifact_timeline(
             hint="Use 'asc' (oldest first) or 'desc' (newest first).",
         )
 
-    # Extract timestamp from multiple possible fields
-    def _get_timestamp(artifact: dict[str, Any]) -> str:
-        for field in ("collected_at", "mtime", "ctime", "atime", "crtime", "time"):
-            val = artifact.get(field) or artifact.get("metadata", {}).get(field)
-            if val:
-                return str(val)
-        return "unknown"
-
-    timeline_events = []
+    timeline_entries: list[tuple[datetime.datetime | None, dict[str, Any]]] = []
     for artifact in artifacts:
-        ts = _get_timestamp(artifact)
+        event_timestamp, timestamp_source = _get_event_timestamp(artifact)
+        collected_at = artifact.get("collected_at")
+        metadata = artifact.get("metadata")
+        if collected_at is None and isinstance(metadata, dict):
+            collected_at = metadata.get("collected_at")
+        if collected_at is not None and not isinstance(collected_at, str):
+            collected_at = str(collected_at)
+
         atype = artifact.get("type", "unknown")
         value = str(artifact.get("value", ""))
         source = artifact.get("source", "unknown")
@@ -424,24 +512,29 @@ async def artifact_timeline(
             "ip": f"IP indicator: {value}",
         }.get(atype, f"Artifact ({atype}): {value}")
 
-        timeline_events.append(
-            {
-                "timestamp": ts,
-                "event": event_desc,
-                "type": atype,
-                "source": source,
-                "value": value,
-                "flagged": flagged,
-                "ioc_tags": artifact.get("ioc_tags", []),
-            }
-        )
+        event = {
+            "timestamp": (
+                _format_timestamp(event_timestamp) if event_timestamp is not None else "unknown"
+            ),
+            "timestamp_source": timestamp_source,
+            "collected_at": collected_at,
+            "event": event_desc,
+            "type": atype,
+            "source": source,
+            "value": value,
+            "flagged": flagged,
+            "ioc_tags": artifact.get("ioc_tags", []),
+        }
+        timeline_entries.append((event_timestamp, event))
 
-    # Sort by timestamp (unknown values go to end)
-    def _sort_key(event: dict[str, Any]) -> str:
-        ts = event["timestamp"]
-        return "9999" if ts == "unknown" else ts
-
-    timeline_events.sort(key=_sort_key, reverse=(sort_order == "desc"))
+    # Sort known events by their normalized instant and append unknowns last for
+    # both orders; reversing the whole list would incorrectly put unknowns first.
+    known_entries = [
+        (timestamp, event) for timestamp, event in timeline_entries if timestamp is not None
+    ]
+    unknown_entries = [entry for entry in timeline_entries if entry[0] is None]
+    known_entries.sort(key=lambda entry: entry[0], reverse=(sort_order == "desc"))
+    timeline_events = [event for _, event in known_entries + unknown_entries]
 
     # Identify pivot points (first/last flagged event)
     flagged_events = [e for e in timeline_events if e["flagged"]]

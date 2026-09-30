@@ -329,6 +329,59 @@ async def test_artifact_timeline_desc(normalized_artifacts):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+async def test_artifact_timeline_sorts_source_instants_and_preserves_collection_time():
+    """Source event times win over collection time and offsets compare by instant."""
+    collected = await artifact_collect(
+        artifacts=[
+            {"value": "event-later", "mtime": "2024-01-01T12:00:00+02:00"},
+            {"value": "event-earlier", "mtime": 1704101400},  # 2024-01-01T09:30:00Z
+        ],
+        artifact_type="extracted_file",
+        source="disk",
+    )
+    artifacts = collected.data["artifacts"]
+
+    ascending = await artifact_timeline(artifacts, sort_order="asc")
+    descending = await artifact_timeline(artifacts, sort_order="desc")
+
+    assert [event["value"] for event in ascending.data["timeline"]] == [
+        "event-earlier",
+        "event-later",
+    ]
+    assert [event["value"] for event in descending.data["timeline"]] == [
+        "event-later",
+        "event-earlier",
+    ]
+    assert ascending.data["timeline"][0]["timestamp"] == "2024-01-01T09:30:00Z"
+    later_event = ascending.data["timeline"][1]
+    assert later_event["timestamp"] == "2024-01-01T10:00:00Z"
+    assert later_event["timestamp_source"] == "metadata.mtime"
+    assert later_event["collected_at"] == artifacts[0]["collected_at"]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_artifact_timeline_places_unknown_timestamps_last_in_both_orders():
+    """Invalid and missing timestamps remain last for ascending and descending."""
+    artifacts = [
+        {"type": "string", "value": "invalid", "metadata": {"mtime": "not a date"}},
+        {"type": "string", "value": "known", "metadata": {"mtime": "2024-01-01T00:00:00Z"}},
+        {"type": "string", "value": "missing", "metadata": {}},
+    ]
+
+    for order in ("asc", "desc"):
+        result = await artifact_timeline(artifacts, sort_order=order)
+        events = result.data["timeline"]
+        assert [event["value"] for event in events] == ["known", "invalid", "missing"]
+        assert [event["timestamp"] for event in events] == [
+            "2024-01-01T00:00:00Z",
+            "unknown",
+            "unknown",
+        ]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
 async def test_artifact_timeline_empty():
     """Edge case: empty artifacts list."""
     result = await artifact_timeline([])
