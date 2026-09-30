@@ -33,7 +33,7 @@ The Model Context Protocol (MCP) is an open standard developed by Anthropic that
 - **Adaptive Vaccine**: Generate YARA signatures and proposed binary patches to disable threat loops.
 
 ### 🕵️ Digital Forensics
-- **Memory Forensics**: Parse raw RAM dumps using Volatility3 plugins (e.g. `pslist`, `malfind`).
+- **Memory Forensics**: Parse raw RAM dumps using OS-qualified Volatility3 plugins (e.g. `windows.pslist`, `windows.malfind`).
 - **Network Capture**: Inspect PCAP files using Scapy for protocol details and domain lookups.
 - **Disk & Host Artifacts**: Parse registry files, browser history, and Sleuth Kit file entries.
 

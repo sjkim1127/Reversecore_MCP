@@ -211,10 +211,10 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 | 104 | `disk_list_partition` | List partition layout of a disk image using Sleuth Kit mmls. | `image_path` (string, req) | `forensics` |
 | 105 | `disk_recover_deleted` | Recover a deleted file from a disk/filesystem image by inode number. | `image_path` (string, req), `inode` (string, req), `output_path` (string, req), `offset` (integer) | `forensics` |
 | 106 | `memory_analyze` | Run a Volatility3 plugin against a memory dump file. | `dump_path` (string, req), `plugin` (string), `symbol_path` (string), `extra_args` (string), `_bypass_queue` (boolean) | `forensics` |
-| 107 | `memory_detect_injections` | Detect process injection and suspicious memory regions using Volatility3 malfind. | `dump_path` (string, req), `_bypass_queue` (boolean) | `forensics` |
-| 108 | `memory_dump_module` | Dump a loaded module or DLL from a memory dump via Volatility3. | `dump_path` (string, req), `process_name` (string, req), `module_name` (string), `output_dir` (string) | `forensics` |
+| 107 | `memory_detect_injections` | Detect Windows process injection using the Volatility3 windows.malfind plugin. | `dump_path` (string, req), `_bypass_queue` (boolean) | `forensics` |
+| 108 | `memory_dump_module` | Dump a Windows module or DLL from a memory dump via Volatility3. | `dump_path` (string, req), `process_name` (string, req), `module_name` (string), `output_dir` (string) | `forensics` |
 | 109 | `memory_extract_strings` | Extract ASCII and Unicode strings from a memory dump. | `dump_path` (string, req), `min_length` (integer), `limit` (integer) | `forensics` |
-| 110 | `memory_list_processes` | List all running processes from a memory dump. | `dump_path` (string, req), `include_hidden` (boolean) | `forensics` |
+| 110 | `memory_list_processes` | List Windows processes from a memory dump. | `dump_path` (string, req), `include_hidden` (boolean) | `forensics` |
 | 111 | `memory_list_symbols` | List available Volatility3 symbol tables for a memory dump. | `dump_path` (string, req) | `forensics` |
 | 112 | `pcap_analyze` | Summarize sessions, protocols, and packet statistics from a PCAP file. | `pcap_path` (string, req), `max_packets` (integer) | `forensics` |
 | 113 | `pcap_extract_c2` | Detect potential C2 traffic patterns in a PCAP capture. | `pcap_path` (string, req), `beacon_threshold_sec` (integer), `max_packets` (integer) | `forensics` |

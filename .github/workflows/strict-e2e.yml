@@ -34,8 +34,7 @@ permissions: read-all
 env:
   YARA_VERSION: "4.3.1"
   RADARE2_VERSION: "6.0.4"
-  BASE_TAG: "yara4.3.1-r2-6.0.4-r2ghidra-v6"
-  BASE_DIGEST: "sha256:cde0f875ebfa5d5033032b12480d5278a812839f06fdee9198b434762c4298c1"
+  BASE_TAG: "yara4.3.1-r2-6.0.4-r2ghidra-v7"
 
 jobs:
   strict-e2e:
@@ -103,10 +102,15 @@ jobs:
               --build-arg RADARE2_VERSION="$RADARE2_VERSION" \
               -t "$BASE_IMAGE:${BASE_TAG}" \
               -f Dockerfile.base .
+            BASE_REF="$BASE_IMAGE:${BASE_TAG}"
+          else
+            BASE_REF="$(docker image inspect --format='{{index .RepoDigests 0}}' "$BASE_IMAGE:${BASE_TAG}")"
+            if [[ -z "$BASE_REF" ]]; then
+              BASE_REF="$BASE_IMAGE:${BASE_TAG}"
+            fi
           fi
           docker build \
-            --build-arg BASE_IMAGE="$BASE_IMAGE" \
-            --build-arg BASE_DIGEST="$BASE_DIGEST" \
+            --build-arg BASE_REF="$BASE_REF" \
             -t reversecore-mcp:strict-e2e .
 
       - name: Start MCP container

@@ -5,6 +5,7 @@ and edge cases: missing binary, invalid dump, timeout, empty output.
 """
 
 import subprocess
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -83,7 +84,7 @@ async def test_memory_analyze_help():
     result = await memory_analyze("any_path", plugin="help", _bypass_queue=True)
     assert result.status == "success"
     assert "supported_plugins" in result.data
-    assert "pslist" in result.data["supported_plugins"]
+    assert "windows.pslist" in result.data["supported_plugins"]
 
 
 @pytest.mark.unit
@@ -95,12 +96,14 @@ async def test_memory_analyze_pslist_success(tmp_dump, vol_pslist_json):
     mock_result.stderr = ""
     mock_result.returncode = 0
 
-    with patch("subprocess.run", return_value=mock_result):
-        result = await memory_analyze(tmp_dump, plugin="pslist", _bypass_queue=True)
+    with patch("subprocess.run", return_value=mock_result) as mock_sub:
+        result = await memory_analyze(tmp_dump, _bypass_queue=True)
 
     assert result.status == "success"
+    assert result.data["plugin"] == "windows.pslist"
     assert "rows" in result.data
     assert len(result.data["rows"]) == 2
+    assert mock_sub.call_args[0][0][-1] == "windows.pslist"
 
 
 @pytest.mark.unit
@@ -114,13 +117,41 @@ async def test_memory_analyze_invalid_plugin(tmp_dump):
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+async def test_memory_analyze_rejects_ambiguous_plugin_before_subprocess(tmp_dump):
+    with patch("reversecore_mcp.tools.forensics.memory._run_vol3_async") as mock_run:
+        result = await memory_analyze(tmp_dump, plugin="pslist", _bypass_queue=True)
+
+    assert result.status == "error"
+    assert result.error_code == "AMBIGUOUS_PLUGIN"
+    assert "windows.pslist" in result.hint
+    assert "linux.pslist" in result.hint
+    mock_run.assert_not_awaited()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize("plugin", ["windows.pslist", "linux.pslist", "mac.pslist"])
+async def test_memory_analyze_preserves_explicit_os_namespace(tmp_dump, plugin):
+    with patch(
+        "reversecore_mcp.tools.forensics.memory._run_vol3_async",
+        return_value={"rows": []},
+    ) as mock_run:
+        result = await memory_analyze(tmp_dump, plugin=plugin, _bypass_queue=True)
+
+    assert result.status == "success"
+    assert result.data["plugin"] == plugin
+    mock_run.assert_awaited_once_with(str(Path(tmp_dump)), plugin, None)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
 async def test_memory_analyze_vol_not_found(tmp_dump):
     """Edge case: Volatility3 binary not available."""
     with patch(
         "reversecore_mcp.tools.forensics.memory._run_vol3_async",
         side_effect=FileNotFoundError,
     ):
-        result = await memory_analyze(tmp_dump, plugin="pslist", _bypass_queue=True)
+        result = await memory_analyze(tmp_dump, plugin="windows.pslist", _bypass_queue=True)
 
     assert result.status == "error"
     assert result.error_code == "DEPENDENCY_MISSING"
@@ -134,7 +165,7 @@ async def test_memory_analyze_timeout(tmp_dump):
         "reversecore_mcp.tools.forensics.memory._run_vol3_async",
         side_effect=subprocess.TimeoutExpired(cmd="vol", timeout=300),
     ):
-        result = await memory_analyze(tmp_dump, plugin="pslist", _bypass_queue=True)
+        result = await memory_analyze(tmp_dump, plugin="windows.pslist", _bypass_queue=True)
 
     assert result.status == "error"
     assert result.error_code == "TIMEOUT"
@@ -152,12 +183,16 @@ async def test_memory_list_processes_success(tmp_dump, vol_pslist_json):
     mock_result.stderr = ""
     mock_result.returncode = 0
 
-    with patch("subprocess.run", return_value=mock_result):
+    with patch("subprocess.run", return_value=mock_result) as mock_sub:
         result = await memory_list_processes(tmp_dump, include_hidden=True)
 
     assert result.status == "success"
     assert "processes" in result.data
     assert result.data["process_count"] == 2
+    called_plugins = [
+        call.args[0][call.args[0].index("json") + 1] for call in mock_sub.call_args_list
+    ]
+    assert called_plugins == ["windows.pslist", "windows.psscan"]
 
 
 @pytest.mark.unit
@@ -169,11 +204,12 @@ async def test_memory_list_processes_no_hidden(tmp_dump, vol_pslist_json):
     mock_result.stderr = ""
     mock_result.returncode = 0
 
-    with patch("subprocess.run", return_value=mock_result):
+    with patch("subprocess.run", return_value=mock_result) as mock_sub:
         result = await memory_list_processes(tmp_dump, include_hidden=False)
 
     assert result.status == "success"
     assert "hidden_processes" not in result.data
+    assert mock_sub.call_args[0][0][-1] == "windows.pslist"
 
 
 @pytest.mark.unit
@@ -199,12 +235,13 @@ async def test_memory_detect_injections_clean(tmp_dump):
     mock_result.stderr = ""
     mock_result.returncode = 0
 
-    with patch("subprocess.run", return_value=mock_result):
+    with patch("subprocess.run", return_value=mock_result) as mock_sub:
         result = await memory_detect_injections(tmp_dump, _bypass_queue=True)
 
     assert result.status == "success"
     assert result.data["injection_count"] == 0
     assert result.data["severity"] == "CLEAN"
+    assert mock_sub.call_args[0][0][-1] == "windows.malfind"
 
 
 @pytest.mark.unit
@@ -217,11 +254,12 @@ async def test_memory_detect_injections_found(tmp_dump):
     mock_result.stderr = ""
     mock_result.returncode = 0
 
-    with patch("subprocess.run", return_value=mock_result):
+    with patch("subprocess.run", return_value=mock_result) as mock_sub:
         result = await memory_detect_injections(tmp_dump, _bypass_queue=True)
 
     assert result.status == "success"
     assert result.data["injection_count"] >= 1
+    assert mock_sub.call_args[0][0][-1] == "windows.malfind"
 
 
 @pytest.mark.unit
@@ -407,7 +445,7 @@ async def test_memory_vol3_errors(tmp_dump):
     # Missing vol executable (FileNotFoundError)
     with patch("shutil.which", return_value=None):
         with pytest.raises(FileNotFoundError) as exc:
-            _run_vol3(tmp_dump, "pslist")
+            _run_vol3(tmp_dump, "windows.pslist")
         assert "vol is not installed" in str(exc.value)
 
     # Non-zero exit code with stdout (partial output warning)
@@ -416,8 +454,8 @@ async def test_memory_vol3_errors(tmp_dump):
     mock_res.stdout = "[]"
     mock_res.stderr = "symbol pack warning"
     with patch("subprocess.run", return_value=mock_res):
-        res = _run_vol3(tmp_dump, "pslist")
-        assert res == {"rows": [], "plugin": "pslist"}
+        res = _run_vol3(tmp_dump, "windows.pslist")
+        assert res == {"rows": [], "plugin": "windows.pslist"}
 
     # Non-zero exit code without stdout (RuntimeError)
     mock_res = MagicMock()
@@ -426,7 +464,7 @@ async def test_memory_vol3_errors(tmp_dump):
     mock_res.stderr = "critical crash"
     with patch("subprocess.run", return_value=mock_res):
         with pytest.raises(RuntimeError) as exc:
-            _run_vol3(tmp_dump, "pslist")
+            _run_vol3(tmp_dump, "windows.pslist")
         assert "Volatility3 error" in str(exc.value)
 
     # Empty stdout
@@ -435,8 +473,8 @@ async def test_memory_vol3_errors(tmp_dump):
     mock_res.stdout = "   "
     mock_res.stderr = ""
     with patch("subprocess.run", return_value=mock_res):
-        res = _run_vol3(tmp_dump, "pslist")
-        assert res == {"rows": [], "plugin": "pslist"}
+        res = _run_vol3(tmp_dump, "windows.pslist")
+        assert res == {"rows": [], "plugin": "windows.pslist"}
 
     # JSONDecodeError (fallback to raw output)
     mock_res = MagicMock()
@@ -444,8 +482,11 @@ async def test_memory_vol3_errors(tmp_dump):
     mock_res.stdout = "Raw non-JSON output here"
     mock_res.stderr = ""
     with patch("subprocess.run", return_value=mock_res):
-        res = _run_vol3(tmp_dump, "pslist")
-        assert res == {"raw_output": "Raw non-JSON output here", "plugin": "pslist"}
+        res = _run_vol3(tmp_dump, "windows.pslist")
+        assert res == {"raw_output": "Raw non-JSON output here", "plugin": "windows.pslist"}
+
+    with pytest.raises(ValueError, match="OS-qualified"):
+        _run_vol3(tmp_dump, "pslist")
 
 
 @pytest.mark.unit
@@ -463,7 +504,7 @@ async def test_memory_analyze_task_queue_fallback(tmp_dump):
     ):
         with patch("subprocess.run", return_value=mock_result):
             # Do not pass _bypass_queue, triggers queue try block which fails and falls back
-            result = await memory_analyze(tmp_dump, plugin="pslist")
+            result = await memory_analyze(tmp_dump, plugin="windows.pslist")
     assert result.status == "success"
 
 
@@ -486,13 +527,14 @@ async def test_memory_analyze_args_and_runtime_error(
     with patch("subprocess.run", return_value=mock_result) as mock_sub:
         result = await memory_analyze(
             tmp_dump,
-            plugin="pslist",
+            plugin="windows.pslist",
             symbol_path=str(sym),
             extra_args="--pid 123",
             _bypass_queue=True,
         )
         assert result.status == "success"
         called_args = mock_sub.call_args[0][0]
+        assert called_args[called_args.index("json") + 1] == "windows.pslist"
         assert "--symbol-dirs" in called_args
         assert "--pid" in called_args
         assert "123" in called_args
@@ -504,7 +546,7 @@ async def test_memory_analyze_args_and_runtime_error(
     ):
         result = await memory_analyze(
             tmp_dump,
-            plugin="pslist",
+            plugin="windows.pslist",
             _bypass_queue=True,
         )
     assert result.status == "error"
@@ -526,7 +568,7 @@ async def test_memory_list_processes_errors(tmp_dump):
 
     # psscan fails but pslist succeeds
     def mock_run_vol(dump_path, plugin, extra_args=None):
-        if plugin == "pslist":
+        if plugin == "windows.pslist":
             return {"rows": [{"PID": 4, "ImageFileName": "System"}]}
         raise RuntimeError("psscan failed")
 
@@ -623,6 +665,11 @@ async def test_memory_dump_module_module_name_and_exceptions(
         # Verify module filter argument
         called_args = mock_sub.call_args[0][0]
         assert "--module=injected.dll" in called_args
+        plugin_args = [call.args[0] for call in mock_sub.call_args_list]
+        assert [args[args.index("json") + 1] for args in plugin_args] == [
+            "windows.pslist",
+            "windows.dlllist",
+        ]
 
     # Volatility dependency missing (FileNotFoundError)
     with patch(
