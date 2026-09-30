@@ -12,26 +12,8 @@ from typing import Any
 # Timezone handling using standard library zoneinfo (Python 3.9+)
 try:
     from zoneinfo import ZoneInfo
-except (ImportError, Exception):
-    # Fallback for environments where zoneinfo is missing or blocked
-    class ZoneInfo:  # type: ignore[no-redef]
-        def __init__(self, key: str) -> None:
-            self.key = key
-
-        def utcoffset(self, dt: Any = None) -> timedelta:
-            # Very basic fallback - DOES NOT HANDLE DST
-            # This is just to prevent crashes if zoneinfo missing
-            offsets = {
-                "Asia/Seoul": 9,
-                "Asia/Tokyo": 9,
-                "Asia/Shanghai": 8,
-                "America/New_York": -5,
-                "America/Los_Angeles": -8,
-                "Europe/Paris": 1,
-                "Europe/London": 0,
-                "UTC": 0,
-            }
-            return timedelta(hours=offsets.get(self.key, 0))
+except ImportError:
+    ZoneInfo = None  # type: ignore[assignment,misc]
 
 
 class TimezonePreset(Enum):
@@ -51,11 +33,25 @@ class TimezonePreset(Enum):
 
 
 def get_timezone(tz_name: str):
-    """Get timezone object by name with DST support."""
-    try:
-        return ZoneInfo(tz_name)
-    except Exception:
-        return ZoneInfo("UTC")
+    """Get a timezone object, using a fixed offset if zoneinfo data is missing.
+
+    Args:
+        tz_name: IANA timezone name.
+
+    Returns:
+        A DST-aware ``ZoneInfo`` when available, otherwise a valid fixed-offset
+        timezone for known names. Unknown names fall back to UTC.
+    """
+    if ZoneInfo is not None:
+        try:
+            return ZoneInfo(tz_name)
+        except Exception:
+            pass
+
+    offset = TIMEZONE_OFFSETS.get(tz_name)
+    if offset is None:
+        return timezone.utc
+    return timezone(timedelta(hours=offset), name=TIMEZONE_ABBRS.get(tz_name, tz_name))
 
 
 # Timezone offsets (standard time)

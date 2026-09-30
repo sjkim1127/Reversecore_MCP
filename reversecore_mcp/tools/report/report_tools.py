@@ -37,6 +37,7 @@ from reversecore_mcp.tools.report.session import (
     TIMEZONE_ABBRS,
     TIMEZONE_OFFSETS,
     AnalysisSession,
+    get_timezone,
 )
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,27 @@ def resolve_report_path(output_dir: Path, report_id: str) -> Path | None:
 
 
 __all__ = ["ReportTools"]
+
+
+def _format_utc_offset(offset: timedelta) -> str:
+    """Format a UTC offset as ``UTC+H`` or ``UTC-H:MM``."""
+    total_seconds = int(offset.total_seconds())
+    sign = "+" if total_seconds >= 0 else "-"
+    hours, remainder = divmod(abs(total_seconds), 3600)
+    minutes = remainder // 60
+    suffix = f":{minutes:02d}" if minutes else ""
+    return f"UTC{sign}{hours}{suffix}"
+
+
+def _offset_hours(offset: timedelta) -> int | float:
+    """Return an offset in hours, preserving the legacy integer form."""
+    hours = offset.total_seconds() / 3600
+    return int(hours) if hours.is_integer() else hours
+
+
+def _timezone_abbreviation(local_dt: datetime, tz_name: str) -> str:
+    """Use the converted datetime's abbreviation, with a display fallback."""
+    return local_dt.tzname() or TIMEZONE_ABBRS.get(tz_name, "")
 
 
 class ReportTools:
@@ -102,7 +124,7 @@ class ReportTools:
                 pass
 
         self.default_timezone = default_timezone
-        self.timezone_offset = TIMEZONE_OFFSETS.get(default_timezone, 0)
+        self.timezone_offset: int | float = TIMEZONE_OFFSETS.get(default_timezone, 0)
 
         # Active session management
         self.sessions: dict[str, AnalysisSession] = {}
@@ -134,37 +156,43 @@ class ReportTools:
                 "available": list(TIMEZONE_OFFSETS.keys()),
             }
 
-        offset = TIMEZONE_OFFSETS.get(tz, 0)
+        local_now = datetime.now(timezone.utc).astimezone(get_timezone(tz))
+        offset = local_now.utcoffset() or timedelta(0)
         self.default_timezone = tz
-        self.timezone_offset = offset
+        self.timezone_offset = _offset_hours(offset)
         return {
             "success": True,
             "timezone": tz,
-            "utc_offset": f"UTC{'+' if offset >= 0 else ''}{offset}",
-            "abbreviation": TIMEZONE_ABBRS.get(tz, ""),
-            "current_time": self._format_time(datetime.now(timezone.utc), tz_name=tz),
+            "utc_offset": _format_utc_offset(offset),
+            "abbreviation": _timezone_abbreviation(local_now, tz),
+            "current_time": f"{local_now.strftime('%Y-%m-%d %H:%M:%S')} ({_timezone_abbreviation(local_now, tz)})",
         }
 
     def get_timezone_info(self) -> dict:
         """Return current timezone configuration info"""
+        utc_now = datetime.now(timezone.utc)
+        current_local = utc_now.astimezone(get_timezone(self.default_timezone))
+        current_offset = current_local.utcoffset() or timedelta(0)
+        available_timezones = {}
+        for name in TIMEZONE_OFFSETS:
+            local_dt = utc_now.astimezone(get_timezone(name))
+            offset = local_dt.utcoffset() or timedelta(0)
+            available_timezones[name] = {
+                "offset": _format_utc_offset(offset),
+                "abbreviation": _timezone_abbreviation(local_dt, name),
+            }
+
         return {
             "current_timezone": self.default_timezone,
-            "utc_offset": self.timezone_offset,
-            "abbreviation": TIMEZONE_ABBRS.get(self.default_timezone, ""),
-            "available_timezones": {
-                name: {
-                    "offset": f"UTC{'+' if offset >= 0 else ''}{offset}",
-                    "abbreviation": TIMEZONE_ABBRS.get(name, ""),
-                }
-                for name, offset in TIMEZONE_OFFSETS.items()
-            },
+            "utc_offset": _offset_hours(current_offset),
+            "abbreviation": _timezone_abbreviation(current_local, self.default_timezone),
+            "available_timezones": available_timezones,
         }
 
     def _get_local_time(self) -> datetime:
         """Get current time in configured timezone"""
         utc_now = datetime.now(timezone.utc)
-        local_tz = timezone(timedelta(hours=self.timezone_offset))
-        return utc_now.astimezone(local_tz)
+        return utc_now.astimezone(get_timezone(self.default_timezone))
 
     def _format_time(
         self, dt: datetime | None, include_tz: bool = True, tz_name: str | None = None
@@ -173,13 +201,10 @@ class ReportTools:
         if dt is None:
             return ""
         target_tz_name = tz_name or self.default_timezone
-        offset = TIMEZONE_OFFSETS.get(target_tz_name, 0)
-
-        local_tz = timezone(timedelta(hours=offset))
-        local_dt = dt.astimezone(local_tz)
+        local_dt = dt.astimezone(get_timezone(target_tz_name))
 
         if include_tz:
-            abbr = TIMEZONE_ABBRS.get(target_tz_name, f"UTC{'+' if offset >= 0 else ''}{offset}")
+            abbr = _timezone_abbreviation(local_dt, target_tz_name)
             return f"{local_dt.strftime('%Y-%m-%d %H:%M:%S')} ({abbr})"
         return local_dt.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -193,12 +218,10 @@ class ReportTools:
         Provided directly from server to prevent AI from guessing dates.
         """
         target_tz_name = tz_name or self.default_timezone
-        offset = TIMEZONE_OFFSETS.get(target_tz_name, 0)
-
         utc_now = datetime.now(timezone.utc)
-        local_tz = timezone(timedelta(hours=offset))
-        local_now = utc_now.astimezone(local_tz)
-        abbr = TIMEZONE_ABBRS.get(target_tz_name, "")
+        local_now = utc_now.astimezone(get_timezone(target_tz_name))
+        offset = local_now.utcoffset() or timedelta(0)
+        abbr = _timezone_abbreviation(local_now, target_tz_name)
 
         return {
             # For Report ID generation
@@ -229,7 +252,7 @@ class ReportTools:
             # Timezone info
             "timezone": target_tz_name,
             "timezone_abbr": abbr,
-            "timezone_offset": f"UTC{'+' if offset >= 0 else ''}{offset}",
+            "timezone_offset": _format_utc_offset(offset),
             # System info
             "hostname": platform.node(),
             "platform": platform.system(),
