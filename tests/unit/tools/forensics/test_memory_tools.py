@@ -413,19 +413,34 @@ async def test_memory_dump_module_process_not_found(tmp_dump, vol_pslist_json):
 @pytest.mark.asyncio
 async def test_memory_dump_module_success(tmp_dump, vol_pslist_json, workspace_dir):
     """Happy path: module dump for existing process."""
-    dlllist_json = '[{"BaseDllName": "malware.exe", "DllBase": "0x400000"}]'
-    call_count = 0
+    calls = []
 
-    def mock_run(*args, **kwargs):
-        nonlocal call_count
-        mock = MagicMock()
-        mock.returncode = 0
-        mock.stderr = ""
-        mock.stdout = vol_pslist_json if call_count == 0 else dlllist_json
-        call_count += 1
-        return mock
+    async def mock_vol3(dump_path, plugin, extra_args=None, *, global_args=None):
+        calls.append((plugin, extra_args, global_args))
+        if plugin == "windows.pslist":
+            return {
+                "rows": [{"PID": 1234, "ImageFileName": "malware.exe", "PPID": 4}],
+                "plugin": plugin,
+            }
 
-    with patch("subprocess.run", side_effect=mock_run):
+        output_dir = Path(global_args[global_args.index("-o") + 1])
+        output_file = output_dir / "pid.1234.injected.dll.0x1000.0x400000.dmp"
+        output_file.write_bytes(b"PE dump")
+        return {
+            "rows": [
+                {
+                    "PID": 1234,
+                    "Name": "injected.dll",
+                    "File output": output_file.name,
+                }
+            ],
+            "plugin": plugin,
+        }
+
+    with patch(
+        "reversecore_mcp.tools.forensics.memory._run_vol3_async",
+        side_effect=mock_vol3,
+    ):
         result = await memory_dump_module(
             tmp_dump,
             process_name="malware.exe",
@@ -433,7 +448,19 @@ async def test_memory_dump_module_success(tmp_dump, vol_pslist_json, workspace_d
         )
 
     assert result.status == "success"
-    assert "modules" in result.data
+    assert len(calls) == 2
+    plugin, extra_args, global_args = calls[1]
+    assert plugin == "windows.dlllist"
+    assert extra_args == ["--pid", "1234", "--dump"]
+    assert global_args[0] == "-o"
+    output_dir = Path(global_args[1])
+    assert output_dir.is_relative_to(workspace_dir / "dumps")
+    assert result.data["output_dir"] == str(workspace_dir / "dumps")
+    assert result.data["run_output_dir"] == str(output_dir)
+    assert result.data["dumped_files"] == [
+        str(output_dir / "pid.1234.injected.dll.0x1000.0x400000.dmp")
+    ]
+    assert Path(result.data["dumped_files"][0]).read_bytes() == b"PE dump"
 
 
 @pytest.mark.unit
@@ -487,6 +514,34 @@ async def test_memory_vol3_errors(tmp_dump):
 
     with pytest.raises(ValueError, match="OS-qualified"):
         _run_vol3(tmp_dump, "pslist")
+
+    # Global output options must precede the plugin; plugin options follow it.
+    mock_res.stdout = "[]"
+    output_dir = "/workspace/dumps/run"
+    with (
+        patch("shutil.which", return_value="/usr/bin/vol"),
+        patch("subprocess.run", return_value=mock_res) as mock_subprocess,
+    ):
+        _run_vol3(
+            tmp_dump,
+            "windows.dlllist",
+            ["--pid", "1234", "--dump"],
+            global_args=["-o", output_dir],
+        )
+
+    assert mock_subprocess.call_args.args[0] == [
+        "/usr/bin/vol",
+        "-f",
+        tmp_dump,
+        "-r",
+        "json",
+        "-o",
+        output_dir,
+        "windows.dlllist",
+        "--pid",
+        "1234",
+        "--dump",
+    ]
 
 
 @pytest.mark.unit
@@ -640,21 +695,29 @@ async def test_memory_dump_module_module_name_and_exceptions(
     tmp_dump, vol_pslist_json, workspace_dir
 ):
     """Happy path/Edge cases: dump module with module filter and error conditions."""
-    dlllist_json = '[{"BaseDllName": "malware.exe", "DllBase": "0x400000"}]'
+    calls = []
 
-    # Filtered module dump
-    call_count = 0
+    async def mock_vol3(dump_path, plugin, extra_args=None, *, global_args=None):
+        calls.append((plugin, extra_args, global_args))
+        if plugin == "windows.pslist":
+            return {
+                "rows": [{"PID": 1234, "ImageFileName": "malware.exe", "PPID": 4}],
+                "plugin": plugin,
+            }
 
-    def mock_run_filter(*args, **kwargs):
-        nonlocal call_count
-        mock = MagicMock()
-        mock.returncode = 0
-        mock.stdout = vol_pslist_json if call_count == 0 else dlllist_json
-        call_count += 1
-        return mock
+        output_dir = Path(global_args[global_args.index("-o") + 1])
+        output_file = output_dir / "pid.1234.injected.dll.0x1000.0x400000.dmp"
+        output_file.write_bytes(b"PE dump")
+        return {
+            "rows": [{"Name": "injected.dll", "File output": output_file.name}],
+            "plugin": plugin,
+        }
 
     output_dir = str(workspace_dir / "dumps_filter")
-    with patch("subprocess.run", side_effect=mock_run_filter) as mock_sub:
+    with patch(
+        "reversecore_mcp.tools.forensics.memory._run_vol3_async",
+        side_effect=mock_vol3,
+    ):
         result = await memory_dump_module(
             tmp_dump,
             process_name="malware.exe",
@@ -662,14 +725,21 @@ async def test_memory_dump_module_module_name_and_exceptions(
             output_dir=output_dir,
         )
         assert result.status == "success"
-        # Verify module filter argument
-        called_args = mock_sub.call_args[0][0]
-        assert "--module=injected.dll" in called_args
-        plugin_args = [call.args[0] for call in mock_sub.call_args_list]
-        assert [args[args.index("json") + 1] for args in plugin_args] == [
-            "windows.pslist",
-            "windows.dlllist",
+        plugin, extra_args, global_args = calls[1]
+        assert plugin == "windows.dlllist"
+        assert extra_args == [
+            "--pid",
+            "1234",
+            "--dump",
+            "--name",
+            r"^injected\.dll$",
+            "--ignore-case",
         ]
+        assert global_args[0] == "-o"
+        assert Path(global_args[1]).is_relative_to(Path(output_dir))
+        assert result.data["output_dir"] == output_dir
+        assert result.data["run_output_dir"] == global_args[1]
+        assert Path(result.data["dumped_files"][0]).is_relative_to(workspace_dir / "dumps_filter")
 
     # Volatility dependency missing (FileNotFoundError)
     with patch(
@@ -688,3 +758,77 @@ async def test_memory_dump_module_module_name_and_exceptions(
         result = await memory_dump_module(tmp_dump, process_name="malware.exe")
     assert result.status == "error"
     assert result.error_code == "VOLATILITY_ERROR"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_memory_dump_module_requires_dump_artifact(tmp_dump, workspace_dir):
+    """Listing modules without creating a dump must not report success."""
+
+    async def mock_vol3(dump_path, plugin, extra_args=None, *, global_args=None):
+        if plugin == "windows.pslist":
+            return {"rows": [{"PID": 1234, "ImageFileName": "malware.exe"}]}
+        return {"rows": [{"File output": "Error outputting file"}]}
+
+    with patch(
+        "reversecore_mcp.tools.forensics.memory._run_vol3_async",
+        side_effect=mock_vol3,
+    ):
+        result = await memory_dump_module(
+            tmp_dump,
+            process_name="malware.exe",
+            output_dir=str(workspace_dir / "no_dump"),
+        )
+
+    assert result.status == "error"
+    assert result.error_code == "DUMP_FAILED"
+    assert "did not create any DLL dump files" in result.message
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_memory_dump_module_reports_unsupported_dump_option(tmp_dump):
+    """An older CLI that rejects --dump gets a clear capability error."""
+
+    async def mock_vol3(dump_path, plugin, extra_args=None, *, global_args=None):
+        if plugin == "windows.pslist":
+            return {"rows": [{"PID": 1234, "ImageFileName": "malware.exe"}]}
+        raise RuntimeError("unrecognized arguments: --dump")
+
+    with patch(
+        "reversecore_mcp.tools.forensics.memory._run_vol3_async",
+        side_effect=mock_vol3,
+    ):
+        result = await memory_dump_module(tmp_dump, process_name="malware.exe")
+
+    assert result.status == "error"
+    assert result.error_code == "DUMP_UNSUPPORTED"
+    assert "does not support --dump" in result.message
+
+    async def mock_raw_cli_error(dump_path, plugin, extra_args=None, *, global_args=None):
+        if plugin == "windows.pslist":
+            return {"rows": [{"PID": 1234, "ImageFileName": "malware.exe"}]}
+        return {"raw_output": "volatility: error: unrecognized arguments: --dump"}
+
+    with patch(
+        "reversecore_mcp.tools.forensics.memory._run_vol3_async",
+        side_effect=mock_raw_cli_error,
+    ):
+        result = await memory_dump_module(tmp_dump, process_name="malware.exe")
+
+    assert result.status == "error"
+    assert result.error_code == "DUMP_UNSUPPORTED"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_memory_dump_module_rejects_output_outside_workspace(tmp_dump, workspace_dir):
+    """User-selected dump directories must remain inside the workspace."""
+    result = await memory_dump_module(
+        tmp_dump,
+        process_name="malware.exe",
+        output_dir=str(workspace_dir.parent / "outside"),
+    )
+
+    assert result.status == "error"
+    assert result.error_code == "PATH_TRAVERSAL_DETECTED"
