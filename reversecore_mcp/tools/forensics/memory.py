@@ -8,6 +8,7 @@ import asyncio
 import re
 import shutil
 import subprocess  # nosec B404
+import tempfile
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -151,13 +152,39 @@ def _plugin_namespace_error(plugin: str) -> str | None:
     return f"Plugin '{plugin}' must use an OS-qualified name such as 'windows.pslist'."
 
 
-def _run_vol3(dump_path: str, plugin: str, extra_args: list[str] | None = None) -> dict[str, Any]:
+def _is_unsupported_volatility_option(error: RuntimeError, option: str) -> bool:
+    """Return whether Volatility rejected an option as unsupported by its CLI."""
+    message = str(error).lower()
+    return option.lower() in message and any(
+        marker in message
+        for marker in ("unrecognized arguments", "unknown option", "no such option")
+    )
+
+
+def _remove_empty_output_dir(path: Path | None) -> None:
+    """Remove an unused per-run output directory without touching its parent."""
+    if path is None:
+        return
+    try:
+        path.rmdir()
+    except OSError:
+        pass
+
+
+def _run_vol3(
+    dump_path: str,
+    plugin: str,
+    extra_args: list[str] | None = None,
+    *,
+    global_args: list[str] | None = None,
+) -> dict[str, Any]:
     """Run a Volatility3 plugin against a memory dump.
 
     Args:
         dump_path: Path to the memory dump file.
         plugin: OS-qualified Volatility3 plugin name (e.g., 'windows.pslist').
         extra_args: Additional arguments to pass to the plugin.
+        global_args: Volatility3 CLI arguments placed before the plugin name.
 
     Returns:
         Dictionary with plugin output or error information.
@@ -170,7 +197,10 @@ def _run_vol3(dump_path: str, plugin: str, extra_args: list[str] | None = None) 
     if namespace_error:
         raise ValueError(namespace_error)
 
-    cmd = ["vol", "-f", dump_path, "-r", "json", plugin]
+    cmd = ["vol", "-f", dump_path, "-r", "json"]
+    if global_args:
+        cmd.extend(global_args)
+    cmd.append(plugin)
     if extra_args:
         cmd.extend(extra_args)
 
@@ -210,11 +240,18 @@ def _run_vol3(dump_path: str, plugin: str, extra_args: list[str] | None = None) 
 
 
 async def _run_vol3_async(
-    dump_path: str, plugin: str, extra_args: list[str] | None = None
+    dump_path: str,
+    plugin: str,
+    extra_args: list[str] | None = None,
+    *,
+    global_args: list[str] | None = None,
 ) -> dict[str, Any]:
     """Async wrapper for _run_vol3 to avoid blocking the event loop."""
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, _run_vol3, dump_path, plugin, extra_args)
+    return await loop.run_in_executor(
+        None,
+        lambda: _run_vol3(dump_path, plugin, extra_args, global_args=global_args),
+    )
 
 
 @log_execution(tool_name="memory_list_symbols")
@@ -599,10 +636,10 @@ async def memory_dump_module(
     Args:
         dump_path: Path to the memory dump file.
         process_name: Name of the target process (e.g., 'explorer.exe').
-        module_name: Name of the module/DLL to dump. If None, dumps all modules
+        module_name: Exact module/DLL name to dump. If None, dumps all modules
             for the specified process.
-        output_dir: Directory to save the dumped module. Defaults to the
-            workspace directory.
+        output_dir: Workspace directory under which a unique run directory is
+            created for the dumped modules. Defaults to the workspace directory.
 
     Returns:
         ToolResult with dumped file paths and module information.
@@ -616,24 +653,18 @@ async def memory_dump_module(
     """
     validated = validate_file_path(dump_path)
 
+    workspace = get_workspace_config().workspace.resolve()
     if output_dir:
-        workspace = get_workspace_config().workspace.resolve()
         out_path = Path(output_dir).expanduser().resolve()
-        if not out_path.is_relative_to(workspace):
-            return failure(
-                "PATH_TRAVERSAL_DETECTED",
-                f"output_dir '{output_dir}' must reside within the workspace directory",
-            )
     else:
-        from reversecore_mcp.core.config import get_settings
+        out_path = (workspace / "forensics_dumps").resolve()
+    if not out_path.is_relative_to(workspace):
+        return failure(
+            "PATH_TRAVERSAL_DETECTED",
+            f"output_dir '{output_dir}' must reside within the workspace directory",
+        )
 
-        out_path = get_settings().workspace / "forensics_dumps"
-    out_path.mkdir(parents=True, exist_ok=True)
-
-    extra_args = [f"--dump-dir={out_path}"]
-    if module_name:
-        extra_args.append(f"--module={module_name}")
-
+    run_output_dir: Path | None = None
     try:
         # First find the PID
         pslist_data = await _run_vol3_async(str(validated), "windows.pslist")
@@ -649,30 +680,107 @@ async def memory_dump_module(
                 hint="Use memory_list_processes to see all available processes.",
             )
 
-        # Dump modules for first matching process
+        # Dump modules for the first matching process. Keep each run isolated so
+        # old files cannot be reported as results and Volatility cannot follow a
+        # pre-existing output-file symlink outside the validated workspace.
         pid = target_procs[0].get("PID")
-        if pid:
-            extra_args.append(f"--pid={pid}")
+        if pid is None:
+            return failure(
+                "VOLATILITY_ERROR",
+                f"Process matching '{process_name}' has no PID in Volatility3 output",
+            )
 
-        data = await _run_vol3_async(str(validated), "windows.dlllist", extra_args)
-        dumped_files = list(out_path.glob("*.dmp")) + list(out_path.glob("*.exe"))
+        out_path.mkdir(parents=True, exist_ok=True)
+        run_output_dir = Path(tempfile.mkdtemp(prefix="volatility-", dir=str(out_path))).resolve()
+        if not run_output_dir.is_relative_to(workspace):
+            run_output_dir.rmdir()
+            return failure(
+                "PATH_TRAVERSAL_DETECTED",
+                "Volatility3 output directory resolved outside the workspace",
+            )
+
+        extra_args = ["--pid", str(pid), "--dump"]
+        if module_name:
+            # Volatility treats --name as a regular expression. Escape user
+            # input and anchor it so only the requested DLL basename matches.
+            extra_args.extend(["--name", f"^{re.escape(module_name)}$", "--ignore-case"])
+
+        data = await _run_vol3_async(
+            str(validated),
+            "windows.dlllist",
+            extra_args,
+            global_args=["-o", str(run_output_dir)],
+        )
+        raw_output = data.get("raw_output", "")
+        if raw_output and _is_unsupported_volatility_option(RuntimeError(raw_output), "--dump"):
+            _remove_empty_output_dir(run_output_dir)
+            return failure(
+                "DUMP_UNSUPPORTED",
+                "The installed Volatility3 windows.dlllist plugin does not support --dump",
+                hint="Upgrade Volatility3 to a version whose windows.dlllist supports DLL extraction.",
+            )
+        modules = data.get("rows", [])
+        if module_name and not modules:
+            _remove_empty_output_dir(run_output_dir)
+            return failure(
+                "MODULE_NOT_FOUND",
+                f"No DLL matching '{module_name}' was found in process '{process_name}'",
+                hint="Use memory_list_processes and memory_analyze to inspect loaded DLL names.",
+            )
+
+        dumped_files = []
+        for path in sorted(run_output_dir.glob("*.dmp")):
+            resolved_path = path.resolve()
+            if not resolved_path.is_relative_to(workspace):
+                return failure(
+                    "PATH_TRAVERSAL_DETECTED",
+                    "Volatility3 created an output file outside the workspace",
+                )
+            if path.is_file() and path.stat().st_size > 0:
+                dumped_files.append(resolved_path)
+
+        if not dumped_files:
+            _remove_empty_output_dir(run_output_dir)
+            output_status = [
+                str(row.get("File output")) for row in modules if row.get("File output")
+            ]
+            detail = (
+                f" Volatility3 reported: {', '.join(output_status[:5])}." if output_status else ""
+            )
+            return failure(
+                "DUMP_FAILED",
+                f"Volatility3 did not create any DLL dump files for process '{process_name}'.{detail}",
+                hint=(
+                    "Confirm the process has readable DLLs and that the installed "
+                    "windows.dlllist plugin supports --dump."
+                ),
+            )
 
         return success(
             {
                 "dump_path": str(validated),
                 "process_name": process_name,
                 "matching_processes": target_procs[:5],
-                "modules": data.get("rows", [])[:50],
+                "modules": modules[:50],
                 "dumped_files": [str(f) for f in dumped_files[:20]],
                 "output_dir": str(out_path),
+                "run_output_dir": str(run_output_dir),
             }
         )
 
     except FileNotFoundError:
+        _remove_empty_output_dir(run_output_dir)
         return failure(
             "DEPENDENCY_MISSING",
             "Volatility3 (vol) is not installed",
             hint="Install with: pip install volatility3",
         )
     except RuntimeError as exc:
+        _remove_empty_output_dir(run_output_dir)
+        if _is_unsupported_volatility_option(exc, "--dump"):
+            return failure(
+                "DUMP_UNSUPPORTED",
+                "The installed Volatility3 windows.dlllist plugin does not support --dump",
+                hint="Upgrade Volatility3 to a version whose windows.dlllist supports DLL extraction.",
+            )
         return failure("VOLATILITY_ERROR", str(exc))
