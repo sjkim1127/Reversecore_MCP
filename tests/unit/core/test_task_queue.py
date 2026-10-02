@@ -180,6 +180,9 @@ async def test_worker_proxy_handlers(patched_config):
             severity_filter="all",
             generate_yara=True,
             timeout=300,
+            use_symbolic_execution=True,
+            auto_dynamic_verify=True,
+            target_functions=None,
             _bypass_queue=True,
         )
 
