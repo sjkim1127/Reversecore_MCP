@@ -25,7 +25,8 @@ EXPECTED_TOOL_COUNT = 151
 # It also includes the issue #229 contract: CVE hunting requires a compiled LibFuzzer target.
 # It also includes issue #250's OS-qualified Volatility plugin default and documentation,
 # plus issue #251's exact module-name and isolated output-directory semantics.
-EXPECTED_SCHEMA_SHA256 = "4565ff68307d9a279ef88ee5eb6ec34f7605ea4cf25d61845e3f01e21d9279fb"
+# It also includes issue #254's ret2libc libc_base parameter.
+EXPECTED_SCHEMA_SHA256 = "62526abb8f043e8d00e1e6b8970b7dadbf7c12588ebea8a06829fb881f2f3316"
 VALID_SCHEMA_SHA256S = {EXPECTED_SCHEMA_SHA256}
 
 
