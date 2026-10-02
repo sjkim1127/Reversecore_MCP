@@ -2676,11 +2676,12 @@ pypcode==4.0.0 ; python_full_version >= '3.12' \
     # via
     #   -c requirements.txt
     #   angr
-pypdf==6.16.1 \
-    --hash=sha256:63fec31c4092ae50b6729beedcb469055b60d20c834bde1c402df241f371f644 \
-    --hash=sha256:c4d1b43ddae921387321cf63936cd16a7743b91d2da92f165c149a195c972ba9
+pypdf==6.19.0 \
+    --hash=sha256:7e5d6e730e7dae87d560a2cee218b852f6498c8be61966f3cd02ead971e48d14 \
+    --hash=sha256:bbc43aca292369ccc6cbc8a921991ecf2538a3587ab5a116eff06c321d647155
     # via
     #   -c requirements.txt
+    #   -r requirements-runtime.in
     #   xhtml2pdf
 pyperclip==1.11.0 \
     --hash=sha256:244035963e4428530d9e3a6101a1ef97209c6825edab1567beac148ccc1db1b6 \
