@@ -657,6 +657,60 @@ async def test_pcap_extract_c2_beacon_detected(tmp_pcap):
     assert result.data["suspected_c2_hosts"][0]["dst_ip"] == "99.99.99.99"
     assert result.data["suspected_c2_hosts"][0]["avg_interval_sec"] == 60.0
     assert result.data["suspected_c2_hosts"][0]["periodicity_score"] == 1.0
+    assert result.data["beacon_threshold_sec"] == 60
+    assert result.data["beacon_criteria"]["max_jitter_sec"] == 60
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_pcap_extract_c2_beacon_threshold_tightened_and_relaxed(tmp_pcap):
+    """Verify beacon_threshold_sec dynamically classifies beaconing when tightened or relaxed."""
+    # intervals: [65, 55, 65, 55], avg=60.0, std_dev=5.0, rel_jitter=5/60 ~= 0.083 < 0.3
+    timestamps = [100.0, 165.0, 220.0, 285.0, 340.0]
+    packets = []
+    for ts in timestamps:
+        pkt = MagicMock()
+        pkt.haslayer = lambda lyr: lyr in ("IP", "UDP")
+        pkt.time = ts
+        ip = MagicMock()
+        ip.src = "192.168.1.1"
+        ip.dst = "99.99.99.99"
+        udp = MagicMock()
+        udp.dport = 8080
+        pkt.__getitem__.side_effect = lambda key, ip=ip, udp=udp: (
+            ip if key == "IP" else udp if key == "UDP" else MagicMock()
+        )
+        packets.append(pkt)
+
+    with patch("reversecore_mcp.tools.forensics.network._import_scapy") as mock_scapy_import:
+        mock_sc = MagicMock()
+        mock_sc.rdpcap.return_value = packets
+        mock_scapy_import.return_value = mock_sc
+
+        # Tightened: std_dev (5.0) > threshold (2) -> not classified as beacon
+        res_tight = await pcap_extract_c2(tmp_pcap, beacon_threshold_sec=2)
+        assert res_tight.status == "success"
+        assert res_tight.data["beaconing_count"] == 0
+        assert res_tight.data["beacon_threshold_sec"] == 2
+        assert res_tight.data["beacon_criteria"]["max_jitter_sec"] == 2
+
+        # Relaxed: std_dev (5.0) <= threshold (10) -> classified as beacon
+        res_relaxed = await pcap_extract_c2(tmp_pcap, beacon_threshold_sec=10)
+        assert res_relaxed.status == "success"
+        assert res_relaxed.data["beaconing_count"] == 1
+        assert res_relaxed.data["beacon_threshold_sec"] == 10
+        assert res_relaxed.data["suspected_c2_hosts"][0]["std_dev_sec"] == 5.0
+        assert res_relaxed.data["suspected_c2_hosts"][0]["beacon_threshold_sec"] == 10
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_pcap_extract_c2_threshold_validation(tmp_pcap):
+    """Zero, negative, and extreme threshold values are validated."""
+    for invalid_val in [0, -10, 5000]:
+        res = await pcap_extract_c2(tmp_pcap, beacon_threshold_sec=invalid_val)
+        assert res.status == "error"
+        assert "beacon_threshold_sec" in (res.message or "")
 
 
 @pytest.mark.unit
