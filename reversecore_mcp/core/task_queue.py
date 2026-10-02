@@ -233,6 +233,10 @@ async def task_vulnerability_hunter(
     severity_filter: str,
     generate_yara: bool,
     timeout: int,
+    use_symbolic_execution: bool = True,
+    auto_dynamic_verify: bool = True,
+    target_functions: list[str] | None = None,
+    **kwargs: Any,
 ) -> ToolResult:
     """ARQ Worker proxy for vulnerability_hunter."""
     logger.info(f"Worker executing task_vulnerability_hunter for {file_path}")
@@ -244,6 +248,9 @@ async def task_vulnerability_hunter(
         severity_filter=severity_filter,
         generate_yara=generate_yara,
         timeout=timeout,
+        use_symbolic_execution=use_symbolic_execution,
+        auto_dynamic_verify=auto_dynamic_verify,
+        target_functions=target_functions,
         _bypass_queue=True,
     )
 

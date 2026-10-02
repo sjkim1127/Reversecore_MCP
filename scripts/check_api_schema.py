@@ -23,10 +23,10 @@ EXPECTED_TOOL_COUNT = 151
 # Canonical schema SHA-256 for FastMCP 3.4.4 (pinned in project requirements).
 # This baseline includes the reviewed event-time, collection-time, and UTC semantics description.
 # It also includes the issue #229 contract: CVE hunting requires a compiled LibFuzzer target.
-# It also includes issue #250's OS-qualified Volatility plugin default and documentation,
 # plus issue #251's exact module-name and isolated output-directory semantics.
-# It also includes issue #254's ret2libc libc_base parameter, and issue #255's verify_path_and_get_args taint verification parameters.
-EXPECTED_SCHEMA_SHA256 = "1875ae86c8e367643ce16e9def530469ac32bc4ccb5bb36805324d63bea60859"
+# It also includes issue #254's ret2libc libc_base parameter, and issue #255's verify_path_and_get_args taint verification parameters,
+# plus issue #264's target_functions parameter on vulnerability_hunter for bounded function analysis.
+EXPECTED_SCHEMA_SHA256 = "6da4dbe54be8071c478ed628f2862e30557b8019a3cc4faa5c9ad34f0f140391"
 VALID_SCHEMA_SHA256S = {EXPECTED_SCHEMA_SHA256}
 
 
