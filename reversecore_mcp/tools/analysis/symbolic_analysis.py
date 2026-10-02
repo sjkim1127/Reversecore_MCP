@@ -28,21 +28,32 @@ async def verify_path_and_get_args(
     target_addr: int | str,
     start_addr: int | str | None = None,
     avoid_addrs: list[int | str] | None = None,
+    source_addr: int | str | None = None,
+    source_api: str | None = None,
+    sink_api: str | None = None,
+    check_taint: bool = False,
     timeout: int = 120,
 ) -> dict[str, Any]:
-    """Run symbolic execution to verify path reachability.
+    """Run symbolic execution to verify path reachability and data-flow taint.
 
     Args:
         binary_path: Path to the binary file.
         target_addr: The address to reach (e.g. vulnerable API call).
         start_addr: The starting address for execution (e.g. caller function). If None, starts from entry point.
         avoid_addrs: List of addresses (hex or int) to avoid during execution.
+        source_addr: Optional source address where tainted input enters.
+        source_api: Optional name of the taint source function (e.g. read, argv, recv).
+        sink_api: Optional name of the sink function (e.g. system, strcpy, popen).
+        check_taint: When True, verify actual data-flow dependency from source to sink.
         timeout: Maximum execution time in seconds.
 
     Returns:
         A dictionary containing:
-        - satisfiable: bool indicating if the path is reachable
-        - concrete_input: Optional string showing input required to reach the path
+        - satisfiable: bool indicating if the target path was reached
+        - taint_verified: bool indicating if data from source controls sink argument
+        - data_flow_confirmed: bool alias for taint_verified
+        - reachability_only: bool indicating reachability without confirmed data dependency
+        - concrete_input: Optional string showing input required to trigger the path
         - error: Optional error message
     """
     # Locate the angr_worker script
@@ -50,7 +61,12 @@ async def verify_path_and_get_args(
 
     if not worker_script.exists():
         logger.error(f"angr_worker script not found at {worker_script}")
-        return {"satisfiable": False, "error": "Worker script not found"}
+        return {
+            "satisfiable": False,
+            "taint_verified": False,
+            "data_flow_confirmed": False,
+            "error": "Worker script not found",
+        }
 
     cmd = [
         sys.executable or "python3",
@@ -68,6 +84,18 @@ async def verify_path_and_get_args(
         avoid_str = ",".join(str(x) for x in avoid_addrs)
         cmd.extend(["--avoid-addrs", avoid_str])
 
+    if source_addr is not None:
+        cmd.extend(["--source-addr", str(source_addr)])
+
+    if source_api:
+        cmd.extend(["--source-api", str(source_api)])
+
+    if sink_api:
+        cmd.extend(["--sink-api", str(sink_api)])
+
+    if check_taint:
+        cmd.append("--check-taint")
+
     try:
         stdout, _ = await execute_subprocess_async(cmd, timeout=timeout)
 
@@ -80,20 +108,34 @@ async def verify_path_and_get_args(
                     return parsed
                 return {
                     "satisfiable": False,
+                    "taint_verified": False,
+                    "data_flow_confirmed": False,
                     "error": "Invalid output format from worker",
                 }
             except json.JSONDecodeError:
                 logger.error(f"Failed to parse angr worker output: {stdout}")
                 return {
                     "satisfiable": False,
+                    "taint_verified": False,
+                    "data_flow_confirmed": False,
                     "error": "Invalid output format from worker",
                 }
 
-        return {"satisfiable": False, "error": "No output from worker"}
+        return {
+            "satisfiable": False,
+            "taint_verified": False,
+            "data_flow_confirmed": False,
+            "error": "No output from worker",
+        }
 
     except Exception as e:
         logger.error(f"Symbolic execution failed: {e}")
-        return {"satisfiable": False, "error": str(e)}
+        return {
+            "satisfiable": False,
+            "taint_verified": False,
+            "data_flow_confirmed": False,
+            "error": str(e),
+        }
 
 
 @log_execution(tool_name="verify_path_and_get_args")
@@ -104,17 +146,25 @@ async def verify_path_and_get_args_tool(
     target_addr: str,
     start_addr: str | None = None,
     avoid_addrs: list[str] | None = None,
+    source_addr: str | None = None,
+    source_api: str | None = None,
+    sink_api: str | None = None,
+    check_taint: bool = False,
     timeout: int = 120,
 ) -> ToolResult:
     """Run symbolic execution using angr to verify path reachability and extract inputs.
 
-    Allows proving path reachability to a target instruction and extracting concrete inputs.
+    Allows proving path reachability and verifying data-flow taint to a target instruction.
 
     Args:
         file_path: Workspace-relative or absolute path to the binary to analyze.
         target_addr: The target instruction address to reach (hex or integer).
         start_addr: Optional starting instruction address. If omitted, starts from entry point.
         avoid_addrs: Optional list of instruction addresses to avoid.
+        source_addr: Optional source instruction address introducing user data.
+        source_api: Optional name of the taint source function (e.g. read, argv, recv).
+        sink_api: Optional name of the dangerous sink function (e.g. system, strcpy).
+        check_taint: When True, verify actual data dependence on the sink arguments.
         timeout: Maximum execution timeout in seconds.
 
     Returns:
@@ -133,6 +183,7 @@ async def verify_path_and_get_args_tool(
 
     parsed_target = parse_addr(target_addr)
     parsed_start = parse_addr(start_addr) if start_addr is not None else None
+    parsed_source = parse_addr(source_addr) if source_addr is not None else None
     parsed_avoid = [parse_addr(x) for x in avoid_addrs] if avoid_addrs else None
 
     # Call core execution logic
@@ -141,8 +192,12 @@ async def verify_path_and_get_args_tool(
         target_addr=parsed_target,
         start_addr=parsed_start,
         avoid_addrs=parsed_avoid,
+        source_addr=parsed_source,
+        source_api=source_api,
+        sink_api=sink_api,
+        check_taint=check_taint,
         timeout=timeout,
     )
-    if "error" in res:
+    if "error" in res and res.get("error"):
         return failure("SYMBOLIC_EXECUTION_ERROR", res["error"])
     return success(res)
