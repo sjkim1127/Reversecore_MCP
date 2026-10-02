@@ -196,16 +196,105 @@ class TaintPath:
     sink_cwe: str
     sink_severity: str
     sink_category: str
-    sink_address: str
-    source_address: str
+    sink_address: str | None
+    source_address: str | None
     path_verified: bool
     concrete_input: str | None
     confidence: str  # high / medium / low
+    taint_verified: bool = False
+    data_flow_confirmed: bool = False
+    reachability_only: bool = False
+    source_resolved: bool = True
+    sink_resolved: bool = True
+    angr_note: str | None = None
 
 
 # ---------------------------------------------------------------------------
 # Radare2 helpers for source/sink discovery
 # ---------------------------------------------------------------------------
+
+
+def normalize_symbol_name(name: str) -> str:
+    """Normalize a symbol name by stripping prefixes, library versions, and decorators."""
+    if not name:
+        return ""
+    clean = name.strip()
+    # Remove library/version suffixes (e.g., @@GLIBC_2.2.5, @plt, @GLIBC_2.4)
+    clean = clean.split("@")[0]
+    # Remove compiler optimization suffixes
+    for part in (".part.", ".isra.", ".cold"):
+        if part in clean:
+            clean = clean.split(part)[0]
+    # Strip common symbol prefixes
+    while True:
+        stripped = False
+        for prefix in ("sym.imp.", "imp.", "reloc.", "sym."):
+            if clean.startswith(prefix):
+                clean = clean[len(prefix) :]
+                stripped = True
+                break
+        if not stripped:
+            break
+    # Strip Mach-O single leading underscore (preserving double underscores like __libc_start_main)
+    if clean.startswith("_") and not clean.startswith("__"):
+        clean = clean[1:]
+    return clean.strip()
+
+
+def _extract_symbols_from_output(output: str) -> set[str]:
+    """Extract and normalize all symbol names from structured JSON or text radare2 output."""
+    symbols: set[str] = set()
+    if not output or not output.strip():
+        return symbols
+
+    # 1. Try structured JSON parsing (from iij or isj)
+    try:
+        data = _parse_json_output(output)
+        if isinstance(data, list):
+            for item in data:
+                if isinstance(item, dict):
+                    for key in ("name", "realname", "flagname", "string", "symname"):
+                        val = item.get(key)
+                        if val:
+                            norm = normalize_symbol_name(str(val))
+                            if norm:
+                                symbols.add(norm)
+            if symbols:
+                return symbols
+    except Exception:
+        pass
+
+    # 2. Line-oriented text parsing (e.g., from is or ii text output)
+    for line in output.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        tokens = line.split()
+        for tok in tokens:
+            norm = normalize_symbol_name(tok)
+            if norm:
+                symbols.add(norm)
+
+    return symbols
+
+
+def _parse_call_sites_from_xrefs(xrefs_output: str) -> list[str]:
+    """Parse axtj cross-reference JSON output into unique, non-zero call site hex strings."""
+    resolved: list[str] = []
+    try:
+        xrefs = _parse_json_output(xrefs_output)
+        if isinstance(xrefs, list):
+            for xref in xrefs:
+                if not isinstance(xref, dict):
+                    continue
+                from_addr = xref.get("from", xref.get("addr"))
+                if from_addr is not None and from_addr != 0 and from_addr != "0x0":
+                    addr_str = hex(from_addr) if isinstance(from_addr, int) else str(from_addr)
+                    if addr_str not in resolved and addr_str != "0x0":
+                        resolved.append(addr_str)
+    except Exception:
+        pass
+    return resolved
 
 
 async def _find_sink_calls(binary_path: str, timeout: int) -> list[dict[str, Any]]:
@@ -225,7 +314,7 @@ async def _find_sink_calls(binary_path: str, timeout: int) -> list[dict[str, Any
     try:
         sym_out, _ = await _execute_r2_command(
             bin_path,
-            ["is~imp.", "ii"],
+            ["isj", "iij", "is~imp.", "ii"],
             analysis_level="aa",
             max_output_size=1_000_000,
             base_timeout=min(timeout, 30),
@@ -234,16 +323,18 @@ async def _find_sink_calls(binary_path: str, timeout: int) -> list[dict[str, Any
         logger.debug("Batch symbol search failed: %s", exc)
         sym_out = ""
 
+    symbols_in_binary = _extract_symbols_from_output(sym_out)
+
     # Filter candidate sinks to only those found in binary (or all if batch failed)
     candidate_sinks = [
         (sink_name, sink_info)
         for sink_name, sink_info in TAINT_SINKS.items()
-        if not sym_out or sink_name in sym_out
+        if not sym_out or sink_name in symbols_in_binary
     ]
 
     for sink_name, sink_info in candidate_sinks:
         try:
-            # If batch output was unavailable, check this sink individually
+            # If batch output was unavailable, check this sink individually with exact match
             if not sym_out:
                 out, _ = await _execute_r2_command(
                     bin_path,
@@ -252,53 +343,48 @@ async def _find_sink_calls(binary_path: str, timeout: int) -> list[dict[str, Any
                     max_output_size=1_000_000,
                     base_timeout=30,
                 )
-                if not out.strip():
+                single_syms = _extract_symbols_from_output(out)
+                if sink_name not in single_syms:
                     continue
 
             # Find cross-references to this symbol
             addr_out, _ = await _execute_r2_command(
                 bin_path,
-                [f"?v sym.imp.{sink_name}", f"axtj sym.imp.{sink_name}"],
+                [
+                    f"?v sym.imp.{sink_name}",
+                    f"axtj sym.imp.{sink_name}",
+                    f"axtj imp.{sink_name}",
+                    f"axtj {sink_name}",
+                ],
                 analysis_level="aa",
                 max_output_size=1_000_000,
                 base_timeout=30,
             )
 
-            # Parse cross-references
-            try:
-                xrefs = _parse_json_output(addr_out)
-                if isinstance(xrefs, list):
-                    for xref in xrefs[:10]:  # Limit to 10 call sites per sink
-                        from_addr = xref.get("from", xref.get("addr", "0x0"))
-                        sink_calls.append(
-                            {
-                                "sink_api": sink_name,
-                                "call_address": (
-                                    hex(from_addr) if isinstance(from_addr, int) else str(from_addr)
-                                ),
-                                "cwe": sink_info["cwe"],
-                                "severity": sink_info["severity"],
-                                "category": sink_info["category"],
-                                "description": sink_info["description"],
-                            }
-                        )
-                else:
+            resolved_call_sites = _parse_call_sites_from_xrefs(addr_out)
+
+            if resolved_call_sites:
+                for call_addr in resolved_call_sites[:10]:
                     sink_calls.append(
                         {
                             "sink_api": sink_name,
-                            "call_address": "0x0",
+                            "call_address": call_addr,
+                            "resolved": True,
                             "cwe": sink_info["cwe"],
                             "severity": sink_info["severity"],
                             "category": sink_info["category"],
                             "description": sink_info["description"],
                         }
                     )
-            except Exception:
-                # Still record the sink as found even without xrefs
+            else:
+                # Surface failed xref parsing as unresolved evidence rather than a fake 0x0
                 sink_calls.append(
                     {
                         "sink_api": sink_name,
-                        "call_address": "0x0",
+                        "call_address": None,
+                        "resolved": False,
+                        "unresolved_reason": "no_xrefs_found",
+                        "evidence_type": "symbol_only",
                         "cwe": sink_info["cwe"],
                         "severity": sink_info["severity"],
                         "category": sink_info["category"],
@@ -328,22 +414,60 @@ async def _find_source_calls(binary_path: str, timeout: int) -> list[dict[str, A
     source_calls: list[dict[str, Any]] = []
     bin_path = Path(binary_path)
 
-    # argv is a parameter, not a function call — include directly
+    # Resolve argv entry address if argv is in sources
     if "argv" in TAINT_SOURCES:
-        source_calls.append(
-            {
-                "source_api": "argv",
-                "call_address": "0x0",
-                "category": "argv",
-                "description": "Command-line argv[] input",
-            }
-        )
+        argv_addr = None
+        try:
+            main_out, _ = await _execute_r2_command(
+                bin_path,
+                ["?v main", "?v sym.main", "iMj"],
+                analysis_level="a",
+                max_output_size=100_000,
+                base_timeout=15,
+            )
+            try:
+                main_json = _parse_json_output(main_out)
+                if isinstance(main_json, dict) and main_json.get("vaddr"):
+                    argv_addr = hex(main_json["vaddr"])
+            except Exception:
+                pass
+            if not argv_addr and main_out.strip():
+                for line in main_out.splitlines():
+                    line = line.strip()
+                    if line.startswith("0x") and line != "0x0":
+                        argv_addr = line
+                        break
+        except Exception:
+            pass
+
+        if argv_addr and argv_addr != "0x0":
+            source_calls.append(
+                {
+                    "source_api": "argv",
+                    "call_address": argv_addr,
+                    "resolved": True,
+                    "category": "argv",
+                    "description": "Command-line argv[] input at main",
+                }
+            )
+        else:
+            source_calls.append(
+                {
+                    "source_api": "argv",
+                    "call_address": None,
+                    "resolved": False,
+                    "unresolved_reason": "main_not_found",
+                    "evidence_type": "symbol_only",
+                    "category": "argv",
+                    "description": "Command-line argv[] input",
+                }
+            )
 
     # Batch query imports and symbols once
     try:
         sym_out, _ = await _execute_r2_command(
             bin_path,
-            ["is~imp.", "ii"],
+            ["isj", "iij", "is~imp.", "ii"],
             analysis_level="aa",
             max_output_size=1_000_000,
             base_timeout=min(timeout, 20),
@@ -352,11 +476,13 @@ async def _find_source_calls(binary_path: str, timeout: int) -> list[dict[str, A
         logger.debug("Batch source search failed: %s", exc)
         sym_out = ""
 
+    symbols_in_binary = _extract_symbols_from_output(sym_out)
+
     for src_name, src_info in TAINT_SOURCES.items():
         if src_name == "argv":
             continue
 
-        if sym_out and src_name not in sym_out:
+        if sym_out and src_name not in symbols_in_binary:
             continue
 
         if not sym_out:
@@ -368,20 +494,65 @@ async def _find_source_calls(binary_path: str, timeout: int) -> list[dict[str, A
                     max_output_size=500_000,
                     base_timeout=20,
                 )
-                if not out.strip():
+                single_syms = _extract_symbols_from_output(out)
+                if src_name not in single_syms:
                     continue
             except Exception as exc:
                 logger.debug("Source search failed for %s: %s", src_name, exc)
                 continue
 
-        source_calls.append(
-            {
-                "source_api": src_name,
-                "call_address": "0x0",
-                "category": src_info["category"],
-                "description": src_info["description"],
-            }
-        )
+        # Resolve call-sites for source via xrefs
+        try:
+            addr_out, _ = await _execute_r2_command(
+                bin_path,
+                [
+                    f"?v sym.imp.{src_name}",
+                    f"axtj sym.imp.{src_name}",
+                    f"axtj imp.{src_name}",
+                    f"axtj {src_name}",
+                ],
+                analysis_level="aa",
+                max_output_size=1_000_000,
+                base_timeout=20,
+            )
+            resolved_call_sites = _parse_call_sites_from_xrefs(addr_out)
+
+            if resolved_call_sites:
+                for call_addr in resolved_call_sites[:10]:
+                    source_calls.append(
+                        {
+                            "source_api": src_name,
+                            "call_address": call_addr,
+                            "resolved": True,
+                            "category": src_info["category"],
+                            "description": src_info["description"],
+                        }
+                    )
+            else:
+                source_calls.append(
+                    {
+                        "source_api": src_name,
+                        "call_address": None,
+                        "resolved": False,
+                        "unresolved_reason": "no_xrefs_found",
+                        "evidence_type": "symbol_only",
+                        "category": src_info["category"],
+                        "description": src_info["description"],
+                    }
+                )
+        except Exception as exc:
+            logger.debug("Source xref search failed for %s: %s", src_name, exc)
+            source_calls.append(
+                {
+                    "source_api": src_name,
+                    "call_address": None,
+                    "resolved": False,
+                    "unresolved_reason": "no_xrefs_found",
+                    "evidence_type": "symbol_only",
+                    "category": src_info["category"],
+                    "description": src_info["description"],
+                }
+            )
 
     return source_calls
 
@@ -537,19 +708,33 @@ async def taint_trace(
                 {
                     "source_api": source["source_api"],
                     "source_category": source["category"],
-                    "source_address": source["call_address"],
+                    "source_address": source.get("call_address"),
+                    "source_resolved": source.get("resolved", bool(source.get("call_address"))),
                     "sink_api": sink["sink_api"],
-                    "sink_address": sink["call_address"],
+                    "sink_address": sink.get("call_address"),
+                    "sink_resolved": sink.get("resolved", bool(sink.get("call_address"))),
                     "cwe": sink["cwe"],
                     "severity": sink["severity"],
                     "severity_score": severity_order.get(sink["severity"], 0),
                     "category": sink["category"],
                     "description": sink["description"],
                     "path_verified": False,
+                    "taint_verified": False,
+                    "data_flow_confirmed": False,
+                    "reachability_only": False,
                     "concrete_input": None,
                     "confidence": "low",
                 }
             )
+
+    # Sort candidates so resolved pairs appear first before unresolved
+    path_candidates.sort(
+        key=lambda p: (
+            1 if (p.get("source_resolved") and p.get("sink_resolved")) else 0,
+            p["severity_score"],
+        ),
+        reverse=True,
+    )
 
     # Deduplicate by (source, sink) pair
     seen_pairs: set[tuple[str, str]] = set()
@@ -576,12 +761,28 @@ async def taint_trace(
         angr_timeout = max(30, timeout // max(len(analysis_paths), 1))
 
         for idx, path in enumerate(analysis_paths):
-            sink_addr = path["sink_address"]
+            sink_addr = path.get("sink_address")
+            source_addr = path.get("source_address")
+            sink_resolved = path.get("sink_resolved", False)
+            source_resolved = path.get("source_resolved", False)
 
-            if sink_addr and sink_addr != "0x0":
+            can_verify = (
+                isinstance(sink_addr, (str, int))
+                and sink_addr != "0x0"
+                and sink_resolved
+                and isinstance(source_addr, (str, int))
+                and source_addr != "0x0"
+                and source_resolved
+            )
+
+            if (
+                can_verify
+                and isinstance(sink_addr, (str, int))
+                and isinstance(source_addr, (str, int))
+            ):
                 if ctx:
                     await ctx.info(
-                        f"   🤖 angr: verifying {path['source_api']} → "
+                        f"   🤖 angr: verifying {path['source_api']} ({source_addr}) → "
                         f"{path['sink_api']} ({sink_addr})"
                     )
 
@@ -591,15 +792,43 @@ async def taint_trace(
                         target_addr=sink_addr,
                         start_addr=None,
                         avoid_addrs=None,
+                        source_addr=source_addr,
+                        source_api=path["source_api"],
+                        sink_api=path["sink_api"],
+                        check_taint=True,
                         timeout=angr_timeout,
                     )
 
-                    if angr_result.get("satisfiable"):
-                        path["path_verified"] = True
+                    if "taint_verified" in angr_result:
+                        is_taint_verified = bool(angr_result["taint_verified"])
+                    elif "data_flow_confirmed" in angr_result:
+                        is_taint_verified = bool(angr_result["data_flow_confirmed"])
+                    else:
+                        is_taint_verified = bool(angr_result.get("satisfiable", False))
+
+                    is_reachable = bool(angr_result.get("satisfiable", False))
+
+                    path["taint_verified"] = is_taint_verified
+                    path["data_flow_confirmed"] = is_taint_verified
+                    path["path_verified"] = is_taint_verified
+                    path["reachability_only"] = is_reachable and not is_taint_verified
+
+                    if is_taint_verified:
+                        path["confidence"] = "high"
                         path["concrete_input"] = angr_result.get("concrete_input")
                         path["concrete_inputs"] = angr_result.get("inputs", {})
-                        path["confidence"] = "high"
                         verified_paths.append(path)
+                    elif is_reachable:
+                        path["confidence"] = "medium"
+                        path["concrete_input"] = None
+                        path["reachability_concrete_input"] = angr_result.get(
+                            "reachability_concrete_input"
+                        ) or angr_result.get("concrete_input")
+                        path["angr_note"] = (
+                            "Sink instruction is reachable via control flow, but no taint data "
+                            f"dependency from {path['source_api']} to {path['sink_api']} was detected"
+                        )
+                        static_paths.append(path)
                     else:
                         path["confidence"] = "medium"
                         err = angr_result.get("error")
@@ -613,8 +842,17 @@ async def taint_trace(
                     path["angr_note"] = str(exc)
                     static_paths.append(path)
             else:
-                # No address — static only
+                # Unresolved address or symbol-only evidence
                 path["confidence"] = "low"
+                path["path_verified"] = False
+                path["taint_verified"] = False
+                path["reachability_only"] = False
+                unres_reasons = []
+                if not source_resolved:
+                    unres_reasons.append(f"source {path['source_api']} call site unresolved")
+                if not sink_resolved:
+                    unres_reasons.append(f"sink {path['sink_api']} call site unresolved")
+                path["angr_note"] = f"Symbol-only evidence: {'; '.join(unres_reasons)}"
                 static_paths.append(path)
 
             progress = 40 + int(55 * (idx + 1) / max(len(analysis_paths), 1))
@@ -677,6 +915,9 @@ async def taint_trace(
                 "sinks_present": len(sink_calls),
                 "paths_analysed": len(analysis_paths),
                 "paths_verified": len(verified_paths),
+                "paths_reachability_only": sum(
+                    1 for p in static_paths if p.get("reachability_only")
+                ),
                 "paths_static_only": len(static_paths),
             },
             "next_steps": next_steps,

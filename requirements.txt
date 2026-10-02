@@ -1049,9 +1049,9 @@ gitdb==4.0.12 \
     --hash=sha256:5ef71f855d191a3326fcfbc0d5da835f26b13fbcba60c32c21091c349ffdb571 \
     --hash=sha256:67073e15955400952c6565cc3e707c554a4eea2e428946f7a4c162fab9bd9bcf
     # via gitpython
-gitpython==3.1.60 \
-    --hash=sha256:39548bffb8fa0f3a548133348868bb4838e79d73283052207dc97781a569b6b4 \
-    --hash=sha256:e936431879fa85581b4311fa63492ea52251909e2d655b6529c704c904ddcc24
+gitpython==3.2.0 \
+    --hash=sha256:bd70c5ec05cd2b797423e7eb312147d2458d3cca92085888fba2213f85905537 \
+    --hash=sha256:fb92310af6844d96adc95ca066ed2e617c00e1dbd146a326626c81e72e18cc2e
     # via
     #   reversecore-mcp (pyproject.toml)
     #   angr
@@ -3007,10 +3007,12 @@ pypcode==4.0.0 ; python_full_version >= '3.12' \
     --hash=sha256:dd7c79b6e0547e09b5e35d30a3548e8604f829a376dabf0b44c722e57a6acb1f \
     --hash=sha256:e473230895117f683629f8dd64c630d68d4246b5bfce19e3b49b22d6f44ba266
     # via angr
-pypdf==6.16.1 \
-    --hash=sha256:63fec31c4092ae50b6729beedcb469055b60d20c834bde1c402df241f371f644 \
-    --hash=sha256:c4d1b43ddae921387321cf63936cd16a7743b91d2da92f165c149a195c972ba9
-    # via xhtml2pdf
+pypdf==6.19.0 \
+    --hash=sha256:7e5d6e730e7dae87d560a2cee218b852f6498c8be61966f3cd02ead971e48d14 \
+    --hash=sha256:bbc43aca292369ccc6cbc8a921991ecf2538a3587ab5a116eff06c321d647155
+    # via
+    #   reversecore-mcp (pyproject.toml)
+    #   xhtml2pdf
 pyperclip==1.11.0 \
     --hash=sha256:244035963e4428530d9e3a6101a1ef97209c6825edab1567beac148ccc1db1b6 \
     --hash=sha256:299403e9ff44581cb9ba2ffeed69c7aa96a008622ad0c46cb575ca75b5b84273
