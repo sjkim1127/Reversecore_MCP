@@ -24,8 +24,9 @@ EXPECTED_TOOL_COUNT = 151
 # This baseline includes the reviewed event-time, collection-time, and UTC semantics description.
 # It also includes the issue #229 contract: CVE hunting requires a compiled LibFuzzer target.
 # It also includes issue #250's OS-qualified Volatility plugin default and documentation,
-# plus issue #251's exact module-name and isolated output-directory semantics.
-EXPECTED_SCHEMA_SHA256 = "4565ff68307d9a279ef88ee5eb6ec34f7605ea4cf25d61845e3f01e21d9279fb"
+# plus issue #251's exact module-name and isolated output-directory semantics,
+# plus issue #264's target_functions parameter on vulnerability_hunter for bounded function analysis.
+EXPECTED_SCHEMA_SHA256 = "5c016dbd3e98cf7f7996fd84f794444f727d79782c8f38183b7c158603170e77"
 VALID_SCHEMA_SHA256S = {EXPECTED_SCHEMA_SHA256}
 
 
