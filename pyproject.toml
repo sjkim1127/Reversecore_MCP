@@ -89,7 +89,7 @@ analysis = [
     "yara-python>=4.5.4",
     "r2pipe>=1.9.8",
     # Security floors for transitive dependencies used by angr/vivisect.
-    "gitpython>=3.1.60",
+    "gitpython>=3.1.62",
     "pyasn1>=0.6.4",
     # Secure angr releases require Python 3.12+; keep core analysis available
     # on Python 3.10 and 3.11 without installing the vulnerable older release.
