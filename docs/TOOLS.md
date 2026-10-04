@@ -75,7 +75,7 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 | 22 | `scan_for_versions` | Extract library version strings and CVE clues from a binary. | `file_path` (string, req), `timeout` (integer) | `static`, `malware`, `vuln-research` |
 | 23 | `taint_trace` | Automatically trace taint paths from user input sources to dangerous sinks. | `file_path` (string, req), `sources` (array), `sinks` (array), `verify_with_angr` (boolean), `max_paths` (integer), `timeout` (integer) | `static`, `malware`, `vuln-research` |
 | 24 | `triage_crash` | Analyze a crash file against a binary using GDB to determine exploitability. | `binary_path` (string, req), `crash_file` (string, req), `use_stdin` (boolean), `timeout` (integer) | `static`, `malware`, `vuln-research` |
-| 25 | `verify_path_and_get_args` | Run symbolic execution using angr to verify path reachability and extract inputs. | `file_path` (string, req), `target_addr` (string, req), `start_addr` (string), `avoid_addrs` (array), `timeout` (integer) | `static`, `malware`, `vuln-research` |
+| 25 | `verify_path_and_get_args` | Run symbolic execution using angr to verify path reachability and extract inputs. | `file_path` (string, req), `target_addr` (string, req), `start_addr` (string), `avoid_addrs` (array), `source_addr` (string), `source_api` (string), `sink_api` (string), `check_taint` (boolean), `timeout` (integer) | `static`, `malware`, `vuln-research` |
 | 26 | `vt_lookup` | Look up IOC reputation using the VirusTotal API v3. | `iocs` (array, req), `api_key` (string) | `static`, `malware`, `vuln-research` |
 
 ---
