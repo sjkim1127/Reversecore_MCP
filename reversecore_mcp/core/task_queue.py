@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import time
 from collections.abc import Callable, Coroutine
 from typing import Any, cast
 
@@ -21,9 +22,14 @@ from reversecore_mcp.core.result import ToolResult, failure, success
 
 logger = get_logger(__name__)
 
-# Global ARQ Redis connection pool
+# Global ARQ Redis connection pool state
 _arq_pool: Any = None
 _queue_enabled: bool = True
+_queue_administratively_disabled: bool = False
+_failure_count: int = 0
+_next_retry_time: float = 0.0
+_base_retry_backoff: float = 1.0
+_max_retry_backoff: float = 60.0
 _pool_init_lock: asyncio.Lock | None = None
 
 
@@ -36,44 +42,71 @@ def _get_pool_init_lock() -> asyncio.Lock:
 
 
 async def get_arq_pool() -> Any:
-    """Get or initialize the global ARQ Redis pool client."""
-    global _arq_pool, _queue_enabled
-    if not _queue_enabled:
+    """Get or initialize the global ARQ Redis pool client with bounded retry.
+
+    Distinguishes between administratively disabled queues (never retries)
+    and transient connection outages (retries using bounded exponential backoff).
+    """
+    global \
+        _arq_pool, \
+        _queue_enabled, \
+        _queue_administratively_disabled, \
+        _failure_count, \
+        _next_retry_time
+    if not _queue_enabled or _queue_administratively_disabled:
         return None
 
-    if _arq_pool is None:
-        async with _get_pool_init_lock():
-            if _arq_pool is None:
-                try:
-                    config = get_config()
-                    env_redis = os.environ.get("REVERSECORE_REDIS_URL", "").strip().lower()
-                    redis_url = (config.redis_url or "").strip().lower()
-                    if (
-                        env_redis in ("none", "disabled", "null", "false", "0")
-                        or not redis_url
-                        or redis_url in ("none", "disabled", "null")
-                    ):
-                        logger.info(
-                            "Task queue disabled by configuration (empty or disabled redis_url)."
-                        )
-                        _queue_enabled = False
-                        return None
-                    redis_settings = RedisSettings.from_dsn(config.redis_url)
-                    _arq_pool = await create_pool(redis_settings)
-                    logger.info("Initialized ARQ Redis task queue pool client.")
-                except Exception as e:
-                    logger.warning(
-                        f"Failed to initialize ARQ task queue pool: {e}. Queue is disabled (falling back to direct execution)."
-                    )
-                    _queue_enabled = False
-                    return None
+    if _arq_pool is not None:
+        return _arq_pool
 
-    return _arq_pool
+    now = time.monotonic()
+    if now < _next_retry_time:
+        # Still in backoff window from a previous transient connection failure
+        return None
+
+    async with _get_pool_init_lock():
+        # Check configuration for administrative disable
+        config = get_config()
+        env_redis = os.environ.get("REVERSECORE_REDIS_URL", "").strip().lower()
+        redis_url = (config.redis_url or "").strip().lower()
+        if (
+            env_redis in ("none", "disabled", "null", "false", "0")
+            or not redis_url
+            or redis_url in ("none", "disabled", "null")
+        ):
+            logger.info("Task queue disabled by configuration (empty or disabled redis_url).")
+            _queue_administratively_disabled = True
+            _queue_enabled = False
+            return None
+
+        try:
+            redis_settings = RedisSettings.from_dsn(config.redis_url)
+            _arq_pool = await create_pool(redis_settings)
+            _failure_count = 0
+            _next_retry_time = 0.0
+            logger.info("Initialized ARQ Redis task queue pool client.")
+            return _arq_pool
+        except Exception as e:
+            _failure_count += 1
+            backoff = min(_max_retry_backoff, _base_retry_backoff * (2 ** (_failure_count - 1)))
+            _next_retry_time = time.monotonic() + backoff
+            logger.warning(
+                f"Failed to initialize ARQ task queue pool: {e}. "
+                f"Transient connection failure #{_failure_count}, will retry in {backoff:.1f}s (falling back to direct execution)."
+            )
+            # Keep _queue_enabled = True so future retries after backoff can succeed
+            return None
 
 
 async def close_arq_pool() -> None:
     """Close the global ARQ Redis connection pool."""
-    global _arq_pool, _pool_init_lock, _queue_enabled
+    global \
+        _arq_pool, \
+        _pool_init_lock, \
+        _queue_enabled, \
+        _queue_administratively_disabled, \
+        _failure_count, \
+        _next_retry_time
     if _arq_pool is not None:
         try:
             await _arq_pool.close()
@@ -84,14 +117,26 @@ async def close_arq_pool() -> None:
             _arq_pool = None
             _pool_init_lock = None
     _queue_enabled = True
+    _queue_administratively_disabled = False
+    _failure_count = 0
+    _next_retry_time = 0.0
 
 
 def reset_task_queue() -> None:
     """Reset the task queue state and re-enable reconnection attempts."""
-    global _arq_pool, _pool_init_lock, _queue_enabled
+    global \
+        _arq_pool, \
+        _pool_init_lock, \
+        _queue_enabled, \
+        _queue_administratively_disabled, \
+        _failure_count, \
+        _next_retry_time
     _arq_pool = None
     _pool_init_lock = None
     _queue_enabled = True
+    _queue_administratively_disabled = False
+    _failure_count = 0
+    _next_retry_time = 0.0
 
 
 async def run_task_or_fallback(
