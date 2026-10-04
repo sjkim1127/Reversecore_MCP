@@ -11,6 +11,7 @@ from typing import Any
 
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
+from reversecore_mcp.core.exceptions import ValidationError
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.result import ToolResult, failure, success
@@ -538,6 +539,13 @@ async def pcap_extract_c2(
     """
     validated = validate_file_path(pcap_path)
 
+    if not isinstance(beacon_threshold_sec, int) or isinstance(beacon_threshold_sec, bool):
+        raise ValidationError("beacon_threshold_sec must be an integer")
+    if beacon_threshold_sec <= 0:
+        raise ValidationError("beacon_threshold_sec must be greater than 0")
+    if beacon_threshold_sec > 3600:
+        raise ValidationError("beacon_threshold_sec cannot exceed 3600 seconds")
+
     try:
         scapy = _import_scapy()
     except ImportError:
@@ -552,8 +560,22 @@ async def pcap_extract_c2(
     except Exception as exc:
         return failure("PCAP_PARSE_ERROR", f"Failed to parse PCAP: {exc}")
 
+    beacon_criteria = {
+        "beacon_threshold_sec": beacon_threshold_sec,
+        "max_jitter_sec": beacon_threshold_sec,
+        "max_relative_jitter": 0.3,
+        "max_interval_sec": 3600,
+    }
+
     if len(packets) == 0:
-        return success({"pcap_path": str(validated), "message": "Empty PCAP — no C2 indicators."})
+        return success(
+            {
+                "pcap_path": str(validated),
+                "beacon_threshold_sec": beacon_threshold_sec,
+                "beacon_criteria": beacon_criteria,
+                "message": "Empty PCAP — no C2 indicators.",
+            }
+        )
 
     # Track timestamps per destination (host, port) pair
     dst_timestamps: dict[tuple[str, int], list[float]] = collections.defaultdict(list)
@@ -599,7 +621,13 @@ async def pcap_extract_c2(
         std_dev = variance**0.5
 
         # Low std deviation relative to mean = highly periodic = likely beacon
-        if avg_interval > 0 and std_dev / avg_interval < 0.3 and avg_interval <= 3600:
+        # Jitter std_dev must also satisfy beacon_threshold_sec
+        if (
+            avg_interval > 0
+            and std_dev <= beacon_threshold_sec
+            and std_dev / avg_interval < 0.3
+            and avg_interval <= 3600
+        ):
             beaconing_hosts.append(
                 {
                     "dst_ip": dst_ip,
@@ -609,6 +637,7 @@ async def pcap_extract_c2(
                     "std_dev_sec": round(std_dev, 2),
                     "periodicity_score": round(1.0 - (std_dev / avg_interval), 3),
                     "suspicious_port": dport in _SUSPICIOUS_PORTS,
+                    "beacon_threshold_sec": beacon_threshold_sec,
                 }
             )
 
@@ -620,6 +649,8 @@ async def pcap_extract_c2(
     return success(
         {
             "pcap_path": str(validated),
+            "beacon_threshold_sec": beacon_threshold_sec,
+            "beacon_criteria": beacon_criteria,
             "suspected_c2_hosts": beaconing_hosts[:20],
             "beaconing_count": len(beaconing_hosts),
             "suspicious_port_hits": suspicious_port_hits[:50],
