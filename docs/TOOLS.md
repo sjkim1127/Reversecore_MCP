@@ -162,7 +162,7 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 | 82 | `generate_poc_exploit` | Generate and verify a pwntools proof-of-concept exploit script. | `file_path` (string, req), `vulnerability_class` (string), `concrete_input` (string), `crash_offset` (integer) | `malware` |
 | 83 | `packer_fingerprint` | Deep fingerprinting of binary packers, cryptors, protectors, and compilers. | `file_path` (string, req), `timeout` (integer) | `malware` |
 | 84 | `run_yara` | Scan binaries against YARA rules via ``yara-python`` with modular namespace support. | `file_path` (string, req), `rule_file` (string), `category` (string), `timeout` (integer), `run_async` (boolean), `_bypass_queue` (boolean) | `malware` |
-| 85 | `vulnerability_hunter` | Automated vulnerability discovery combining multiple analysis techniques. | `file_path` (string, req), `max_depth` (integer), `severity_filter` (string), `generate_yara` (boolean), `timeout` (integer), `use_symbolic_execution` (boolean), `auto_dynamic_verify` (boolean), `run_async` (boolean), `_bypass_queue` (boolean) | `malware` |
+| 85 | `vulnerability_hunter` | Automated vulnerability discovery combining multiple analysis techniques. | `file_path` (string, req), `max_depth` (integer), `severity_filter` (string), `generate_yara` (boolean), `timeout` (integer), `use_symbolic_execution` (boolean), `auto_dynamic_verify` (boolean), `run_async` (boolean), `target_functions` (array), `_bypass_queue` (boolean) | `malware` |
 
 ---
 
