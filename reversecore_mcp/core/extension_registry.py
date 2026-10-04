@@ -42,6 +42,7 @@ Usage in pipeline hooks (r2_analysis.py)
 
 from __future__ import annotations
 
+import asyncio
 import importlib
 import importlib.util
 import inspect
@@ -99,6 +100,14 @@ class ExtensionRegistry:
         # Expand the r2 command allowlist if needed
         if ext.r2_command_allowlist:
             self._expand_r2_allowlist(ext.r2_command_allowlist)
+        try:
+            startup_cmds = ext.get_r2_startup_commands()
+            if startup_cmds:
+                self._expand_r2_allowlist(startup_cmds)
+        except Exception as exc:
+            logger.debug(
+                "Failed to get startup commands during registration of %s: %s", ext.name, exc
+            )
 
         logger.info("✅ R2 extension registered: %s (priority=%d)", ext.name, ext.priority)
 
@@ -317,7 +326,9 @@ class ExtensionRegistry:
         """Call ``on_session_open`` on all R2 extensions."""
         for ext in self._r2_extensions:
             try:
-                await ext.on_session_open(file_path, r2pipe_instance)
+                res = ext.on_session_open(file_path, r2pipe_instance)
+                if inspect.isawaitable(res):
+                    await res
             except Exception as exc:
                 logger.error("R2 session-open hook error in '%s': %s", ext.name, exc)
 
@@ -325,7 +336,29 @@ class ExtensionRegistry:
         """Call ``on_session_close`` on all R2 extensions."""
         for ext in self._r2_extensions:
             try:
-                await ext.on_session_close(file_path)
+                res = ext.on_session_close(file_path)
+                if inspect.isawaitable(res):
+                    await res
+            except Exception as exc:
+                logger.debug("R2 session-close hook error in '%s': %s", ext.name, exc)
+
+    def run_r2_session_open_hooks_sync(self, file_path: str, r2pipe_instance: Any) -> None:
+        """Synchronously call ``on_session_open`` on all R2 extensions."""
+        for ext in self._r2_extensions:
+            try:
+                res = ext.on_session_open(file_path, r2pipe_instance)
+                if inspect.isawaitable(res):
+                    _run_coroutine_sync(res)
+            except Exception as exc:
+                logger.error("R2 session-open hook error in '%s': %s", ext.name, exc)
+
+    def run_r2_session_close_hooks_sync(self, file_path: str) -> None:
+        """Synchronously call ``on_session_close`` on all R2 extensions."""
+        for ext in self._r2_extensions:
+            try:
+                res = ext.on_session_close(file_path)
+                if inspect.isawaitable(res):
+                    _run_coroutine_sync(res)
             except Exception as exc:
                 logger.debug("R2 session-close hook error in '%s': %s", ext.name, exc)
 
@@ -452,6 +485,27 @@ class ExtensionRegistry:
                 logger.info("R2 allowlist expanded with: %s", new_cmds)
         except Exception as exc:
             logger.warning("Could not expand r2 allowlist: %s", exc)
+
+
+def _run_coroutine_sync(coro: Any) -> None:
+    """Run an async coroutine synchronously."""
+    try:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop is None:
+            asyncio.run(coro)
+        elif loop.is_running():
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                executor.submit(asyncio.run, coro).result()
+        else:
+            loop.run_until_complete(coro)
+    except Exception as e:
+        logger.debug("Error running sync coroutine: %s", e)
 
 
 # =============================================================================

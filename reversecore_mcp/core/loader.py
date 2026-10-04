@@ -85,7 +85,13 @@ class PluginLoader:
 
     def __init__(self, profile: str | None = None):
         self._plugins: dict[str, Plugin] = {}
+        self._failed_modules: dict[str, str] = {}
         self._profile = profile
+
+    @property
+    def failed_modules(self) -> dict[str, str]:
+        """Return mapping of module names that failed to load to their error descriptions."""
+        return dict(self._failed_modules)
 
     def is_plugin_allowed(self, plugin_name: str, profile: str | None = None) -> bool:
         """Check if a plugin is allowed under the active or given tool profile."""
@@ -180,6 +186,14 @@ class PluginLoader:
 
             except ImportError as e:
                 logger.warning(f"Failed to import module {name}: {e}")
+                self._failed_modules[name] = str(e)
+                continue
+            except Exception as e:
+                logger.error(
+                    f"Failed to load module {name} due to unexpected error: {e}",
+                    exc_info=True,
+                )
+                self._failed_modules[name] = str(e)
                 continue
 
         return discovered_plugins

@@ -202,10 +202,45 @@ class R2ConnectionPool:
                 self._file_thread_locks[file_path] = threading.Lock()
             return self._file_thread_locks[file_path]
 
+    def _run_session_open_hooks_and_startup(self, file_path: str, r2: Any) -> None:
+        """Execute R2 extension session open hooks and startup commands."""
+        try:
+            from reversecore_mcp.core.extension_registry import get_extension_registry
+
+            registry = get_extension_registry()
+            registry.run_r2_session_open_hooks_sync(file_path, r2)
+            commands = registry.get_r2_startup_commands(file_path)
+            for cmd in commands:
+                try:
+                    from reversecore_mcp.core.command_spec import validate_r2_command
+
+                    validated_cmd = validate_r2_command(cmd)
+                    r2.cmd(validated_cmd)
+                except Exception as exc:
+                    logger.error(
+                        "Failed to execute R2 startup command '%s' on %s: %s",
+                        cmd,
+                        file_path,
+                        exc,
+                    )
+        except Exception as e:
+            logger.debug("Error running extension session open hooks for %s: %s", file_path, e)
+
+    def _run_session_close_hooks(self, file_path: str) -> None:
+        """Execute R2 extension session close hooks before closing connection."""
+        try:
+            from reversecore_mcp.core.extension_registry import get_extension_registry
+
+            registry = get_extension_registry()
+            registry.run_r2_session_close_hooks_sync(file_path)
+        except Exception as e:
+            logger.debug("Error running extension session close hooks for %s: %s", file_path, e)
+
     def _terminate_file_connection(self, file_path: str) -> None:
         """Forcefully terminate and remove an r2 connection (e.g. after timeout)."""
         with self._lock:
             if file_path in self._pool:
+                self._run_session_close_hooks(file_path)
                 r2 = self._pool.pop(file_path, None)
                 if r2 is not None:
                     try:
@@ -240,41 +275,8 @@ class R2ConnectionPool:
 
     def get_connection(self, file_path: str) -> Any:
         """Get or create an r2pipe connection for the given file."""
-        if r2pipe is None:
-            raise ImportError("r2pipe is not installed")
-
         with self._lock:
-            self._last_access[file_path] = time.time()
-
-            if file_path in self._pool:
-                r2 = self._pool[file_path]
-
-                # Health check
-                if not self._maybe_health_check(file_path, r2):
-                    logger.warning(f"Stale connection for {file_path}, reconnecting")
-                    self._remove_connection_unsafe(file_path)
-                else:
-                    self._pool.move_to_end(file_path)
-                    self._stats["cache_hits"] += 1
-                    return r2
-
-            self._stats["cache_misses"] += 1
-
-            # Evict if full
-            while len(self._pool) >= self.max_connections:
-                self._evict_oldest_connection()
-
-            # Create new connection
-            logger.info(f"Opening new r2 connection for {file_path}")
-            try:
-                r2 = r2pipe.open(file_path, flags=["-2"])
-                self._pool[file_path] = r2
-                self._last_health_check[file_path] = time.time()
-                self._stats["connections_created"] += 1
-                return r2
-            except Exception as e:
-                logger.error(f"Failed to open r2 connection for {file_path}: {e}")
-                raise
+            return self._get_connection_unsafe(file_path)
 
     def _cleanup_connection_state(self, file_path: str) -> None:
         """Remove auxiliary state for a connection (caller must hold lock)."""
@@ -287,6 +289,7 @@ class R2ConnectionPool:
         oldest_file, oldest_r2 = self._pool.popitem(last=False)
         logger.debug(f"Evicting r2 connection for {oldest_file}")
         self._stats["connections_evicted"] += 1
+        self._run_session_close_hooks(oldest_file)
         try:
             oldest_r2.quit()
         except Exception as e:
@@ -296,6 +299,7 @@ class R2ConnectionPool:
     def _remove_connection_unsafe(self, file_path: str) -> None:
         """Remove a connection without locking (caller must hold lock)."""
         if file_path in self._pool:
+            self._run_session_close_hooks(file_path)
             try:
                 self._pool[file_path].quit()
             except Exception as e:
@@ -303,28 +307,55 @@ class R2ConnectionPool:
             del self._pool[file_path]
         self._cleanup_connection_state(file_path)
 
-    def _execute_file(self, file_path: str, command: str) -> str:
+    def _execute_file(
+        self,
+        file_path: str,
+        command: str,
+        cancel_token: threading.Event | None = None,
+    ) -> str:
         """Execute command holding only the per-file lock during r2.cmd, not the global pool lock."""
         file_lock = self._get_file_thread_lock(file_path)
         with file_lock:
+            if cancel_token is not None and cancel_token.is_set():
+                raise ExecutionTimeoutError(0)
             r2 = self.get_connection(file_path)
             try:
+                if cancel_token is not None and cancel_token.is_set():
+                    raise ExecutionTimeoutError(0)
                 return cast(str, r2.cmd(command))
             except Exception as e:
+                # If execution timed out or was cancelled, suppress background retry and reconnection
+                if cancel_token is not None and cancel_token.is_set():
+                    logger.info(
+                        "Execution timed out or cancelled for %s, suppressing retry: %s",
+                        file_path,
+                        e,
+                    )
+                    raise ExecutionTimeoutError(0) from e
+
                 logger.warning(f"r2 command failed, retrying connection: {e}")
                 with self._lock:
                     self._remove_connection_unsafe(file_path)
                     self._stats["reconnections"] += 1
+                if cancel_token is not None and cancel_token.is_set():
+                    raise ExecutionTimeoutError(0)
                 r2 = self.get_connection(file_path)
                 try:
+                    if cancel_token is not None and cancel_token.is_set():
+                        raise ExecutionTimeoutError(0)
                     return cast(str, r2.cmd(command))
                 except Exception as retry_error:
                     logger.error(f"Retry failed: {retry_error}")
                     raise
 
-    def execute(self, file_path: str, command: str) -> str:
+    def execute(
+        self,
+        file_path: str,
+        command: str,
+        cancel_token: threading.Event | None = None,
+    ) -> str:
         """Execute a command on the r2 connection for the given file."""
-        return self._execute_file(file_path, command)
+        return self._execute_file(file_path, command, cancel_token)
 
     async def execute_async(
         self,
@@ -333,19 +364,35 @@ class R2ConnectionPool:
         timeout: float | None = None,
     ) -> str:
         """Execute a command asynchronously with per-file async lock and optional timeout."""
+        cancel_token = threading.Event()
         async with self._get_file_async_lock(file_path):
-            coro = asyncio.to_thread(self._execute_file, file_path, command)
+            coro = asyncio.to_thread(self._execute_file, file_path, command, cancel_token)
             if timeout is None:
-                return await coro
+                try:
+                    return await coro
+                except asyncio.CancelledError:
+                    cancel_token.set()
+                    self._terminate_file_connection(file_path)
+                    raise
             try:
                 return await asyncio.wait_for(coro, timeout=timeout)
             except asyncio.TimeoutError:
+                cancel_token.set()
                 self._terminate_file_connection(file_path)
                 raise ExecutionTimeoutError(int(timeout))
+            except asyncio.CancelledError:
+                cancel_token.set()
+                self._terminate_file_connection(file_path)
+                raise
 
-    def _execute_unsafe(self, file_path: str, command: str) -> str:
+    def _execute_unsafe(
+        self,
+        file_path: str,
+        command: str,
+        cancel_token: threading.Event | None = None,
+    ) -> str:
         """Execute with thread lock for safe asyncio.to_thread usage."""
-        return self._execute_file(file_path, command)
+        return self._execute_file(file_path, command, cancel_token)
 
     def _get_connection_unsafe(self, file_path: str) -> Any:
         """Get or create connection without locking (caller must hold lock)."""
@@ -378,6 +425,7 @@ class R2ConnectionPool:
             self._pool[file_path] = r2
             self._last_health_check[file_path] = time.time()
             self._stats["connections_created"] += 1
+            self._run_session_open_hooks_and_startup(file_path, r2)
             return r2
         except Exception as e:
             logger.error(f"Failed to open r2 connection for {file_path}: {e}")
@@ -422,11 +470,8 @@ class R2ConnectionPool:
     def close_all(self):
         """Close all connections in the pool."""
         with self._lock:
-            for _file_path, r2 in self._pool.items():
-                try:
-                    r2.quit()
-                except Exception as e:
-                    logger.debug("r2 quit on close_all: %s", e)
+            for file_path in list(self._pool.keys()):
+                self._remove_connection_unsafe(file_path)
             self._pool.clear()
             self._last_access.clear()
             self._last_health_check.clear()

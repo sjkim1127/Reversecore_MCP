@@ -28,206 +28,228 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def server_lifespan(server: FastMCP) -> AsyncGenerator[None, None]:
-    """
-    Manage server lifecycle events.
+    """Manage server lifecycle events.
     1. Initialize resources (DB, tools)
     2. Start background tasks (cleanup)
-    3. Cleanup on shutdown
+    3. Cleanup on shutdown (guaranteed via finally)
     """
     # Startup
     logger.info("🚀 Reversecore MCP Server starting...")
     settings = get_config()
 
-    # 1. Ensure workspace exists
-    try:
-        settings.workspace.mkdir(parents=True, exist_ok=True)
-        logger.info(f"✅ Workspace ready: {settings.workspace}")
-    except Exception as e:
-        logger.error(f"❌ Failed to create workspace: {e}")
-        raise
-
-    # 2. Check critical dependencies
-    dependencies_ok = True
-
-    # Check radare2
-    if not shutil.which("radare2"):
-        logger.warning("⚠️ radare2 not found in PATH")
-        dependencies_ok = False
-    else:
-        logger.info("✅ radare2 found")
-
-    # Check Java (optional, only needed for standalone Ghidra scripts; r2ghidra operates natively)
-    if not shutil.which("java"):
-        logger.info(
-            "ℹ️ Java not found - standalone Ghidra scripts unavailable (r2ghidra operates natively)"
-        )
-    else:
-        logger.info("✅ Java found")
-
-    # Check graphviz (for PNG CFG generation)
-    if not shutil.which("dot"):
-        logger.warning("⚠️ graphviz not found - PNG CFG generation unavailable")
-    else:
-        logger.info("✅ graphviz found")
-
-    if not dependencies_ok:
-        logger.warning("⚠️ Some dependencies missing, functionality may be limited")
-
-    logger.info("✅ Server startup complete")
-
-    # 3. Start Resource Manager
-    await resource_manager.start()
-
-    # 4. Initialize AI Memory Store
-    from reversecore_mcp.core.memory import initialize_memory_store
-
-    try:
-        await initialize_memory_store(settings.memory_db_path)
-        logger.info("✅ AI Memory store initialized")
-    except Exception as e:
-        logger.warning(f"⚠️ Memory store initialization failed: {e}")
-
-    # Note: Async resources are initialized lazily when first accessed
-    logger.info("Async resources ready")
-
-    # 5. Discover and activate extension plugins
-    from reversecore_mcp.core.extension_registry import get_extension_registry
-
-    _ext_registry = get_extension_registry()
-    _ext_registry.discover_all()
-    ext_summary = _ext_registry.list_extensions()
-    if ext_summary["r2"] or ext_summary["ghidra"]:
-        logger.info(
-            "✅ Extension plugins active — R2: %s | Ghidra: %s",
-            ext_summary["r2"] or "none",
-            ext_summary["ghidra"] or "none",
-        )
-    else:
-        logger.info(
-            "ℹ️  No extension plugins registered (add via REVERSECORE_PLUGIN_DIRS or entry_points)"
-        )
-
-    # Start cleanup task
-    cleanup_task = asyncio.create_task(_cleanup_old_files())
-
-    # Start embedded task queue worker if queue is enabled
-    from arq.worker import Worker
-
-    from reversecore_mcp.core.task_queue import WorkerSettings, get_arq_pool
-
-    pool = await get_arq_pool()
+    # Track initialized resources for clean partial unwinding (Issue #266)
+    resource_manager_started = False
+    memory_store_initialized = False
+    cleanup_task: asyncio.Task | None = None
     worker = None
-    worker_task = None
-    if pool is not None:
+    worker_task: asyncio.Task | None = None
+    arq_pool_opened = False
+
+    try:
+        # 1. Ensure workspace exists
         try:
-            worker = Worker(
-                functions=WorkerSettings.functions,  # type: ignore[arg-type]
-                redis_pool=pool,
-                handle_signals=False,
+            settings.workspace.mkdir(parents=True, exist_ok=True)
+            logger.info(f"✅ Workspace ready: {settings.workspace}")
+        except Exception as e:
+            logger.error(f"❌ Failed to create workspace: {e}")
+            raise
+
+        # 2. Check critical dependencies
+        dependencies_ok = True
+
+        # Check radare2
+        if not shutil.which("radare2"):
+            logger.warning("⚠️ radare2 not found in PATH")
+            dependencies_ok = False
+        else:
+            logger.info("✅ radare2 found")
+
+        # Check Java (optional, only needed for standalone Ghidra scripts; r2ghidra operates natively)
+        if not shutil.which("java"):
+            logger.info(
+                "ℹ️ Java not found - standalone Ghidra scripts unavailable (r2ghidra operates natively)"
             )
-            worker_task = asyncio.create_task(worker.async_run())
-            logger.info("✅ Embedded ARQ task queue worker started successfully.")
-        except Exception as e:
-            logger.warning(f"⚠️ Failed to start embedded task queue worker: {e}")
+        else:
+            logger.info("✅ Java found")
 
-    # ============================================================================
-    # SERVER RUNNING (yield control)
-    # ============================================================================
-    yield
+        # Check graphviz (for PNG CFG generation)
+        if not shutil.which("dot"):
+            logger.warning("⚠️ graphviz not found - PNG CFG generation unavailable")
+        else:
+            logger.info("✅ graphviz found")
 
-    # ============================================================================
-    # SHUTDOWN
-    # ============================================================================
-    logger.info("🛑 Reversecore MCP Server shutting down...")
+        if not dependencies_ok:
+            logger.warning("⚠️ Some dependencies missing, functionality may be limited")
 
-    # Close task queue worker and pools
-    if worker is not None:
+        logger.info("✅ Server startup complete")
+
+        # 3. Start Resource Manager
+        await resource_manager.start()
+        resource_manager_started = True
+
+        # 4. Initialize AI Memory Store
+        from reversecore_mcp.core.memory import initialize_memory_store
+
         try:
-            await worker.close()
-            logger.info("Embedded ARQ worker stopped.")
+            await initialize_memory_store(settings.memory_db_path)
+            memory_store_initialized = True
+            logger.info("✅ AI Memory store initialized")
         except Exception as e:
-            logger.debug(f"Error stopping ARQ worker: {e}")
+            logger.warning(f"⚠️ Memory store initialization failed: {e}")
 
-    if worker_task is not None:
-        worker_task.cancel()
-        try:
-            await worker_task
-        except asyncio.CancelledError:
-            pass
+        # Note: Async resources are initialized lazily when first accessed
+        logger.info("Async resources ready")
 
-    from reversecore_mcp.core.task_queue import close_arq_pool
+        # 5. Discover and activate extension plugins
+        from reversecore_mcp.core.extension_registry import get_extension_registry
 
-    try:
-        await close_arq_pool()
-    except Exception as e:
-        logger.debug(f"Error closing ARQ pool: {e}")
+        _ext_registry = get_extension_registry()
+        _ext_registry.discover_all()
+        ext_summary = _ext_registry.list_extensions()
+        if ext_summary["r2"] or ext_summary["ghidra"]:
+            logger.info(
+                "✅ Extension plugins active — R2: %s | Ghidra: %s",
+                ext_summary["r2"] or "none",
+                ext_summary["ghidra"] or "none",
+            )
+        else:
+            logger.info(
+                "ℹ️  No extension plugins registered (add via REVERSECORE_PLUGIN_DIRS or entry_points)"
+            )
 
-    from reversecore_mcp.core.analysis_cache import close_redis
+        # Start cleanup task
+        cleanup_task = asyncio.create_task(_cleanup_old_files())
 
-    try:
-        await close_redis()
-    except Exception as e:
-        logger.debug(f"Error closing Redis: {e}")
+        # Start embedded task queue worker if queue is enabled
+        from arq.worker import Worker
 
-    # Stop Resource Manager
-    try:
-        await resource_manager.stop()
-    except Exception as e:
-        logger.debug(f"Error stopping Resource Manager: {e}")
+        from reversecore_mcp.core.task_queue import WorkerSettings, get_arq_pool
 
-    # Close AI Memory Store
-    from reversecore_mcp.core.memory import get_memory_store
-
-    try:
-        memory_store = get_memory_store()
-        await memory_store.close()
-        logger.info("💾 AI Memory store closed")
-    except Exception as e:
-        logger.debug(f"Memory store close: {e}")
-
-    # Cancel cleanup task
-    cleanup_task.cancel()
-    try:
-        await cleanup_task
-    except asyncio.CancelledError:
-        pass
-
-    try:
-        # Stop and cleanup plugins explicitly
-        for plugin in plugins:
-            if hasattr(plugin, "cleanup"):
-                try:
-                    await plugin.cleanup()
-                except Exception as e:
-                    logger.debug(f"Error during {plugin.name} cleanup: {e}")
-
-        # Cleanup temp directory if it exists
-        temp_dir = settings.workspace / "tmp"
-        if temp_dir.exists():
-            shutil.rmtree(temp_dir, ignore_errors=True)
-            logger.info("Cleaned up temporary directory")
-
-    except Exception as e:
-        logger.error(f"Error during shutdown cleanup: {e}")
-
-    # Cleanup temporary files (original logic, kept for now)
-    try:
-        temp_files = list(settings.workspace.glob("*.tmp"))
-        temp_files.extend(settings.workspace.glob(".r2_*"))  # radare2 temp files
-
-        for temp_file in temp_files:
+        pool = await get_arq_pool()
+        if pool is not None:
+            arq_pool_opened = True
             try:
-                temp_file.unlink()
-                logger.debug(f"Cleaned up: {temp_file.name}")
-            except (OSError, FileNotFoundError) as e:
-                logger.debug(f"Could not remove temp file {temp_file.name}: {e}")
+                worker = Worker(
+                    functions=WorkerSettings.functions,  # type: ignore[arg-type]
+                    redis_pool=pool,
+                    handle_signals=False,
+                )
+                worker_task = asyncio.create_task(worker.async_run())
+                logger.info("✅ Embedded ARQ task queue worker started successfully.")
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to start embedded task queue worker: {e}")
 
-        if temp_files:
-            logger.info(f"🧹 Cleaned up {len(temp_files)} temporary files")
-    except Exception as e:
-        logger.error(f"Error during cleanup: {e}")
+        # ============================================================================
+        # SERVER RUNNING (yield control)
+        # ============================================================================
+        yield
 
-    logger.info("👋 Server shutdown complete")
+    finally:
+        # ============================================================================
+        # SHUTDOWN (Always executed via finally on exit, server error, or startup failure)
+        # ============================================================================
+        logger.info("🛑 Reversecore MCP Server shutting down...")
+
+        # Close task queue worker and pools
+        if worker is not None:
+            try:
+                await worker.close()
+                logger.info("Embedded ARQ worker stopped.")
+            except Exception as e:
+                logger.debug(f"Error stopping ARQ worker: {e}")
+
+        if worker_task is not None:
+            worker_task.cancel()
+            try:
+                await worker_task
+            except asyncio.CancelledError:
+                pass
+
+        if arq_pool_opened:
+            from reversecore_mcp.core.task_queue import close_arq_pool
+
+            try:
+                await close_arq_pool()
+            except Exception as e:
+                logger.debug(f"Error closing ARQ pool: {e}")
+
+        from reversecore_mcp.core.analysis_cache import close_redis
+
+        try:
+            await close_redis()
+        except Exception as e:
+            logger.debug(f"Error closing Redis: {e}")
+
+        # Stop Resource Manager
+        if resource_manager_started:
+            try:
+                await resource_manager.stop()
+            except Exception as e:
+                logger.debug(f"Error stopping Resource Manager: {e}")
+
+        # Close AI Memory Store
+        if memory_store_initialized:
+            from reversecore_mcp.core.memory import get_memory_store
+
+            try:
+                memory_store = get_memory_store()
+                await memory_store.close()
+                logger.info("💾 AI Memory store closed")
+            except Exception as e:
+                logger.debug(f"Memory store close: {e}")
+
+        # Cancel cleanup task
+        if cleanup_task is not None:
+            cleanup_task.cancel()
+            try:
+                await cleanup_task
+            except asyncio.CancelledError:
+                pass
+
+        # Close authoritative R2 Pool (Issue #272)
+        try:
+            from reversecore_mcp.core.container import get_r2_pool
+
+            get_r2_pool().close_all()
+        except Exception as e:
+            logger.debug(f"Error closing R2 pool: {e}")
+
+        try:
+            # Stop and cleanup plugins explicitly
+            for plugin in plugins:
+                if hasattr(plugin, "cleanup"):
+                    try:
+                        await plugin.cleanup()
+                    except Exception as e:
+                        logger.debug(f"Error during {plugin.name} cleanup: {e}")
+
+            # Cleanup temp directory if it exists
+            temp_dir = settings.workspace / "tmp"
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                logger.info("Cleaned up temporary directory")
+
+        except Exception as e:
+            logger.error(f"Error during shutdown cleanup: {e}")
+
+        # Cleanup temporary files (original logic, kept for now)
+        try:
+            temp_files = list(settings.workspace.glob("*.tmp"))
+            temp_files.extend(settings.workspace.glob(".r2_*"))  # radare2 temp files
+
+            for temp_file in temp_files:
+                try:
+                    temp_file.unlink()
+                    logger.debug(f"Cleaned up: {temp_file.name}")
+                except (OSError, FileNotFoundError) as e:
+                    logger.debug(f"Could not remove temp file {temp_file.name}: {e}")
+
+            if temp_files:
+                logger.info(f"🧹 Cleaned up {len(temp_files)} temporary files")
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}")
+
+        logger.info("👋 Server shutdown complete")
 
 
 async def _cleanup_old_files():

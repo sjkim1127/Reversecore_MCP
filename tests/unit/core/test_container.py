@@ -390,9 +390,22 @@ class TestThreadSafety:
 class TestConvenienceFunctions:
     def test_get_r2_pool_returns_something(self):
         from reversecore_mcp.core.container import get_r2_pool
+        from reversecore_mcp.core.r2_pool import r2_pool
 
         pool = get_r2_pool()
         assert pool is not None
+        assert pool is r2_pool
+
+    def test_get_r2_pool_unification_with_global_singleton(self):
+        """Verify DI container r2_pool singleton is identical to core.r2_pool (Issue #272)."""
+        from reversecore_mcp.core.container import container, get_r2_pool
+        from reversecore_mcp.core.r2_pool import r2_pool
+
+        pool_from_get = get_r2_pool()
+        pool_from_container = container.get("r2_pool")
+
+        assert pool_from_get is r2_pool
+        assert pool_from_container is r2_pool
 
     def test_get_resource_manager_returns_something(self):
         from reversecore_mcp.core.container import get_resource_manager

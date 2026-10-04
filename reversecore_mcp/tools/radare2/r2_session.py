@@ -273,6 +273,29 @@ class R2Session:
                 for init_cmd in init_cmds:
                     self._r2.cmd(init_cmd)
 
+            # Wire R2 extension lifecycle hooks and startup commands (Issue #270)
+            try:
+                from reversecore_mcp.core.extension_registry import get_extension_registry
+
+                registry = get_extension_registry()
+                registry.run_r2_session_open_hooks_sync(file_path, self._r2)
+                commands = registry.get_r2_startup_commands(file_path)
+                for cmd in commands:
+                    try:
+                        from reversecore_mcp.core.command_spec import validate_r2_command
+
+                        validated_cmd = validate_r2_command(cmd)
+                        self._r2.cmd(validated_cmd)
+                    except Exception as exc:
+                        logger.error(
+                            "Failed to execute R2 startup command '%s' in session for %s: %s",
+                            cmd,
+                            file_path,
+                            exc,
+                        )
+            except Exception as exc:
+                logger.debug("Error running extension session open hooks: %s", exc)
+
             self.file_path = file_path
             self.status = "active"
             return True
@@ -286,6 +309,14 @@ class R2Session:
         """Close the current radare2 session."""
         if self._r2:
             try:
+                from reversecore_mcp.core.extension_registry import get_extension_registry
+
+                if self.file_path:
+                    get_extension_registry().run_r2_session_close_hooks_sync(self.file_path)
+            except Exception as exc:
+                logger.debug("Error running extension session close hooks: %s", exc)
+
+            try:
                 self._r2.quit()
             except Exception as e:
                 logger.debug("r2 quit on close: %s", e)
@@ -295,6 +326,15 @@ class R2Session:
 
     def terminate(self) -> None:
         """Kill a blocked radare2 child process and invalidate this session."""
+        if self._r2:
+            try:
+                from reversecore_mcp.core.extension_registry import get_extension_registry
+
+                if self.file_path:
+                    get_extension_registry().run_r2_session_close_hooks_sync(self.file_path)
+            except Exception as exc:
+                logger.debug("Error running extension session close hooks on terminate: %s", exc)
+
         r2 = self._r2
         process = getattr(r2, "process", None) if r2 is not None else None
         if process is not None:
