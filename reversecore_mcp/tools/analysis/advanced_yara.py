@@ -15,48 +15,112 @@ _HEX_PATTERN = re.compile(r"^[0-9a-fA-F]+$")
 _RULE_NAME_PATTERN = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]*$")
 
 
+try:
+    import capstone
+    from capstone import x86
+
+    _HAS_CAPSTONE = True
+except ImportError:  # pragma: no cover
+    capstone = None  # type: ignore[assignment]
+    x86 = None  # type: ignore[assignment]
+    _HAS_CAPSTONE = False
+
+_cs_x86_64: Any = None
+_cs_x86_32: Any = None
+
+
+def _get_cs_x86_64() -> Any:
+    global _cs_x86_64
+    if _cs_x86_64 is None and _HAS_CAPSTONE:
+        _cs_x86_64 = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_64)
+        _cs_x86_64.detail = True
+    return _cs_x86_64
+
+
+def _get_cs_x86_32() -> Any:
+    global _cs_x86_32
+    if _cs_x86_32 is None and _HAS_CAPSTONE:
+        _cs_x86_32 = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
+        _cs_x86_32.detail = True
+    return _cs_x86_32
+
+
 def _mask_instruction(inst: dict[str, Any], mask_operands: bool) -> str:
     """
     Mask variable bytes in an instruction based on its type.
-    If mask_operands is True, the operand bytes of calls, jumps, and memory references
-    are replaced with '??'.
+    If mask_operands is True, the operand bytes of calls, jumps, and relocatable
+    memory references are replaced with '??'.
     """
     opcode_bytes = inst.get("bytes", "")
     if not opcode_bytes:
         return ""
 
-    mnemonic = inst.get("mnemonic", "")
+    try:
+        raw_bytes = bytes.fromhex(opcode_bytes)
+    except ValueError:
+        return ""
+
+    byte_list = [opcode_bytes[i : i + 2] for i in range(0, len(opcode_bytes), 2)]
+    if not byte_list:
+        return ""
 
     if not mask_operands:
-        return " ".join([opcode_bytes[i : i + 2] for i in range(0, len(opcode_bytes), 2)])
+        return " ".join(byte_list)
 
-    # Mask CALL and JMP operands (usually relative offsets that change)
-    if mnemonic.startswith("call") or mnemonic.startswith("jmp") or mnemonic.startswith("j"):
-        # Very rough heuristic for x86/x64: first byte is opcode, rest is offset
-        # For a more robust approach, we need exact instruction length and prefix info.
-        # R2 json gives us `bytes` which is a hex string.
-        # Typically x86 call rel32 is E8 XX XX XX XX (5 bytes)
-        # Jmp rel32 is E9 XX XX XX XX (5 bytes)
-        # Conditional jmps 0F 8X XX XX XX XX (6 bytes) or 7X XX (2 bytes)
+    mnemonic = inst.get("mnemonic", "")
 
-        byte_list = [opcode_bytes[i : i + 2] for i in range(0, len(opcode_bytes), 2)]
+    # Try precise decoding with Capstone if available
+    masked_via_decoder = False
+    if _HAS_CAPSTONE:
+        for cs in (_get_cs_x86_64(), _get_cs_x86_32()):
+            if cs is None:
+                continue
+            try:
+                insns = list(cs.disasm(raw_bytes, 0))
+            except Exception:
+                insns = []
+            if insns and insns[0].size == len(byte_list):
+                insn = insns[0]
+                # 1. Branch / call targets
+                if insn.mnemonic.startswith(("call", "jmp", "j")) and insn.imm_size > 0:
+                    for i in range(insn.imm_offset, insn.imm_offset + insn.imm_size):
+                        if 0 <= i < len(byte_list):
+                            byte_list[i] = "??"
+                            masked_via_decoder = True
 
-        if len(byte_list) == 5 and byte_list[0] in ("e8", "e9"):
-            return f"{byte_list[0]} ?? ?? ?? ??"
-        elif len(byte_list) == 6 and byte_list[0] == "0f" and byte_list[1].startswith("8"):
-            return f"{byte_list[0]} {byte_list[1]} ?? ?? ?? ??"
-        elif len(byte_list) == 2 and (byte_list[0].startswith("7") or byte_list[0] == "eb"):
-            return f"{byte_list[0]} ??"
+                # 2. Memory operands (RIP-relative or absolute addresses)
+                for op in insn.operands:
+                    if op.type == x86.X86_OP_MEM:
+                        # RIP-relative or absolute (base=0, no base register)
+                        if op.mem.base == x86.X86_REG_RIP or op.mem.base == 0:
+                            if insn.disp_size > 0:
+                                for i in range(insn.disp_offset, insn.disp_offset + insn.disp_size):
+                                    if 0 <= i < len(byte_list):
+                                        byte_list[i] = "??"
+                                        masked_via_decoder = True
+                    elif (
+                        op.type == x86.X86_OP_IMM
+                        and insn.imm_size == 8
+                        and insn.mnemonic.startswith("mov")
+                    ):
+                        # 64-bit absolute address immediate in mov
+                        for i in range(insn.imm_offset, insn.imm_offset + insn.imm_size):
+                            if 0 <= i < len(byte_list):
+                                byte_list[i] = "??"
+                                masked_via_decoder = True
+                break
 
-    # Mask memory references in MOV, LEA, etc. (e.g., mov rax, [0x123456])
-    # For a naive approach, if there's a ptr/disp, mask it. We can rely on R2's "ptr" or "disp" fields
-    # but radare2 'pij' might not reliably provide exact byte offsets of operands.
-    # We will provide a simplified advanced masking: if "ptr" or "disp" is present in instruction,
-    # we mask the last few bytes depending on the length of the instruction.
-    # R2's 'pij' might include "refs".
+    # Fallback to heuristic branch masking if decoder did not mask
+    if not masked_via_decoder:
+        if mnemonic.startswith("call") or mnemonic.startswith("jmp") or mnemonic.startswith("j"):
+            if len(byte_list) == 5 and byte_list[0] in ("e8", "e9"):
+                return f"{byte_list[0]} ?? ?? ?? ??"
+            elif len(byte_list) == 6 and byte_list[0] == "0f" and byte_list[1].startswith("8"):
+                return f"{byte_list[0]} {byte_list[1]} ?? ?? ?? ??"
+            elif len(byte_list) == 2 and (byte_list[0].startswith("7") or byte_list[0] == "eb"):
+                return f"{byte_list[0]} ??"
 
-    # Simple fallback: return exact bytes space separated
-    return " ".join([opcode_bytes[i : i + 2] for i in range(0, len(opcode_bytes), 2)])
+    return " ".join(byte_list)
 
 
 @log_execution(tool_name="generate_advanced_yara_rule")
@@ -132,6 +196,8 @@ async def generate_advanced_yara_rule(
         return failure("PROCESSING_ERROR", "Could not generate masked pattern from instructions")
 
     hex_string = " ".join(masked_pattern)
+    has_normalized_operands = any("??" in piece for piece in masked_pattern)
+    actual_masked = bool(mask_operands and has_normalized_operands)
 
     # Format YARA rule
     yara_rule = f"""rule {rule_name}
@@ -139,7 +205,7 @@ async def generate_advanced_yara_rule(
     meta:
         description = "Advanced rule generated from {validated_path.name} at {address}"
         author = "Reversecore_MCP"
-        masked = {"true" if mask_operands else "false"}
+        masked = {"true" if actual_masked else "false"}
 
     strings:
         $opcodes = {{ {hex_string} }}
@@ -154,5 +220,6 @@ async def generate_advanced_yara_rule(
             "yara_rule": yara_rule,
             "pattern": hex_string,
             "instructions_processed": len(instructions),
+            "masked": actual_masked,
         }
     )
