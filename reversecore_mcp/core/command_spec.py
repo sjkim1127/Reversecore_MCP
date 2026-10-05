@@ -265,6 +265,13 @@ R2_COMMAND_SPECS: list[CommandSpec] = [
         regex=re.compile(rf"^fs(\s+{_ADDR})?(\s*~.+)?$"),
         description="Flag spaces",
     ),
+    # Config / eval commands
+    CommandSpec(
+        name="e",
+        type="read",
+        regex=re.compile(r"^e(\s+[a-zA-Z0-9_.]+(\s*=\s*[a-zA-Z0-9_.-]+)?)?$"),
+        description="Configuration evaluation and setting",
+    ),
 ]
 
 
@@ -336,7 +343,7 @@ def validate_r2_command(cmd: str, allow_write: bool = False) -> ValidatedR2Comma
 
     # Check against dynamic ALLOWED_R2_COMMANDS
     cmd_base = cmd_stripped.split()[0] if cmd_stripped else ""
-    if cmd_base in ALLOWED_R2_COMMANDS:
+    if cmd_base in ALLOWED_R2_COMMANDS or cmd_stripped in ALLOWED_R2_COMMANDS:
         return ValidatedR2Command(cmd_stripped)
 
     # No match found

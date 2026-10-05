@@ -534,3 +534,186 @@ class TestR2ConnectionPoolStats:
         pool = R2ConnectionPool()
         stats = pool.get_stats()
         assert "connections_created" in stats
+
+
+class TestR2ConnectionPoolTimeoutRetrySuppression:
+    """Tests for Issue #267: Prevent timed-out r2_pool commands from retrying in a background thread."""
+
+    @pytest.mark.asyncio
+    async def test_timeout_suppresses_retry_in_background_thread(self):
+        """Timed-out execute_async must not reconnect or retry the command in the background thread."""
+        from reversecore_mcp.core.exceptions import ExecutionTimeoutError
+
+        pool = R2ConnectionPool()
+        mock_r2 = MagicMock()
+        mock_process = MagicMock()
+        mock_r2.process = mock_process
+
+        started = threading.Event()
+
+        def slow_and_fail_on_kill(cmd):
+            started.set()
+            time.sleep(0.3)
+            # Simulates process death causing r2.cmd to raise
+            raise RuntimeError("process killed while executing")
+
+        mock_r2.cmd = MagicMock(side_effect=slow_and_fail_on_kill)
+        pool._pool["/app/target.bin"] = mock_r2
+        pool._last_health_check["/app/target.bin"] = time.time()
+
+        with patch.object(r2_pool_mod, "r2pipe") as mock_r2pipe:
+            replacement_r2 = MagicMock()
+            mock_r2pipe.open = MagicMock(return_value=replacement_r2)
+
+            with pytest.raises(ExecutionTimeoutError):
+                await pool.execute_async("/app/target.bin", "pdf", timeout=0.05)
+
+            # Wait briefly to let any background thread finish its exception block
+            await asyncio.sleep(0.4)
+
+            # Verification:
+            # 1. Reconnections stat must be 0 (no retry attempt made)
+            assert pool._stats["reconnections"] == 0
+            # 2. No replacement r2 connection was opened
+            assert mock_r2pipe.open.call_count == 0
+            # 3. Target file was removed from pool
+            assert "/app/target.bin" not in pool._pool
+
+    def test_cancel_token_stops_execution_immediately(self):
+        """If cancel_token is already set, _execute_file raises ExecutionTimeoutError without executing."""
+        from reversecore_mcp.core.exceptions import ExecutionTimeoutError
+
+        pool = R2ConnectionPool()
+        token = threading.Event()
+        token.set()
+
+        with pytest.raises(ExecutionTimeoutError):
+            pool._execute_file("/app/target.bin", "pdf", cancel_token=token)
+
+    def test_transient_failure_still_retries_without_timeout(self):
+        """Normal non-timed out execution still uses the retry path."""
+        pool = R2ConnectionPool()
+        mock_r2 = MagicMock()
+        mock_r2.cmd = MagicMock(side_effect=[RuntimeError("transient error"), "recovered"])
+        with patch.object(pool, "get_connection", return_value=mock_r2):
+            res = pool.execute("/app/test.bin", "pdf")
+            assert res == "recovered"
+            assert pool._stats["reconnections"] == 1
+
+
+class TestR2ConnectionPoolLifecycleHooks:
+    """Tests for Issue #270: Wire R2 extension session lifecycle hooks and startup commands."""
+
+    def test_open_session_invokes_hooks_and_runs_startup_commands(self):
+        from reversecore_mcp.core.extension import R2ExtensionPoint
+        from reversecore_mcp.core.extension_registry import get_extension_registry
+
+        class TestSessionExt(R2ExtensionPoint):
+            name = "test_session_ext"
+
+            def __init__(self):
+                self.opened_sessions = []
+                self.closed_sessions = []
+
+            async def on_session_open(self, file_path, r2pipe_instance):
+                self.opened_sessions.append((file_path, r2pipe_instance))
+
+            async def on_session_close(self, file_path):
+                self.closed_sessions.append(file_path)
+
+            def get_r2_startup_commands(self):
+                return ["e asm.syntax=intel"]
+
+        reg = get_extension_registry()
+        reg.reset()
+        ext = TestSessionExt()
+        reg.register_r2(ext)
+
+        pool = R2ConnectionPool()
+        mock_r2 = MagicMock()
+
+        with patch.object(r2_pool_mod, "r2pipe") as mock_r2pipe:
+            mock_r2pipe.open = MagicMock(return_value=mock_r2)
+            conn = pool.get_connection("/app/binary.bin")
+
+            assert conn is mock_r2
+            # on_session_open hook invoked
+            assert len(ext.opened_sessions) == 1
+            assert ext.opened_sessions[0][0] == "/app/binary.bin"
+            assert ext.opened_sessions[0][1] is mock_r2
+
+            # startup command executed
+            mock_r2.cmd.assert_called_with("e asm.syntax=intel")
+
+    def test_reusing_session_does_not_rerun_startup_commands(self):
+        from reversecore_mcp.core.extension import R2ExtensionPoint
+        from reversecore_mcp.core.extension_registry import get_extension_registry
+
+        class TestReusedExt(R2ExtensionPoint):
+            name = "test_reused_ext"
+
+            def __init__(self):
+                self.open_count = 0
+
+            async def on_session_open(self, file_path, r2pipe_instance):
+                self.open_count += 1
+
+            def get_r2_startup_commands(self):
+                return ["e asm.syntax=intel"]
+
+        reg = get_extension_registry()
+        reg.reset()
+        ext = TestReusedExt()
+        reg.register_r2(ext)
+
+        pool = R2ConnectionPool()
+        mock_r2 = MagicMock()
+        mock_r2.cmd = MagicMock(return_value="0x0")
+
+        with patch.object(r2_pool_mod, "r2pipe") as mock_r2pipe:
+            mock_r2pipe.open = MagicMock(return_value=mock_r2)
+            # First call creates
+            pool.get_connection("/app/binary.bin")
+            assert ext.open_count == 1
+            assert mock_r2.cmd.call_count >= 1
+
+            cmd_count_after_first = mock_r2.cmd.call_count
+
+            # Second call reuses
+            pool.get_connection("/app/binary.bin")
+            assert ext.open_count == 1
+            # Did not execute startup commands again
+            assert mock_r2.cmd.call_count == cmd_count_after_first
+
+    def test_eviction_and_close_all_invoke_close_hooks(self):
+        from reversecore_mcp.core.extension import R2ExtensionPoint
+        from reversecore_mcp.core.extension_registry import get_extension_registry
+
+        class TestCloseExt(R2ExtensionPoint):
+            name = "test_close_ext"
+
+            def __init__(self):
+                self.closed_sessions = []
+
+            async def on_session_close(self, file_path):
+                self.closed_sessions.append(file_path)
+
+        reg = get_extension_registry()
+        reg.reset()
+        ext = TestCloseExt()
+        reg.register_r2(ext)
+
+        pool = R2ConnectionPool(max_connections=1)
+        r1 = MagicMock()
+        r2 = MagicMock()
+
+        with patch.object(r2_pool_mod, "r2pipe") as mock_r2pipe:
+            mock_r2pipe.open = MagicMock(side_effect=[r1, r2])
+            pool.get_connection("/app/first.bin")
+            # Opening second.bin evicts first.bin
+            pool.get_connection("/app/second.bin")
+            assert "/app/first.bin" in ext.closed_sessions
+
+            # close_all closes second.bin
+            pool.close_all()
+            assert "/app/second.bin" in ext.closed_sessions

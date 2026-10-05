@@ -245,6 +245,14 @@ class ServiceContainer:
                     except Exception as e:
                         logger.error(f"Failed to close '{name}': {e}")
 
+    def get_r2_pool(self) -> Any:
+        """Get the R2 connection pool instance."""
+        return self.get("r2_pool")
+
+    def get_resource_manager(self) -> Any:
+        """Get the resource manager instance."""
+        return self.get("resource_manager")
+
 
 # Global container instance
 container = ServiceContainer()
@@ -253,14 +261,14 @@ container = ServiceContainer()
 def _initialize_default_services() -> None:
     """Register default services in the container."""
     from reversecore_mcp.core.config import get_config
-    from reversecore_mcp.core.r2_pool import R2ConnectionPool
+    from reversecore_mcp.core.r2_pool import r2_pool
     from reversecore_mcp.core.resource_manager import ResourceManager
 
     # Register config as factory (always fresh)
     container.register_factory("config", get_config)
 
-    # Register R2 pool as singleton
-    container.register_singleton("r2_pool", R2ConnectionPool)
+    # Register R2 pool as singleton using authoritative global instance (Issue #272)
+    container.register_singleton("r2_pool", lambda: r2_pool, instance=r2_pool)
 
     # Register resource manager as singleton
     container.register_singleton("resource_manager", ResourceManager)

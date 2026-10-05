@@ -86,13 +86,43 @@ def get_r2_project_name(file_path: str) -> str:
     return hashlib.md5(abs_path.encode(), usedforsecurity=False).hexdigest()
 
 
-@lru_cache(maxsize=128)
-def calculate_dynamic_timeout(file_path: str, base_timeout: int = 300) -> int:
+def _get_file_stat_key(file_path: str | Path) -> tuple[str, int, int]:
+    """Return a cache key tuple: (resolved_path, file_size, mtime_ns).
+
+    If the file cannot be stat'd (e.g. does not exist or permission error),
+    returns (resolved_path, -1, -1).
     """
-    Calculate timeout based on file size.
+    try:
+        resolved = str(Path(file_path).resolve())
+        st = os.stat(resolved)
+        return (resolved, st.st_size, st.st_mtime_ns)
+    except OSError:
+        try:
+            resolved = str(Path(file_path).resolve())
+        except Exception:
+            resolved = str(file_path)
+        return (resolved, -1, -1)
+
+
+@lru_cache(maxsize=128)
+def _calculate_dynamic_timeout_cached(
+    stat_key: tuple[str, int, int], base_timeout: int = 300
+) -> int:
+    _resolved_path, size_bytes, _ = stat_key
+    if size_bytes < 0:
+        return base_timeout
+    size_mb = size_bytes / (1024 * 1024)
+    # Cap the dynamic addition to avoid extremely long timeouts (max +10 mins)
+    additional_time = min(size_mb * 2, 600)
+    return int(base_timeout + additional_time)
+
+
+def calculate_dynamic_timeout(file_path: str | Path, base_timeout: int = 300) -> int:
+    """Calculate timeout based on file size.
 
     Strategy: Base timeout + 2 seconds per MB of file size.
-    Cached to avoid repeated file stat calls for the same file.
+    Cached by file identity (path, size, mtime) to avoid repeated file stat calls,
+    while automatically invalidating when file content or size changes.
 
     Args:
         file_path: Path to the binary file
@@ -101,38 +131,30 @@ def calculate_dynamic_timeout(file_path: str, base_timeout: int = 300) -> int:
     Returns:
         Calculated timeout in seconds
     """
-    try:
-        size_mb = os.path.getsize(file_path) / (1024 * 1024)
-        # Cap the dynamic addition to avoid extremely long timeouts (max +10 mins)
-        additional_time = min(size_mb * 2, 600)
-        return int(base_timeout + additional_time)
-    except Exception:
-        return base_timeout
+    key = _get_file_stat_key(file_path)
+    return _calculate_dynamic_timeout_cached(key, base_timeout)
+
+
+calculate_dynamic_timeout.cache_clear = (  # type: ignore[attr-defined]
+    _calculate_dynamic_timeout_cached.cache_clear
+)
+calculate_dynamic_timeout.cache_info = (  # type: ignore[attr-defined]
+    _calculate_dynamic_timeout_cached.cache_info
+)
 
 
 @lru_cache(maxsize=256)
-def get_adaptive_analysis_level(file_path: str, requested_level: str = "aaa") -> str:
-    """
-    Determine optimal analysis level based on file size.
-
-    This prevents timeout/OOM issues on large binaries while maintaining
-    quality for smaller files.
-
-    Args:
-        file_path: Path to the binary file
-        requested_level: Requested analysis level (may be overridden)
-
-    Returns:
-        Optimal analysis level for the file size
-    """
-    # If user explicitly requested no analysis, respect that
+def _get_adaptive_analysis_level_cached(
+    stat_key: tuple[str, int, int], requested_level: str = "aaa"
+) -> str:
     if requested_level == "-n":
         return "-n"
 
-    try:
-        file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
-    except OSError:
-        return requested_level  # Can't determine size, use requested
+    _resolved_path, size_bytes, _ = stat_key
+    if size_bytes < 0:
+        return requested_level
+
+    file_size_mb = size_bytes / (1024 * 1024)
 
     # Adaptive analysis based on file size
     if file_size_mb < SMALL_FILE_MB:
@@ -152,6 +174,33 @@ def get_adaptive_analysis_level(file_path: str, requested_level: str = "aaa") ->
         # Very large files: no analysis to prevent timeout
         logger.warning(f"File {file_size_mb:.1f}MB > {LARGE_FILE_MB}MB, skipping analysis")
         return "-n"
+
+
+def get_adaptive_analysis_level(file_path: str | Path, requested_level: str = "aaa") -> str:
+    """Determine optimal analysis level based on file size.
+
+    Cached by file identity (path, size, mtime) to prevent stale analysis levels
+    when files are replaced or modified in-place.
+
+    Args:
+        file_path: Path to the binary file
+        requested_level: Requested analysis level (may be overridden)
+
+    Returns:
+        Optimal analysis level for the file size
+    """
+    if requested_level == "-n":
+        return "-n"
+    key = _get_file_stat_key(file_path)
+    return _get_adaptive_analysis_level_cached(key, requested_level)
+
+
+get_adaptive_analysis_level.cache_clear = (  # type: ignore[attr-defined]
+    _get_adaptive_analysis_level_cached.cache_clear
+)
+get_adaptive_analysis_level.cache_info = (  # type: ignore[attr-defined]
+    _get_adaptive_analysis_level_cached.cache_info
+)
 
 
 def build_r2_cmd(file_path: str, r2_commands: list[str], analysis_level: str = "aaa") -> list[str]:
@@ -193,11 +242,16 @@ def _get_r2_pool():
     global _r2_pool
     if _r2_pool is None:
         try:
-            from reversecore_mcp.core.r2_pool import r2_pool
+            from reversecore_mcp.core.container import get_r2_pool
 
-            _r2_pool = r2_pool
+            _r2_pool = get_r2_pool()
         except ImportError:
-            pass
+            try:
+                from reversecore_mcp.core.r2_pool import r2_pool
+
+                _r2_pool = r2_pool
+            except ImportError:
+                pass
     return _r2_pool
 
 

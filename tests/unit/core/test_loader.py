@@ -112,3 +112,50 @@ class TestPluginLoader:
         assert len(result) == 1
         assert result[0].name == "good"
         assert loader.get_plugin("good") is result[0]
+
+    def test_discover_plugins_isolates_unexpected_import_exception(self):
+        """Unexpected runtime/syntax error in one module does not abort discovery of others (Issue #269)."""
+        loader = PluginLoader()
+
+        class WorkingPlugin(Plugin):
+            @property
+            def name(self) -> str:
+                return "working"
+
+            def register(self, mcp_server) -> None:
+                pass
+
+        class DummyGoodModule:
+            WorkingPluginClass = WorkingPlugin
+
+        def fake_import_module(mod_name):
+            if mod_name == "reversecore_mcp.tools.broken_module":
+                raise RuntimeError("Catastrophic module initialization error")
+            if mod_name == "reversecore_mcp.tools.working_module":
+                return DummyGoodModule()
+            raise ImportError(f"No module named {mod_name}")
+
+        with patch("reversecore_mcp.core.loader.pkgutil.walk_packages") as walk:
+            walk.return_value = [
+                (None, "reversecore_mcp.tools.broken_module", False),
+                (None, "reversecore_mcp.tools.working_module", False),
+            ]
+            with patch("importlib.import_module", side_effect=fake_import_module):
+                result = loader.discover_plugins("/fake/path")
+
+        # Broken module recorded in failed_modules
+        assert "reversecore_mcp.tools.broken_module" in loader.failed_modules
+        assert "Catastrophic" in loader.failed_modules["reversecore_mcp.tools.broken_module"]
+
+        # Working module still discovered despite the previous failure
+        assert len(result) == 1
+        assert result[0].name == "working"
+        assert loader.get_plugin("working") is not None
+
+    def test_failed_modules_property_returns_copy(self):
+        """failed_modules should return a copy of internal dictionary."""
+        loader = PluginLoader()
+        loader._failed_modules["mod.a"] = "err a"
+        res = loader.failed_modules
+        res["mod.b"] = "err b"
+        assert "mod.b" not in loader.failed_modules
