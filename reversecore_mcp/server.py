@@ -17,6 +17,7 @@ from pathlib import Path
 from fastmcp import FastMCP
 
 from reversecore_mcp.core.config import get_config
+from reversecore_mcp.core.container import get_r2_pool
 from reversecore_mcp.core.logging_config import get_logger, setup_logging
 from reversecore_mcp.core.resource_manager import resource_manager
 from reversecore_mcp.core.security import invalidate_path_cache
@@ -39,11 +40,9 @@ async def server_lifespan(server: FastMCP) -> AsyncGenerator[None, None]:
 
     # Track initialized resources for clean partial unwinding (Issue #266)
     resource_manager_started = False
-    memory_store_initialized = False
     cleanup_task: asyncio.Task | None = None
     worker = None
     worker_task: asyncio.Task | None = None
-    arq_pool_opened = False
 
     try:
         # 1. Ensure workspace exists
@@ -92,7 +91,6 @@ async def server_lifespan(server: FastMCP) -> AsyncGenerator[None, None]:
 
         try:
             await initialize_memory_store(settings.memory_db_path)
-            memory_store_initialized = True
             logger.info("✅ AI Memory store initialized")
         except Exception as e:
             logger.warning(f"⚠️ Memory store initialization failed: {e}")
@@ -127,7 +125,6 @@ async def server_lifespan(server: FastMCP) -> AsyncGenerator[None, None]:
 
         pool = await get_arq_pool()
         if pool is not None:
-            arq_pool_opened = True
             try:
                 worker = Worker(
                     functions=WorkerSettings.functions,  # type: ignore[arg-type]
@@ -165,13 +162,12 @@ async def server_lifespan(server: FastMCP) -> AsyncGenerator[None, None]:
             except asyncio.CancelledError:
                 pass
 
-        if arq_pool_opened:
-            from reversecore_mcp.core.task_queue import close_arq_pool
+        from reversecore_mcp.core.task_queue import close_arq_pool
 
-            try:
-                await close_arq_pool()
-            except Exception as e:
-                logger.debug(f"Error closing ARQ pool: {e}")
+        try:
+            await close_arq_pool()
+        except Exception as e:
+            logger.debug(f"Error closing ARQ pool: {e}")
 
         from reversecore_mcp.core.analysis_cache import close_redis
 
@@ -188,15 +184,14 @@ async def server_lifespan(server: FastMCP) -> AsyncGenerator[None, None]:
                 logger.debug(f"Error stopping Resource Manager: {e}")
 
         # Close AI Memory Store
-        if memory_store_initialized:
+        try:
             from reversecore_mcp.core.memory import get_memory_store
 
-            try:
-                memory_store = get_memory_store()
-                await memory_store.close()
-                logger.info("💾 AI Memory store closed")
-            except Exception as e:
-                logger.debug(f"Memory store close: {e}")
+            memory_store = get_memory_store()
+            await memory_store.close()
+            logger.info("💾 AI Memory store closed")
+        except Exception as e:
+            logger.debug(f"Memory store close: {e}")
 
         # Cancel cleanup task
         if cleanup_task is not None:
@@ -208,8 +203,6 @@ async def server_lifespan(server: FastMCP) -> AsyncGenerator[None, None]:
 
         # Close authoritative R2 Pool (Issue #272)
         try:
-            from reversecore_mcp.core.container import get_r2_pool
-
             get_r2_pool().close_all()
         except Exception as e:
             logger.debug(f"Error closing R2 pool: {e}")

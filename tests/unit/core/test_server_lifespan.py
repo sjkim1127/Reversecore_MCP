@@ -41,7 +41,7 @@ class TestServerLifespanReliability:
             patch(
                 "reversecore_mcp.core.analysis_cache.close_redis", new_callable=AsyncMock
             ) as mock_close_redis,
-            patch("reversecore_mcp.core.container.get_r2_pool") as mock_get_r2_pool,
+            patch("reversecore_mcp.server.get_r2_pool") as mock_get_r2_pool,
         ):
             mock_cfg.return_value.workspace = tmp_path / "workspace"
             mock_cfg.return_value.memory_db_path = tmp_path / "memory.db"
@@ -82,7 +82,7 @@ class TestServerLifespanReliability:
             patch(
                 "reversecore_mcp.core.analysis_cache.close_redis", new_callable=AsyncMock
             ) as mock_close_redis,
-            patch("reversecore_mcp.core.container.get_r2_pool") as mock_get_r2_pool,
+            patch("reversecore_mcp.server.get_r2_pool") as mock_get_r2_pool,
         ):
             mock_cfg.return_value.workspace = tmp_path / "workspace"
             mock_cfg.return_value.memory_db_path = tmp_path / "memory.db"
@@ -154,7 +154,7 @@ class TestServerLifespanReliability:
                 return_value=None,
             ),
             patch("reversecore_mcp.core.analysis_cache.close_redis", new_callable=AsyncMock),
-            patch("reversecore_mcp.core.container.get_r2_pool"),
+            patch("reversecore_mcp.server.get_r2_pool"),
         ):
             mock_cfg.return_value.workspace = tmp_path / "workspace"
             mock_cfg.return_value.memory_db_path = tmp_path / "memory.db"
