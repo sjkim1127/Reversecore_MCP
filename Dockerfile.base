@@ -38,7 +38,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     clang \
+    clang-16 \
+    lld-16 \
+    libc++-16-dev \
+    libc++abi-16-dev \
     libclang-rt-14-dev \
+    libclang-rt-16-dev \
     make \
     cmake \
     automake \
@@ -121,6 +126,14 @@ FROM compiler-toolchain AS compiler-pip
 COPY requirements.txt .
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
+
+# Configure C++ toolchain for native wheels built from source (e.g. z3-solver requires C++20 <format> and libc++ on arm64)
+ENV CC="clang-16" \
+    CXX="clang++-16" \
+    CXXFLAGS="-stdlib=libc++ -fexperimental-library" \
+    LDFLAGS="-stdlib=libc++ -fuse-ld=lld-16" \
+    CMAKE_ARGS="-DENABLE_LTO=OFF"
+
 # Use pip cache mount for faster rebuilds when requirements.txt changes
 # hadolint ignore=DL3042,DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
@@ -161,6 +174,9 @@ RUN apt-get update \
     gnupg \
     # Disk forensics: Sleuth Kit CLI (fls, mmls, icat, istat, ffind, fsstat)
     sleuthkit \
+    # C++ runtime libraries (required by clang/libc++ compiled native packages such as z3 on arm64)
+    libc++1-16 \
+    libc++abi1-16 \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir --require-hashes -r /tmp/requirements-toolchain.txt \
     && rm -rf /usr/local/lib/python3.12/ensurepip \
