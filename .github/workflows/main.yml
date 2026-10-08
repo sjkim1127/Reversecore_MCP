@@ -368,7 +368,7 @@ jobs:
              ! command -v pip && ! command -v pip3'
 
       - name: Run Trivy container security scan
-        uses: aquasecurity/trivy-action@d2a0b60797ff03db6132bd4e2b293f9b37081297 # master
+        uses: aquasecurity/trivy-action@c03d123cb480c08c69b054af418ea5e69fe6e57e # master
         with:
           image-ref: 'reversecore-mcp:ci'
           format: 'table'
@@ -665,13 +665,13 @@ jobs:
           fetch-depth: 0
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
+        uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
         with:
           languages: python
           config-file: ./.github/codeql/codeql-config.yml
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
+        uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
 
   # ──────────────────────────────────────────────────────────────────────────
   # Build base image — matrix strategy: one native runner per architecture.
@@ -1144,7 +1144,7 @@ jobs:
           echo "✅ Multi-arch app manifest created: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}"
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@d2a0b60797ff03db6132bd4e2b293f9b37081297 # master
+        uses: aquasecurity/trivy-action@c03d123cb480c08c69b054af418ea5e69fe6e57e # master
         with:
           image-ref: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
           format: 'table'
