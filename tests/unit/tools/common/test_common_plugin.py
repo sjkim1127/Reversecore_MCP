@@ -46,14 +46,14 @@ class TestCommonToolsPlugin:
         assert "Unified common tools" in plugin.description
 
     def test_register_default_no_subplugins(self):
-        """Test that default register() registers 7 tools without memory/server subplugins."""
+        """Test that default register() registers 8 tools without memory/server subplugins."""
         mcp = FastMCP("test_common_default")
         plugin = CommonToolsPlugin()
 
         plugin.register(mcp)
 
         tools = _get_registered_tools(mcp)
-        assert len(tools) == 7
+        assert len(tools) == 8
         expected_tools = {
             "run_file",
             "copy_to_workspace",
@@ -62,18 +62,19 @@ class TestCommonToolsPlugin:
             "scan_workspace",
             "explain_patch",
             "assemble_instructions",
+            "retrieve_truncated_output",
         }
         assert set(tools.keys()) == expected_tools
 
     def test_register_with_subplugins(self):
-        """Test that register(include_subplugins=True) registers 20 tools."""
+        """Test that register(include_subplugins=True) registers 21 tools."""
         mcp = FastMCP("test_common_with_subplugins")
         plugin = CommonToolsPlugin()
 
         plugin.register(mcp, include_subplugins=True)
 
         tools = _get_registered_tools(mcp)
-        assert len(tools) == 20
+        assert len(tools) == 21
         # Check presence of subplugin tools
         assert "create_memory_session" in tools
         assert "get_server_health" in tools
