@@ -72,6 +72,18 @@ class EvidenceBasedReport:
         return sum(1 for f in self.findings if f.level == EvidenceLevel.POSSIBLE)
 
     @property
+    def artifact_only_count(self) -> int:
+        return sum(1 for f in self.findings if f.classification == "artifact_only")
+
+    @property
+    def behavior_capable_count(self) -> int:
+        return sum(1 for f in self.findings if f.classification == "behavior_capable")
+
+    @property
+    def runtime_confirmed_count(self) -> int:
+        return sum(1 for f in self.findings if f.classification == "runtime_confirmed")
+
+    @property
     def overall_confidence(self) -> float:
         """Calculate overall report confidence."""
         if not self.findings:
@@ -103,6 +115,9 @@ class EvidenceBasedReport:
         lines.append(f"| 🔍 Observed Findings | {self.observed_count} |")
         lines.append(f"| 🔎 Inferred Findings | {self.inferred_count} |")
         lines.append(f"| ❓ Possible Findings | {self.possible_count} |")
+        lines.append(f"| 📄 Artifact-Only Findings | {self.artifact_only_count} |")
+        lines.append(f"| ⚡ Behavior-Capable Findings | {self.behavior_capable_count} |")
+        lines.append(f"| 🏃 Runtime-Confirmed Findings | {self.runtime_confirmed_count} |")
         lines.append("")
 
         # Malware Family Identification
@@ -245,6 +260,11 @@ class EvidenceBasedReport:
                 "observed_count": self.observed_count,
                 "inferred_count": self.inferred_count,
                 "possible_count": self.possible_count,
+            },
+            "provenance_summary": {
+                "artifact_only_count": self.artifact_only_count,
+                "behavior_capable_count": self.behavior_capable_count,
+                "runtime_confirmed_count": self.runtime_confirmed_count,
             },
             "findings": [f.to_dict() for f in self.findings],
             "mitre_techniques": [t.to_dict() for t in self.mitre_techniques],

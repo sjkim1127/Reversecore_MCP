@@ -101,6 +101,9 @@ class AnalysisToolsPlugin(Plugin):
             run_strings,
             scan_for_versions,
         )
+        from reversecore_mcp.tools.analysis.string_verifier import (
+            verify_string_references,
+        )
         from reversecore_mcp.tools.analysis.symbolic_analysis import (
             verify_path_and_get_args_tool,
         )
@@ -118,6 +121,7 @@ class AnalysisToolsPlugin(Plugin):
         mcp_server.tool(generate_yara_rule)
         mcp_server.tool(generate_enhanced_yara_rule)
         mcp_server.tool(run_strings)
+        mcp_server.tool(verify_string_references)
         mcp_server.tool(run_binwalk)
         mcp_server.tool(run_binwalk_extract)
         mcp_server.tool(scan_for_versions)
@@ -137,7 +141,7 @@ class AnalysisToolsPlugin(Plugin):
         mcp_server.tool(taint_trace)
         mcp_server.tool(vt_lookup)
 
-        logger.info(f"Registered {self.name} plugin with 29 analysis tools (unified)")
+        logger.info(f"Registered {self.name} plugin with 30 analysis tools (unified)")
 
 
 __all__ = ["AnalysisToolsPlugin", *_LAZY_RESOURCE_MODULES]

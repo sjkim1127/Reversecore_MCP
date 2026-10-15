@@ -44,6 +44,42 @@ class EvidenceLevel(str, Enum):
         }[self.value]
 
 
+class EvidenceOrigin(str, Enum):
+    """Evidence origin classifying what kind of observation or analysis produced the claim.
+
+    Orthogonal to EvidenceLevel (confidence):
+    - ARTIFACT: Static metadata, raw strings, embedded constants, PE/ELF headers, imports
+    - STRUCTURAL: Code cross-references (xrefs), CFG/AST topology, call graphs, symbol relationships
+    - CAPABILITY: API call semantics, instruction semantics, dataflow/taint analysis, symbolic reachability
+    - RUNTIME: Dynamic execution, ESIL/CPU emulation, debugger tracing, observed sandbox behavior
+    """
+
+    ARTIFACT = "artifact"
+    STRUCTURAL = "structural"
+    CAPABILITY = "capability"
+    RUNTIME = "runtime"
+
+    @property
+    def rank(self) -> int:
+        """Numerical rank for provenance ordering (higher is stronger)."""
+        return {
+            "artifact": 1,
+            "structural": 2,
+            "capability": 3,
+            "runtime": 4,
+        }[self.value]
+
+    @property
+    def symbol(self) -> str:
+        """Display icon."""
+        return {
+            "artifact": "📄",
+            "structural": "🕸️",
+            "capability": "⚡",
+            "runtime": "🏃",
+        }[self.value]
+
+
 class MITREConfidence(str, Enum):
     """MITRE ATT&CK mapping confidence levels."""
 
@@ -61,6 +97,7 @@ class Evidence:
     location: str  # e.g., "0x401000", "section:.rsrc", "log:procmon"
     description: str  # What was found
     raw_data: str | None = None  # Raw evidence (hex, string, etc.)
+    origin: EvidenceOrigin = EvidenceOrigin.ARTIFACT  # Provenance layer
     timestamp: datetime = field(default_factory=datetime.now)
 
     def to_dict(self) -> dict[str, Any]:
@@ -69,6 +106,8 @@ class Evidence:
             "location": self.location,
             "description": self.description,
             "raw_data": self.raw_data,
+            "origin": self.origin.value,
+            "origin_symbol": self.origin.symbol,
             "timestamp": self.timestamp.isoformat(),
         }
 
@@ -83,9 +122,15 @@ class Finding:
     category: str  # e.g., "persistence", "encryption", "network"
     evidence: list[Evidence] = field(default_factory=list)
     mitre_techniques: list[str] = field(default_factory=list)
+    explicit_origin: EvidenceOrigin | None = None
 
     def add_evidence(
-        self, source: str, location: str, description: str, raw_data: str | None = None
+        self,
+        source: str,
+        location: str,
+        description: str,
+        raw_data: str | None = None,
+        origin: EvidenceOrigin = EvidenceOrigin.ARTIFACT,
     ) -> None:
         """Add evidence to this finding."""
         self.evidence.append(
@@ -94,8 +139,51 @@ class Finding:
                 location=location,
                 description=description,
                 raw_data=raw_data,
+                origin=origin,
             )
         )
+
+    @property
+    def origin(self) -> EvidenceOrigin:
+        """Determine effective evidence origin from explicit override or highest evidence rank."""
+        if self.explicit_origin is not None:
+            return self.explicit_origin
+        if not self.evidence:
+            return EvidenceOrigin.ARTIFACT
+        return max(self.evidence, key=lambda e: e.origin.rank).origin
+
+    @property
+    def classification(self) -> str:
+        """Classify finding based on origin: artifact_only, behavior_capable, runtime_confirmed."""
+        if self.origin == EvidenceOrigin.RUNTIME:
+            return "runtime_confirmed"
+        elif self.origin in (EvidenceOrigin.STRUCTURAL, EvidenceOrigin.CAPABILITY):
+            return "behavior_capable"
+        return "artifact_only"
+
+    def validate_provenance(self) -> tuple[bool, str | None]:
+        """Verify that claims are not promoted beyond evidence provenance.
+
+        Returns:
+            Tuple of (is_valid, warning_or_error_message).
+        """
+        if self.classification == "artifact_only":
+            desc_lower = (self.title + " " + self.description).lower()
+            unsupported_runtime_terms = (
+                "executes",
+                "executed",
+                "runs",
+                "ran",
+                "calling",
+                "communicated",
+            )
+            for term in unsupported_runtime_terms:
+                if f" {term} " in f" {desc_lower} ":
+                    return (
+                        False,
+                        f"Artifact-only finding cannot claim runtime execution ('{term}') without structural or runtime evidence.",
+                    )
+        return (True, None)
 
     @property
     def confidence(self) -> float:
@@ -111,6 +199,9 @@ class Finding:
             "description": self.description,
             "level": self.level.value,
             "level_symbol": self.level.symbol,
+            "origin": self.origin.value,
+            "origin_symbol": self.origin.symbol,
+            "classification": self.classification,
             "category": self.category,
             "confidence": round(self.confidence, 2),
             "evidence_count": len(self.evidence),
@@ -125,6 +216,7 @@ class Finding:
             "",
             f"**Confidence**: {self.confidence:.0%}",
             f"**Category**: {self.category}",
+            f"**Origin**: {self.origin.symbol} {self.origin.value.title()} (`{self.classification}`)",
             "",
             self.description,
             "",
@@ -133,7 +225,9 @@ class Finding:
         if self.evidence:
             lines.append("**Evidence:**")
             for i, ev in enumerate(self.evidence, 1):
-                lines.append(f"  {i}. `{ev.source}` @ `{ev.location}`: {ev.description}")
+                lines.append(
+                    f"  {i}. {ev.origin.symbol} [{ev.origin.value.upper()}] `{ev.source}` @ `{ev.location}`: {ev.description}"
+                )
                 if ev.raw_data:
                     lines.append("     ```")
                     lines.append(
@@ -253,5 +347,57 @@ def possible_finding(title: str, description: str, category: str, **kwargs) -> F
         description=description,
         level=EvidenceLevel.POSSIBLE,
         category=category,
+        **kwargs,
+    )
+
+
+def artifact_finding(title: str, description: str, category: str, **kwargs) -> Finding:
+    """Create an ARTIFACT origin finding."""
+    level = kwargs.pop("level", EvidenceLevel.OBSERVED)
+    return Finding(
+        title=title,
+        description=description,
+        level=level,
+        category=category,
+        explicit_origin=EvidenceOrigin.ARTIFACT,
+        **kwargs,
+    )
+
+
+def structural_finding(title: str, description: str, category: str, **kwargs) -> Finding:
+    """Create a STRUCTURAL origin finding."""
+    level = kwargs.pop("level", EvidenceLevel.INFERRED)
+    return Finding(
+        title=title,
+        description=description,
+        level=level,
+        category=category,
+        explicit_origin=EvidenceOrigin.STRUCTURAL,
+        **kwargs,
+    )
+
+
+def capability_finding(title: str, description: str, category: str, **kwargs) -> Finding:
+    """Create a CAPABILITY origin finding."""
+    level = kwargs.pop("level", EvidenceLevel.INFERRED)
+    return Finding(
+        title=title,
+        description=description,
+        level=level,
+        category=category,
+        explicit_origin=EvidenceOrigin.CAPABILITY,
+        **kwargs,
+    )
+
+
+def runtime_finding(title: str, description: str, category: str, **kwargs) -> Finding:
+    """Create a RUNTIME origin finding."""
+    level = kwargs.pop("level", EvidenceLevel.OBSERVED)
+    return Finding(
+        title=title,
+        description=description,
+        level=level,
+        category=category,
+        explicit_origin=EvidenceOrigin.RUNTIME,
         **kwargs,
     )

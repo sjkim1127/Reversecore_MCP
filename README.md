@@ -32,7 +32,7 @@
 
 - [What is Reversecore MCP?](#what-is-reversecore-mcp)
 - [Architecture](#architecture)
-- [Tool Catalog (153 Tools)](#tool-catalog-153-tools)
+- [Tool Catalog (154 Tools)](#tool-catalog-154-tools)
 - [Guided Analysis Prompts (22 Modes)](#guided-analysis-prompts-22-modes)
 - [MCP Resources (11 URIs)](#mcp-resources-11-uris)
 - [Quick Start](#quick-start)
@@ -54,7 +54,7 @@
 
 ## What is Reversecore MCP?
 
-Reversecore MCP is a [Model Context Protocol](https://modelcontextprotocol.io/) server that wraps **153 analysis tools** into a single interface that AI assistants can call through natural language.
+Reversecore MCP is a [Model Context Protocol](https://modelcontextprotocol.io/) server that wraps **154 analysis tools** into a single interface that AI assistants can call through natural language.
 
 Instead of learning the command-line syntax for a dozen different tools, you describe what you want:
 
@@ -96,7 +96,7 @@ AI Client (Claude / Cursor / any MCP-compatible client)
         ▼
 ┌──────────────────────────────────────────────────────┐
 │                   FastMCP 3.4.4 Server               │
-│          153 registered tools · Fully async          │
+│          154 registered tools · Fully async          │
 │                  Python 3.10–3.12                    │
 ├────────────────────┬─────────────────────────────────┤
 │   Guided Prompts   │  Dynamic Resources              │
@@ -167,7 +167,7 @@ The `reversecore_mcp/core/` directory contains the shared infrastructure that al
 
 ---
 
-## Tool Catalog (153 Tools)
+## Tool Catalog (154 Tools)
 
 > 📖 **[Authoritative Tool Catalog & Parameter Reference (151 Tools)](docs/TOOLS.md)**
 > 📊 **[Tool Profile Footprint & Context Benchmark Matrix](docs/benchmarks/profile_footprint.md)**
@@ -456,7 +456,7 @@ Resources are read-only data endpoints that AI clients can access through URI te
 |---|---|
 | `reversecore://guide` | Tool usage guide with file path rules and best practices |
 | `reversecore://guide/structures` | Structure recovery and cross-reference analysis technical guide |
-| `reversecore://tools` | Complete documentation for all 153 registered tools |
+| `reversecore://tools` | Complete documentation for all 154 registered tools |
 | `reversecore://logs` | Application logs (last 100 lines) |
 
 ### Dynamic Resources (Per-Binary Virtual Filesystem)
@@ -1007,7 +1007,7 @@ reversecore_mcp/
 │       ├── rule_manager.py        # SAST rule loader
 │       └── default_rules.yaml     # Default scanning rules
 │
-├── tools/                         # MCP tool implementations (153 tools)
+├── tools/                         # MCP tool implementations (154 tools)
 │   ├── analysis/                  # Static analysis (24 tools)
 │   │   ├── static_analysis.py     # file, strings, binwalk
 │   │   ├── lief_tools.py          # LIEF binary parser

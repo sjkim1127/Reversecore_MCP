@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "name": "reversecore_mcp",
   "description": "Enterprise-grade MCP server for binary reverse engineering, decompilation, malware triage, and vulnerability hunting.",
-  "total_tools": 153,
+  "total_tools": 154,
   "protocol_readiness": {
     "mcp_version": "2024-11-05",
     "fastmcp_version": "3.4.4",
@@ -22953,6 +22953,184 @@
         "required": [
           "file_path",
           "target_addr"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "verify_string_references",
+      "description": "Verify whether extracted strings are actually referenced by executable code.\n\nDistinguishes artifact-only strings from behavior-capable logic by analyzing\nradare2 cross-references, calling functions, and instruction contexts.",
+      "plugin": "analysis_tools",
+      "profiles": [
+        "full",
+        "static",
+        "malware",
+        "vuln-research"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "file_path": {
+            "description": "Path to the binary file to analyze.",
+            "type": "string"
+          },
+          "strings": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional list of string literals to verify for code references."
+          },
+          "addresses": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional list of string virtual addresses (e.g. '0x402010') to verify."
+          },
+          "include_context": {
+            "default": false,
+            "description": "If True, includes referencing instruction opcode disassembly snippet.",
+            "type": "boolean"
+          },
+          "limit": {
+            "default": 50,
+            "description": "Maximum number of strings to analyze when neither strings nor addresses are specified.",
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "file_path"
         ],
         "type": "object"
       },

@@ -1,9 +1,9 @@
-# Reversecore MCP Tool Catalog (153 Tools)
+# Reversecore MCP Tool Catalog (154 Tools)
 
 > **Single Source of Truth**: This document is automatically generated from the FastMCP runtime
 > tool registry by `scripts/generate_tool_catalog.py`. Do not edit manually.
 
-Reversecore MCP exposes **153 production-grade security analysis tools** and **11 dynamic resource templates** via the Model Context Protocol (MCP).
+Reversecore MCP exposes **154 production-grade security analysis tools** and **11 dynamic resource templates** via the Model Context Protocol (MCP).
 
 ---
 
@@ -13,10 +13,10 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 
 | Profile | Tools | Primary Focus | Included Plugins |
 |---|:---:|---|---|
-| `full` | **153** | Complete All-in-One Suite (Default) | All plugins |
-| `static` | **99** | Reverse Engineering & Decompilation | `analysis`, `common`, `radare2`, `report`, `server` |
-| `vuln-research` | **105** | Vulnerability Hunting & Exploitation | `analysis`, `source_auditor`, `cve_hunter`, `radare2`, `common`, `report`, `server` |
-| `malware` | **67** | Threat Triage & Malware Analysis | `analysis`, `common`, `malware`, `deobfuscation`, `report`, `server` |
+| `full` | **154** | Complete All-in-One Suite (Default) | All plugins |
+| `static` | **100** | Reverse Engineering & Decompilation | `analysis`, `common`, `radare2`, `report`, `server` |
+| `vuln-research` | **106** | Vulnerability Hunting & Exploitation | `analysis`, `source_auditor`, `cve_hunter`, `radare2`, `common`, `report`, `server` |
+| `malware` | **68** | Threat Triage & Malware Analysis | `analysis`, `common`, `malware`, `deobfuscation`, `report`, `server` |
 | `forensics` | **57** | Digital & Memory Forensics | `forensics`, `memory`, `common`, `report`, `server` |
 
 📊 *For empirical context token savings, cold-start latency, and memory benchmarks across profiles, see [Profile Footprint Benchmark](benchmarks/profile_footprint.md).*
@@ -27,7 +27,7 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 
 | Domain | Plugin Name | Tools | Description |
 |---|---|:---:|---|
-| 🔍 Static Analysis & Inspection | `analysis_tools` | **28** | Binary Headers, Formats, Capabilities & Strings |
+| 🔍 Static Analysis & Inspection | `analysis_tools` | **29** | Binary Headers, Formats, Capabilities & Strings |
 | 📜 Source Code Auditing | `source_auditor` | **1** | AST & Regex Pattern Analysis for Python/C/C++ |
 | ⚙️ Radare2 & Decompilation | `radare2_mcp_tools` | **47** | Disassembly, CFG, Ghidra Decompiler & ESIL Emulation |
 | 🦠 Malware Analysis & Threat Hunting | `malware_tools` | **11** | YARA Detection, Anti-Analysis, Packer & Vaccine Engines |
@@ -39,13 +39,13 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 | 🖥️ Server Lifecycle & State | `server_tools` | **2** | Server Status, Health & Memory Cache Management |
 | 📋 Reporting & MITRE ATT&CK | `report_tools` | **14** | Session Reports, MITRE Mapping, SIGMA & VEX Generation |
 | ⏳ Task Queue & Async Jobs | `core_task_queue` | **1** | Background Job Status & Result Retrieval |
-| **Total** | — | **153** | **Complete Reversecore MCP Suite** |
+| **Total** | — | **154** | **Complete Reversecore MCP Suite** |
 
 ---
 
 ## 🛠️ Complete Tool Reference
 
-### 🔍 Static Analysis & Inspection (`analysis_tools` — 28 tools)
+### 🔍 Static Analysis & Inspection (`analysis_tools` — 29 tools)
 
 *Binary Headers, Formats, Capabilities & Strings*
 
@@ -78,7 +78,8 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 | 25 | `taint_trace` | Automatically trace taint paths from user input sources to dangerous sinks. | `file_path` (string, req), `sources` (array), `sinks` (array), `verify_with_angr` (boolean), `max_paths` (integer), `timeout` (integer) | `static`, `malware`, `vuln-research` |
 | 26 | `triage_crash` | Analyze a crash file against a binary using GDB to determine exploitability. | `binary_path` (string, req), `crash_file` (string, req), `use_stdin` (boolean), `timeout` (integer) | `static`, `malware`, `vuln-research` |
 | 27 | `verify_path_and_get_args` | Run symbolic execution using angr to verify path reachability and extract inputs. | `file_path` (string, req), `target_addr` (string, req), `start_addr` (string), `avoid_addrs` (array), `source_addr` (string), `source_api` (string), `sink_api` (string), `check_taint` (boolean), `timeout` (integer) | `static`, `malware`, `vuln-research` |
-| 28 | `vt_lookup` | Look up IOC reputation using the VirusTotal API v3. | `iocs` (array, req), `api_key` (string) | `static`, `malware`, `vuln-research` |
+| 28 | `verify_string_references` | Verify whether extracted strings are actually referenced by executable code. | `file_path` (string, req), `strings` (array), `addresses` (array), `include_context` (boolean), `limit` (integer) | `static`, `malware`, `vuln-research` |
+| 29 | `vt_lookup` | Look up IOC reputation using the VirusTotal API v3. | `iocs` (array, req), `api_key` (string) | `static`, `malware`, `vuln-research` |
 
 ---
 
@@ -88,7 +89,7 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 
 | # | Tool Name | Description | Key Parameters | Profiles |
 |:---:|---|---|---|---|
-| 29 | `audit_source_code` | Perform a security audit on a source code file (SAST). | `file_path` (string, req), `language` (string) | `vuln-research` |
+| 30 | `audit_source_code` | Perform a security audit on a source code file (SAST). | `file_path` (string, req), `language` (string) | `vuln-research` |
 
 ---
 
@@ -98,53 +99,53 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 
 | # | Tool Name | Description | Key Parameters | Profiles |
 |:---:|---|---|---|---|
-| 30 | `Radare2_analyze` | Run binary analysis with optional depth level. | `file_path` (string, req), `level` (integer), `arch` (string), `bits` (integer) | `static`, `vuln-research` |
-| 31 | `Radare2_calculate` | Evaluate a math expression using radare2's number parser. | `file_path` (string, req), `expression` (string, req) | `static`, `vuln-research` |
-| 32 | `Radare2_close_file` | Close the currently open radare2 session for a file. | `file_path` (string, req) | `static`, `vuln-research` |
-| 33 | `Radare2_decompile_function` | Show C-like pseudocode of the function at the given address. | `file_path` (string, req), `address` (string, req), `line_offset` (integer), `max_lines` (integer), `cursor` (string), `page_size` (integer) | `static`, `vuln-research` |
-| 34 | `Radare2_disassemble` | Disassemble a specific number of instructions from an address. | `file_path` (string, req), `address` (string, req), `num_instructions` (integer) | `static`, `vuln-research` |
-| 35 | `Radare2_disassemble_function` | Show assembly listing of the function at the specified address. | `file_path` (string, req), `address` (string, req), `format` (string), `cursor` (string), `page_size` (integer) | `static`, `vuln-research` |
-| 36 | `Radare2_get_current_address` | Show the current seek position and function name. | `file_path` (string, req) | `static`, `vuln-research` |
-| 37 | `Radare2_get_function_prototype` | Retrieve the function signature at the specified address. | `file_path` (string, req), `address` (string, req) | `static`, `vuln-research` |
-| 38 | `Radare2_list_all_strings` | Scan the entire binary for strings with optional regex filter. | `file_path` (string, req), `filter` (string), `cursor` (string), `page_size` (integer) | `static`, `vuln-research` |
-| 39 | `Radare2_list_classes` | List class names from various languages (C++, ObjC, Swift, Java, Dalvik). | `file_path` (string, req), `filter` (string) | `static`, `vuln-research` |
-| 40 | `Radare2_list_decompilers` | Show all available decompiler backends. | `file_path` (string, req) | `static`, `vuln-research` |
-| 41 | `Radare2_list_entrypoints` | Display program entrypoints, constructors and main function. | `file_path` (string, req) | `static`, `vuln-research` |
-| 42 | `Radare2_list_functions` | List all functions discovered during analysis. | `file_path` (string, req), `only_named` (boolean), `filter` (string) | `static`, `vuln-research` |
-| 43 | `Radare2_list_functions_tree` | List functions and their successors (call tree). | `file_path` (string, req) | `static`, `vuln-research` |
-| 44 | `Radare2_list_imports` | List imported symbols. | `file_path` (string, req), `filter` (string) | `static`, `vuln-research` |
-| 45 | `Radare2_list_libraries` | List all shared libraries linked to the binary. | `file_path` (string, req) | `static`, `vuln-research` |
-| 46 | `Radare2_list_methods` | List all methods belonging to the specified class. | `file_path` (string, req), `classname` (string, req) | `static`, `vuln-research` |
-| 47 | `Radare2_list_sections` | Display memory sections and segments from the binary. | `file_path` (string, req) | `static`, `vuln-research` |
-| 48 | `Radare2_list_strings` | List strings from data sections with optional regex filter. | `file_path` (string, req), `filter` (string), `cursor` (string), `page_size` (integer) | `static`, `vuln-research` |
-| 49 | `Radare2_list_symbols` | Show all symbols (functions, variables, imports) with addresses. | `file_path` (string, req), `filter` (string) | `static`, `vuln-research` |
-| 50 | `Radare2_open_file` | Opens a binary file with radare2 for analysis. | `file_path` (string, req), `arch` (string), `bits` (integer) | `static`, `vuln-research` |
-| 51 | `Radare2_rename_flag` | Rename a flag (variable or data reference) at the specified address. | `file_path` (string, req), `address` (string, req), `name` (string, req), `new_name` (string, req) | `static`, `vuln-research` |
-| 52 | `Radare2_rename_function` | Rename the function at the specified address. | `file_path` (string, req), `address` (string, req), `name` (string, req) | `static`, `vuln-research` |
-| 53 | `Radare2_run_command` | Execute a raw radare2 command directly. | `file_path` (string, req), `command` (string, req) | `static`, `vuln-research` |
-| 54 | `Radare2_set_comment` | Add a comment at the specified address. | `file_path` (string, req), `address` (string, req), `message` (string, req) | `static`, `vuln-research` |
-| 55 | `Radare2_set_function_prototype` | Set the function signature (return type, name, arguments). | `file_path` (string, req), `address` (string, req), `prototype` (string, req) | `static`, `vuln-research` |
-| 56 | `Radare2_show_function_details` | Display detailed information about a function. | `file_path` (string, req), `address` (string) | `static`, `vuln-research` |
-| 57 | `Radare2_show_headers` | Display binary headers and file information. | `file_path` (string, req) | `static`, `vuln-research` |
-| 58 | `Radare2_use_decompiler` | Select which decompiler backend to use. | `file_path` (string, req), `name` (string, req) | `static`, `vuln-research` |
-| 59 | `Radare2_xrefs_to` | Find all code references TO the specified address. | `file_path` (string, req), `address` (string, req), `limit` (integer) | `static`, `vuln-research` |
-| 60 | `analyze_xrefs` | Analyze cross-references (xrefs) for a specific address using radare2. | `file_path` (string, req), `address` (string, req), `xref_type` (string), `limit` (integer), `timeout` (integer) | `static`, `vuln-research` |
-| 61 | `emulate_machine_code` | Emulate machine code execution using radare2 ESIL (Evaluable Strings Intermediate Language). | `file_path` (string, req), `start_address` (string, req), `instructions` (integer), `timeout` (integer) | `static`, `vuln-research` |
-| 62 | `generate_function_graph` | Generate a Control Flow Graph (CFG) for a specific function. | `file_path` (string, req), `function_address` (string, req), `format` (string), `timeout` (integer) | `static`, `vuln-research` |
-| 63 | `r2_add_bookmark` | Add (or update) an annotated bookmark at a binary address. | `file_path` (string, req), `address` (string, req), `comment` (string, req), `category` (string) | `static`, `vuln-research` |
-| 64 | `r2_analyze_function` | Return full metadata for a binary function via radare2. | `file_path` (string, req), `function_address` (string, req), `timeout` (integer) | `static`, `vuln-research` |
-| 65 | `r2_create_structure` | Save (or replace) a C struct definition in the annotation DB. | `file_path` (string, req), `name` (string, req), `fields` (array, req) | `static`, `vuln-research` |
-| 66 | `r2_decompile` | Decompile a binary function to pseudo-C using the r2ghidra plugin. | `file_path` (string, req), `function_address` (string, req), `line_offset` (integer), `max_lines` (integer), `timeout` (integer) | `static`, `vuln-research` |
-| 67 | `r2_get_call_graph` | Generate a caller/callee call graph for a function. | `file_path` (string, req), `function_address` (string, req), `depth` (integer), `timeout` (integer) | `static`, `vuln-research` |
-| 68 | `r2_get_structure` | Retrieve a single saved struct definition by name. | `file_path` (string, req), `name` (string, req) | `static`, `vuln-research` |
-| 69 | `r2_list_bookmarks` | List all saved bookmarks / address annotations for a binary. | `file_path` (string, req), `category` (string), `offset` (integer), `limit` (integer) | `static`, `vuln-research` |
-| 70 | `r2_list_structures` | List all saved C struct definitions for a binary. | `file_path` (string, req), `offset` (integer), `limit` (integer) | `static`, `vuln-research` |
-| 71 | `r2_list_types` | List all custom type definitions saved for a binary. | `file_path` (string, req), `offset` (integer), `limit` (integer) | `static`, `vuln-research` |
-| 72 | `r2_read_memory` | Read raw bytes from a binary at a given virtual address. | `file_path` (string, req), `address` (string, req), `size` (integer) | `static`, `vuln-research` |
-| 73 | `r2_recover_structures` | Recover C struct layouts from a function's memory access patterns. | `file_path` (string, req), `function_address` (string, req), `timeout` (integer) | `static`, `vuln-research` |
-| 74 | `r2_simulate_patch` | Simulate a byte-level patch at an address and re-decompile. | `file_path` (string, req), `address` (string, req), `patch_bytes` (string, req), `timeout` (integer) | `static`, `vuln-research` |
-| 75 | `run_radare2` | Execute vetted radare2 commands for binary triage. | `file_path` (string, req), `r2_command` (string, req), `max_output_size` (integer), `timeout` (integer) | `static`, `vuln-research` |
-| 76 | `trace_execution_path` | Trace function calls backwards from a target function (Sink) to find potential execution paths. | `file_path` (string, req), `target_function` (string, req), `max_depth` (integer), `max_paths` (integer), `timeout` (integer), `prioritize_sinks` (boolean) | `static`, `vuln-research` |
+| 31 | `Radare2_analyze` | Run binary analysis with optional depth level. | `file_path` (string, req), `level` (integer), `arch` (string), `bits` (integer) | `static`, `vuln-research` |
+| 32 | `Radare2_calculate` | Evaluate a math expression using radare2's number parser. | `file_path` (string, req), `expression` (string, req) | `static`, `vuln-research` |
+| 33 | `Radare2_close_file` | Close the currently open radare2 session for a file. | `file_path` (string, req) | `static`, `vuln-research` |
+| 34 | `Radare2_decompile_function` | Show C-like pseudocode of the function at the given address. | `file_path` (string, req), `address` (string, req), `line_offset` (integer), `max_lines` (integer), `cursor` (string), `page_size` (integer) | `static`, `vuln-research` |
+| 35 | `Radare2_disassemble` | Disassemble a specific number of instructions from an address. | `file_path` (string, req), `address` (string, req), `num_instructions` (integer) | `static`, `vuln-research` |
+| 36 | `Radare2_disassemble_function` | Show assembly listing of the function at the specified address. | `file_path` (string, req), `address` (string, req), `format` (string), `cursor` (string), `page_size` (integer) | `static`, `vuln-research` |
+| 37 | `Radare2_get_current_address` | Show the current seek position and function name. | `file_path` (string, req) | `static`, `vuln-research` |
+| 38 | `Radare2_get_function_prototype` | Retrieve the function signature at the specified address. | `file_path` (string, req), `address` (string, req) | `static`, `vuln-research` |
+| 39 | `Radare2_list_all_strings` | Scan the entire binary for strings with optional regex filter. | `file_path` (string, req), `filter` (string), `cursor` (string), `page_size` (integer) | `static`, `vuln-research` |
+| 40 | `Radare2_list_classes` | List class names from various languages (C++, ObjC, Swift, Java, Dalvik). | `file_path` (string, req), `filter` (string) | `static`, `vuln-research` |
+| 41 | `Radare2_list_decompilers` | Show all available decompiler backends. | `file_path` (string, req) | `static`, `vuln-research` |
+| 42 | `Radare2_list_entrypoints` | Display program entrypoints, constructors and main function. | `file_path` (string, req) | `static`, `vuln-research` |
+| 43 | `Radare2_list_functions` | List all functions discovered during analysis. | `file_path` (string, req), `only_named` (boolean), `filter` (string) | `static`, `vuln-research` |
+| 44 | `Radare2_list_functions_tree` | List functions and their successors (call tree). | `file_path` (string, req) | `static`, `vuln-research` |
+| 45 | `Radare2_list_imports` | List imported symbols. | `file_path` (string, req), `filter` (string) | `static`, `vuln-research` |
+| 46 | `Radare2_list_libraries` | List all shared libraries linked to the binary. | `file_path` (string, req) | `static`, `vuln-research` |
+| 47 | `Radare2_list_methods` | List all methods belonging to the specified class. | `file_path` (string, req), `classname` (string, req) | `static`, `vuln-research` |
+| 48 | `Radare2_list_sections` | Display memory sections and segments from the binary. | `file_path` (string, req) | `static`, `vuln-research` |
+| 49 | `Radare2_list_strings` | List strings from data sections with optional regex filter. | `file_path` (string, req), `filter` (string), `cursor` (string), `page_size` (integer) | `static`, `vuln-research` |
+| 50 | `Radare2_list_symbols` | Show all symbols (functions, variables, imports) with addresses. | `file_path` (string, req), `filter` (string) | `static`, `vuln-research` |
+| 51 | `Radare2_open_file` | Opens a binary file with radare2 for analysis. | `file_path` (string, req), `arch` (string), `bits` (integer) | `static`, `vuln-research` |
+| 52 | `Radare2_rename_flag` | Rename a flag (variable or data reference) at the specified address. | `file_path` (string, req), `address` (string, req), `name` (string, req), `new_name` (string, req) | `static`, `vuln-research` |
+| 53 | `Radare2_rename_function` | Rename the function at the specified address. | `file_path` (string, req), `address` (string, req), `name` (string, req) | `static`, `vuln-research` |
+| 54 | `Radare2_run_command` | Execute a raw radare2 command directly. | `file_path` (string, req), `command` (string, req) | `static`, `vuln-research` |
+| 55 | `Radare2_set_comment` | Add a comment at the specified address. | `file_path` (string, req), `address` (string, req), `message` (string, req) | `static`, `vuln-research` |
+| 56 | `Radare2_set_function_prototype` | Set the function signature (return type, name, arguments). | `file_path` (string, req), `address` (string, req), `prototype` (string, req) | `static`, `vuln-research` |
+| 57 | `Radare2_show_function_details` | Display detailed information about a function. | `file_path` (string, req), `address` (string) | `static`, `vuln-research` |
+| 58 | `Radare2_show_headers` | Display binary headers and file information. | `file_path` (string, req) | `static`, `vuln-research` |
+| 59 | `Radare2_use_decompiler` | Select which decompiler backend to use. | `file_path` (string, req), `name` (string, req) | `static`, `vuln-research` |
+| 60 | `Radare2_xrefs_to` | Find all code references TO the specified address. | `file_path` (string, req), `address` (string, req), `limit` (integer) | `static`, `vuln-research` |
+| 61 | `analyze_xrefs` | Analyze cross-references (xrefs) for a specific address using radare2. | `file_path` (string, req), `address` (string, req), `xref_type` (string), `limit` (integer), `timeout` (integer) | `static`, `vuln-research` |
+| 62 | `emulate_machine_code` | Emulate machine code execution using radare2 ESIL (Evaluable Strings Intermediate Language). | `file_path` (string, req), `start_address` (string, req), `instructions` (integer), `timeout` (integer) | `static`, `vuln-research` |
+| 63 | `generate_function_graph` | Generate a Control Flow Graph (CFG) for a specific function. | `file_path` (string, req), `function_address` (string, req), `format` (string), `timeout` (integer) | `static`, `vuln-research` |
+| 64 | `r2_add_bookmark` | Add (or update) an annotated bookmark at a binary address. | `file_path` (string, req), `address` (string, req), `comment` (string, req), `category` (string) | `static`, `vuln-research` |
+| 65 | `r2_analyze_function` | Return full metadata for a binary function via radare2. | `file_path` (string, req), `function_address` (string, req), `timeout` (integer) | `static`, `vuln-research` |
+| 66 | `r2_create_structure` | Save (or replace) a C struct definition in the annotation DB. | `file_path` (string, req), `name` (string, req), `fields` (array, req) | `static`, `vuln-research` |
+| 67 | `r2_decompile` | Decompile a binary function to pseudo-C using the r2ghidra plugin. | `file_path` (string, req), `function_address` (string, req), `line_offset` (integer), `max_lines` (integer), `timeout` (integer) | `static`, `vuln-research` |
+| 68 | `r2_get_call_graph` | Generate a caller/callee call graph for a function. | `file_path` (string, req), `function_address` (string, req), `depth` (integer), `timeout` (integer) | `static`, `vuln-research` |
+| 69 | `r2_get_structure` | Retrieve a single saved struct definition by name. | `file_path` (string, req), `name` (string, req) | `static`, `vuln-research` |
+| 70 | `r2_list_bookmarks` | List all saved bookmarks / address annotations for a binary. | `file_path` (string, req), `category` (string), `offset` (integer), `limit` (integer) | `static`, `vuln-research` |
+| 71 | `r2_list_structures` | List all saved C struct definitions for a binary. | `file_path` (string, req), `offset` (integer), `limit` (integer) | `static`, `vuln-research` |
+| 72 | `r2_list_types` | List all custom type definitions saved for a binary. | `file_path` (string, req), `offset` (integer), `limit` (integer) | `static`, `vuln-research` |
+| 73 | `r2_read_memory` | Read raw bytes from a binary at a given virtual address. | `file_path` (string, req), `address` (string, req), `size` (integer) | `static`, `vuln-research` |
+| 74 | `r2_recover_structures` | Recover C struct layouts from a function's memory access patterns. | `file_path` (string, req), `function_address` (string, req), `timeout` (integer) | `static`, `vuln-research` |
+| 75 | `r2_simulate_patch` | Simulate a byte-level patch at an address and re-decompile. | `file_path` (string, req), `address` (string, req), `patch_bytes` (string, req), `timeout` (integer) | `static`, `vuln-research` |
+| 76 | `run_radare2` | Execute vetted radare2 commands for binary triage. | `file_path` (string, req), `r2_command` (string, req), `max_output_size` (integer), `timeout` (integer) | `static`, `vuln-research` |
+| 77 | `trace_execution_path` | Trace function calls backwards from a target function (Sink) to find potential execution paths. | `file_path` (string, req), `target_function` (string, req), `max_depth` (integer), `max_paths` (integer), `timeout` (integer), `prioritize_sinks` (boolean) | `static`, `vuln-research` |
 
 ---
 
@@ -154,17 +155,17 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 
 | # | Tool Name | Description | Key Parameters | Profiles |
 |:---:|---|---|---|---|
-| 77 | `adaptive_vaccine` | Generate automated defenses against detected threats. | `threat_report` (object, req), `action` (string), `file_path` (string), `dry_run` (boolean) | `malware` |
-| 78 | `analyze_heap_exploit` | Analyze heap corruption crashes and generate exploitation strategies. | `file_path` (string, req), `crash_file` (string), `overflow_size` (integer), `target_object` (string), `glibc_version` (string), `use_stdin_for_crash` (boolean), `simulate_esil` (boolean) | `malware` |
-| 79 | `autonomous_vuln_hunt` | Fully autonomous end-to-end vulnerability discovery and exploit generation. | `file_path` (string, req), `max_functions` (integer), `timeout_per_function` (integer), `objective` (string), `auto_poc` (boolean), `auto_rop` (boolean), `severity_filter` (string), `enable_taint` (boolean), `enable_fuzzing` (boolean), `fuzzing_timeout` (integer) | `malware` |
-| 80 | `build_rop_chain` | Automatically build a Return-Oriented Programming (ROP) exploit chain. | `file_path` (string, req), `objective` (string), `libc_path` (string), `offset` (integer), `libc_base` (string) | `malware` |
-| 81 | `detect_anti_analysis` | Detect anti-debugging, timing anomalies, hypervisor/anti-VM, and opaque conditionals. | `file_path` (string, req), `focus_functions` (array), `verify_with_esil` (boolean), `timeout` (integer) | `malware` |
-| 82 | `dormant_detector` | Detect hidden malicious behaviors using static analysis + emulation. | `file_path` (string, req), `focus_function` (string), `hypothesis` (object), `timeout` (integer) | `malware` |
-| 83 | `extract_iocs` | Extract Indicators of Compromise (IOCs) from text or file using regex. | `text` (string), `file_path` (string), `extract_ips` (boolean), `extract_urls` (boolean), `extract_emails` (boolean), `extract_bitcoin` (boolean), `extract_hashes` (boolean), `extract_others` (boolean), `limit` (integer) | `malware` |
-| 84 | `generate_poc_exploit` | Generate and verify a pwntools proof-of-concept exploit script. | `file_path` (string, req), `vulnerability_class` (string), `concrete_input` (string), `crash_offset` (integer) | `malware` |
-| 85 | `packer_fingerprint` | Deep fingerprinting of binary packers, cryptors, protectors, and compilers. | `file_path` (string, req), `timeout` (integer) | `malware` |
-| 86 | `run_yara` | Scan binaries against YARA rules via ``yara-python`` with modular namespace support. | `file_path` (string, req), `rule_file` (string), `category` (string), `timeout` (integer), `run_async` (boolean), `_bypass_queue` (boolean) | `malware` |
-| 87 | `vulnerability_hunter` | Automated vulnerability discovery combining multiple analysis techniques. | `file_path` (string, req), `max_depth` (integer), `severity_filter` (string), `generate_yara` (boolean), `timeout` (integer), `use_symbolic_execution` (boolean), `auto_dynamic_verify` (boolean), `run_async` (boolean), `target_functions` (array), `_bypass_queue` (boolean) | `malware` |
+| 78 | `adaptive_vaccine` | Generate automated defenses against detected threats. | `threat_report` (object, req), `action` (string), `file_path` (string), `dry_run` (boolean) | `malware` |
+| 79 | `analyze_heap_exploit` | Analyze heap corruption crashes and generate exploitation strategies. | `file_path` (string, req), `crash_file` (string), `overflow_size` (integer), `target_object` (string), `glibc_version` (string), `use_stdin_for_crash` (boolean), `simulate_esil` (boolean) | `malware` |
+| 80 | `autonomous_vuln_hunt` | Fully autonomous end-to-end vulnerability discovery and exploit generation. | `file_path` (string, req), `max_functions` (integer), `timeout_per_function` (integer), `objective` (string), `auto_poc` (boolean), `auto_rop` (boolean), `severity_filter` (string), `enable_taint` (boolean), `enable_fuzzing` (boolean), `fuzzing_timeout` (integer) | `malware` |
+| 81 | `build_rop_chain` | Automatically build a Return-Oriented Programming (ROP) exploit chain. | `file_path` (string, req), `objective` (string), `libc_path` (string), `offset` (integer), `libc_base` (string) | `malware` |
+| 82 | `detect_anti_analysis` | Detect anti-debugging, timing anomalies, hypervisor/anti-VM, and opaque conditionals. | `file_path` (string, req), `focus_functions` (array), `verify_with_esil` (boolean), `timeout` (integer) | `malware` |
+| 83 | `dormant_detector` | Detect hidden malicious behaviors using static analysis + emulation. | `file_path` (string, req), `focus_function` (string), `hypothesis` (object), `timeout` (integer) | `malware` |
+| 84 | `extract_iocs` | Extract Indicators of Compromise (IOCs) from text or file using regex. | `text` (string), `file_path` (string), `extract_ips` (boolean), `extract_urls` (boolean), `extract_emails` (boolean), `extract_bitcoin` (boolean), `extract_hashes` (boolean), `extract_others` (boolean), `limit` (integer) | `malware` |
+| 85 | `generate_poc_exploit` | Generate and verify a pwntools proof-of-concept exploit script. | `file_path` (string, req), `vulnerability_class` (string), `concrete_input` (string), `crash_offset` (integer) | `malware` |
+| 86 | `packer_fingerprint` | Deep fingerprinting of binary packers, cryptors, protectors, and compilers. | `file_path` (string, req), `timeout` (integer) | `malware` |
+| 87 | `run_yara` | Scan binaries against YARA rules via ``yara-python`` with modular namespace support. | `file_path` (string, req), `rule_file` (string), `category` (string), `timeout` (integer), `run_async` (boolean), `_bypass_queue` (boolean) | `malware` |
+| 88 | `vulnerability_hunter` | Automated vulnerability discovery combining multiple analysis techniques. | `file_path` (string, req), `max_depth` (integer), `severity_filter` (string), `generate_yara` (boolean), `timeout` (integer), `use_symbolic_execution` (boolean), `auto_dynamic_verify` (boolean), `run_async` (boolean), `target_functions` (array), `_bypass_queue` (boolean) | `malware` |
 
 ---
 
@@ -174,10 +175,10 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 
 | # | Tool Name | Description | Key Parameters | Profiles |
 |:---:|---|---|---|---|
-| 88 | `deobfuscate_strings` | Recover dynamically constructed stack strings and emulated loop strings in a binary. | `file_path` (string, req), `function_address` (string), `timeout` (integer) | `malware` |
-| 89 | `eliminate_dead_code` | Analyze opaque predicates and identify unreachable basic blocks in a function CFG. | `file_path` (string, req), `function_address` (string), `timeout` (integer) | `malware` |
-| 90 | `resolve_api_hashes` | Detect dynamic PEB/TEB walking and resolve 32-bit API hashes to Windows export symbols. | `file_path` (string, req), `algorithm` (string), `custom_hashes` (object), `timeout` (integer) | `malware` |
-| 91 | `run_deobfuscation_pipeline` | Run all deobfuscation engines concurrently and assemble a unified intelligence report. | `file_path` (string, req), `options` (object), `timeout` (integer) | `malware` |
+| 89 | `deobfuscate_strings` | Recover dynamically constructed stack strings and emulated loop strings in a binary. | `file_path` (string, req), `function_address` (string), `timeout` (integer) | `malware` |
+| 90 | `eliminate_dead_code` | Analyze opaque predicates and identify unreachable basic blocks in a function CFG. | `file_path` (string, req), `function_address` (string), `timeout` (integer) | `malware` |
+| 91 | `resolve_api_hashes` | Detect dynamic PEB/TEB walking and resolve 32-bit API hashes to Windows export symbols. | `file_path` (string, req), `algorithm` (string), `custom_hashes` (object), `timeout` (integer) | `malware` |
+| 92 | `run_deobfuscation_pipeline` | Run all deobfuscation engines concurrently and assemble a unified intelligence report. | `file_path` (string, req), `options` (object), `timeout` (integer) | `malware` |
 
 ---
 
@@ -187,11 +188,11 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 
 | # | Tool Name | Description | Key Parameters | Profiles |
 |:---:|---|---|---|---|
-| 92 | `cve_fuzz_target` | Execute hybrid fuzzing campaign with Sanitizer tracking and angr concolic seed solver. | `target_binary_path` (string, req), `corpus_dir` (string), `dictionary_path` (string), `max_total_time_seconds` (integer), `enable_angr_concolic` (boolean), `timeout` (integer) | `vuln-research` |
-| 93 | `cve_minimize_poc` | Minimize crash testcase payload via delta-debugging and generate standalone PoC scripts. | `binary_path` (string, req), `crash_input_path` (string, req), `target_function` (string), `timeout` (integer) | `vuln-research` |
-| 94 | `cve_synthesize_harness` | Synthesize LibFuzzer/AFL++ C/C++ test harness and format dictionary (.dict) for target parser. | `header_or_binary_path` (string, req), `sample_file_path` (string), `target_function` (string), `timeout` (integer) | `vuln-research` |
-| 95 | `cve_triage_crash` | Triage AddressSanitizer/UBSan crash log and compute CWE and CVSS v3.1 rating. | `crash_log_or_text` (string, req), `timeout` (integer) | `vuln-research` |
-| 96 | `hunt_cve_vulnerabilities` | Run one-click CVE hunting against a compiled LibFuzzer target executable. | `target_path` (string, req), `sample_file_path` (string), `options` (object), `timeout` (integer) | `vuln-research` |
+| 93 | `cve_fuzz_target` | Execute hybrid fuzzing campaign with Sanitizer tracking and angr concolic seed solver. | `target_binary_path` (string, req), `corpus_dir` (string), `dictionary_path` (string), `max_total_time_seconds` (integer), `enable_angr_concolic` (boolean), `timeout` (integer) | `vuln-research` |
+| 94 | `cve_minimize_poc` | Minimize crash testcase payload via delta-debugging and generate standalone PoC scripts. | `binary_path` (string, req), `crash_input_path` (string, req), `target_function` (string), `timeout` (integer) | `vuln-research` |
+| 95 | `cve_synthesize_harness` | Synthesize LibFuzzer/AFL++ C/C++ test harness and format dictionary (.dict) for target parser. | `header_or_binary_path` (string, req), `sample_file_path` (string), `target_function` (string), `timeout` (integer) | `vuln-research` |
+| 96 | `cve_triage_crash` | Triage AddressSanitizer/UBSan crash log and compute CWE and CVSS v3.1 rating. | `crash_log_or_text` (string, req), `timeout` (integer) | `vuln-research` |
+| 97 | `hunt_cve_vulnerabilities` | Run one-click CVE hunting against a compiled LibFuzzer target executable. | `target_path` (string, req), `sample_file_path` (string), `options` (object), `timeout` (integer) | `vuln-research` |
 
 ---
 
@@ -201,28 +202,28 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 
 | # | Tool Name | Description | Key Parameters | Profiles |
 |:---:|---|---|---|---|
-| 97 | `artifact_collect` | Collect and normalize forensic artifacts from analysis results. | `artifacts` (array, req), `artifact_type` (string), `source` (string) | `forensics` |
-| 98 | `artifact_correlate_ioc` | Correlate collected forensic artifacts against IoC patterns. | `artifacts` (array, req), `check_ips` (boolean), `check_domains` (boolean), `check_hashes` (boolean) | `forensics` |
-| 99 | `artifact_generate_yara` | Auto-generate YARA rules from collected forensic artifacts. | `artifacts` (array, req), `rule_name` (string), `output_path` (string) | `forensics` |
-| 100 | `artifact_report` | Export a comprehensive forensics investigation report. | `artifacts` (array, req), `case_name` (string), `analyst` (string), `include_yara` (boolean), `output_path` (string) | `forensics` |
-| 101 | `artifact_timeline` | Build a chronological event timeline from multi-source forensic artifacts. | `artifacts` (array, req), `sort_order` (string) | `forensics` |
-| 102 | `disk_analyze_mft` | Analyze the NTFS Master File Table (MFT) for file timeline and metadata. | `image_path` (string, req), `offset` (integer), `limit` (integer) | `forensics` |
-| 103 | `disk_extract_file` | Extract a live (non-deleted) file from a disk image by inode number. | `image_path` (string, req), `inode` (string, req), `output_path` (string, req), `offset` (integer) | `forensics` |
-| 104 | `disk_hash_verify` | Compute and verify the integrity hash of a disk image or recovered file. | `image_path` (string, req), `expected_hash` (string), `algorithm` (string) | `forensics` |
-| 105 | `disk_list_files` | List all files and directories in a disk/filesystem image. | `image_path` (string, req), `directory` (string), `include_deleted` (boolean), `offset` (integer), `recursive` (boolean), `limit` (integer) | `forensics` |
-| 106 | `disk_list_partition` | List partition layout of a disk image using Sleuth Kit mmls. | `image_path` (string, req) | `forensics` |
-| 107 | `disk_recover_deleted` | Recover a deleted file from a disk/filesystem image by inode number. | `image_path` (string, req), `inode` (string, req), `output_path` (string, req), `offset` (integer) | `forensics` |
-| 108 | `memory_analyze` | Run a Volatility3 plugin against a memory dump file. | `dump_path` (string, req), `plugin` (string), `symbol_path` (string), `extra_args` (string), `_bypass_queue` (boolean) | `forensics` |
-| 109 | `memory_detect_injections` | Detect Windows process injection using the Volatility3 windows.malfind plugin. | `dump_path` (string, req), `_bypass_queue` (boolean) | `forensics` |
-| 110 | `memory_dump_module` | Dump a Windows module or DLL from a memory dump via Volatility3. | `dump_path` (string, req), `process_name` (string, req), `module_name` (string), `output_dir` (string) | `forensics` |
-| 111 | `memory_extract_strings` | Extract ASCII and Unicode strings from a memory dump. | `dump_path` (string, req), `min_length` (integer), `limit` (integer) | `forensics` |
-| 112 | `memory_list_processes` | List Windows processes from a memory dump. | `dump_path` (string, req), `include_hidden` (boolean) | `forensics` |
-| 113 | `memory_list_symbols` | List available Volatility3 symbol tables for a memory dump. | `dump_path` (string, req) | `forensics` |
-| 114 | `pcap_analyze` | Summarize sessions, protocols, and packet statistics from a PCAP file. | `pcap_path` (string, req), `max_packets` (integer) | `forensics` |
-| 115 | `pcap_extract_c2` | Detect potential C2 traffic patterns in a PCAP capture. | `pcap_path` (string, req), `beacon_threshold_sec` (integer), `max_packets` (integer) | `forensics` |
-| 116 | `pcap_extract_dns` | Extract DNS queries and responses from a PCAP capture. | `pcap_path` (string, req), `include_responses` (boolean), `max_packets` (integer) | `forensics` |
-| 117 | `pcap_list_connections` | List all unique IP/port connections observed in a PCAP capture. | `pcap_path` (string, req), `protocol` (string), `max_packets` (integer) | `forensics` |
-| 118 | `pcap_reconstruct_stream` | Reconstruct TCP stream payload from a PCAP capture. | `pcap_path` (string, req), `src_ip` (string, req), `dst_ip` (string, req), `dst_port` (integer, req), `max_packets` (integer), `max_bytes` (integer), `src_port` (integer) | `forensics` |
+| 98 | `artifact_collect` | Collect and normalize forensic artifacts from analysis results. | `artifacts` (array, req), `artifact_type` (string), `source` (string) | `forensics` |
+| 99 | `artifact_correlate_ioc` | Correlate collected forensic artifacts against IoC patterns. | `artifacts` (array, req), `check_ips` (boolean), `check_domains` (boolean), `check_hashes` (boolean) | `forensics` |
+| 100 | `artifact_generate_yara` | Auto-generate YARA rules from collected forensic artifacts. | `artifacts` (array, req), `rule_name` (string), `output_path` (string) | `forensics` |
+| 101 | `artifact_report` | Export a comprehensive forensics investigation report. | `artifacts` (array, req), `case_name` (string), `analyst` (string), `include_yara` (boolean), `output_path` (string) | `forensics` |
+| 102 | `artifact_timeline` | Build a chronological event timeline from multi-source forensic artifacts. | `artifacts` (array, req), `sort_order` (string) | `forensics` |
+| 103 | `disk_analyze_mft` | Analyze the NTFS Master File Table (MFT) for file timeline and metadata. | `image_path` (string, req), `offset` (integer), `limit` (integer) | `forensics` |
+| 104 | `disk_extract_file` | Extract a live (non-deleted) file from a disk image by inode number. | `image_path` (string, req), `inode` (string, req), `output_path` (string, req), `offset` (integer) | `forensics` |
+| 105 | `disk_hash_verify` | Compute and verify the integrity hash of a disk image or recovered file. | `image_path` (string, req), `expected_hash` (string), `algorithm` (string) | `forensics` |
+| 106 | `disk_list_files` | List all files and directories in a disk/filesystem image. | `image_path` (string, req), `directory` (string), `include_deleted` (boolean), `offset` (integer), `recursive` (boolean), `limit` (integer) | `forensics` |
+| 107 | `disk_list_partition` | List partition layout of a disk image using Sleuth Kit mmls. | `image_path` (string, req) | `forensics` |
+| 108 | `disk_recover_deleted` | Recover a deleted file from a disk/filesystem image by inode number. | `image_path` (string, req), `inode` (string, req), `output_path` (string, req), `offset` (integer) | `forensics` |
+| 109 | `memory_analyze` | Run a Volatility3 plugin against a memory dump file. | `dump_path` (string, req), `plugin` (string), `symbol_path` (string), `extra_args` (string), `_bypass_queue` (boolean) | `forensics` |
+| 110 | `memory_detect_injections` | Detect Windows process injection using the Volatility3 windows.malfind plugin. | `dump_path` (string, req), `_bypass_queue` (boolean) | `forensics` |
+| 111 | `memory_dump_module` | Dump a Windows module or DLL from a memory dump via Volatility3. | `dump_path` (string, req), `process_name` (string, req), `module_name` (string), `output_dir` (string) | `forensics` |
+| 112 | `memory_extract_strings` | Extract ASCII and Unicode strings from a memory dump. | `dump_path` (string, req), `min_length` (integer), `limit` (integer) | `forensics` |
+| 113 | `memory_list_processes` | List Windows processes from a memory dump. | `dump_path` (string, req), `include_hidden` (boolean) | `forensics` |
+| 114 | `memory_list_symbols` | List available Volatility3 symbol tables for a memory dump. | `dump_path` (string, req) | `forensics` |
+| 115 | `pcap_analyze` | Summarize sessions, protocols, and packet statistics from a PCAP file. | `pcap_path` (string, req), `max_packets` (integer) | `forensics` |
+| 116 | `pcap_extract_c2` | Detect potential C2 traffic patterns in a PCAP capture. | `pcap_path` (string, req), `beacon_threshold_sec` (integer), `max_packets` (integer) | `forensics` |
+| 117 | `pcap_extract_dns` | Extract DNS queries and responses from a PCAP capture. | `pcap_path` (string, req), `include_responses` (boolean), `max_packets` (integer) | `forensics` |
+| 118 | `pcap_list_connections` | List all unique IP/port connections observed in a PCAP capture. | `pcap_path` (string, req), `protocol` (string), `max_packets` (integer) | `forensics` |
+| 119 | `pcap_reconstruct_stream` | Reconstruct TCP stream payload from a PCAP capture. | `pcap_path` (string, req), `src_ip` (string, req), `dst_ip` (string, req), `dst_port` (integer, req), `max_packets` (integer), `max_bytes` (integer), `src_port` (integer) | `forensics` |
 
 ---
 
@@ -232,17 +233,17 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 
 | # | Tool Name | Description | Key Parameters | Profiles |
 |:---:|---|---|---|---|
-| 119 | `complete_memory_session` | Mark an analysis session as completed with a summary. | `session_id` (string, req), `summary` (string, req) | `forensics` |
-| 120 | `create_memory_session` | Create a new memory session to store memories. | `name` (string, req), `binary_name` (string), `binary_path` (string) | `forensics` |
-| 121 | `find_similar_patterns` | Find similar patterns from previous analyses. | `pattern_signature` (string, req), `pattern_type` (string), `current_session_id` (string), `limit` (integer) | `forensics` |
-| 122 | `get_memory_session_detail` | Get complete details and context for a specific session. | `session_id` (string, req) | `forensics` |
-| 123 | `get_relevant_context` | Get relevant context from past analyses for current work. | `description` (string, req), `current_session_id` (string), `limit` (integer) | `forensics` |
-| 124 | `list_memory_sessions` | List all analysis sessions with timestamps and status. | `status` (string), `limit` (integer) | `forensics` |
-| 125 | `recall_memory_item` | Search and recall memories from past analyses. | `query` (string, req), `session_id` (string), `memory_type` (string), `limit` (integer) | `forensics` |
-| 126 | `resume_memory_session` | Resume a previous analysis session with full context restoration. | `session_id` (string), `binary_name` (string) | `forensics` |
-| 127 | `save_memory_item` | Save important information to long-term memory. | `session_id` (string, req), `memory_type` (string, req), `content` (string, req), `category` (string), `user_prompt` (string), `importance` (integer) | `forensics` |
-| 128 | `save_pattern` | Save a code/behavior pattern for cross-session similarity search. | `session_id` (string, req), `pattern_type` (string, req), `pattern_signature` (string, req), `description` (string) | `forensics` |
-| 129 | `update_memory_session_time` | Update the cumulative analysis time for a session. | `session_id` (string, req), `duration_seconds` (number, req) | `forensics` |
+| 120 | `complete_memory_session` | Mark an analysis session as completed with a summary. | `session_id` (string, req), `summary` (string, req) | `forensics` |
+| 121 | `create_memory_session` | Create a new memory session to store memories. | `name` (string, req), `binary_name` (string), `binary_path` (string) | `forensics` |
+| 122 | `find_similar_patterns` | Find similar patterns from previous analyses. | `pattern_signature` (string, req), `pattern_type` (string), `current_session_id` (string), `limit` (integer) | `forensics` |
+| 123 | `get_memory_session_detail` | Get complete details and context for a specific session. | `session_id` (string, req) | `forensics` |
+| 124 | `get_relevant_context` | Get relevant context from past analyses for current work. | `description` (string, req), `current_session_id` (string), `limit` (integer) | `forensics` |
+| 125 | `list_memory_sessions` | List all analysis sessions with timestamps and status. | `status` (string), `limit` (integer) | `forensics` |
+| 126 | `recall_memory_item` | Search and recall memories from past analyses. | `query` (string, req), `session_id` (string), `memory_type` (string), `limit` (integer) | `forensics` |
+| 127 | `resume_memory_session` | Resume a previous analysis session with full context restoration. | `session_id` (string), `binary_name` (string) | `forensics` |
+| 128 | `save_memory_item` | Save important information to long-term memory. | `session_id` (string, req), `memory_type` (string, req), `content` (string, req), `category` (string), `user_prompt` (string), `importance` (integer) | `forensics` |
+| 129 | `save_pattern` | Save a code/behavior pattern for cross-session similarity search. | `session_id` (string, req), `pattern_type` (string, req), `pattern_signature` (string, req), `description` (string) | `forensics` |
+| 130 | `update_memory_session_time` | Update the cumulative analysis time for a session. | `session_id` (string, req), `duration_seconds` (number, req) | `forensics` |
 
 ---
 
@@ -252,13 +253,13 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 
 | # | Tool Name | Description | Key Parameters | Profiles |
 |:---:|---|---|---|---|
-| 130 | `assemble_instructions` | Assemble assembly instruction strings into raw machine byte values using Keystone. | `assembly_code` (string, req), `arch` (string), `mode` (string), `base_address` (string) | `static`, `malware`, `forensics`, `vuln-research` |
-| 131 | `copy_to_workspace` | Copy any accessible file to the workspace directory. | `source_path` (string, req), `destination_name` (string) | `static`, `malware`, `forensics`, `vuln-research` |
-| 132 | `create_directory` | Create a new sub-directory within the workspace. | `directory_path` (string, req) | `static`, `malware`, `forensics`, `vuln-research` |
-| 133 | `explain_patch` | Analyze differences between two binaries and explain changes in natural language. | `file_path_a` (string, req), `file_path_b` (string, req), `function_name` (string) | `static`, `malware`, `forensics`, `vuln-research` |
-| 134 | `list_workspace` | List all files in the workspace directory. | *(none)* | `static`, `malware`, `forensics`, `vuln-research` |
-| 135 | `run_file` | Identify file metadata using the ``file`` CLI utility. | `file_path` (string, req), `timeout` (integer) | `static`, `malware`, `forensics`, `vuln-research` |
-| 136 | `scan_workspace` | Batch scan all files in the workspace using multiple tools in parallel. | `file_patterns` (array), `timeout` (integer) | `static`, `malware`, `forensics`, `vuln-research` |
+| 131 | `assemble_instructions` | Assemble assembly instruction strings into raw machine byte values using Keystone. | `assembly_code` (string, req), `arch` (string), `mode` (string), `base_address` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 132 | `copy_to_workspace` | Copy any accessible file to the workspace directory. | `source_path` (string, req), `destination_name` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 133 | `create_directory` | Create a new sub-directory within the workspace. | `directory_path` (string, req) | `static`, `malware`, `forensics`, `vuln-research` |
+| 134 | `explain_patch` | Analyze differences between two binaries and explain changes in natural language. | `file_path_a` (string, req), `file_path_b` (string, req), `function_name` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 135 | `list_workspace` | List all files in the workspace directory. | *(none)* | `static`, `malware`, `forensics`, `vuln-research` |
+| 136 | `run_file` | Identify file metadata using the ``file`` CLI utility. | `file_path` (string, req), `timeout` (integer) | `static`, `malware`, `forensics`, `vuln-research` |
+| 137 | `scan_workspace` | Batch scan all files in the workspace using multiple tools in parallel. | `file_patterns` (array), `timeout` (integer) | `static`, `malware`, `forensics`, `vuln-research` |
 
 ---
 
@@ -268,8 +269,8 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 
 | # | Tool Name | Description | Key Parameters | Profiles |
 |:---:|---|---|---|---|
-| 137 | `get_server_health` | Get the current health status and resource usage of the MCP server. | *(none)* | `static`, `malware`, `forensics`, `vuln-research` |
-| 138 | `get_tool_metrics` | Get detailed execution metrics for specific or all tools. | `tool_name` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 138 | `get_server_health` | Get the current health status and resource usage of the MCP server. | *(none)* | `static`, `malware`, `forensics`, `vuln-research` |
+| 139 | `get_tool_metrics` | Get detailed execution metrics for specific or all tools. | `tool_name` (string) | `static`, `malware`, `forensics`, `vuln-research` |
 
 ---
 
@@ -279,20 +280,20 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 
 | # | Tool Name | Description | Key Parameters | Profiles |
 |:---:|---|---|---|---|
-| 139 | `add_analysis_note` | Add a timestamped note to the analysis session. | `note` (string, req), `category` (string), `session_id` (string) | `static`, `malware`, `forensics`, `vuln-research` |
-| 140 | `add_ioc` | Add an Indicator of Compromise to the current session. | `ioc_type` (string, req), `value` (string, req), `session_id` (string) | `static`, `malware`, `forensics`, `vuln-research` |
-| 141 | `add_mitre_technique` | Add a MITRE ATT&CK technique to the session. | `technique_id` (string, req), `technique_name` (string, req), `tactic` (string, req), `session_id` (string) | `static`, `malware`, `forensics`, `vuln-research` |
-| 142 | `create_analysis_report` | Generate a comprehensive analysis report. | `template_type` (string), `session_id` (string), `sample_path` (string), `analyst` (string), `classification` (string), `output_format` (string) | `static`, `malware`, `forensics`, `vuln-research` |
-| 143 | `end_report_session` | End the current analysis session. | `session_id` (string), `status` (string), `summary` (string) | `static`, `malware`, `forensics`, `vuln-research` |
-| 144 | `generate_sigma_rule` | Generate a Sigma rule (YAML) for SIEM integration based on extracted IOCs or API calls. | `title` (string, req), `iocs` (array), `api_calls` (array), `category` (string), `product` (string), `level` (string), `description` (string) | `static`, `malware`, `forensics`, `vuln-research` |
-| 145 | `generate_vex_report` | Generate a CSAF 2.0 VEX JSON report from vulnerability findings. | `product_name` (string, req), `product_version` (string, req), `vulnerabilities` (string, req), `document_title` (string) | `static`, `malware`, `forensics`, `vuln-research` |
-| 146 | `get_report_session_status` | Get current session information and collected data. | `session_id` (string) | `static`, `malware`, `forensics`, `vuln-research` |
-| 147 | `get_system_time` | Get accurate system timestamp from the server. | *(none)* | `static`, `malware`, `forensics`, `vuln-research` |
-| 148 | `get_timezone_info` | Get current timezone configuration and available options. | *(none)* | `static`, `malware`, `forensics`, `vuln-research` |
-| 149 | `list_report_sessions` | List all analysis sessions with their status and duration. | *(none)* | `static`, `malware`, `forensics`, `vuln-research` |
-| 150 | `set_severity` | Update the severity level of the analysis. | `severity` (string, req), `session_id` (string) | `static`, `malware`, `forensics`, `vuln-research` |
-| 151 | `set_timezone` | Set the default timezone for timestamps. | `timezone` (string, req) | `static`, `malware`, `forensics`, `vuln-research` |
-| 152 | `start_report_session` | Start a new malware analysis session. | `sample_path` (string), `analyst` (string), `severity` (string), `malware_family` (string), `tags` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 140 | `add_analysis_note` | Add a timestamped note to the analysis session. | `note` (string, req), `category` (string), `session_id` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 141 | `add_ioc` | Add an Indicator of Compromise to the current session. | `ioc_type` (string, req), `value` (string, req), `session_id` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 142 | `add_mitre_technique` | Add a MITRE ATT&CK technique to the session. | `technique_id` (string, req), `technique_name` (string, req), `tactic` (string, req), `session_id` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 143 | `create_analysis_report` | Generate a comprehensive analysis report. | `template_type` (string), `session_id` (string), `sample_path` (string), `analyst` (string), `classification` (string), `output_format` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 144 | `end_report_session` | End the current analysis session. | `session_id` (string), `status` (string), `summary` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 145 | `generate_sigma_rule` | Generate a Sigma rule (YAML) for SIEM integration based on extracted IOCs or API calls. | `title` (string, req), `iocs` (array), `api_calls` (array), `category` (string), `product` (string), `level` (string), `description` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 146 | `generate_vex_report` | Generate a CSAF 2.0 VEX JSON report from vulnerability findings. | `product_name` (string, req), `product_version` (string, req), `vulnerabilities` (string, req), `document_title` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 147 | `get_report_session_status` | Get current session information and collected data. | `session_id` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 148 | `get_system_time` | Get accurate system timestamp from the server. | *(none)* | `static`, `malware`, `forensics`, `vuln-research` |
+| 149 | `get_timezone_info` | Get current timezone configuration and available options. | *(none)* | `static`, `malware`, `forensics`, `vuln-research` |
+| 150 | `list_report_sessions` | List all analysis sessions with their status and duration. | *(none)* | `static`, `malware`, `forensics`, `vuln-research` |
+| 151 | `set_severity` | Update the severity level of the analysis. | `severity` (string, req), `session_id` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 152 | `set_timezone` | Set the default timezone for timestamps. | `timezone` (string, req) | `static`, `malware`, `forensics`, `vuln-research` |
+| 153 | `start_report_session` | Start a new malware analysis session. | `sample_path` (string), `analyst` (string), `severity` (string), `malware_family` (string), `tags` (string) | `static`, `malware`, `forensics`, `vuln-research` |
 
 ---
 
@@ -302,7 +303,7 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 
 | # | Tool Name | Description | Key Parameters | Profiles |
 |:---:|---|---|---|---|
-| 153 | `get_job_result` | Retrieve the status and result of a background job from the task queue. | `job_id` (string, req) | `static`, `malware`, `forensics`, `vuln-research` |
+| 154 | `get_job_result` | Retrieve the status and result of a background job from the task queue. | `job_id` (string, req) | `static`, `malware`, `forensics`, `vuln-research` |
 
 ---
 
