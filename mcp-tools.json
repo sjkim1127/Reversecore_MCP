@@ -8551,6 +8551,208 @@
     }
   },
   {
+    "name": "batch_execute",
+    "description": "Execute a batch of repeated or heterogeneous analysis operations within bounded resources.\n\nEnables AI agents to perform bulk decompilations, cross-reference searches,\ntagging, and static analysis sweeps in a single MCP request, eliminating round-trips\nwhile isolating individual item failures and enforcing strict execution quotas.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "operations": {
+          "description": "List of tool invocation specifications. Each item must contain 'tool' (str) and 'arguments' (dict). An optional 'id' (str) can be provided for correlation. Example: [{'id': 'fn1', 'tool': 'r2_decompile', 'arguments': {'file_path': 'sample.bin', 'function_address': 'main'}}]",
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "max_concurrency": {
+          "default": 4,
+          "description": "Maximum number of parallel operations (default: 4, max: 16). Set to 1 for strict sequential execution.",
+          "maximum": 16,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "item_timeout": {
+          "default": 30,
+          "description": "Per-item timeout in seconds (default: 30s, max: 300s).",
+          "maximum": 300,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "total_timeout": {
+          "default": 120,
+          "description": "Overall timeout for entire batch execution in seconds (default: 120s, max: 600s).",
+          "maximum": 600,
+          "minimum": 5,
+          "type": "integer"
+        },
+        "stop_on_error": {
+          "default": false,
+          "description": "If True, halts execution on first item error and returns partial results.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "operations"
+      ],
+      "type": "object"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "description": "True if operation succeeded, False otherwise"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "success",
+            "error"
+          ]
+        },
+        "data": {
+          "type": [
+            "object",
+            "string",
+            "array",
+            "null"
+          ],
+          "description": "Structured analysis payload on success"
+        },
+        "error": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "code": {
+              "type": "string",
+              "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+            },
+            "message": {
+              "type": "string",
+              "description": "Human-readable explanation"
+            },
+            "retryable": {
+              "type": "boolean",
+              "description": "Whether the caller may retry"
+            },
+            "recovery_hint": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Actionable recovery advice"
+            }
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "metadata": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "meta": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "pagination": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "page": {
+              "type": "integer"
+            },
+            "page_size": {
+              "type": "integer"
+            },
+            "total_items": {
+              "type": "integer"
+            },
+            "total_pages": {
+              "type": "integer"
+            },
+            "has_next": {
+              "type": "boolean"
+            },
+            "has_previous": {
+              "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "recommended_next_tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "ok",
+        "status"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
     "name": "build_rop_chain",
     "description": "Automatically build a Return-Oriented Programming (ROP) exploit chain.\n\nEnumerates available ROP gadgets with ROPgadget, then uses the pwntools\n``ROP`` class to construct a working chain for the specified exploit\nobjective. Supports three strategies: spawning a shell via execve or\n``system()``, returning into libc, and leaking a libc address to defeat ASLR.",
     "inputSchema": {

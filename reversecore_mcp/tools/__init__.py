@@ -25,6 +25,7 @@ _LAZY_MODULES: Final[dict[str, str]] = {
     "static_analysis": "reversecore_mcp.tools.analysis.static_analysis",
     "vt_lookup": "reversecore_mcp.tools.analysis.vt_lookup",
     # Common tools
+    "batch_operations": "reversecore_mcp.tools.common.batch_operations",
     "file_operations": "reversecore_mcp.tools.common.file_operations",
     "patch_explainer": "reversecore_mcp.tools.common.patch_explainer",
     # CVE Hunter tools

@@ -117,11 +117,11 @@ def test_profile_benchmark_expectations():
     assert "forensics" in PROFILES
     assert "vuln-research" in PROFILES
 
-    assert EXPECTED_PROFILE_TOOL_COUNTS["full"] == 155
-    assert EXPECTED_PROFILE_TOOL_COUNTS["static"] == 101
-    assert EXPECTED_PROFILE_TOOL_COUNTS["malware"] == 69
-    assert EXPECTED_PROFILE_TOOL_COUNTS["forensics"] == 58
-    assert EXPECTED_PROFILE_TOOL_COUNTS["vuln-research"] == 107
+    assert EXPECTED_PROFILE_TOOL_COUNTS["full"] == 156
+    assert EXPECTED_PROFILE_TOOL_COUNTS["static"] == 102
+    assert EXPECTED_PROFILE_TOOL_COUNTS["malware"] == 70
+    assert EXPECTED_PROFILE_TOOL_COUNTS["forensics"] == 59
+    assert EXPECTED_PROFILE_TOOL_COUNTS["vuln-research"] == 108
 
 
 @pytest.mark.unit

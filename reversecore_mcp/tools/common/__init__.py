@@ -33,6 +33,7 @@ class CommonToolsPlugin(Plugin):
         """
         # Import tools
         from reversecore_mcp.tools.common.assembler import assemble_instructions
+        from reversecore_mcp.tools.common.batch_operations import batch_execute
         from reversecore_mcp.tools.common.file_operations import (
             copy_to_workspace,
             create_directory,
@@ -60,6 +61,9 @@ class CommonToolsPlugin(Plugin):
         mcp_server.tool(list_workspace)
         mcp_server.tool(scan_workspace)
         mcp_server.tool(retrieve_truncated_output)
+
+        # Batch execution tool
+        mcp_server.tool(batch_execute)
 
         # Patch explainer
         mcp_server.tool(explain_patch)
