@@ -133,7 +133,7 @@ class TestMcpClientE2EWorkflows:
         """Scenario 1: Native binary happy path in the static profile.
 
         Verifies:
-        1. static profile tool exposure (102 tools, no malware-only tools).
+        1. static profile tool exposure (108 tools, no malware-only tools).
         2. Binary identification via run_file (ELF/x86-64).
         3. Function enumeration via Radare2_list_functions (main function discovered).
         4. Decompilation via r2_decompile (non-empty pseudo-C).
@@ -160,8 +160,8 @@ class TestMcpClientE2EWorkflows:
                 tools_res = await session.list_tools()
                 exposed_tools = {t.name for t in tools_res.tools}
 
-                # Contract: Exactly 102 tools for static profile
-                assert len(exposed_tools) == 102, f"Expected 102 tools, got {len(exposed_tools)}"
+                # Contract: Exactly 108 tools for static profile
+                assert len(exposed_tools) == 108, f"Expected 108 tools, got {len(exposed_tools)}"
                 # Static analysis tools must be present
                 assert "run_file" in exposed_tools
                 assert "parse_binary_with_lief" in exposed_tools
@@ -281,7 +281,7 @@ class TestMcpClientE2EWorkflows:
         """Scenario 2: PE Malware Triage in malware profile.
 
         Verifies:
-        1. malware profile tool exposure (70 tools, no static/forensics-only tools).
+        1. malware profile tool exposure (76 tools, no static/forensics-only tools).
         2. Binary identification & metadata via run_file.
         3. Indicator of Compromise (IoC) extraction: IPv4, URL, Bitcoin, CVE, Registry.
         4. YARA signature matching using custom rules.
@@ -313,10 +313,10 @@ class TestMcpClientE2EWorkflows:
             )
 
             async with spawn_mcp_session("malware", ws_path) as session:
-                # 1. Profile Exposure Check (Contract: Exactly 70 tools)
+                # 1. Profile Exposure Check (Contract: Exactly 76 tools)
                 tools_res = await session.list_tools()
                 exposed_tools = {t.name for t in tools_res.tools}
-                assert len(exposed_tools) == 70, f"Expected 70 tools, got {len(exposed_tools)}"
+                assert len(exposed_tools) == 76, f"Expected 76 tools, got {len(exposed_tools)}"
                 assert "extract_iocs" in exposed_tools
                 assert "run_yara" in exposed_tools
                 assert "detect_anti_analysis" in exposed_tools
@@ -400,7 +400,7 @@ class TestMcpClientE2EWorkflows:
         """Scenario 3: Binary Patch Diffing & Security Impact in vuln-research profile.
 
         Verifies:
-        1. vuln-research profile tool exposure (108 tools).
+        1. vuln-research profile tool exposure (114 tools).
         2. Binary diffing via diff_binaries: computes similarity score and code delta.
         3. Automated patch inference via analyze_patch_diff_auto: verdicts and vulnerability assessment.
         4. Identical binary fast-path: perfect similarity (1.0) and IDENTICAL verdict.
@@ -433,7 +433,7 @@ class TestMcpClientE2EWorkflows:
                 # 1. Profile Exposure Check
                 tools_res = await session.list_tools()
                 exposed_tools = {t.name for t in tools_res.tools}
-                assert len(exposed_tools) == 108, f"Expected 108 tools, got {len(exposed_tools)}"
+                assert len(exposed_tools) == 114, f"Expected 114 tools, got {len(exposed_tools)}"
                 assert "diff_binaries" in exposed_tools
                 assert "analyze_patch_diff_auto" in exposed_tools
 
@@ -479,7 +479,7 @@ class TestMcpClientE2EWorkflows:
         """Scenario 4: Incident & Network PCAP Forensics in forensics profile.
 
         Verifies:
-        1. forensics profile tool exposure (59 tools, no radare2/cve-hunter tools).
+        1. forensics profile tool exposure (65 tools, no radare2/cve-hunter tools).
         2. PCAP packet triage and protocol distribution via pcap_analyze.
         3. DNS query and response domain extraction via pcap_extract_dns.
         4. 5-tuple network connection enumeration via pcap_list_connections.
@@ -498,10 +498,10 @@ class TestMcpClientE2EWorkflows:
             shutil.copy2(fixture_pcap, target_pcap)
 
             async with spawn_mcp_session("forensics", ws_path) as session:
-                # 1. Profile Exposure Check (Contract: Exactly 59 tools)
+                # 1. Profile Exposure Check (Contract: Exactly 65 tools)
                 tools_res = await session.list_tools()
                 exposed_tools = {t.name for t in tools_res.tools}
-                assert len(exposed_tools) == 59, f"Expected 59 tools, got {len(exposed_tools)}"
+                assert len(exposed_tools) == 65, f"Expected 65 tools, got {len(exposed_tools)}"
                 assert "pcap_analyze" in exposed_tools
                 assert "pcap_extract_dns" in exposed_tools
                 assert "pcap_list_connections" in exposed_tools
@@ -585,7 +585,7 @@ class TestMcpClientE2EWorkflows:
         """Scenario 5: Crash Unhappy/Complex Path in vuln-research profile.
 
         Verifies:
-        1. vuln-research profile tool exposure (108 tools, no forensics-only tools).
+        1. vuln-research profile tool exposure (114 tools, no forensics-only tools).
         2. Deterministic ASan triage: bug class, CWE, faulting function, and signature.
         3. Signature stability contract: identical signature returned on repeated triage.
         4. Testcase minimization: delta debugging minimizes input size while preserving crash.
@@ -628,8 +628,8 @@ class TestMcpClientE2EWorkflows:
                 tools_res = await session.list_tools()
                 exposed_tools = {t.name for t in tools_res.tools}
 
-                # Contract: Exactly 108 tools for vuln-research profile
-                assert len(exposed_tools) == 108, f"Expected 108 tools, got {len(exposed_tools)}"
+                # Contract: Exactly 114 tools for vuln-research profile
+                assert len(exposed_tools) == 114, f"Expected 114 tools, got {len(exposed_tools)}"
                 # Vulnerability research tools must be present
                 assert "cve_triage_crash" in exposed_tools
                 assert "cve_minimize_poc" in exposed_tools

@@ -43,6 +43,14 @@ class CommonToolsPlugin(Plugin):
             scan_workspace,
         )
         from reversecore_mcp.tools.common.patch_explainer import explain_patch
+        from reversecore_mcp.tools.common.transaction_tools import (
+            transaction_begin,
+            transaction_commit,
+            transaction_redo,
+            transaction_rollback,
+            transaction_status,
+            transaction_undo,
+        )
 
         if include_subplugins:
             from reversecore_mcp.tools.common.memory_tools import MemoryToolsPlugin
@@ -64,6 +72,14 @@ class CommonToolsPlugin(Plugin):
 
         # Batch execution tool
         mcp_server.tool(batch_execute)
+
+        # Transaction management tools
+        mcp_server.tool(transaction_begin)
+        mcp_server.tool(transaction_commit)
+        mcp_server.tool(transaction_rollback)
+        mcp_server.tool(transaction_status)
+        mcp_server.tool(transaction_undo)
+        mcp_server.tool(transaction_redo)
 
         # Patch explainer
         mcp_server.tool(explain_patch)

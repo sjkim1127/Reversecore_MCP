@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import uuid
 from typing import Annotated, Any
 
 from pydantic import Field
@@ -111,6 +112,13 @@ async def batch_execute(
             description="If True, halts execution on first item error and returns partial results.",
         ),
     ] = False,
+    atomic: Annotated[
+        bool,
+        Field(
+            default=False,
+            description="If True, runs all operations inside an atomic transaction. If any operation fails, state changes are rolled back.",
+        ),
+    ] = False,
 ) -> ToolResult:
     """Execute a batch of repeated or heterogeneous analysis operations within bounded resources.
 
@@ -124,6 +132,7 @@ async def batch_execute(
         item_timeout: Per-item timeout in seconds (1 to 300s, default 30s).
         total_timeout: Total batch timeout in seconds (5 to 600s, default 120s).
         stop_on_error: If True, halts further batch execution on first item error.
+        atomic: If True, executes the batch transactionally; rolls back changes if any item fails.
 
     Returns:
         ToolResult containing:
@@ -132,6 +141,8 @@ async def batch_execute(
         - failed: Count of failed/timed-out operations
         - results: Sorted list of successful execution payloads with original index & id
         - errors: Sorted list of failed items with error codes and diagnostics
+        - transaction_id: (If atomic=True) ID of the underlying transaction
+        - transaction_status: (If atomic=True) 'COMMITTED' or 'ROLLED_BACK'
     """
     if not operations:
         return failure(
@@ -146,6 +157,19 @@ async def batch_execute(
             f"Batch size {len(operations)} exceeds maximum allowed limit of {MAX_BATCH_SIZE}.",
             recovery_hint=f"Split your workload into smaller batches of at most {MAX_BATCH_SIZE} operations each.",
         )
+
+    tx_id: str | None = None
+    if atomic:
+        from reversecore_mcp.core.transaction import get_transaction_manager
+
+        mgr = get_transaction_manager()
+        try:
+            tx = mgr.begin(
+                name=f"batch_atomic_{uuid.uuid4().hex[:8]}", auto_rollback_on_error=False
+            )
+            tx_id = tx.id
+        except Exception as exc:
+            return failure("TRANSACTION_ERROR", f"Failed to begin atomic batch transaction: {exc}")
 
     server_inst = await _resolve_server()
     raw_tools = await server_inst.list_tools()
@@ -388,13 +412,30 @@ async def batch_execute(
     results.sort(key=lambda x: x["index"])
     errors.sort(key=lambda x: x["index"])
 
+    tx_status = None
+    if atomic and tx_id is not None:
+        from reversecore_mcp.core.transaction import get_transaction_manager
+
+        mgr = get_transaction_manager()
+        if errors:
+            mgr.rollback(tx_id=tx_id, reason="Batch item failed in atomic mode")
+            tx_status = "ROLLED_BACK"
+        else:
+            mgr.commit(tx_id=tx_id)
+            tx_status = "COMMITTED"
+
+    resp_data: dict[str, Any] = {
+        "requested": len(operations),
+        "completed": len(results),
+        "failed": len(errors),
+        "results": results,
+        "errors": errors,
+    }
+    if atomic:
+        resp_data["transaction_id"] = tx_id
+        resp_data["transaction_status"] = tx_status
+
     return success(
-        {
-            "requested": len(operations),
-            "completed": len(results),
-            "failed": len(errors),
-            "results": results,
-            "errors": errors,
-        },
+        resp_data,
         description=f"Batch execution completed: {len(results)}/{len(operations)} successful, {len(errors)} failed.",
     )

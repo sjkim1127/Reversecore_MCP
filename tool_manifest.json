@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "name": "reversecore_mcp",
   "description": "Enterprise-grade MCP server for binary reverse engineering, decompilation, malware triage, and vulnerability hunting.",
-  "total_tools": 156,
+  "total_tools": 162,
   "protocol_readiness": {
     "mcp_version": "2024-11-05",
     "fastmcp_version": "3.4.4",
@@ -9046,6 +9046,11 @@
           "stop_on_error": {
             "default": false,
             "description": "If True, halts execution on first item error and returns partial results.",
+            "type": "boolean"
+          },
+          "atomic": {
+            "default": false,
+            "description": "If True, runs all operations inside an atomic transaction. If any operation fails, state changes are rolled back.",
             "type": "boolean"
           }
         },
@@ -29217,6 +29222,1136 @@
           "file_path",
           "target_function"
         ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "returned_bytes": {
+                "type": "integer"
+              },
+              "total_captured_bytes": {
+                "type": "integer"
+              },
+              "saved_artifact": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "continuation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "cursor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "transaction_begin",
+      "description": "Begin a new state mutation transaction.\n\nCheckpoints current Reversecore state (annotation database, memory sessions,\nreport sessions, and reversible workspace artifacts). Subsequent mutations\ncan be committed atomically or rolled back cleanly to this checkpoint.",
+      "plugin": "common_tools",
+      "profiles": [
+        "full",
+        "static",
+        "malware",
+        "forensics",
+        "vuln-research"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional human-readable name or intent for the transaction (e.g. 'patch_function_auth')."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional detailed description of the intended mutations."
+          },
+          "strict": {
+            "default": false,
+            "description": "If True, any non-reversible action (e.g., external subprocess execution) is rejected immediately.",
+            "type": "boolean"
+          },
+          "auto_rollback_on_error": {
+            "default": false,
+            "description": "If True, encountering a non-reversible action in strict mode automatically triggers rollback.",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "returned_bytes": {
+                "type": "integer"
+              },
+              "total_captured_bytes": {
+                "type": "integer"
+              },
+              "saved_artifact": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "continuation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "cursor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "transaction_commit",
+      "description": "Commit the active transaction and persist changes into the undo history.\n\nAtomically commits all mutations executed since transaction_begin, records\naffected objects in the security audit trail, and adds the transaction to\nthe undo stack.",
+      "plugin": "common_tools",
+      "profiles": [
+        "full",
+        "static",
+        "malware",
+        "forensics",
+        "vuln-research"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "transaction_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional ID of the transaction to commit. If omitted, commits the currently active transaction."
+          }
+        },
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "returned_bytes": {
+                "type": "integer"
+              },
+              "total_captured_bytes": {
+                "type": "integer"
+              },
+              "saved_artifact": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "continuation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "cursor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "transaction_redo",
+      "description": "Redo the last undone transaction(s).\n\nRe-applies the committed state of previously undone transactions.",
+      "plugin": "common_tools",
+      "profiles": [
+        "full",
+        "static",
+        "malware",
+        "forensics",
+        "vuln-research"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "steps": {
+            "default": 1,
+            "description": "Number of undone transactions to redo (default 1).",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "returned_bytes": {
+                "type": "integer"
+              },
+              "total_captured_bytes": {
+                "type": "integer"
+              },
+              "saved_artifact": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "continuation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "cursor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "transaction_rollback",
+      "description": "Roll back the active transaction and restore pre-transaction Reversecore state.\n\nRestores the SQLite annotation database, memory sessions, report session\nmetadata, and tracked workspace artifacts to their exact pre-transaction state.",
+      "plugin": "common_tools",
+      "profiles": [
+        "full",
+        "static",
+        "malware",
+        "forensics",
+        "vuln-research"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "transaction_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional ID of the transaction to roll back. If omitted, rolls back the currently active transaction."
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional reason for the rollback (e.g. 'verification check failed')."
+          }
+        },
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "returned_bytes": {
+                "type": "integer"
+              },
+              "total_captured_bytes": {
+                "type": "integer"
+              },
+              "saved_artifact": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "continuation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "cursor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "transaction_status",
+      "description": "Inspect current transaction state, uncommitted mutations, and undo/redo history.\n\nProvides visibility into active transaction status, affected resources,\nwhether non-reversible actions have occurred, and available undo/redo steps.",
+      "plugin": "common_tools",
+      "profiles": [
+        "full",
+        "static",
+        "malware",
+        "forensics",
+        "vuln-research"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "transaction_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional transaction ID to query. If omitted, returns active transaction status and history."
+          }
+        },
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "returned_bytes": {
+                "type": "integer"
+              },
+              "total_captured_bytes": {
+                "type": "integer"
+              },
+              "saved_artifact": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "continuation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "cursor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "transaction_undo",
+      "description": "Undo the last committed transaction(s).\n\nRestores Reversecore state to the checkpoint prior to the committed transaction,\nand moves the undone transaction to the redo stack.",
+      "plugin": "common_tools",
+      "profiles": [
+        "full",
+        "static",
+        "malware",
+        "forensics",
+        "vuln-research"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "steps": {
+            "default": 1,
+            "description": "Number of committed transactions to undo (default 1).",
+            "type": "integer"
+          }
+        },
         "type": "object"
       },
       "outputSchema": {

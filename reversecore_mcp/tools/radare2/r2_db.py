@@ -300,6 +300,19 @@ async def r2_create_structure(
     fields_json = json.dumps(fields)
 
     await asyncio.to_thread(_create_structure_sync, bh, name, fields_json)
+    try:
+        from reversecore_mcp.core.transaction import MutationClass, get_transaction_manager
+
+        get_transaction_manager().record_mutation(
+            MutationClass.ANNOTATION,
+            resource=f"structure:{name}",
+            action="r2_create_structure",
+            details={"file_path": str(validated), "name": name, "field_count": len(fields)},
+            reversible=True,
+        )
+    except Exception as exc:
+        logger.debug(f"Transaction recording encountered: {exc}")
+
     return success({"created": name, "field_count": len(fields)})
 
 
@@ -493,6 +506,19 @@ async def r2_add_bookmark(
     bh = _sha256(validated)
 
     await asyncio.to_thread(_add_bookmark_sync, bh, address, comment, category)
+    try:
+        from reversecore_mcp.core.transaction import MutationClass, get_transaction_manager
+
+        get_transaction_manager().record_mutation(
+            MutationClass.ANNOTATION,
+            resource=f"bookmark:{address}",
+            action="r2_add_bookmark",
+            details={"file_path": str(validated), "address": address, "category": category},
+            reversible=True,
+        )
+    except Exception as exc:
+        logger.debug(f"Transaction recording encountered: {exc}")
+
     return success(
         {
             "address": address,

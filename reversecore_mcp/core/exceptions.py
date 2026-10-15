@@ -294,3 +294,29 @@ class PathTraversalError(SecurityViolationError):
     def __init__(self, attempted_path: str):
         message = f"Path traversal detected: {attempted_path}"
         super().__init__(message, attempted_path)
+
+
+# ============================================================================
+# Transaction Exceptions
+# ============================================================================
+
+
+class TransactionError(ReversecoreError):
+    """Base exception for transaction management errors."""
+
+    error_code = "RCMCP-E700"
+    error_type = "TRANSACTION_ERROR"
+
+
+class NoActiveTransactionError(TransactionError):
+    """Raised when an operation requires an active transaction but none exists."""
+
+    error_code = "RCMCP-E701"
+    error_type = "NO_ACTIVE_TRANSACTION"
+
+
+class NonReversibleOperationError(TransactionError):
+    """Raised when an unsupported or non-reversible operation is attempted inside a strict transaction."""
+
+    error_code = "RCMCP-E702"
+    error_type = "NON_REVERSIBLE_OPERATION_REJECTED"
