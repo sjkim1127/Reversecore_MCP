@@ -201,9 +201,9 @@ class TestFastMCPPromptRegistrationAndIntrospection:
 
     @pytest.mark.asyncio
     async def test_total_prompt_count_and_completeness(self, server):
-        # Verify 28 prompts registered
+        # Verify 29 prompts registered
         prompts = await _get_prompts_map(server)
-        assert len(prompts) == 28
+        assert len(prompts) == 29
 
         expected_all = [
             "full_analysis_mode",
@@ -232,6 +232,7 @@ class TestFastMCPPromptRegistrationAndIntrospection:
             "exploit_analysis_mode",
             "game_analysis_mode",
             "report_generation_mode",
+            "auto_planning_mode",
             "server_health_check_mode",
             "server_tool_catalog_mode",
         ]
@@ -295,7 +296,7 @@ class TestFastMCPPromptRegistrationAndIntrospection:
         except (TypeError, AttributeError):
             prompts_list = await server._list_prompts_mcp()
 
-        assert len(prompts_list) == 28
+        assert len(prompts_list) == 29
 
         for prompt_meta in prompts_list:
             assert hasattr(prompt_meta, "name")
