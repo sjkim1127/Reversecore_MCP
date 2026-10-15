@@ -29,11 +29,11 @@ PROFILES = ["full", "static", "malware", "forensics", "vuln-research"]
 
 # Expected tool counts per profile (derived from plugin memberships + core task queue)
 EXPECTED_PROFILE_TOOL_COUNTS = {
-    "full": 154,
-    "static": 100,
-    "malware": 68,
-    "forensics": 57,
-    "vuln-research": 106,
+    "full": 155,
+    "static": 101,
+    "malware": 69,
+    "forensics": 58,
+    "vuln-research": 107,
 }
 
 SUBPROCESS_WORKER_CODE = """
@@ -175,10 +175,10 @@ def render_markdown_report(results: list[dict[str, Any]]) -> str:
             "",
             "### 1. LLM Context Window & Token Efficiency",
             "In MCP (Model Context Protocol), clients fetch the full tool list and JSON schema during session initialization.",
-            "With the `full` profile (154 tools), the schema payload is approximately **118 KB (~29,400 tokens)**.",
+            "With the `full` profile (155 tools), the schema payload is approximately **118 KB (~29,400 tokens)**.",
             "By selecting a focused profile:",
             "- **`forensics` profile**: Reduces schema size by **67.7%**, freeing up **~19,500 tokens** in every conversation context.",
-            "- **`malware` profile**: Cuts tool count from 154 to 68 (**-46.0% schema reduction**), preserving **~13,500 tokens**.",
+            "- **`malware` profile**: Cuts tool count from 155 to 69 (**-46.0% schema reduction**), preserving **~13,500 tokens**.",
             "- **`static` profile**: Focuses strictly on reverse engineering and decompilation, trimming **~12,000 tokens** (**-41.0%**).",
             "",
             "### 2. Pre-Import Module Isolation",
@@ -199,7 +199,7 @@ def render_markdown_report(results: list[dict[str, Any]]) -> str:
             "| **Malware Triage & Reverse Engineering** | `REVERSECORE_PROFILE=malware` | YARA, packer detection, dormant hunter, deobfuscator, anti-analysis, reports |",
             "| **Incident Response & Memory/PCAP** | `REVERSECORE_PROFILE=forensics` | Memory forensics (Volatility3), network PCAP (Scapy), disk forensics, artifacts |",
             "| **Vulnerability Hunting & Fuzzing** | `REVERSECORE_PROFILE=vuln-research` | CVE hunter, ASan triager, harness synthesizer, hybrid fuzzing, Radare2, source auditor |",
-            "| **Enterprise All-in-One** | `REVERSECORE_PROFILE=full` | All 154 tools across all domains (default) |",
+            "| **Enterprise All-in-One** | `REVERSECORE_PROFILE=full` | All 155 tools across all domains (default) |",
             "",
             "---",
             "",

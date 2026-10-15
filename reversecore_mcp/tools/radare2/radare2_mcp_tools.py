@@ -113,10 +113,23 @@ class Radare2ToolsPlugin(Plugin):
                 if max_output_size is not None:
                     output_bytes = result.encode("utf-8", errors="replace")
                     if len(output_bytes) > max_output_size:
-                        marker = b"\n[output truncated]"
-                        result = (
-                            output_bytes[: max(0, max_output_size - len(marker))] + marker
-                        ).decode("utf-8", errors="ignore")
+                        try:
+                            from reversecore_mcp.core.execution import persist_output_artifact
+
+                            _, rel_path = persist_output_artifact(
+                                f"r2_{session.session_id}_{command}",
+                                output_bytes,
+                                prefix="r2",
+                            )
+                            marker = f"\n[output truncated at {max_output_size} bytes. Full output preserved in {rel_path}. Use retrieve_truncated_output to read.]".encode()
+                        except Exception:
+                            marker = b"\n[output truncated]"
+                        if max_output_size >= len(marker):
+                            result = (
+                                output_bytes[: max(0, max_output_size - len(marker))] + marker
+                            ).decode("utf-8", errors="ignore")
+                        else:
+                            result = output_bytes[:max_output_size].decode("utf-8", errors="ignore")
                 return result
             finally:
                 self._touch_session(session.session_id)

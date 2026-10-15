@@ -9,6 +9,7 @@ This module provides functions to execute subprocess commands safely with:
 """
 
 import asyncio
+import hashlib
 import os
 import shutil
 import signal
@@ -218,6 +219,72 @@ def prepare_sandbox_access(path: Path) -> None:
     os.chown(path, sandbox_user.pw_uid, sandbox_user.pw_gid)
 
 
+class SubprocessExecutionResult(tuple[str, int]):
+    """A 2-tuple (output_text, bytes_read) carrying optional truncation metadata.
+
+    Supports direct unpacking (output, bytes_read = res) for 100% backward compatibility,
+    while exposing .output_text, .bytes_read, and .truncation_meta attributes.
+    """
+
+    output_text: str
+    bytes_read: int
+    truncation_meta: dict[str, Any] | None
+
+    def __new__(
+        cls,
+        output_text: str,
+        bytes_read: int,
+        truncation_meta: dict[str, Any] | None = None,
+    ):
+        obj = super().__new__(cls, (output_text, bytes_read))
+        obj.output_text = output_text
+        obj.bytes_read = bytes_read
+        obj.truncation_meta = truncation_meta
+        return obj
+
+
+def get_or_create_output_dir() -> Path:
+    """Return the workspace/outputs directory, creating it if necessary."""
+    from reversecore_mcp.core.security import get_workspace_config
+
+    ws = get_workspace_config().workspace
+    out_dir = ws / "outputs"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    return out_dir
+
+
+def persist_output_artifact(
+    cmd_or_name: list[str] | str,
+    data: bytes | str,
+    prefix: str = "cmd",
+    max_bytes: int = 50_000_000,
+) -> tuple[Path, str]:
+    """Persist captured output to a deterministic workspace artifact.
+
+    Args:
+        cmd_or_name: The command list or identifier used to compute a stable hash.
+        data: The output bytes or string to persist.
+        prefix: Filename prefix (e.g. 'cmd', 'strings', 'r2').
+        max_bytes: Maximum bytes to write to prevent disk exhaustion.
+
+    Returns:
+        Tuple of (absolute_path, workspace_relative_path).
+    """
+    out_dir = get_or_create_output_dir()
+    ident = " ".join(cmd_or_name) if isinstance(cmd_or_name, (list, tuple)) else str(cmd_or_name)
+    ident_hash = hashlib.sha256(ident.encode("utf-8", errors="replace")).hexdigest()[:16]
+    file_name = f"{prefix}_{ident_hash}.log"
+    abs_path = out_dir / file_name
+
+    raw_bytes = data.encode("utf-8", errors="replace") if isinstance(data, str) else data
+    if len(raw_bytes) > max_bytes:
+        raw_bytes = raw_bytes[:max_bytes]
+
+    abs_path.write_bytes(raw_bytes)
+    rel_path = f"outputs/{file_name}"
+    return abs_path, rel_path
+
+
 async def execute_subprocess_async(
     cmd: list[str],
     max_output_size: int = 10_000_000,  # 10 MB default
@@ -226,7 +293,8 @@ async def execute_subprocess_async(
     errors: str = "replace",
     capture_stderr: bool = False,
     kill_process_group: bool = False,
-) -> tuple[str, int]:
+    preserve_artifact: bool = True,
+) -> SubprocessExecutionResult:
     """
     Execute a subprocess command asynchronously with streaming output and size limits.
 
@@ -243,11 +311,10 @@ async def execute_subprocess_async(
         capture_stderr: Include stderr in the bounded returned output.
         kill_process_group: Start a separate POSIX process group and terminate
             it on timeout or cancellation.
+        preserve_artifact: Whether to persist oversized truncated output to workspace/outputs.
 
     Returns:
-        Tuple of (output_text, bytes_read)
-        - output_text: The captured output (truncated if limit exceeded)
-        - bytes_read: Total bytes read (may exceed max_output_size if truncated)
+        SubprocessExecutionResult (2-tuple of (output_text, bytes_read) with .truncation_meta attribute)
 
     Raises:
         ToolNotFoundError: If the command executable is not found
@@ -319,8 +386,10 @@ async def execute_subprocess_async(
     # Read output in chunks
     output_chunks = []
     stderr_chunks = []
+    all_captured_bytes: list[bytes] = []
     bytes_read = 0
     stderr_bytes_read = 0
+    max_capture_limit = 50_000_000
 
     def kill_process_tree() -> None:
         """Terminate the launched process, including same-group children when requested."""
@@ -349,6 +418,8 @@ async def execute_subprocess_async(
 
                     chunk_bytes = len(chunk)
                     bytes_read += chunk_bytes
+                    if bytes_read <= max_capture_limit:
+                        all_captured_bytes.append(chunk)
 
                     # Only append if we haven't exceeded the limit
                     if capture_stderr:
@@ -373,6 +444,8 @@ async def execute_subprocess_async(
                     # Decode chunk
                     chunk_bytes = len(chunk)
                     stderr_bytes_read += chunk_bytes
+                    if capture_stderr and (bytes_read + stderr_bytes_read <= max_capture_limit):
+                        all_captured_bytes.append(chunk)
 
                     # Only append if we haven't exceeded the limit
                     if capture_stderr:
@@ -419,16 +492,54 @@ async def execute_subprocess_async(
             reported_bytes_read = bytes_read + stderr_bytes_read if capture_stderr else bytes_read
 
             # Check if output was truncated
+            truncation_meta: dict[str, Any] | None = None
+            is_truncated = False
+            returned_bytes_count = reported_bytes_read
+
             if capture_stderr:
                 output_bytes = output_text.encode(encoding, errors=errors)
                 if reported_bytes_read > max_output_size or len(output_bytes) > max_output_size:
+                    is_truncated = True
                     marker = b"\n[output truncated]"
                     if max_output_size >= len(marker):
                         output_bytes = output_bytes[: max_output_size - len(marker)] + marker
                     else:
                         output_bytes = output_bytes[:max_output_size]
                     output_text = output_bytes.decode(encoding, errors="ignore")
+                    returned_bytes_count = len(output_bytes)
             elif reported_bytes_read > max_output_size:
+                is_truncated = True
+                returned_bytes_count = len(output_text.encode(encoding, errors="ignore"))
+
+            if is_truncated and preserve_artifact:
+                try:
+                    full_captured = b"".join(all_captured_bytes)
+                    _, rel_artifact = persist_output_artifact(cmd, full_captured, prefix="cmd")
+                    truncation_warning = (
+                        f"\n\n[WARNING: Output truncated at {max_output_size} bytes. "
+                        f"Total output size: {reported_bytes_read} bytes. "
+                        f"Full output preserved in {rel_artifact}. "
+                        "Use retrieve_truncated_output to fetch subsequent chunks.]"
+                    )
+                    output_text += truncation_warning
+                    truncation_meta = {
+                        "truncated": True,
+                        "returned_bytes": returned_bytes_count,
+                        "total_captured_bytes": reported_bytes_read,
+                        "saved_artifact": rel_artifact,
+                        "continuation": {
+                            "offset": returned_bytes_count,
+                            "length": max_output_size,
+                        },
+                    }
+                except Exception as art_err:
+                    logger.warning("Failed to persist truncated output artifact: %s", art_err)
+                    if not capture_stderr:
+                        output_text += (
+                            f"\n\n[WARNING: Output truncated at {max_output_size} bytes. "
+                            f"Total output size: {bytes_read} bytes]"
+                        )
+            elif is_truncated and not capture_stderr:
                 truncation_warning = (
                     f"\n\n[WARNING: Output truncated at {max_output_size} bytes. "
                     f"Total output size: {bytes_read} bytes]"
@@ -444,7 +555,7 @@ async def execute_subprocess_async(
                     returncode, cmd, output=output_text, stderr=stderr_text
                 )
 
-            return output_text, reported_bytes_read
+            return SubprocessExecutionResult(output_text, reported_bytes_read, truncation_meta)
         finally:
             from reversecore_mcp.core.resource_manager import resource_manager
 

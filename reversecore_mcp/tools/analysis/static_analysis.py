@@ -12,9 +12,19 @@ from typing import Any
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
-from reversecore_mcp.core.execution import execute_subprocess_async, prepare_sandbox_access
+from reversecore_mcp.core.execution import (
+    execute_subprocess_async,
+    persist_output_artifact,
+    prepare_sandbox_access,
+)
 from reversecore_mcp.core.metrics import track_metrics
-from reversecore_mcp.core.result import ToolResult, failure, success
+from reversecore_mcp.core.result import (
+    ContinuationInfo,
+    ToolResult,
+    TruncationMeta,
+    failure,
+    success,
+)
 from reversecore_mcp.core.security import validate_file_path
 from reversecore_mcp.core.validators import validate_tool_parameters
 
@@ -115,38 +125,36 @@ async def run_strings(
     count = len(lines)
 
     if len(output) > LLM_SAFE_LIMIT:
-        # Save full output to temp file (NOT source directory)
-        # This avoids: read-only mount failures, race conditions, leftover files
-        import tempfile
-
         try:
-            # Use workspace temp directory for output files for security & auto-cleanup
-            workspace_tmp = get_config().workspace / "tmp"
-            workspace_tmp.mkdir(exist_ok=True)
-
-            with tempfile.NamedTemporaryFile(
-                mode="w",
-                suffix="_strings.txt",
-                prefix=f"{validated_path.stem}_",
-                dir=str(workspace_tmp),
-                delete=False,  # Keep file so user can access it
-                encoding="utf-8",
-            ) as f:
-                f.write(text_output)
-                strings_path = f.name
-
+            abs_path, rel_path = persist_output_artifact(
+                cmd,
+                text_output,
+                prefix=f"{validated_path.stem}_strings",
+            )
+            strings_path = str(abs_path)
             output_files["full_output"] = strings_path
 
             # Create preview
             preview_limit = min(2000, len(text_output))  # First 2000 chars
             preview_text = (
-                text_output[:preview_limit] + f"\n... (truncated, full content in {strings_path})"
+                text_output[:preview_limit] + f"\n... (truncated, full content in {rel_path})"
+            )
+            preview_bytes_len = len(preview_text.encode("utf-8", errors="replace"))
+            total_bytes_len = len(text_output.encode("utf-8", errors="replace"))
+
+            truncation_meta = TruncationMeta(
+                truncated=True,
+                returned_bytes=preview_bytes_len,
+                total_captured_bytes=total_bytes_len,
+                saved_artifact=rel_path,
+                continuation=ContinuationInfo(offset=preview_limit, length=2000),
             )
 
             return success(
                 preview_text,
                 bytes_read=bytes_read,
                 truncated=True,
+                truncation=truncation_meta,
                 string_statistics={
                     "count": count,
                     "preview": lines[:50],  # First 50 lines list

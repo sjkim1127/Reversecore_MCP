@@ -37,6 +37,7 @@ class CommonToolsPlugin(Plugin):
             copy_to_workspace,
             create_directory,
             list_workspace,
+            retrieve_truncated_output,
             run_file,
             scan_workspace,
         )
@@ -58,6 +59,7 @@ class CommonToolsPlugin(Plugin):
         mcp_server.tool(create_directory)
         mcp_server.tool(list_workspace)
         mcp_server.tool(scan_workspace)
+        mcp_server.tool(retrieve_truncated_output)
 
         # Patch explainer
         mcp_server.tool(explain_patch)

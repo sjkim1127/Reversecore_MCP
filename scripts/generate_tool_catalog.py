@@ -65,6 +65,23 @@ COMMON_OUTPUT_SCHEMA: dict[str, Any] = {
                 "has_previous": {"type": "boolean"},
             },
         },
+        "truncation": {
+            "type": ["object", "null"],
+            "properties": {
+                "truncated": {"type": "boolean"},
+                "returned_bytes": {"type": "integer"},
+                "total_captured_bytes": {"type": "integer"},
+                "saved_artifact": {"type": ["string", "null"]},
+                "continuation": {
+                    "type": ["object", "null"],
+                    "properties": {
+                        "offset": {"type": "integer"},
+                        "length": {"type": "integer"},
+                        "cursor": {"type": ["string", "null"]},
+                    },
+                },
+            },
+        },
         "recommended_next_tools": {"type": "array", "items": {"type": "string"}},
     },
     "required": ["ok", "status"],

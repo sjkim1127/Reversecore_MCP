@@ -2,8 +2,10 @@
 
 import shutil
 from pathlib import Path
+from typing import Annotated
 
 from fastmcp import Context
+from pydantic import Field
 
 from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.decorators import log_execution
@@ -11,7 +13,13 @@ from reversecore_mcp.core.error_handling import handle_tool_errors
 from reversecore_mcp.core.exceptions import ValidationError
 from reversecore_mcp.core.execution import execute_subprocess_async
 from reversecore_mcp.core.metrics import track_metrics
-from reversecore_mcp.core.result import ToolResult, success
+from reversecore_mcp.core.result import (
+    ContinuationInfo,
+    ToolResult,
+    TruncationMeta,
+    failure,
+    success,
+)
 from reversecore_mcp.core.security import validate_file_path
 
 # Load default timeout from configuration
@@ -465,6 +473,123 @@ async def scan_workspace(
         file_count=len(files_to_scan),
         status="completed",
         description=f"Batch scan completed for {len(files_to_scan)} files",
+    )
+
+
+@log_execution(tool_name="retrieve_truncated_output")
+@track_metrics("retrieve_truncated_output")
+@handle_tool_errors
+async def retrieve_truncated_output(
+    artifact_path: Annotated[
+        str,
+        Field(
+            description="Workspace-relative or absolute path to the saved output artifact (e.g. 'outputs/cmd_abc123.log').",
+        ),
+    ],
+    offset: Annotated[
+        int,
+        Field(
+            default=0,
+            ge=0,
+            description="Byte offset in the artifact to begin reading from (0-indexed).",
+        ),
+    ] = 0,
+    length: Annotated[
+        int,
+        Field(
+            default=65536,
+            ge=1,
+            le=1_048_576,
+            description="Maximum number of bytes to retrieve (default: 64KB, max: 1MB).",
+        ),
+    ] = 65536,
+) -> ToolResult:
+    """Retrieve a continuation slice of a truncated output artifact from the workspace.
+
+    Enables AI agents to recover the omitted tail of large tool outputs without
+    using lossy head/tail commands or causing response budget overflows.
+
+    Args:
+        artifact_path: Workspace-relative or absolute path to the output artifact.
+        offset: Starting byte offset (0-indexed).
+        length: Maximum number of bytes to read (capped at 1MB).
+
+    Returns:
+        ToolResult with content slice, returned bytes count, total artifact bytes,
+        and next continuation parameters if more data remains.
+    """
+    try:
+        validated_path = validate_file_path(artifact_path, read_only=True)
+    except Exception as exc:
+        msg = str(exc).lower()
+        code = (
+            "FILE_NOT_FOUND"
+            if "not found" in msg or "no such file" in msg or "does not exist" in msg
+            else "VALIDATION_ERROR"
+        )
+        return failure(
+            code,
+            f"Invalid artifact path: {exc}",
+            recovery_hint="Provide a valid, existing artifact path within the workspace (e.g. 'outputs/cmd_abc123.log').",
+        )
+
+    if not validated_path.is_file():
+        return failure(
+            "FILE_NOT_FOUND",
+            f"Output artifact does not exist: {artifact_path}",
+            recovery_hint="Check if the command produced a saved artifact in workspace/outputs.",
+        )
+
+    total_bytes = validated_path.stat().st_size
+    if offset >= total_bytes:
+        return success(
+            {
+                "artifact_path": str(artifact_path),
+                "offset": offset,
+                "returned_bytes": 0,
+                "total_bytes": total_bytes,
+                "has_more": False,
+                "next_offset": None,
+                "content": "",
+                "continuation": None,
+            },
+            description="Reached end of artifact file (0 bytes returned).",
+        )
+
+    read_size = min(length, total_bytes - offset)
+    with open(validated_path, "rb") as f:
+        f.seek(offset)
+        raw_bytes = f.read(read_size)
+
+    content_text = raw_bytes.decode("utf-8", errors="replace")
+    returned_bytes = len(raw_bytes)
+    next_offset = offset + returned_bytes
+    has_more = next_offset < total_bytes
+
+    truncation_meta = None
+    continuation_dict = None
+    if has_more:
+        continuation_dict = {"offset": next_offset, "length": length}
+        truncation_meta = TruncationMeta(
+            truncated=True,
+            returned_bytes=returned_bytes,
+            total_captured_bytes=total_bytes,
+            saved_artifact=str(artifact_path),
+            continuation=ContinuationInfo(offset=next_offset, length=length),
+        )
+
+    return success(
+        {
+            "artifact_path": str(artifact_path),
+            "offset": offset,
+            "returned_bytes": returned_bytes,
+            "total_bytes": total_bytes,
+            "has_more": has_more,
+            "next_offset": next_offset if has_more else None,
+            "content": content_text,
+            "continuation": continuation_dict,
+        },
+        truncation=truncation_meta,
     )
 
 

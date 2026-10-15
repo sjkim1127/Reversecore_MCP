@@ -138,6 +138,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -272,6 +315,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -398,6 +484,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -562,6 +691,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -698,6 +870,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -857,6 +1072,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -983,6 +1241,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -1117,6 +1418,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -1278,6 +1622,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -1419,6 +1806,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -1548,6 +1978,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -1674,6 +2147,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -1823,6 +2339,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -1949,6 +2508,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -2093,6 +2695,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -2219,6 +2864,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -2356,6 +3044,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -2482,6 +3213,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -2643,6 +3417,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -2781,6 +3598,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -2935,6 +3795,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -3079,6 +3982,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -3218,6 +4164,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -3349,6 +4338,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -3491,6 +4523,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -3627,6 +4702,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -3771,6 +4889,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -3897,6 +5058,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -4031,6 +5235,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -4170,6 +5417,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -4325,6 +5615,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -4464,6 +5797,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -4600,6 +5976,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -4744,6 +6163,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -4913,6 +6375,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -5062,6 +6567,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -5203,6 +6751,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -5355,6 +6946,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -5495,6 +7129,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -5646,6 +7323,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -5793,6 +7513,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -5956,6 +7719,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -6091,6 +7897,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -6238,6 +8087,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -6376,6 +8268,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -6553,6 +8488,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -6702,6 +8680,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -6833,6 +8854,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -6974,6 +9038,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -7129,6 +9236,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -7255,6 +9405,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -7408,6 +9601,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -7586,6 +9822,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -7741,6 +10020,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -7909,6 +10231,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -8047,6 +10412,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -8200,6 +10608,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -8357,6 +10808,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -8487,6 +10981,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -8614,6 +11151,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -8785,6 +11365,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -8928,6 +11551,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -9082,6 +11748,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -9225,6 +11934,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -9389,6 +12141,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -9515,6 +12310,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -9666,6 +12504,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -9828,6 +12709,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -9978,6 +12902,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -10184,6 +13151,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -10328,6 +13338,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -10462,6 +13515,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -10611,6 +13707,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -10750,6 +13889,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -10920,6 +14102,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -11051,6 +14276,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -11212,6 +14480,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -11363,6 +14674,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -11616,6 +14970,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -11757,6 +15154,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -11904,6 +15344,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -12045,6 +15528,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -12227,6 +15753,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -12371,6 +15940,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -12512,6 +16124,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -12664,6 +16319,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -12793,6 +16491,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -12919,6 +16660,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -13068,6 +16852,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -13195,6 +17022,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -13313,6 +17183,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -13437,6 +17350,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -13555,6 +17511,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -13689,6 +17688,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -13858,6 +17900,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -14005,6 +18090,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -14144,6 +18272,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -14265,6 +18436,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -14383,6 +18597,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -14534,6 +18791,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -14700,6 +19000,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -14831,6 +19174,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -14992,6 +19378,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -15131,6 +19560,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -15265,6 +19737,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -15391,6 +19906,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -15528,6 +20086,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -15657,6 +20258,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -15799,6 +20443,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -15930,6 +20617,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -16072,6 +20802,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -16208,6 +20981,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -16354,6 +21170,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -16523,6 +21382,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -16663,6 +21565,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -16799,6 +21744,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -16944,6 +21932,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -17096,6 +22127,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -17240,6 +22314,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -17369,6 +22486,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -17519,6 +22679,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -17652,6 +22855,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -17791,6 +23037,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -17924,6 +23213,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -18063,6 +23395,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -18207,6 +23582,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -18365,6 +23783,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -18536,6 +23997,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -18682,6 +24186,234 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "recommended_next_tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "ok",
+        "status"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "retrieve_truncated_output",
+    "description": "Retrieve a continuation slice of a truncated output artifact from the workspace.\n\nEnables AI agents to recover the omitted tail of large tool outputs without\nusing lossy head/tail commands or causing response budget overflows.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_path": {
+          "description": "Workspace-relative or absolute path to the saved output artifact (e.g. 'outputs/cmd_abc123.log').",
+          "type": "string"
+        },
+        "offset": {
+          "default": 0,
+          "description": "Byte offset in the artifact to begin reading from (0-indexed).",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "length": {
+          "default": 65536,
+          "description": "Maximum number of bytes to retrieve (default: 64KB, max: 1MB).",
+          "maximum": 1048576,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "artifact_path"
+      ],
+      "type": "object"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "description": "True if operation succeeded, False otherwise"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "success",
+            "error"
+          ]
+        },
+        "data": {
+          "type": [
+            "object",
+            "string",
+            "array",
+            "null"
+          ],
+          "description": "Structured analysis payload on success"
+        },
+        "error": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "code": {
+              "type": "string",
+              "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+            },
+            "message": {
+              "type": "string",
+              "description": "Human-readable explanation"
+            },
+            "retryable": {
+              "type": "boolean",
+              "description": "Whether the caller may retry"
+            },
+            "recovery_hint": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Actionable recovery advice"
+            }
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "metadata": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "meta": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "pagination": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "page": {
+              "type": "integer"
+            },
+            "page_size": {
+              "type": "integer"
+            },
+            "total_items": {
+              "type": "integer"
+            },
+            "total_pages": {
+              "type": "integer"
+            },
+            "has_next": {
+              "type": "boolean"
+            },
+            "has_previous": {
+              "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -18819,6 +24551,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -18983,6 +24758,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -19123,6 +24941,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -19250,6 +25111,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -19407,6 +25311,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -19536,6 +25483,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -19717,6 +25707,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -19854,6 +25887,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -20002,6 +26078,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -20164,6 +26283,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -20335,6 +26497,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -20486,6 +26691,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -20617,6 +26865,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -20762,6 +27053,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -20896,6 +27230,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -21022,6 +27399,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -21169,6 +27589,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -21346,6 +27809,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -21507,6 +28013,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -21651,6 +28200,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -21782,6 +28374,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -21992,6 +28627,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -22163,6 +28841,49 @@
             }
           }
         },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "recommended_next_tools": {
           "type": "array",
           "items": {
@@ -22304,6 +29025,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },
@@ -22487,6 +29251,49 @@
             },
             "has_previous": {
               "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         },

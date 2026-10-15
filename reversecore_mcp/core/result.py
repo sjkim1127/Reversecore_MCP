@@ -102,6 +102,24 @@ class PaginationMeta(BaseModel):
     truncated: bool = False
 
 
+class ContinuationInfo(BaseModel):
+    """Continuation parameters for retrieving remainder of truncated outputs."""
+
+    offset: int
+    length: int | None = None
+    cursor: str | None = None
+
+
+class TruncationMeta(BaseModel):
+    """Structured truncation contract for bounded MCP tool outputs (Issue #326)."""
+
+    truncated: bool = True
+    returned_bytes: int
+    total_captured_bytes: int
+    saved_artifact: str | None = None
+    continuation: ContinuationInfo | None = None
+
+
 class ErrorInfo(BaseModel):
     """Machine-readable structured error contract for agent reasoning and recovery."""
 
@@ -122,6 +140,7 @@ class ToolSuccess(BaseModel):
     meta: dict[str, Any] | None = None
     metadata: dict[str, Any] | None = None
     pagination: PaginationMeta | None = None
+    truncation: TruncationMeta | None = None
     recommended_next_tools: list[NextToolHint] | None = None
     """Optional list of next-step tool hints for AI clients.
 
@@ -161,6 +180,7 @@ def success(
     data: Any,
     *,
     pagination: PaginationMeta | None = None,
+    truncation: TruncationMeta | dict[str, Any] | None = None,
     hints: list[NextToolHint] | None = None,
     warnings: list[str] | None = None,
     meta: dict[str, Any] | None = None,
@@ -171,6 +191,7 @@ def success(
     Args:
         data: The primary result payload (string, dict, list, etc.).
         pagination: Optional PaginationMeta information for paginated/windowed responses.
+        truncation: Optional TruncationMeta information for truncated outputs.
         hints: Optional list of NextToolHint dicts to guide AI follow-up.
         warnings: Optional list of non-fatal operational warnings.
         meta: Optional metadata dictionary.
@@ -179,6 +200,17 @@ def success(
     eff_meta: dict[str, Any] = dict(meta or {})
     if metadata:
         eff_meta.update(metadata)
+
+    eff_truncation: TruncationMeta | None = None
+    if truncation is not None:
+        if isinstance(truncation, dict):
+            eff_truncation = TruncationMeta(**truncation)
+        else:
+            eff_truncation = truncation
+    elif "truncation" in eff_meta and isinstance(eff_meta["truncation"], (dict, TruncationMeta)):
+        raw_t = eff_meta.pop("truncation")
+        eff_truncation = TruncationMeta(**raw_t) if isinstance(raw_t, dict) else raw_t
+
     return ToolSuccess(
         ok=True,
         status="success",
@@ -188,6 +220,7 @@ def success(
         meta=eff_meta or None,
         metadata=eff_meta or None,
         pagination=pagination,
+        truncation=eff_truncation,
         recommended_next_tools=hints or None,
     )
 
