@@ -20,6 +20,7 @@ from reversecore_mcp.prompts.malware import (
     ransomware_triage_mode,
     unpacking_mode,
 )
+from reversecore_mcp.prompts.planning import auto_planning_mode
 from reversecore_mcp.prompts.report import report_generation_mode
 from reversecore_mcp.prompts.security import (
     autonomous_vuln_hunt_mode,
@@ -162,4 +163,13 @@ class TestGameAndReportPrompts:
     def test_report_generation_mode(self):
         text = report_generation_mode("sess_123")
         assert "sess_123" in text
+        assert LANGUAGE_RULE in text
+
+
+class TestPlanningPrompts:
+    def test_auto_planning_mode(self):
+        text = auto_planning_mode("sample.exe", "malware_triage", "standard")
+        assert "sample.exe" in text
+        assert "malware_triage" in text
+        assert "recommend_analysis_plan" in text
         assert LANGUAGE_RULE in text

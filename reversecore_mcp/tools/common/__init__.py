@@ -43,6 +43,7 @@ class CommonToolsPlugin(Plugin):
             scan_workspace,
         )
         from reversecore_mcp.tools.common.patch_explainer import explain_patch
+        from reversecore_mcp.tools.common.planning_tools import recommend_analysis_plan
         from reversecore_mcp.tools.common.transaction_tools import (
             transaction_begin,
             transaction_commit,
@@ -80,6 +81,9 @@ class CommonToolsPlugin(Plugin):
         mcp_server.tool(transaction_status)
         mcp_server.tool(transaction_undo)
         mcp_server.tool(transaction_redo)
+
+        # Orchestration & planning tool
+        mcp_server.tool(recommend_analysis_plan)
 
         # Patch explainer
         mcp_server.tool(explain_patch)

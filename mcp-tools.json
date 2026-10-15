@@ -24056,6 +24056,241 @@
     }
   },
   {
+    "name": "recommend_analysis_plan",
+    "description": "Recommend a goal-aware, depth-tiered analysis plan composed of existing MCP tools.\n\nGiven a file, objective, and depth tier, evaluates tool availability, active\nprofile constraints, and external dependencies to synthesize a sequential\ntool pipeline with conditional branches, stop conditions, and rationales.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "target_file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional path to target binary, capture, or source sample in workspace (e.g. 'sample.exe', 'dump.raw')."
+        },
+        "objective": {
+          "default": "malware_triage",
+          "description": "Analysis objective: static_triage, malware_triage, vulnerability_research, unpacking_deobfuscation, incident_reconstruction, patch_review, forensics.",
+          "type": "string"
+        },
+        "depth": {
+          "default": "standard",
+          "description": "Analysis depth tier: quick (fingerprinting/fast triage), standard (balanced workflow), deep (broader emulation/deobfuscation/fuzzing).",
+          "type": "string"
+        },
+        "sample_format": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Explicit binary or data format (pe, elf, macho, pcap, memory, disk, source, generic). Auto-detected if target_file is provided."
+        },
+        "architecture": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Target architecture if known (e.g. 'x86', 'x86_64', 'arm', 'arm64', 'mips'). Defaults to 'x86_64'."
+        },
+        "profile": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Active or requested MCP tool profile: full, static, malware, forensics, vuln-research."
+        },
+        "time_budget_seconds": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional time or resource budget in seconds (e.g. 30 for quick, 120 for standard, 300+ for deep)."
+        }
+      },
+      "type": "object"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "description": "True if operation succeeded, False otherwise"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "success",
+            "error"
+          ]
+        },
+        "data": {
+          "type": [
+            "object",
+            "string",
+            "array",
+            "null"
+          ],
+          "description": "Structured analysis payload on success"
+        },
+        "error": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "code": {
+              "type": "string",
+              "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+            },
+            "message": {
+              "type": "string",
+              "description": "Human-readable explanation"
+            },
+            "retryable": {
+              "type": "boolean",
+              "description": "Whether the caller may retry"
+            },
+            "recovery_hint": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Actionable recovery advice"
+            }
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "metadata": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "meta": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "pagination": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "page": {
+              "type": "integer"
+            },
+            "page_size": {
+              "type": "integer"
+            },
+            "total_items": {
+              "type": "integer"
+            },
+            "total_pages": {
+              "type": "integer"
+            },
+            "has_next": {
+              "type": "boolean"
+            },
+            "has_previous": {
+              "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "recommended_next_tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "ok",
+        "status"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
     "name": "resolve_api_hashes",
     "description": "Detect dynamic PEB/TEB walking and resolve 32-bit API hashes to Windows export symbols.\n\nMatches constants found in instructions or data sections against precomputed hash tables\n(ROR13, CRC32, MurmurHash3, FNV-1a, DJB2, SDBM) for standard Windows libraries (ntdll,\nkernel32, user32, advapi32, ws2_32, wininet, winhttp, etc.).",
     "inputSchema": {

@@ -37,7 +37,7 @@ class TestProtocolPosture:
         """Verify full suite of 156 tools is available on live FastMCP server."""
         tools = await server.mcp.list_tools()
         tools_list = tools if isinstance(tools, list) else list(tools.values())
-        assert len(tools_list) == 162, f"Expected 162 tools, found {len(tools_list)}"
+        assert len(tools_list) == 163, f"Expected 163 tools, found {len(tools_list)}"
 
         tool_names = {t.name for t in tools_list}
         assert "run_capa" in tool_names
@@ -55,3 +55,4 @@ class TestProtocolPosture:
         assert "transaction_status" in tool_names
         assert "transaction_undo" in tool_names
         assert "transaction_redo" in tool_names
+        assert "recommend_analysis_plan" in tool_names

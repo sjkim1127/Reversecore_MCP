@@ -1,9 +1,9 @@
-# Reversecore MCP Tool Catalog (162 Tools)
+# Reversecore MCP Tool Catalog (163 Tools)
 
 > **Single Source of Truth**: This document is automatically generated from the FastMCP runtime
 > tool registry by `scripts/generate_tool_catalog.py`. Do not edit manually.
 
-Reversecore MCP exposes **162 production-grade security analysis tools** and **11 dynamic resource templates** via the Model Context Protocol (MCP).
+Reversecore MCP exposes **163 production-grade security analysis tools** and **11 dynamic resource templates** via the Model Context Protocol (MCP).
 
 ---
 
@@ -35,11 +35,11 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 | 🎯 Vulnerability Research & CVE Hunting | `cve_hunter_tools` | **5** | ASan Crash Triage, Fuzz Harness Synthesis & PoC Minimization |
 | 🔬 Digital Forensics | `forensics_tools` | **22** | Memory (Volatility), Network (PCAP), Disk & Artifacts |
 | 🧠 Process & Memory Utilities | `memory_tools` | **11** | Live Memory Inspection, Patterns & Hex Dumps |
-| 🛠️ Common Binary Utilities | `common_tools` | **15** | File Operations, Hashing, Patch Explanations & Assembly |
+| 🛠️ Common Binary Utilities | `common_tools` | **16** | File Operations, Hashing, Patch Explanations & Assembly |
 | 🖥️ Server Lifecycle & State | `server_tools` | **2** | Server Status, Health & Memory Cache Management |
 | 📋 Reporting & MITRE ATT&CK | `report_tools` | **14** | Session Reports, MITRE Mapping, SIGMA & VEX Generation |
 | ⏳ Task Queue & Async Jobs | `core_task_queue` | **1** | Background Job Status & Result Retrieval |
-| **Total** | — | **162** | **Complete Reversecore MCP Suite** |
+| **Total** | — | **163** | **Complete Reversecore MCP Suite** |
 
 ---
 
@@ -247,7 +247,7 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 
 ---
 
-### 🛠️ Common Binary Utilities (`common_tools` — 15 tools)
+### 🛠️ Common Binary Utilities (`common_tools` — 16 tools)
 
 *File Operations, Hashing, Patch Explanations & Assembly*
 
@@ -259,15 +259,16 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 | 134 | `create_directory` | Create a new sub-directory within the workspace. | `directory_path` (string, req) | `static`, `malware`, `forensics`, `vuln-research` |
 | 135 | `explain_patch` | Analyze differences between two binaries and explain changes in natural language. | `file_path_a` (string, req), `file_path_b` (string, req), `function_name` (string) | `static`, `malware`, `forensics`, `vuln-research` |
 | 136 | `list_workspace` | List all files in the workspace directory. | *(none)* | `static`, `malware`, `forensics`, `vuln-research` |
-| 137 | `retrieve_truncated_output` | Retrieve a continuation slice of a truncated output artifact from the workspace. | `artifact_path` (string, req), `offset` (integer), `length` (integer) | `static`, `malware`, `forensics`, `vuln-research` |
-| 138 | `run_file` | Identify file metadata using the ``file`` CLI utility. | `file_path` (string, req), `timeout` (integer) | `static`, `malware`, `forensics`, `vuln-research` |
-| 139 | `scan_workspace` | Batch scan all files in the workspace using multiple tools in parallel. | `file_patterns` (array), `timeout` (integer) | `static`, `malware`, `forensics`, `vuln-research` |
-| 140 | `transaction_begin` | Begin a new state mutation transaction. | `name` (string), `description` (string), `strict` (boolean), `auto_rollback_on_error` (boolean) | `static`, `malware`, `forensics`, `vuln-research` |
-| 141 | `transaction_commit` | Commit the active transaction and persist changes into the undo history. | `transaction_id` (string) | `static`, `malware`, `forensics`, `vuln-research` |
-| 142 | `transaction_redo` | Redo the last undone transaction(s). | `steps` (integer) | `static`, `malware`, `forensics`, `vuln-research` |
-| 143 | `transaction_rollback` | Roll back the active transaction and restore pre-transaction Reversecore state. | `transaction_id` (string), `reason` (string) | `static`, `malware`, `forensics`, `vuln-research` |
-| 144 | `transaction_status` | Inspect current transaction state, uncommitted mutations, and undo/redo history. | `transaction_id` (string) | `static`, `malware`, `forensics`, `vuln-research` |
-| 145 | `transaction_undo` | Undo the last committed transaction(s). | `steps` (integer) | `static`, `malware`, `forensics`, `vuln-research` |
+| 137 | `recommend_analysis_plan` | Recommend a goal-aware, depth-tiered analysis plan composed of existing MCP tools. | `target_file` (string), `objective` (string), `depth` (string), `sample_format` (string), `architecture` (string), `profile` (string), `time_budget_seconds` (integer) | `static`, `malware`, `forensics`, `vuln-research` |
+| 138 | `retrieve_truncated_output` | Retrieve a continuation slice of a truncated output artifact from the workspace. | `artifact_path` (string, req), `offset` (integer), `length` (integer) | `static`, `malware`, `forensics`, `vuln-research` |
+| 139 | `run_file` | Identify file metadata using the ``file`` CLI utility. | `file_path` (string, req), `timeout` (integer) | `static`, `malware`, `forensics`, `vuln-research` |
+| 140 | `scan_workspace` | Batch scan all files in the workspace using multiple tools in parallel. | `file_patterns` (array), `timeout` (integer) | `static`, `malware`, `forensics`, `vuln-research` |
+| 141 | `transaction_begin` | Begin a new state mutation transaction. | `name` (string), `description` (string), `strict` (boolean), `auto_rollback_on_error` (boolean) | `static`, `malware`, `forensics`, `vuln-research` |
+| 142 | `transaction_commit` | Commit the active transaction and persist changes into the undo history. | `transaction_id` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 143 | `transaction_redo` | Redo the last undone transaction(s). | `steps` (integer) | `static`, `malware`, `forensics`, `vuln-research` |
+| 144 | `transaction_rollback` | Roll back the active transaction and restore pre-transaction Reversecore state. | `transaction_id` (string), `reason` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 145 | `transaction_status` | Inspect current transaction state, uncommitted mutations, and undo/redo history. | `transaction_id` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 146 | `transaction_undo` | Undo the last committed transaction(s). | `steps` (integer) | `static`, `malware`, `forensics`, `vuln-research` |
 
 ---
 
@@ -277,8 +278,8 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 
 | # | Tool Name | Description | Key Parameters | Profiles |
 |:---:|---|---|---|---|
-| 146 | `get_server_health` | Get the current health status and resource usage of the MCP server. | *(none)* | `static`, `malware`, `forensics`, `vuln-research` |
-| 147 | `get_tool_metrics` | Get detailed execution metrics for specific or all tools. | `tool_name` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 147 | `get_server_health` | Get the current health status and resource usage of the MCP server. | *(none)* | `static`, `malware`, `forensics`, `vuln-research` |
+| 148 | `get_tool_metrics` | Get detailed execution metrics for specific or all tools. | `tool_name` (string) | `static`, `malware`, `forensics`, `vuln-research` |
 
 ---
 
@@ -288,20 +289,20 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 
 | # | Tool Name | Description | Key Parameters | Profiles |
 |:---:|---|---|---|---|
-| 148 | `add_analysis_note` | Add a timestamped note to the analysis session. | `note` (string, req), `category` (string), `session_id` (string) | `static`, `malware`, `forensics`, `vuln-research` |
-| 149 | `add_ioc` | Add an Indicator of Compromise to the current session. | `ioc_type` (string, req), `value` (string, req), `session_id` (string) | `static`, `malware`, `forensics`, `vuln-research` |
-| 150 | `add_mitre_technique` | Add a MITRE ATT&CK technique to the session. | `technique_id` (string, req), `technique_name` (string, req), `tactic` (string, req), `session_id` (string) | `static`, `malware`, `forensics`, `vuln-research` |
-| 151 | `create_analysis_report` | Generate a comprehensive analysis report. | `template_type` (string), `session_id` (string), `sample_path` (string), `analyst` (string), `classification` (string), `output_format` (string) | `static`, `malware`, `forensics`, `vuln-research` |
-| 152 | `end_report_session` | End the current analysis session. | `session_id` (string), `status` (string), `summary` (string) | `static`, `malware`, `forensics`, `vuln-research` |
-| 153 | `generate_sigma_rule` | Generate a Sigma rule (YAML) for SIEM integration based on extracted IOCs or API calls. | `title` (string, req), `iocs` (array), `api_calls` (array), `category` (string), `product` (string), `level` (string), `description` (string) | `static`, `malware`, `forensics`, `vuln-research` |
-| 154 | `generate_vex_report` | Generate a CSAF 2.0 VEX JSON report from vulnerability findings. | `product_name` (string, req), `product_version` (string, req), `vulnerabilities` (string, req), `document_title` (string) | `static`, `malware`, `forensics`, `vuln-research` |
-| 155 | `get_report_session_status` | Get current session information and collected data. | `session_id` (string) | `static`, `malware`, `forensics`, `vuln-research` |
-| 156 | `get_system_time` | Get accurate system timestamp from the server. | *(none)* | `static`, `malware`, `forensics`, `vuln-research` |
-| 157 | `get_timezone_info` | Get current timezone configuration and available options. | *(none)* | `static`, `malware`, `forensics`, `vuln-research` |
-| 158 | `list_report_sessions` | List all analysis sessions with their status and duration. | *(none)* | `static`, `malware`, `forensics`, `vuln-research` |
-| 159 | `set_severity` | Update the severity level of the analysis. | `severity` (string, req), `session_id` (string) | `static`, `malware`, `forensics`, `vuln-research` |
-| 160 | `set_timezone` | Set the default timezone for timestamps. | `timezone` (string, req) | `static`, `malware`, `forensics`, `vuln-research` |
-| 161 | `start_report_session` | Start a new malware analysis session. | `sample_path` (string), `analyst` (string), `severity` (string), `malware_family` (string), `tags` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 149 | `add_analysis_note` | Add a timestamped note to the analysis session. | `note` (string, req), `category` (string), `session_id` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 150 | `add_ioc` | Add an Indicator of Compromise to the current session. | `ioc_type` (string, req), `value` (string, req), `session_id` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 151 | `add_mitre_technique` | Add a MITRE ATT&CK technique to the session. | `technique_id` (string, req), `technique_name` (string, req), `tactic` (string, req), `session_id` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 152 | `create_analysis_report` | Generate a comprehensive analysis report. | `template_type` (string), `session_id` (string), `sample_path` (string), `analyst` (string), `classification` (string), `output_format` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 153 | `end_report_session` | End the current analysis session. | `session_id` (string), `status` (string), `summary` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 154 | `generate_sigma_rule` | Generate a Sigma rule (YAML) for SIEM integration based on extracted IOCs or API calls. | `title` (string, req), `iocs` (array), `api_calls` (array), `category` (string), `product` (string), `level` (string), `description` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 155 | `generate_vex_report` | Generate a CSAF 2.0 VEX JSON report from vulnerability findings. | `product_name` (string, req), `product_version` (string, req), `vulnerabilities` (string, req), `document_title` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 156 | `get_report_session_status` | Get current session information and collected data. | `session_id` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 157 | `get_system_time` | Get accurate system timestamp from the server. | *(none)* | `static`, `malware`, `forensics`, `vuln-research` |
+| 158 | `get_timezone_info` | Get current timezone configuration and available options. | *(none)* | `static`, `malware`, `forensics`, `vuln-research` |
+| 159 | `list_report_sessions` | List all analysis sessions with their status and duration. | *(none)* | `static`, `malware`, `forensics`, `vuln-research` |
+| 160 | `set_severity` | Update the severity level of the analysis. | `severity` (string, req), `session_id` (string) | `static`, `malware`, `forensics`, `vuln-research` |
+| 161 | `set_timezone` | Set the default timezone for timestamps. | `timezone` (string, req) | `static`, `malware`, `forensics`, `vuln-research` |
+| 162 | `start_report_session` | Start a new malware analysis session. | `sample_path` (string), `analyst` (string), `severity` (string), `malware_family` (string), `tags` (string) | `static`, `malware`, `forensics`, `vuln-research` |
 
 ---
 
@@ -311,7 +312,7 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 
 | # | Tool Name | Description | Key Parameters | Profiles |
 |:---:|---|---|---|---|
-| 162 | `get_job_result` | Retrieve the status and result of a background job from the task queue. | `job_id` (string, req) | `static`, `malware`, `forensics`, `vuln-research` |
+| 163 | `get_job_result` | Retrieve the status and result of a background job from the task queue. | `job_id` (string, req) | `static`, `malware`, `forensics`, `vuln-research` |
 
 ---
 

@@ -23,6 +23,7 @@ from reversecore_mcp.prompts.malware import (
     ransomware_triage_mode,
     unpacking_mode,
 )
+from reversecore_mcp.prompts.planning import auto_planning_mode
 from reversecore_mcp.prompts.report import report_generation_mode
 from reversecore_mcp.prompts.security import (
     autonomous_vuln_hunt_mode,
@@ -40,6 +41,7 @@ from reversecore_mcp.prompts.triage_prompts import vulnerability_triage_mode
 
 __all__ = [
     "apt_hunting_mode",
+    "auto_planning_mode",
     "autonomous_vuln_hunt_mode",
     "basic_analysis_mode",
     "c2_extraction_mode",
@@ -114,6 +116,9 @@ def register_prompts(mcp: FastMCP):
 
     # Report Generation Prompts
     mcp.prompt("report_generation_mode")(report_generation_mode)
+
+    # Orchestration & Adaptive Planning Prompts
+    mcp.prompt("auto_planning_mode")(auto_planning_mode)
 
     # Server Inspection Prompts
     mcp.prompt("server_health_check_mode")(server_health_check_mode)
