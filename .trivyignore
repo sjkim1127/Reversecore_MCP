@@ -15,16 +15,19 @@ CVE-2026-59890
 jwt-token
 
 # liblzma5 / xz-utils DoS vulnerability in debian base image (CVE-2026-34743)
-CVE-2026-34743 exp:2026-10-15
+CVE-2026-34743 exp:2026-11-15
 
 # libssh2-1 vulnerabilities in debian base image (CVE-2026-58050, CVE-2026-7598, CVE-2025-15661, CVE-2026-58051, CVE-2026-66032, CVE-2026-66034)
 # Debian security update 1.10.0-3+deb12u1 released; added --only-upgrade libssh2-1 to Dockerfile.
-CVE-2026-58050 exp:2026-10-15
-CVE-2026-7598 exp:2026-10-15
-CVE-2025-15661 exp:2026-10-15
-CVE-2026-58051 exp:2026-10-15
-CVE-2026-66032 exp:2026-10-15
-CVE-2026-66034 exp:2026-10-15
+CVE-2026-58050 exp:2026-11-15
+CVE-2026-7598 exp:2026-11-15
+CVE-2025-15661 exp:2026-11-15
+CVE-2026-58051 exp:2026-11-15
+CVE-2026-66032 exp:2026-11-15
+CVE-2026-66034 exp:2026-11-15
 
 # Mako template engine: Windows-only path traversal via drive-letter URI in TemplateLookup (container environment is Debian Linux)
 CVE-2026-102991
+
+# MCP Python SDK: CVE-2026-59951 resolved in repo dependencies (mcp>=1.30.0); GHCR base image pending rebuild
+CVE-2026-59951
