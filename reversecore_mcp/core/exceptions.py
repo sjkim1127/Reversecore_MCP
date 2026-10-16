@@ -320,3 +320,75 @@ class NonReversibleOperationError(TransactionError):
 
     error_code = "RCMCP-E702"
     error_type = "NON_REVERSIBLE_OPERATION_REJECTED"
+
+
+# ============================================================================
+# Case State Exceptions
+# ============================================================================
+
+
+class CaseStateError(ReversecoreError):
+    """Base exception for analysis case state errors."""
+
+    error_code = "RCMCP-E800"
+    error_type = "CASE_STATE_ERROR"
+
+
+class CaseNotFoundError(CaseStateError):
+    """Raised when an analysis case is not found."""
+
+    error_code = "RCMCP-E801"
+    error_type = "CASE_NOT_FOUND"
+
+    def __init__(self, case_id: str):
+        self.case_id = case_id
+        super().__init__(
+            f"Analysis case '{case_id}' was not found.",
+            self.error_code,
+            self.error_type,
+        )
+
+
+class SampleHashMismatchError(CaseStateError):
+    """Raised when a sample file's SHA-256 does not match the case state's bound hash."""
+
+    error_code = "RCMCP-E802"
+    error_type = "SAMPLE_HASH_MISMATCH"
+
+    def __init__(
+        self,
+        case_id: str,
+        expected_hash: str,
+        actual_hash: str,
+        sample_path: str | None = None,
+    ):
+        self.case_id = case_id
+        self.expected_hash = expected_hash
+        self.actual_hash = actual_hash
+        self.sample_path = sample_path
+        msg = (
+            f"Sample hash mismatch for case '{case_id}': expected SHA-256 '{expected_hash}', "
+            f"got '{actual_hash}' for file '{sample_path or 'unknown'}'. "
+            "Case state cannot be attached to a mismatched binary."
+        )
+        super().__init__(msg, self.error_code, self.error_type)
+
+
+class InvalidPhaseTransitionError(CaseStateError):
+    """Raised when an invalid case phase transition is attempted."""
+
+    error_code = "RCMCP-E803"
+    error_type = "INVALID_PHASE_TRANSITION"
+
+    def __init__(
+        self,
+        current_phase: str,
+        target_phase: str,
+        reason: str | None = None,
+    ):
+        self.current_phase = current_phase
+        self.target_phase = target_phase
+        msg = f"Cannot transition case from phase '{current_phase}' to '{target_phase}'."
+        if reason:
+            msg += f" Reason: {reason}"
+        super().__init__(msg, self.error_code, self.error_type)

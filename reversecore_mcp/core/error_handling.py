@@ -7,9 +7,12 @@ from functools import wraps
 from typing import Any, TypeVar, cast, overload
 
 from reversecore_mcp.core.exceptions import (
+    CaseNotFoundError,
     EmulationError,
     ExecutionTimeoutError,
+    InvalidPhaseTransitionError,
     OutputLimitExceededError,
+    SampleHashMismatchError,
     ToolNotFoundError,
     ValidationError,
 )
@@ -84,6 +87,41 @@ def _handle_exception(exc: Exception, tool_name: str) -> ToolResult:
             hint="Ensure Qiling is installed and the target binary is supported.",
             retryable=False,
             recovery_hint="Emulation failed. Verify CPU architecture, rootfs availability, and executable format compatibility.",
+        )
+
+    if isinstance(exc, SampleHashMismatchError):
+        return failure(
+            "SAMPLE_HASH_MISMATCH",
+            str(exc),
+            hint="Target file SHA-256 does not match case state. Ensure you are targeting the correct sample.",
+            retryable=False,
+            recovery_hint="The target binary hash differs from the case's bound sample. Resume with the original binary or create a new case for this file.",
+            details={
+                "case_id": exc.case_id,
+                "expected_hash": exc.expected_hash,
+                "actual_hash": exc.actual_hash,
+                "sample_path": exc.sample_path,
+            },
+        )
+
+    if isinstance(exc, CaseNotFoundError):
+        return failure(
+            "CASE_NOT_FOUND",
+            str(exc),
+            hint="Use list_case_states to see available cases or create_case_state to start a new case.",
+            retryable=False,
+            recovery_hint="The specified case ID does not exist. Call list_case_states to discover active cases or initialize a new case with create_case_state.",
+            details={"case_id": exc.case_id},
+        )
+
+    if isinstance(exc, InvalidPhaseTransitionError):
+        return failure(
+            "INVALID_PHASE_TRANSITION",
+            str(exc),
+            hint="Use force_phase=True if you intentionally wish to step backward or bypass intermediate phases.",
+            retryable=False,
+            recovery_hint="Phase transition violates sequential workflow. Pass force_phase=True to override, or advance through normal progression.",
+            details={"current_phase": exc.current_phase, "target_phase": exc.target_phase},
         )
 
     # Generic exception handler

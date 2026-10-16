@@ -123,6 +123,21 @@ class MemoryStore:
             )
         """)
 
+        # Case states table for persistent machine-readable agent case tracking
+        await self._db.execute("""
+            CREATE TABLE IF NOT EXISTS case_states (
+                case_id TEXT PRIMARY KEY,
+                session_id TEXT,
+                sample_path TEXT,
+                sample_hash TEXT NOT NULL,
+                phase TEXT NOT NULL DEFAULT 'intake',
+                state_json TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (session_id) REFERENCES analysis_sessions(id) ON DELETE SET NULL
+            )
+        """)
+
         # Indexes for faster queries
         await self._db.execute("""
             CREATE INDEX IF NOT EXISTS idx_memories_session
@@ -139,6 +154,14 @@ class MemoryStore:
         await self._db.execute("""
             CREATE INDEX IF NOT EXISTS idx_sessions_status
             ON analysis_sessions(status)
+        """)
+        await self._db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_case_states_hash
+            ON case_states(sample_hash)
+        """)
+        await self._db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_case_states_session
+            ON case_states(session_id)
         """)
 
         # FTS5 virtual table for full-text search
@@ -690,6 +713,129 @@ class MemoryStore:
             memories = [m for m in memories if m.get("session_id") != current_session_id]
 
         return memories[:limit]
+
+    # =========================================================================
+    # Case State Persistence
+    # =========================================================================
+
+    async def save_case_state(
+        self,
+        case_id: str,
+        sample_hash: str,
+        phase: str,
+        state_json: str,
+        sample_path: str | None = None,
+        session_id: str | None = None,
+    ) -> None:
+        """Save or update a machine-readable case state.
+
+        Args:
+            case_id: Unique case identifier.
+            sample_hash: SHA256 of the binary sample bound to this case.
+            phase: Current analysis phase.
+            state_json: Serialized JSON representation of full case state.
+            sample_path: Optional path to binary sample.
+            session_id: Optional linked analysis session ID.
+        """
+        async with self._ensure_connection() as db:
+            now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            await db.execute(
+                """
+                INSERT INTO case_states
+                (case_id, session_id, sample_path, sample_hash, phase, state_json, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(case_id) DO UPDATE SET
+                    session_id = excluded.session_id,
+                    sample_path = excluded.sample_path,
+                    sample_hash = excluded.sample_hash,
+                    phase = excluded.phase,
+                    state_json = excluded.state_json,
+                    updated_at = excluded.updated_at
+                """,
+                (case_id, session_id, sample_path, sample_hash, phase, state_json, now, now),
+            )
+            await db.commit()
+            logger.info(f"Saved case state: {case_id} (phase: {phase}, hash: {sample_hash[:8]}...)")
+
+    async def get_case_state(self, case_id: str) -> dict[str, Any] | None:
+        """Get case state by case_id.
+
+        Args:
+            case_id: Unique case identifier.
+
+        Returns:
+            Dict containing row data or None if not found.
+        """
+        async with self._ensure_connection() as db:
+            cursor = await db.execute(
+                "SELECT * FROM case_states WHERE case_id = ?",
+                (case_id,),
+            )
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+    async def get_case_state_by_hash(self, sample_hash: str) -> dict[str, Any] | None:
+        """Get latest case state for a sample hash.
+
+        Args:
+            sample_hash: SHA256 of the binary sample.
+
+        Returns:
+            Dict containing row data or None if not found.
+        """
+        async with self._ensure_connection() as db:
+            cursor = await db.execute(
+                "SELECT * FROM case_states WHERE sample_hash = ? ORDER BY updated_at DESC LIMIT 1",
+                (sample_hash,),
+            )
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+    async def list_case_states(
+        self,
+        phase: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        """List case states with optional phase filter.
+
+        Args:
+            phase: Optional phase filter.
+            limit: Maximum items to return.
+            offset: Offset for pagination.
+
+        Returns:
+            List of case state summaries.
+        """
+        async with self._ensure_connection() as db:
+            query = "SELECT case_id, session_id, sample_path, sample_hash, phase, created_at, updated_at FROM case_states"
+            params: list[Any] = []
+            if phase:
+                query += " WHERE phase = ?"
+                params.append(phase)
+            query += " ORDER BY updated_at DESC LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+
+            cursor = await db.execute(query, tuple(params))
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+    async def delete_case_state(self, case_id: str) -> bool:
+        """Delete a case state by case_id.
+
+        Args:
+            case_id: Unique case identifier.
+
+        Returns:
+            True if deleted, False if not found.
+        """
+        async with self._ensure_connection() as db:
+            cursor = await db.execute(
+                "DELETE FROM case_states WHERE case_id = ?",
+                (case_id,),
+            )
+            await db.commit()
+            return bool(cursor.rowcount > 0)
 
 
 # Module-level singleton instance

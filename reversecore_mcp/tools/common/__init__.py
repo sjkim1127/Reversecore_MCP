@@ -34,6 +34,15 @@ class CommonToolsPlugin(Plugin):
         # Import tools
         from reversecore_mcp.tools.common.assembler import assemble_instructions
         from reversecore_mcp.tools.common.batch_operations import batch_execute
+
+        # Case state management tools
+        from reversecore_mcp.tools.common.case_tools import (
+            create_case_state,
+            get_case_state,
+            list_case_states,
+            resume_case_state,
+            update_case_state,
+        )
         from reversecore_mcp.tools.common.file_operations import (
             copy_to_workspace,
             create_directory,
@@ -84,6 +93,13 @@ class CommonToolsPlugin(Plugin):
 
         # Orchestration & planning tool
         mcp_server.tool(recommend_analysis_plan)
+
+        # Case state management tools
+        mcp_server.tool(create_case_state)
+        mcp_server.tool(get_case_state)
+        mcp_server.tool(update_case_state)
+        mcp_server.tool(resume_case_state)
+        mcp_server.tool(list_case_states)
 
         # Patch explainer
         mcp_server.tool(explain_patch)
