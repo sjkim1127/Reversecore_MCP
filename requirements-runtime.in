@@ -6,7 +6,7 @@
 -c requirements.txt
 
 # Core MCP server
-mcp[cli]>=1.28.1
+mcp[cli]>=1.30.0
 fastmcp==3.4.4
 fastapi>=0.109.1
 uvicorn>=0.30.0
