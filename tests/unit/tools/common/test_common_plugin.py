@@ -46,14 +46,14 @@ class TestCommonToolsPlugin:
         assert "Unified common tools" in plugin.description
 
     def test_register_default_no_subplugins(self):
-        """Test that default register() registers 16 tools without memory/server subplugins."""
+        """Test that default register() registers 21 tools without memory/server subplugins."""
         mcp = FastMCP("test_common_default")
         plugin = CommonToolsPlugin()
 
         plugin.register(mcp)
 
         tools = _get_registered_tools(mcp)
-        assert len(tools) == 16
+        assert len(tools) == 21
         expected_tools = {
             "run_file",
             "copy_to_workspace",
@@ -71,18 +71,23 @@ class TestCommonToolsPlugin:
             "transaction_status",
             "transaction_undo",
             "transaction_redo",
+            "create_case_state",
+            "get_case_state",
+            "update_case_state",
+            "resume_case_state",
+            "list_case_states",
         }
         assert set(tools.keys()) == expected_tools
 
     def test_register_with_subplugins(self):
-        """Test that register(include_subplugins=True) registers 29 tools."""
+        """Test that register(include_subplugins=True) registers 34 tools."""
         mcp = FastMCP("test_common_with_subplugins")
         plugin = CommonToolsPlugin()
 
         plugin.register(mcp, include_subplugins=True)
 
         tools = _get_registered_tools(mcp)
-        assert len(tools) == 29
+        assert len(tools) == 34
         # Check presence of subplugin tools
         assert "create_memory_session" in tools
         assert "get_server_health" in tools
