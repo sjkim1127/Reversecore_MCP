@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "name": "reversecore_mcp",
   "description": "Enterprise-grade MCP server for binary reverse engineering, decompilation, malware triage, and vulnerability hunting.",
-  "total_tools": 173,
+  "total_tools": 177,
   "protocol_readiness": {
     "mcp_version": "2024-11-05",
     "fastmcp_version": "3.4.4",
@@ -7491,6 +7491,190 @@
         "required": [
           "file_path",
           "address"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "returned_bytes": {
+                "type": "integer"
+              },
+              "total_captured_bytes": {
+                "type": "integer"
+              },
+              "saved_artifact": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "continuation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "cursor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "apply_transferred_annotation",
+      "description": "Accept or reject a suggested transferred annotation.\n\nWhen verified=True, the suggested annotation is promoted to active status and\ninstalled into the target binary's persistent bookmark, structure, or type store.\nWhen verified=False, the transfer is marked rejected.",
+      "plugin": "analysis_tools",
+      "profiles": [
+        "full",
+        "static",
+        "malware",
+        "vuln-research"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "transfer_id": {
+            "type": "integer",
+            "description": "Unique database ID of the transferred annotation record."
+          },
+          "verified": {
+            "default": true,
+            "type": "boolean",
+            "description": "True to accept and verify the annotation; False to reject it."
+          }
+        },
+        "required": [
+          "transfer_id"
         ],
         "type": "object"
       },
@@ -20534,6 +20718,200 @@
       }
     },
     {
+      "name": "match_functions_across_binaries",
+      "description": "Match functions across two binary files using identity signals and CFG metrics.\n\nIdentifies exact, strong, probable, and ambiguous function pairings between\ntwo versions or variants of a binary. Rebased or renumbered functions with\nidentical code or CFG structure are paired reliably.",
+      "plugin": "analysis_tools",
+      "profiles": [
+        "full",
+        "static",
+        "malware",
+        "vuln-research"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "file_path_a": {
+            "type": "string",
+            "description": "Path to the original or reference binary file."
+          },
+          "file_path_b": {
+            "type": "string",
+            "description": "Path to the target, revision, or variant binary file."
+          },
+          "min_confidence": {
+            "default": 0.6,
+            "type": "number",
+            "description": "Minimum similarity score (0.0 - 1.0) for candidate matching."
+          },
+          "timeout": {
+            "default": 120,
+            "type": "integer",
+            "description": "Maximum execution time in seconds."
+          }
+        },
+        "required": [
+          "file_path_a",
+          "file_path_b"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "returned_bytes": {
+                "type": "integer"
+              },
+              "total_captured_bytes": {
+                "type": "integer"
+              },
+              "saved_artifact": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "continuation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "cursor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "match_libraries",
       "description": "Match and filter known library functions to focus on user code.\n\nThis tool uses radare2's zignatures (FLIRT-compatible signature matching) to:\n- **Reduce Analysis Noise**: Skip analysis of known library functions (strcpy, malloc, etc.)\n- **Focus on User Code**: Identify which functions are original vs library code\n- **Save Time & Tokens**: Reduce analysis scope by 80% by filtering out standard libraries\n- **Improve Accuracy**: Focus AI analysis on the actual malicious/interesting code\n\nCommon use cases:\n- Analyzing large binaries (>25MB) where most code is OpenSSL, zlib, MFC, etc.\n- Game client reverse engineering (filter out Unreal Engine / Unity standard library)\n- Malware analysis (focus on custom malware code, skip Windows API wrappers)\n\nThe tool automatically uses built-in signature databases for common libraries\nand can optionally use custom signature databases for specialized analysis.",
       "plugin": "analysis_tools",
@@ -27515,6 +27893,207 @@
       }
     },
     {
+      "name": "review_transferred_annotations",
+      "description": "List transferred annotations, bookmarks, and findings for a binary.\n\nExposes transferred knowledge as suggested or verified context with complete\nsource provenance, match confidence, and historical context.",
+      "plugin": "analysis_tools",
+      "profiles": [
+        "full",
+        "static",
+        "malware",
+        "vuln-research"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "Path to the target binary file."
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional filter by status ('suggested', 'verified', 'rejected', 'unresolved')."
+          },
+          "limit": {
+            "default": 50,
+            "type": "integer",
+            "description": "Number of items to return (1-500)."
+          },
+          "offset": {
+            "default": 0,
+            "type": "integer",
+            "description": "Offset for pagination."
+          }
+        },
+        "required": [
+          "file_path"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "returned_bytes": {
+                "type": "integer"
+              },
+              "total_captured_bytes": {
+                "type": "integer"
+              },
+              "saved_artifact": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "continuation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "cursor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "run_binwalk",
       "description": "Analyze binaries for embedded content using binwalk.",
       "plugin": "analysis_tools",
@@ -32256,6 +32835,217 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "returned_bytes": {
+                "type": "integer"
+              },
+              "total_captured_bytes": {
+                "type": "integer"
+              },
+              "saved_artifact": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "continuation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "cursor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "transfer_annotations_across_binaries",
+      "description": "Transfer analyst annotations, bookmarks, types, structures, and findings across binaries.\n\nPropagates knowledge from an analyzed source binary to a new revision or variant.\nExact matches may be auto-applied if requested; all other matches are exposed as\nsuggested context with full provenance so changed logic requires re-verification.\nAmbiguous matches remain unresolved and are never auto-applied.",
+      "plugin": "analysis_tools",
+      "profiles": [
+        "full",
+        "static",
+        "malware",
+        "vuln-research"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "source_path": {
+            "type": "string",
+            "description": "Path to the analyzed source binary with existing annotations."
+          },
+          "target_path": {
+            "type": "string",
+            "description": "Path to the destination binary revision."
+          },
+          "auto_apply_exact": {
+            "default": false,
+            "type": "boolean",
+            "description": "Whether to automatically activate exact (100% identical) matches."
+          },
+          "case_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional persistent investigation case ID to propagate case findings."
+          },
+          "min_confidence": {
+            "default": 0.6,
+            "type": "number",
+            "description": "Minimum match confidence (default: 0.6)."
+          },
+          "timeout": {
+            "default": 120,
+            "type": "integer",
+            "description": "Maximum execution time in seconds."
+          }
+        },
+        "required": [
+          "source_path",
+          "target_path"
+        ],
         "type": "object"
       },
       "outputSchema": {

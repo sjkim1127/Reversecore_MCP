@@ -29,11 +29,11 @@ PROFILES = ["full", "static", "malware", "forensics", "vuln-research"]
 
 # Expected tool counts per profile (derived from plugin memberships + core task queue)
 EXPECTED_PROFILE_TOOL_COUNTS = {
-    "full": 173,
-    "static": 119,
-    "malware": 87,
+    "full": 177,
+    "static": 123,
+    "malware": 91,
     "forensics": 76,
-    "vuln-research": 125,
+    "vuln-research": 129,
 }
 
 SUBPROCESS_WORKER_CODE = """

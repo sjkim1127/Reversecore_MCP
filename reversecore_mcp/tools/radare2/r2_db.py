@@ -89,6 +89,23 @@ CREATE TABLE IF NOT EXISTS analysis_cache (
     expires_at  REAL,
     UNIQUE(binary_hash, cache_key)
 );
+CREATE TABLE IF NOT EXISTS annotation_transfers (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_binary_hash  TEXT NOT NULL,
+    target_binary_hash  TEXT NOT NULL,
+    source_function     TEXT NOT NULL,
+    target_function     TEXT NOT NULL,
+    source_address      TEXT NOT NULL,
+    target_address      TEXT NOT NULL,
+    item_type           TEXT NOT NULL,
+    name                TEXT NOT NULL DEFAULT '',
+    content_json        TEXT NOT NULL,
+    match_state         TEXT NOT NULL,
+    confidence          REAL NOT NULL,
+    status              TEXT NOT NULL DEFAULT 'suggested',
+    source_provenance   TEXT NOT NULL DEFAULT '{}',
+    created_at          TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 
@@ -301,13 +318,20 @@ async def r2_create_structure(
 
     await asyncio.to_thread(_create_structure_sync, bh, name, fields_json)
     try:
-        from reversecore_mcp.core.transaction import MutationClass, get_transaction_manager
+        from reversecore_mcp.core.transaction import (
+            MutationClass,
+            get_transaction_manager,
+        )
 
         get_transaction_manager().record_mutation(
             MutationClass.ANNOTATION,
             resource=f"structure:{name}",
             action="r2_create_structure",
-            details={"file_path": str(validated), "name": name, "field_count": len(fields)},
+            details={
+                "file_path": str(validated),
+                "name": name,
+                "field_count": len(fields),
+            },
             reversible=True,
         )
     except Exception as exc:
@@ -507,13 +531,20 @@ async def r2_add_bookmark(
 
     await asyncio.to_thread(_add_bookmark_sync, bh, address, comment, category)
     try:
-        from reversecore_mcp.core.transaction import MutationClass, get_transaction_manager
+        from reversecore_mcp.core.transaction import (
+            MutationClass,
+            get_transaction_manager,
+        )
 
         get_transaction_manager().record_mutation(
             MutationClass.ANNOTATION,
             resource=f"bookmark:{address}",
             action="r2_add_bookmark",
-            details={"file_path": str(validated), "address": address, "category": category},
+            details={
+                "file_path": str(validated),
+                "address": address,
+                "category": category,
+            },
             reversible=True,
         )
     except Exception as exc:
@@ -690,3 +721,264 @@ def purge_expired_cache() -> int:
             return cursor.rowcount
     except Exception:
         return 0
+
+
+# ---------------------------------------------------------------------------
+# Cross-binary annotation transfer persistence
+# ---------------------------------------------------------------------------
+
+
+def _apply_annotation_to_target_sync(db: sqlite3.Connection, item: dict[str, Any]) -> None:
+    """Apply an active annotation directly to the target binary tables."""
+    tgt_hash = item["target_binary_hash"]
+    item_type = item["item_type"]
+    content = item.get("content", {})
+    if isinstance(content, str):
+        try:
+            content = json.loads(content)
+        except Exception:
+            content = {}
+
+    if item_type == "bookmark" and item.get("target_address"):
+        addr = item["target_address"]
+        comment = content.get("comment", "")
+        cat = content.get("category", "transferred")
+        db.execute(
+            """
+            INSERT INTO bookmarks(binary_hash, address, comment, category) VALUES(?,?,?,?)
+            ON CONFLICT(binary_hash, address) DO UPDATE SET comment=excluded.comment, category=excluded.category
+            """,
+            (tgt_hash, addr, comment, cat),
+        )
+    elif item_type == "structure" and item.get("name"):
+        name = item["name"]
+        fields = content.get("fields", [])
+        fields_json = json.dumps(fields) if not isinstance(fields, str) else fields
+        db.execute(
+            """
+            INSERT INTO structures(binary_hash, name, fields_json) VALUES(?,?,?)
+            ON CONFLICT(binary_hash, name) DO UPDATE SET fields_json=excluded.fields_json
+            """,
+            (tgt_hash, name, fields_json),
+        )
+    elif item_type == "type" and item.get("name"):
+        name = item["name"]
+        defn = content.get("definition", "")
+        db.execute(
+            """
+            INSERT INTO types(binary_hash, name, definition) VALUES(?,?,?)
+            ON CONFLICT(binary_hash, name) DO UPDATE SET definition=excluded.definition
+            """,
+            (tgt_hash, name, defn),
+        )
+
+
+def save_transferred_annotations_sync(
+    transfers: list[dict[str, Any]], auto_apply_exact: bool = False
+) -> int:
+    """Save transferred annotation records and optionally apply exact matches."""
+    if not transfers:
+        return 0
+
+    with _get_db_sync() as db:
+        saved = 0
+        for item in transfers:
+            content_json = (
+                json.dumps(item["content"])
+                if isinstance(item.get("content"), (dict, list))
+                else str(item.get("content", "{}"))
+            )
+            provenance_json = (
+                json.dumps(item["source_provenance"])
+                if isinstance(item.get("source_provenance"), (dict, list))
+                else str(item.get("source_provenance", "{}"))
+            )
+            db.execute(
+                """
+                INSERT INTO annotation_transfers (
+                    source_binary_hash, target_binary_hash, source_function,
+                    target_function, source_address, target_address, item_type,
+                    name, content_json, match_state, confidence, status,
+                    source_provenance, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    item["source_binary_hash"],
+                    item["target_binary_hash"],
+                    item["source_function"],
+                    item["target_function"],
+                    item["source_address"],
+                    item["target_address"],
+                    item["item_type"],
+                    item.get("name", ""),
+                    content_json,
+                    item["match_state"],
+                    float(item["confidence"]),
+                    item["status"],
+                    provenance_json,
+                    item.get("created_at", ""),
+                ),
+            )
+            saved += 1
+
+            # Auto-apply exact matches if requested
+            if auto_apply_exact and item.get("status") == "verified":
+                _apply_annotation_to_target_sync(db, item)
+
+        db.commit()
+        return saved
+
+
+def list_transferred_annotations_sync(
+    target_hash: str, status: str | None = None, limit: int = 50, offset: int = 0
+) -> tuple[list[dict[str, Any]], int]:
+    """List transferred annotations for a target binary with pagination."""
+    with _get_db_sync() as db:
+        if status:
+            total = db.execute(
+                "SELECT COUNT(*) FROM annotation_transfers WHERE target_binary_hash=? AND status=?",
+                (target_hash, status),
+            ).fetchone()[0]
+            cursor = db.execute(
+                """
+                SELECT id, source_binary_hash, target_binary_hash, source_function,
+                       target_function, source_address, target_address, item_type,
+                       name, content_json, match_state, confidence, status,
+                       source_provenance, created_at
+                FROM annotation_transfers
+                WHERE target_binary_hash=? AND status=?
+                ORDER BY id LIMIT ? OFFSET ?
+                """,
+                (target_hash, status, limit, offset),
+            )
+        else:
+            total = db.execute(
+                "SELECT COUNT(*) FROM annotation_transfers WHERE target_binary_hash=?",
+                (target_hash,),
+            ).fetchone()[0]
+            cursor = db.execute(
+                """
+                SELECT id, source_binary_hash, target_binary_hash, source_function,
+                       target_function, source_address, target_address, item_type,
+                       name, content_json, match_state, confidence, status,
+                       source_provenance, created_at
+                FROM annotation_transfers
+                WHERE target_binary_hash=?
+                ORDER BY id LIMIT ? OFFSET ?
+                """,
+                (target_hash, limit, offset),
+            )
+        rows = cursor.fetchall()
+        results = []
+        for r in rows:
+            try:
+                content = json.loads(r["content_json"])
+            except Exception:
+                content = r["content_json"]
+            try:
+                prov = json.loads(r["source_provenance"])
+            except Exception:
+                prov = r["source_provenance"]
+            results.append(
+                {
+                    "id": r["id"],
+                    "source_binary_hash": r["source_binary_hash"],
+                    "target_binary_hash": r["target_binary_hash"],
+                    "source_function": r["source_function"],
+                    "target_function": r["target_function"],
+                    "source_address": r["source_address"],
+                    "target_address": r["target_address"],
+                    "item_type": r["item_type"],
+                    "name": r["name"],
+                    "content": content,
+                    "match_state": r["match_state"],
+                    "confidence": r["confidence"],
+                    "status": r["status"],
+                    "source_provenance": prov,
+                    "created_at": r["created_at"],
+                }
+            )
+        return results, total
+
+
+def apply_transferred_annotation_sync(
+    transfer_id: int, verified: bool = True
+) -> dict[str, Any] | None:
+    """Accept or reject a suggested transferred annotation."""
+    with _get_db_sync() as db:
+        row = db.execute(
+            """
+            SELECT id, source_binary_hash, target_binary_hash, source_function,
+                   target_function, source_address, target_address, item_type,
+                   name, content_json, match_state, confidence, status,
+                   source_provenance, created_at
+            FROM annotation_transfers WHERE id=?
+            """,
+            (transfer_id,),
+        ).fetchone()
+        if not row:
+            return None
+
+        new_status = "verified" if verified else "rejected"
+        item = {
+            "id": row["id"],
+            "source_binary_hash": row["source_binary_hash"],
+            "target_binary_hash": row["target_binary_hash"],
+            "source_function": row["source_function"],
+            "target_function": row["target_function"],
+            "source_address": row["source_address"],
+            "target_address": row["target_address"],
+            "item_type": row["item_type"],
+            "name": row["name"],
+            "content": json.loads(row["content_json"]),
+            "match_state": row["match_state"],
+            "confidence": row["confidence"],
+            "status": new_status,
+            "source_provenance": json.loads(row["source_provenance"]),
+            "created_at": row["created_at"],
+        }
+
+        db.execute(
+            "UPDATE annotation_transfers SET status=? WHERE id=?",
+            (new_status, transfer_id),
+        )
+
+        if verified:
+            _apply_annotation_to_target_sync(db, item)
+
+        db.commit()
+        return item
+
+
+def get_transferred_annotation_sync(transfer_id: int) -> dict[str, Any] | None:
+    """Retrieve a single transferred annotation record by ID."""
+    with _get_db_sync() as db:
+        row = db.execute(
+            """
+            SELECT id, source_binary_hash, target_binary_hash, source_function,
+                   target_function, source_address, target_address, item_type,
+                   name, content_json, match_state, confidence, status,
+                   source_provenance, created_at
+            FROM annotation_transfers WHERE id=?
+            """,
+            (transfer_id,),
+        ).fetchone()
+        if not row:
+            return None
+        return {
+            "id": row["id"],
+            "source_binary_hash": row["source_binary_hash"],
+            "target_binary_hash": row["target_binary_hash"],
+            "source_function": row["source_function"],
+            "target_function": row["target_function"],
+            "source_address": row["source_address"],
+            "target_address": row["target_address"],
+            "item_type": row["item_type"],
+            "name": row["name"],
+            "content": json.loads(row["content_json"]),
+            "match_state": row["match_state"],
+            "confidence": row["confidence"],
+            "status": row["status"],
+            "source_provenance": json.loads(row["source_provenance"]),
+            "created_at": row["created_at"],
+        }

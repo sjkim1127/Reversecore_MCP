@@ -21,9 +21,10 @@ from reversecore_mcp import server
 # makes this independent of dictionary insertion order and JSON whitespace.
 # plus issue #325's registration of recommend_analysis_plan,
 # plus issue #320's registration of case state management tools (create_case_state, get_case_state, update_case_state, resume_case_state, list_case_states),
-# plus issue #323's registration of priority queue tools (plan_next_analysis_targets, populate_case_queue_from_triage, add_priority_target, update_priority_target, resolve_target_blocker).
-EXPECTED_TOOL_COUNT = 173
-EXPECTED_SCHEMA_SHA256 = "61520ac433908776312f6581d86e8ed7f0c8f546f890058d51eb483d9cdc4660"
+# plus issue #323's registration of priority queue tools (plan_next_analysis_targets, populate_case_queue_from_triage, add_priority_target, update_priority_target, resolve_target_blocker),
+# plus issue #322's registration of cross-binary transfer tools (match_functions_across_binaries, transfer_annotations_across_binaries, review_transferred_annotations, apply_transferred_annotation).
+EXPECTED_TOOL_COUNT = 177
+EXPECTED_SCHEMA_SHA256 = "c133b77f835482f5bf57a4a14b428692fc46cc6dd0622bb0be61e5f2ceabccf6"
 VALID_SCHEMA_SHA256S = {EXPECTED_SCHEMA_SHA256}
 
 

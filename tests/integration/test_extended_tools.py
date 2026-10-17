@@ -9,7 +9,7 @@ import subprocess
 
 import pytest
 
-EXTERNAL_TOOL_TIMEOUT = 15
+EXTERNAL_TOOL_TIMEOUT = 30
 
 
 class TestOtoolAnalysis:

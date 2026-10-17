@@ -108,6 +108,12 @@ class AnalysisToolsPlugin(Plugin):
             verify_path_and_get_args_tool,
         )
         from reversecore_mcp.tools.analysis.taint_analysis import taint_trace
+        from reversecore_mcp.tools.analysis.transfer_tools import (
+            apply_transferred_annotation,
+            match_functions_across_binaries,
+            review_transferred_annotations,
+            transfer_annotations_across_binaries,
+        )
         from reversecore_mcp.tools.analysis.vt_lookup import vt_lookup
 
         # Register all tools
@@ -139,9 +145,13 @@ class AnalysisToolsPlugin(Plugin):
         mcp_server.tool(name="verify_path_and_get_args")(verify_path_and_get_args_tool)
         mcp_server.tool(analyze_patch_diff_auto)
         mcp_server.tool(taint_trace)
+        mcp_server.tool(match_functions_across_binaries)
+        mcp_server.tool(transfer_annotations_across_binaries)
+        mcp_server.tool(review_transferred_annotations)
+        mcp_server.tool(apply_transferred_annotation)
         mcp_server.tool(vt_lookup)
 
-        logger.info(f"Registered {self.name} plugin with 30 analysis tools (unified)")
+        logger.info(f"Registered {self.name} plugin with 34 analysis tools (unified)")
 
 
 __all__ = ["AnalysisToolsPlugin", *_LAZY_RESOURCE_MODULES]
