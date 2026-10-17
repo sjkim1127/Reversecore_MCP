@@ -816,6 +816,7 @@ class CrossBinaryTransferEngine:
                     target_match = fm
                     break
 
+            m_state: MatchState
             if target_match and target_match.match_state not in (
                 MatchState.UNMATCHED,
                 MatchState.AMBIGUOUS,

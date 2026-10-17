@@ -14,6 +14,7 @@ from reversecore_mcp.tools.analysis.transfer_tools import (
     review_transferred_annotations,
     transfer_annotations_across_binaries,
 )
+from reversecore_mcp.tools.radare2 import r2_db
 
 
 @pytest.fixture
@@ -21,10 +22,7 @@ def isolated_r2_db(tmp_path, monkeypatch):
     """Set up an isolated SQLite annotation database."""
     db_file = tmp_path / "test_annotations.db"
     monkeypatch.setenv("R2GHIDRA_DB_PATH", str(db_file))
-    from reversecore_mcp.tools.radare2 import r2_db
-
-    r2_db._DB_PATH = db_file
-    r2_db._initialized_db_paths.clear()
+    monkeypatch.setattr(r2_db, "_DB_PATH", db_file)
     r2_db._ensure_schema_initialized(db_file)
     return db_file
 

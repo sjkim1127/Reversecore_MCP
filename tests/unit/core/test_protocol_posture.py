@@ -34,10 +34,10 @@ class TestProtocolPosture:
 
     @pytest.mark.asyncio
     async def test_tool_count_and_availability(self):
-        """Verify full suite of 173 tools is available on live FastMCP server."""
+        """Verify full suite of 177 tools is available on live FastMCP server."""
         tools = await server.mcp.list_tools()
         tools_list = tools if isinstance(tools, list) else list(tools.values())
-        assert len(tools_list) == 173, f"Expected 173 tools, found {len(tools_list)}"
+        assert len(tools_list) == 177, f"Expected 177 tools, found {len(tools_list)}"
 
         tool_names = {t.name for t in tools_list}
         assert "run_capa" in tool_names
@@ -66,3 +66,7 @@ class TestProtocolPosture:
         assert "add_priority_target" in tool_names
         assert "update_priority_target" in tool_names
         assert "resolve_target_blocker" in tool_names
+        assert "match_functions_across_binaries" in tool_names
+        assert "transfer_annotations_across_binaries" in tool_names
+        assert "review_transferred_annotations" in tool_names
+        assert "apply_transferred_annotation" in tool_names

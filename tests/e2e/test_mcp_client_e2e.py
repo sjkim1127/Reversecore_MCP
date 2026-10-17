@@ -160,8 +160,8 @@ class TestMcpClientE2EWorkflows:
                 tools_res = await session.list_tools()
                 exposed_tools = {t.name for t in tools_res.tools}
 
-                # Contract: Exactly 119 tools for static profile
-                assert len(exposed_tools) == 119, f"Expected 119 tools, got {len(exposed_tools)}"
+                # Contract: Exactly 123 tools for static profile
+                assert len(exposed_tools) == 123, f"Expected 123 tools, got {len(exposed_tools)}"
                 # Static analysis tools must be present
                 assert "run_file" in exposed_tools
                 assert "parse_binary_with_lief" in exposed_tools
@@ -313,10 +313,10 @@ class TestMcpClientE2EWorkflows:
             )
 
             async with spawn_mcp_session("malware", ws_path) as session:
-                # 1. Profile Exposure Check (Contract: Exactly 87 tools)
+                # 1. Profile Exposure Check (Contract: Exactly 91 tools)
                 tools_res = await session.list_tools()
                 exposed_tools = {t.name for t in tools_res.tools}
-                assert len(exposed_tools) == 87, f"Expected 87 tools, got {len(exposed_tools)}"
+                assert len(exposed_tools) == 91, f"Expected 91 tools, got {len(exposed_tools)}"
                 assert "extract_iocs" in exposed_tools
                 assert "run_yara" in exposed_tools
                 assert "detect_anti_analysis" in exposed_tools
@@ -433,7 +433,7 @@ class TestMcpClientE2EWorkflows:
                 # 1. Profile Exposure Check
                 tools_res = await session.list_tools()
                 exposed_tools = {t.name for t in tools_res.tools}
-                assert len(exposed_tools) == 125, f"Expected 125 tools, got {len(exposed_tools)}"
+                assert len(exposed_tools) == 129, f"Expected 129 tools, got {len(exposed_tools)}"
                 assert "diff_binaries" in exposed_tools
                 assert "analyze_patch_diff_auto" in exposed_tools
 
@@ -628,8 +628,8 @@ class TestMcpClientE2EWorkflows:
                 tools_res = await session.list_tools()
                 exposed_tools = {t.name for t in tools_res.tools}
 
-                # Contract: Exactly 125 tools for vuln-research profile
-                assert len(exposed_tools) == 125, f"Expected 125 tools, got {len(exposed_tools)}"
+                # Contract: Exactly 129 tools for vuln-research profile
+                assert len(exposed_tools) == 129, f"Expected 129 tools, got {len(exposed_tools)}"
                 # Vulnerability research tools must be present
                 assert "cve_triage_crash" in exposed_tools
                 assert "cve_minimize_poc" in exposed_tools

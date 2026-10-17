@@ -174,10 +174,18 @@ def _ensure_schema_initialized(db_path: Path) -> None:
             conn.close()
 
 
+def _current_db_path() -> Path:
+    env_path = os.environ.get("R2GHIDRA_DB_PATH")
+    if env_path:
+        return Path(env_path)
+    return _DB_PATH
+
+
 def _get_db_sync() -> sqlite3.Connection:
     """Open (and initialise) the SQLite annotation DB synchronously with WAL mode and busy timeout."""
-    _ensure_schema_initialized(_DB_PATH)
-    db = sqlite3.connect(str(_DB_PATH), timeout=30.0)
+    db_path = _current_db_path()
+    _ensure_schema_initialized(db_path)
+    db = sqlite3.connect(str(db_path), timeout=30.0)
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA journal_mode=WAL;")
     db.execute("PRAGMA synchronous=NORMAL;")

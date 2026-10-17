@@ -92,6 +92,10 @@ def cache_tool_result(
             if cached_result is not None:
                 metrics_collector.record_cache_hit(tool_name)
                 logger.debug(f"Cache HIT for {tool_name} on {file_path}")
+                if isinstance(cached_result, ToolSuccess):
+                    meta = dict(cached_result.metadata or {})
+                    meta["cache_hit"] = True
+                    cached_result.metadata = meta
                 return cached_result
 
             # Cache miss, execute actual function
