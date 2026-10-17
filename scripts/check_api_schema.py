@@ -19,22 +19,11 @@ from reversecore_mcp import server
 
 # Update deliberately when a reviewed API change is made. The canonical form
 # makes this independent of dictionary insertion order and JSON whitespace.
-EXPECTED_TOOL_COUNT = 168
-# Canonical schema SHA-256 for FastMCP 3.4.4 (pinned in project requirements).
-# This baseline includes the reviewed event-time, collection-time, and UTC semantics description.
-# It also includes the issue #229 contract: CVE hunting requires a compiled LibFuzzer target.
-# plus issue #251's exact module-name and isolated output-directory semantics.
-# It also includes issue #254's ret2libc libc_base parameter, and issue #255's verify_path_and_get_args taint verification parameters,
-# plus issue #264's target_functions parameter on vulnerability_hunter for bounded function analysis,
-# plus issue #347's registration of export_analysis_cache & import_analysis_cache, explicit Pydantic Field
-# schemas, and structured response contracts for capa and die tools,
-# plus issue #324's registration of verify_string_references,
-# plus issue #326's registration of retrieve_truncated_output,
-# plus issue #327's registration of batch_execute,
-# plus issue #328's registration of transaction tools (begin, commit, rollback, status, undo, redo),
 # plus issue #325's registration of recommend_analysis_plan,
-# plus issue #320's registration of case state management tools (create_case_state, get_case_state, update_case_state, resume_case_state, list_case_states).
-EXPECTED_SCHEMA_SHA256 = "16e5705339819ba139eee43854067512ebd9e1c92ca24cb51ce74ecb82600ce0"
+# plus issue #320's registration of case state management tools (create_case_state, get_case_state, update_case_state, resume_case_state, list_case_states),
+# plus issue #323's registration of priority queue tools (plan_next_analysis_targets, populate_case_queue_from_triage, add_priority_target, update_priority_target, resolve_target_blocker).
+EXPECTED_TOOL_COUNT = 173
+EXPECTED_SCHEMA_SHA256 = "61520ac433908776312f6581d86e8ed7f0c8f546f890058d51eb483d9cdc4660"
 VALID_SCHEMA_SHA256S = {EXPECTED_SCHEMA_SHA256}
 
 

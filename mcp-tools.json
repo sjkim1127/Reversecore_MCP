@@ -6229,6 +6229,233 @@
     }
   },
   {
+    "name": "add_priority_target",
+    "description": "Manually add an evidence-driven analysis target to the active case queue.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {
+          "description": "Unique identifier of the analysis case state.",
+          "type": "string"
+        },
+        "target": {
+          "description": "Target symbol, address, function, artifact, or subsystem to inspect (e.g. 'sym.decrypt_config', '0x1400010a0').",
+          "type": "string"
+        },
+        "kind": {
+          "default": "function",
+          "description": "Kind of target: 'function', 'import', 'string', 'diff', 'patch', 'memory', 'pcap', 'section', 'hypothesis', 'cve'.",
+          "type": "string"
+        },
+        "priority": {
+          "default": "high",
+          "description": "Priority tier: 'critical', 'high', 'medium', 'low'.",
+          "type": "string"
+        },
+        "reason": {
+          "default": "",
+          "description": "Evidence-based rationale explaining why this target should be inspected next.",
+          "type": "string"
+        },
+        "expected_next_step": {
+          "default": "",
+          "description": "Prescribed next analysis technique (e.g. 'decompile + xrefs + taint', 'simulate in ESIL').",
+          "type": "string"
+        },
+        "evidence_refs": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Evidence reference identifiers supporting this target (e.g. ['import:VirtualAllocEx', 'string:https://c2.onion'])."
+        },
+        "blockers": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Prerequisite targets or actions that must be completed before inspecting this target."
+        }
+      },
+      "required": [
+        "case_id",
+        "target"
+      ],
+      "type": "object"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "description": "True if operation succeeded, False otherwise"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "success",
+            "error"
+          ]
+        },
+        "data": {
+          "type": [
+            "object",
+            "string",
+            "array",
+            "null"
+          ],
+          "description": "Structured analysis payload on success"
+        },
+        "error": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "code": {
+              "type": "string",
+              "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+            },
+            "message": {
+              "type": "string",
+              "description": "Human-readable explanation"
+            },
+            "retryable": {
+              "type": "boolean",
+              "description": "Whether the caller may retry"
+            },
+            "recovery_hint": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Actionable recovery advice"
+            }
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "metadata": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "meta": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "pagination": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "page": {
+              "type": "integer"
+            },
+            "page_size": {
+              "type": "integer"
+            },
+            "total_items": {
+              "type": "integer"
+            },
+            "total_pages": {
+              "type": "integer"
+            },
+            "has_next": {
+              "type": "boolean"
+            },
+            "has_previous": {
+              "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "recommended_next_tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "ok",
+        "status"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
     "name": "analyze_heap_exploit",
     "description": "Analyze heap corruption crashes and generate exploitation strategies.\n\nThis tool bridges the gap between a raw heap crash and a practical exploit\nby performing:\n\n1. **Crash Analysis**: If a crash file is provided, runs GDB triage via\n   ``triage_crash`` to extract the crash signal, address, and backtrace.\n2. **Mitigation Assessment**: Uses LIEF to detect binary protections (PIE,\n   NX, canary, RELRO, FORTIFY) and provides bypass strategies for each.\n3. **Heap Technique Selection**: Based on the overflow size, crash signal,\n   and detected vulnerability class, selects applicable heap exploitation\n   techniques (tcache poisoning, fastbin dup, house of spirit, etc.).\n4. **Chunk Size Analysis**: Calculates the nearest glibc chunk size class\n   and estimates the heap layout needed for exploitation.\n5. **Grooming Pseudocode**: Generates pseudocode for setting up the required\n   heap layout (grooming) for the selected technique.\n6. **ROP Integration**: Checks if gadgets are available for post-exploitation\n   code execution.",
     "inputSchema": {
@@ -22263,6 +22490,394 @@
     }
   },
   {
+    "name": "plan_next_analysis_targets",
+    "description": "Generate an evidence-ranked next-analysis plan for an active case.\n\nRanks inspection targets deterministically based on evidence references, priority level,\nactive hypotheses, and blocker readiness. Provides concrete recommended tools and next steps.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {
+          "description": "Unique identifier of the analysis case state (e.g. 'case_a1b2c3d4').",
+          "type": "string"
+        },
+        "limit": {
+          "default": 5,
+          "description": "Maximum number of ranked targets to include in the plan (1 to 25).",
+          "maximum": 25,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "include_blocked": {
+          "default": false,
+          "description": "If True, includes targets with unresolved blockers in the ranking.",
+          "type": "boolean"
+        },
+        "min_priority": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional minimum priority tier filter ('critical', 'high', 'medium', 'low')."
+        }
+      },
+      "required": [
+        "case_id"
+      ],
+      "type": "object"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "description": "True if operation succeeded, False otherwise"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "success",
+            "error"
+          ]
+        },
+        "data": {
+          "type": [
+            "object",
+            "string",
+            "array",
+            "null"
+          ],
+          "description": "Structured analysis payload on success"
+        },
+        "error": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "code": {
+              "type": "string",
+              "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+            },
+            "message": {
+              "type": "string",
+              "description": "Human-readable explanation"
+            },
+            "retryable": {
+              "type": "boolean",
+              "description": "Whether the caller may retry"
+            },
+            "recovery_hint": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Actionable recovery advice"
+            }
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "metadata": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "meta": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "pagination": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "page": {
+              "type": "integer"
+            },
+            "page_size": {
+              "type": "integer"
+            },
+            "total_items": {
+              "type": "integer"
+            },
+            "total_pages": {
+              "type": "integer"
+            },
+            "has_next": {
+              "type": "boolean"
+            },
+            "has_previous": {
+              "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "recommended_next_tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "ok",
+        "status"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "populate_case_queue_from_triage",
+    "description": "Extract prioritized inspection leads from triage results and populate the case queue.\n\nParses suspicious APIs, high-entropy sections, anti-analysis checks, diff changes,\nand network/memory IOCs into prioritized targets with rationale and evidence links.\nSkips targets that are already completed.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {
+          "description": "Unique identifier of the analysis case state (e.g. 'case_a1b2c3d4').",
+          "type": "string"
+        },
+        "triage_data": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "Triage findings dictionary or JSON string (imports, strings, anti_analysis, diff, injections, network, sections)."
+        },
+        "max_items": {
+          "default": 15,
+          "description": "Maximum number of priority targets to extract and add to the queue.",
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "case_id",
+        "triage_data"
+      ],
+      "type": "object"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "description": "True if operation succeeded, False otherwise"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "success",
+            "error"
+          ]
+        },
+        "data": {
+          "type": [
+            "object",
+            "string",
+            "array",
+            "null"
+          ],
+          "description": "Structured analysis payload on success"
+        },
+        "error": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "code": {
+              "type": "string",
+              "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+            },
+            "message": {
+              "type": "string",
+              "description": "Human-readable explanation"
+            },
+            "retryable": {
+              "type": "boolean",
+              "description": "Whether the caller may retry"
+            },
+            "recovery_hint": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Actionable recovery advice"
+            }
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "metadata": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "meta": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "pagination": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "page": {
+              "type": "integer"
+            },
+            "page_size": {
+              "type": "integer"
+            },
+            "total_items": {
+              "type": "integer"
+            },
+            "total_pages": {
+              "type": "integer"
+            },
+            "has_next": {
+              "type": "boolean"
+            },
+            "has_previous": {
+              "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "recommended_next_tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "ok",
+        "status"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
     "name": "r2_add_bookmark",
     "description": "Add (or update) an annotated bookmark at a binary address.",
     "inputSchema": {
@@ -24953,6 +25568,188 @@
       },
       "required": [
         "file_path"
+      ],
+      "type": "object"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "description": "True if operation succeeded, False otherwise"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "success",
+            "error"
+          ]
+        },
+        "data": {
+          "type": [
+            "object",
+            "string",
+            "array",
+            "null"
+          ],
+          "description": "Structured analysis payload on success"
+        },
+        "error": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "code": {
+              "type": "string",
+              "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+            },
+            "message": {
+              "type": "string",
+              "description": "Human-readable explanation"
+            },
+            "retryable": {
+              "type": "boolean",
+              "description": "Whether the caller may retry"
+            },
+            "recovery_hint": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Actionable recovery advice"
+            }
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "metadata": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "meta": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "pagination": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "page": {
+              "type": "integer"
+            },
+            "page_size": {
+              "type": "integer"
+            },
+            "total_items": {
+              "type": "integer"
+            },
+            "total_pages": {
+              "type": "integer"
+            },
+            "has_next": {
+              "type": "boolean"
+            },
+            "has_previous": {
+              "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "recommended_next_tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "ok",
+        "status"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "resolve_target_blocker",
+    "description": "Resolve an explicit blocking dependency for a target, transitioning it to pending status.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {
+          "description": "Unique identifier of the analysis case state.",
+          "type": "string"
+        },
+        "target": {
+          "description": "Target identifier whose blocking dependency has been resolved.",
+          "type": "string"
+        },
+        "resolution_note": {
+          "default": "",
+          "description": "Explanation of how the blocking condition was satisfied or bypassed.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "case_id",
+        "target"
       ],
       "type": "object"
     },
@@ -30896,6 +31693,227 @@
       "required": [
         "session_id",
         "duration_seconds"
+      ],
+      "type": "object"
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "description": "True if operation succeeded, False otherwise"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "success",
+            "error"
+          ]
+        },
+        "data": {
+          "type": [
+            "object",
+            "string",
+            "array",
+            "null"
+          ],
+          "description": "Structured analysis payload on success"
+        },
+        "error": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "code": {
+              "type": "string",
+              "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+            },
+            "message": {
+              "type": "string",
+              "description": "Human-readable explanation"
+            },
+            "retryable": {
+              "type": "boolean",
+              "description": "Whether the caller may retry"
+            },
+            "recovery_hint": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Actionable recovery advice"
+            }
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "metadata": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "meta": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "pagination": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "page": {
+              "type": "integer"
+            },
+            "page_size": {
+              "type": "integer"
+            },
+            "total_items": {
+              "type": "integer"
+            },
+            "total_pages": {
+              "type": "integer"
+            },
+            "has_next": {
+              "type": "boolean"
+            },
+            "has_previous": {
+              "type": "boolean"
+            }
+          }
+        },
+        "truncation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "truncated": {
+              "type": "boolean"
+            },
+            "returned_bytes": {
+              "type": "integer"
+            },
+            "total_captured_bytes": {
+              "type": "integer"
+            },
+            "saved_artifact": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "continuation": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "offset": {
+                  "type": "integer"
+                },
+                "length": {
+                  "type": "integer"
+                },
+                "cursor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "recommended_next_tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "ok",
+        "status"
+      ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "update_priority_target",
+    "description": "Update a target's lifecycle status, unblock dependent targets on completion, and record findings.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {
+          "description": "Unique identifier of the analysis case state.",
+          "type": "string"
+        },
+        "target": {
+          "description": "Target ID (e.g. 'tgt_1234abcd') or target identifier (e.g. 'sym.decrypt_config').",
+          "type": "string"
+        },
+        "status": {
+          "description": "New lifecycle status: 'pending', 'active', 'completed', 'deferred', 'blocked', 'rejected'.",
+          "type": "string"
+        },
+        "priority": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional updated priority tier: 'critical', 'high', 'medium', 'low'."
+        },
+        "findings": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "List of analysis findings or conclusions uncovered during inspection of this target."
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Rationale for status update or completion summary notes."
+        }
+      },
+      "required": [
+        "case_id",
+        "target",
+        "status"
       ],
       "type": "object"
     },

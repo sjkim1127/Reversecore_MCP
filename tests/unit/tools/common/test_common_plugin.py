@@ -53,7 +53,7 @@ class TestCommonToolsPlugin:
         plugin.register(mcp)
 
         tools = _get_registered_tools(mcp)
-        assert len(tools) == 21
+        assert len(tools) == 26
         expected_tools = {
             "run_file",
             "copy_to_workspace",
@@ -76,18 +76,23 @@ class TestCommonToolsPlugin:
             "update_case_state",
             "resume_case_state",
             "list_case_states",
+            "plan_next_analysis_targets",
+            "populate_case_queue_from_triage",
+            "add_priority_target",
+            "update_priority_target",
+            "resolve_target_blocker",
         }
         assert set(tools.keys()) == expected_tools
 
     def test_register_with_subplugins(self):
-        """Test that register(include_subplugins=True) registers 34 tools."""
+        """Test that register(include_subplugins=True) registers 39 tools."""
         mcp = FastMCP("test_common_with_subplugins")
         plugin = CommonToolsPlugin()
 
         plugin.register(mcp, include_subplugins=True)
 
         tools = _get_registered_tools(mcp)
-        assert len(tools) == 34
+        assert len(tools) == 39
         # Check presence of subplugin tools
         assert "create_memory_session" in tools
         assert "get_server_health" in tools

@@ -53,6 +53,13 @@ class CommonToolsPlugin(Plugin):
         )
         from reversecore_mcp.tools.common.patch_explainer import explain_patch
         from reversecore_mcp.tools.common.planning_tools import recommend_analysis_plan
+        from reversecore_mcp.tools.common.priority_queue_tools import (
+            add_priority_target,
+            plan_next_analysis_targets,
+            populate_case_queue_from_triage,
+            resolve_target_blocker,
+            update_priority_target,
+        )
         from reversecore_mcp.tools.common.transaction_tools import (
             transaction_begin,
             transaction_commit,
@@ -100,6 +107,13 @@ class CommonToolsPlugin(Plugin):
         mcp_server.tool(update_case_state)
         mcp_server.tool(resume_case_state)
         mcp_server.tool(list_case_states)
+
+        # Evidence-driven analysis priority queue tools
+        mcp_server.tool(plan_next_analysis_targets)
+        mcp_server.tool(populate_case_queue_from_triage)
+        mcp_server.tool(add_priority_target)
+        mcp_server.tool(update_priority_target)
+        mcp_server.tool(resolve_target_blocker)
 
         # Patch explainer
         mcp_server.tool(explain_patch)

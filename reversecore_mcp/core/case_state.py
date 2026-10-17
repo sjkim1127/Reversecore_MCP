@@ -20,6 +20,7 @@ from reversecore_mcp.core import json_utils as json
 from reversecore_mcp.core.analysis_cache import calculate_file_sha256
 from reversecore_mcp.core.exceptions import (
     CaseNotFoundError,
+    CaseStateError,
     InvalidPhaseTransitionError,
     SampleHashMismatchError,
 )
@@ -540,21 +541,15 @@ class CaseState:
 
     def get_sorted_targets(self, include_completed: bool = False) -> list[AnalysisTarget]:
         """Return next targets ordered deterministically by priority and creation time."""
-        filtered = [
-            t
-            for t in self.next_targets
-            if include_completed
-            or t.status
-            in (TargetStatus.PENDING.value, TargetStatus.ACTIVE.value, TargetStatus.BLOCKED.value)
-        ]
-        return sorted(
-            filtered,
-            key=lambda t: (
-                PRIORITY_RANK.get(t.priority, 99),
-                0 if t.status == TargetStatus.ACTIVE.value else 1,
-                t.created_at,
-            ),
+        from reversecore_mcp.core.priority_queue import AnalysisPriorityQueue
+
+        ranked = AnalysisPriorityQueue.rank_targets(
+            self.next_targets,
+            case=self,
+            include_completed=include_completed,
+            include_blocked=True,
         )
+        return [r.target for r in ranked]
 
     # -----------------------------------------------------------------------
     # Blocker Operations
@@ -931,6 +926,188 @@ class CaseStateManager:
             "next_targets": [t.to_dict() for t in sorted_targets[:10]],
             "blocked": [b.to_dict() for b in case.blocked],
             "artifacts_count": len(case.artifacts),
+            "last_updated": case.last_updated,
+        }
+
+    async def plan_next_analysis(
+        self,
+        case_id: str,
+        limit: int = 5,
+        include_blocked: bool = False,
+        min_priority: str | None = None,
+    ) -> dict[str, Any]:
+        """Generate a ranked next-analysis plan for an analysis case.
+
+        Args:
+            case_id: Case identifier.
+            limit: Maximum number of targets to return in plan.
+            include_blocked: Whether to include targets with unresolved blockers.
+            min_priority: Optional filter by minimum priority tier.
+
+        Returns:
+            Dictionary containing ranked plan, summary statistics, and next steps.
+        """
+        case = await self.get_case(case_id)
+        if not case:
+            raise CaseNotFoundError(case_id)
+
+        from reversecore_mcp.core.priority_queue import AnalysisPriorityQueue
+
+        ranked_targets = AnalysisPriorityQueue.rank_targets(
+            case.next_targets,
+            case=case,
+            include_completed=False,
+            include_blocked=include_blocked,
+            min_priority=min_priority,
+            limit=limit,
+        )
+
+        all_ranked = AnalysisPriorityQueue.rank_targets(
+            case.next_targets,
+            case=case,
+            include_completed=True,
+            include_blocked=True,
+        )
+
+        status_counts: dict[str, int] = {}
+        for t in case.next_targets:
+            status_counts[t.status] = status_counts.get(t.status, 0) + 1
+
+        ready_count = sum(1 for r in all_ranked if r.is_ready)
+        blocked_count = sum(
+            1
+            for r in all_ranked
+            if not r.is_ready
+            and r.target.status != TargetStatus.COMPLETED.value
+            and r.target.status != TargetStatus.REJECTED.value
+        )
+
+        top_guidance = (
+            f"Generated plan with {len(ranked_targets)} actionable targets for phase '{case.phase}'. "
+            f"Top priority target: '{ranked_targets[0].target.target}' ({ranked_targets[0].target.priority}) - {ranked_targets[0].target.reason}"
+            if ranked_targets
+            else "No pending targets in priority queue. Triage or analyst input needed."
+        )
+
+        return {
+            "case_id": case.case_id,
+            "phase": case.phase,
+            "sample_path": case.sample.path,
+            "plan_targets": [r.to_dict() for r in ranked_targets],
+            "total_targets": len(case.next_targets),
+            "ready_targets_count": ready_count,
+            "blocked_targets_count": blocked_count,
+            "status_counts": status_counts,
+            "active_hypotheses_count": len(
+                [h for h in case.active_hypotheses if h.status == HypothesisStatus.ACTIVE.value]
+            ),
+            "guidance": top_guidance,
+        }
+
+    async def populate_queue_from_triage(
+        self,
+        case_id: str,
+        triage_data: dict[str, Any],
+        max_items: int = 15,
+    ) -> dict[str, Any]:
+        """Extract prioritized leads from triage results and populate the case queue.
+
+        Args:
+            case_id: Case identifier.
+            triage_data: Triage output dictionary.
+            max_items: Maximum items to extract.
+
+        Returns:
+            Dictionary containing added targets and queue metrics.
+        """
+        case = await self.get_case(case_id)
+        if not case:
+            raise CaseNotFoundError(case_id)
+
+        from reversecore_mcp.core.priority_queue import AnalysisPriorityQueue
+
+        new_targets = AnalysisPriorityQueue.extract_targets_from_triage(
+            triage_data=triage_data,
+            case=case,
+            max_items=max_items,
+        )
+
+        for nt in new_targets:
+            case.next_targets.append(nt)
+
+        if new_targets:
+            case.last_updated = _utc_now_iso()
+            await self.save_case(case)
+
+        return {
+            "case_id": case.case_id,
+            "added_count": len(new_targets),
+            "added_targets": [t.to_dict() for t in new_targets],
+            "total_queue_size": len(case.next_targets),
+        }
+
+    async def update_priority_target(
+        self,
+        case_id: str,
+        target_id_or_name: str,
+        status: str,
+        priority: str | None = None,
+        findings: list[str] | None = None,
+        reason: str | None = None,
+    ) -> dict[str, Any]:
+        """Update a target's lifecycle status, resolve blockers, and record findings.
+
+        Args:
+            case_id: Case identifier.
+            target_id_or_name: Target ID or target identifier.
+            status: New status (pending, active, completed, deferred, blocked, rejected).
+            priority: Optional updated priority level.
+            findings: Optional list of findings uncovered.
+            reason: Optional update rationale.
+
+        Returns:
+            Dictionary with updated target, unblocked targets, and case metrics.
+        """
+        case = await self.get_case(case_id)
+        if not case:
+            raise CaseNotFoundError(case_id)
+
+        from reversecore_mcp.core.priority_queue import AnalysisPriorityQueue
+
+        norm_status = status.lower()
+        unblocked_targets: list[str] = []
+        updated_target: AnalysisTarget | None = None
+
+        if norm_status == TargetStatus.COMPLETED.value:
+            updated_target, unblocked_targets = AnalysisPriorityQueue.resolve_target_completion(
+                case=case,
+                target_id_or_name=target_id_or_name,
+                findings=findings,
+                reason=reason,
+            )
+        else:
+            for t in case.next_targets:
+                if t.id == target_id_or_name or t.target == target_id_or_name:
+                    t.status = norm_status
+                    if priority:
+                        t.priority = priority.lower()
+                    if reason:
+                        t.reason = f"{t.reason} | {reason}" if t.reason else reason
+                    t.updated_at = _utc_now_iso()
+                    case.last_updated = _utc_now_iso()
+                    updated_target = t
+                    break
+
+        if not updated_target:
+            raise CaseStateError(f"Target '{target_id_or_name}' not found in case '{case_id}'")
+
+        await self.save_case(case)
+
+        return {
+            "case_id": case.case_id,
+            "target": updated_target.to_dict(),
+            "unblocked_targets": unblocked_targets,
+            "total_targets": len(case.next_targets),
             "last_updated": case.last_updated,
         }
 
