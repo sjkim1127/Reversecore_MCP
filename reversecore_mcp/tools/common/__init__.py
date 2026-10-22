@@ -51,6 +51,10 @@ class CommonToolsPlugin(Plugin):
             run_file,
             scan_workspace,
         )
+        from reversecore_mcp.tools.common.handoff_tools import (
+            export_handoff_bundle,
+            import_handoff_bundle,
+        )
         from reversecore_mcp.tools.common.patch_explainer import explain_patch
         from reversecore_mcp.tools.common.planning_tools import recommend_analysis_plan
         from reversecore_mcp.tools.common.priority_queue_tools import (
@@ -107,6 +111,10 @@ class CommonToolsPlugin(Plugin):
         mcp_server.tool(update_case_state)
         mcp_server.tool(resume_case_state)
         mcp_server.tool(list_case_states)
+
+        # Analyst handoff bundle tools
+        mcp_server.tool(export_handoff_bundle)
+        mcp_server.tool(import_handoff_bundle)
 
         # Evidence-driven analysis priority queue tools
         mcp_server.tool(plan_next_analysis_targets)

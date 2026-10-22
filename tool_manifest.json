@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "name": "reversecore_mcp",
   "description": "Enterprise-grade MCP server for binary reverse engineering, decompilation, malware triage, and vulnerability hunting.",
-  "total_tools": 177,
+  "total_tools": 179,
   "protocol_readiness": {
     "mcp_version": "2024-11-05",
     "fastmcp_version": "3.4.4",
@@ -15446,6 +15446,243 @@
       }
     },
     {
+      "name": "export_handoff_bundle",
+      "description": "Export a portable analyst handoff bundle for a sample.\n\nThe bundle records sample identity, scope and tool provenance, what is\nestablished vs. unresolved, relevant annotations, and integrity digests for\nevery section and artifact reference.",
+      "plugin": "common_tools",
+      "profiles": [
+        "full",
+        "static",
+        "malware",
+        "forensics",
+        "vuln-research"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "sample_path": {
+            "description": "Workspace path of the sample the investigation is about.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "case_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Case to include. Defaults to the latest case bound to the sample hash."
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Memory session to include. Defaults to the case's linked session."
+          },
+          "artifact_paths": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Workspace files (reports, YARA/Sigma rules, dumps) to reference by SHA-256. Files are referenced, never embedded."
+          },
+          "include_annotations": {
+            "default": true,
+            "description": "Include bookmarks, structures and types for the sample.",
+            "type": "boolean"
+          },
+          "output_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Output filename only (default '<sample>_<hash8>.rchandoff.json'). Written inside the workspace."
+          }
+        },
+        "required": [
+          "sample_path"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "returned_bytes": {
+                "type": "integer"
+              },
+              "total_captured_bytes": {
+                "type": "integer"
+              },
+              "saved_artifact": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "continuation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "cursor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "extract_iocs",
       "description": "Extract Indicators of Compromise (IOCs) from text or file using regex.\n\nThis tool automatically finds and extracts potential IOCs like IP addresses,\nURLs, and email addresses from any text input (e.g., strings output,\ndecompiled code, logs).",
       "plugin": "malware_tools",
@@ -19835,6 +20072,204 @@
         },
         "required": [
           "pack_path"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "returned_bytes": {
+                "type": "integer"
+              },
+              "total_captured_bytes": {
+                "type": "integer"
+              },
+              "saved_artifact": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "continuation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "cursor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "import_handoff_bundle",
+      "description": "Verify and import an analyst handoff bundle.\n\nIntegrity digests are checked first, then the sample hash, and only then is\nstate written. Existing local cases and annotations are never overwritten:\nan already-known case is imported under a new ID and conflicting annotations\nare reported and left as-is. Missing optional artifacts are reported without\naffecting the rest of the import.",
+      "plugin": "common_tools",
+      "profiles": [
+        "full",
+        "static",
+        "malware",
+        "forensics",
+        "vuln-research"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "bundle_path": {
+            "description": "Workspace path of the .rchandoff.json bundle.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "target_file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Local sample whose SHA-256 must match the bundle. Strongly recommended: a mismatch aborts before anything is attached."
+          },
+          "dry_run": {
+            "default": false,
+            "description": "Verify and report what would be imported without writing anything.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "bundle_path"
         ],
         "type": "object"
       },

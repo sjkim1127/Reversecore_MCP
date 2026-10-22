@@ -990,3 +990,150 @@ def get_transferred_annotation_sync(transfer_id: int) -> dict[str, Any] | None:
             "source_provenance": json.loads(row["source_provenance"]),
             "created_at": row["created_at"],
         }
+
+
+# ---------------------------------------------------------------------------
+# Analyst handoff bundle: bulk annotation export / conflict-safe import
+# ---------------------------------------------------------------------------
+
+
+def export_annotations_sync(bh: str) -> dict[str, list[dict[str, Any]]]:
+    """Return every bookmark, structure and type stored for a binary hash.
+
+    Args:
+        bh: SHA-256 of the binary the annotations belong to.
+
+    Returns:
+        Dict with ``bookmarks``, ``structures`` and ``types`` lists (unpaginated).
+    """
+    with _get_db_sync() as db:
+        bookmarks = [
+            {
+                "address": r["address"],
+                "comment": r["comment"],
+                "category": r["category"],
+                "created_at": r["created_at"],
+            }
+            for r in db.execute(
+                "SELECT address, comment, category, created_at FROM bookmarks "
+                "WHERE binary_hash=? ORDER BY address",
+                (bh,),
+            )
+        ]
+        structures = [
+            {
+                "name": r["name"],
+                "fields": json.loads(r["fields_json"]),
+                "created_at": r["created_at"],
+            }
+            for r in db.execute(
+                "SELECT name, fields_json, created_at FROM structures "
+                "WHERE binary_hash=? ORDER BY name",
+                (bh,),
+            )
+        ]
+        types = [
+            {
+                "name": r["name"],
+                "definition": r["definition"],
+                "created_at": r["created_at"],
+            }
+            for r in db.execute(
+                "SELECT name, definition, created_at FROM types WHERE binary_hash=? ORDER BY name",
+                (bh,),
+            )
+        ]
+    return {"bookmarks": bookmarks, "structures": structures, "types": types}
+
+
+def import_annotations_sync(
+    bh: str,
+    bookmarks: list[dict[str, Any]],
+    structures: list[dict[str, Any]],
+    types: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Import annotations for a binary hash without overwriting existing entries.
+
+    Entries that already exist with identical content are counted as ``unchanged``.
+    Entries that exist with *different* content are left untouched and reported as
+    conflicts so the receiving analyst's own work is never silently replaced.
+
+    Args:
+        bh: SHA-256 the annotations are attached to.
+        bookmarks: Bookmark dicts (``address``, ``comment``, ``category``).
+        structures: Structure dicts (``name``, ``fields``).
+        types: Type dicts (``name``, ``definition``).
+
+    Returns:
+        Dict with per-kind ``imported``/``unchanged`` counts and a ``conflicts`` list.
+    """
+    result: dict[str, Any] = {
+        "bookmarks": {"imported": 0, "unchanged": 0},
+        "structures": {"imported": 0, "unchanged": 0},
+        "types": {"imported": 0, "unchanged": 0},
+        "conflicts": [],
+    }
+    with _get_db_sync() as db:
+        for b in bookmarks:
+            addr = str(b.get("address", ""))
+            if not addr:
+                continue
+            comment = str(b.get("comment", ""))
+            category = str(b.get("category", "note"))
+            row = db.execute(
+                "SELECT comment, category FROM bookmarks WHERE binary_hash=? AND address=?",
+                (bh, addr),
+            ).fetchone()
+            if row is None:
+                db.execute(
+                    "INSERT INTO bookmarks(binary_hash, address, comment, category) "
+                    "VALUES(?,?,?,?)",
+                    (bh, addr, comment, category),
+                )
+                result["bookmarks"]["imported"] += 1
+            elif row["comment"] == comment and row["category"] == category:
+                result["bookmarks"]["unchanged"] += 1
+            else:
+                result["conflicts"].append(
+                    {"kind": "bookmark", "key": addr, "kept": row["comment"], "incoming": comment}
+                )
+        for s in structures:
+            name = str(s.get("name", ""))
+            if not name:
+                continue
+            fields_json = json.dumps(s.get("fields", []))
+            row = db.execute(
+                "SELECT fields_json FROM structures WHERE binary_hash=? AND name=?",
+                (bh, name),
+            ).fetchone()
+            if row is None:
+                db.execute(
+                    "INSERT INTO structures(binary_hash, name, fields_json) VALUES(?,?,?)",
+                    (bh, name, fields_json),
+                )
+                result["structures"]["imported"] += 1
+            elif json.loads(row["fields_json"]) == s.get("fields", []):
+                result["structures"]["unchanged"] += 1
+            else:
+                result["conflicts"].append({"kind": "structure", "key": name})
+        for t in types:
+            name = str(t.get("name", ""))
+            if not name:
+                continue
+            definition = str(t.get("definition", ""))
+            row = db.execute(
+                "SELECT definition FROM types WHERE binary_hash=? AND name=?",
+                (bh, name),
+            ).fetchone()
+            if row is None:
+                db.execute(
+                    "INSERT INTO types(binary_hash, name, definition) VALUES(?,?,?)",
+                    (bh, name, definition),
+                )
+                result["types"]["imported"] += 1
+            elif row["definition"] == definition:
+                result["types"]["unchanged"] += 1
+            else:
+                result["conflicts"].append({"kind": "type", "key": name})
+        db.commit()
+    return result
