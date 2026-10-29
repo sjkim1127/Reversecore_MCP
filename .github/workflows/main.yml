@@ -60,7 +60,7 @@ jobs:
           failure-threshold: error
 
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v6.1.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v6.1.0
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -158,7 +158,7 @@ jobs:
           sudo apt-get install -y radare2 yara libyara-dev binutils binwalk build-essential nasm sleuthkit
 
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v6.1.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v6.1.0
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
@@ -185,7 +185,7 @@ jobs:
 
       - name: Upload unit coverage artifact
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-python-${{ matrix.python-version }}-${{ github.sha }}
           path: coverage.xml
@@ -236,7 +236,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v6.1.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v6.1.0
         with:
           python-version: '3.11'
       - name: Install build tools
@@ -274,7 +274,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v6.1.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v6.1.0
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -312,7 +312,7 @@ jobs:
           python3 scripts/generate-pe-and-large-binaries.py
 
       - name: Log in to GHCR (for base image pull)
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.0.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.0.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -368,7 +368,7 @@ jobs:
              ! command -v pip && ! command -v pip3'
 
       - name: Run Trivy container security scan
-        uses: aquasecurity/trivy-action@c03d123cb480c08c69b054af418ea5e69fe6e57e # master
+        uses: aquasecurity/trivy-action@8f28faec26515256b6d22074d1d2a8986f4cbd87 # master
         with:
           image-ref: 'reversecore-mcp:ci'
           format: 'table'
@@ -665,13 +665,13 @@ jobs:
           fetch-depth: 0
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           languages: python
           config-file: ./.github/codeql/codeql-config.yml
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
 
   # ──────────────────────────────────────────────────────────────────────────
   # Build base image — matrix strategy: one native runner per architecture.
@@ -713,7 +713,7 @@ jobs:
           driver: docker  # Uses bundled BuildKit — no Docker Hub pull needed
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.0.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.0.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -771,7 +771,7 @@ jobs:
           echo "BASE_IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/base" >> "${GITHUB_ENV}"
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.0.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.0.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -820,7 +820,7 @@ jobs:
           sudo apt-get install -y radare2 yara libyara-dev binutils nasm
 
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v6.1.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v6.1.0
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -894,7 +894,7 @@ jobs:
 
       - name: Upload performance regression artifact
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: performance-regression-${{ github.sha }}
           path: artifacts/ci-benchmarks/performance-regression.json
@@ -950,7 +950,7 @@ jobs:
           echo "BASE_IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/base" >> "${GITHUB_ENV}"
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.0.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.0.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -1081,7 +1081,7 @@ jobs:
           driver: docker  # Uses bundled BuildKit — no Docker Hub pull needed
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.0.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.0.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -1123,7 +1123,7 @@ jobs:
           echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> "${GITHUB_ENV}"
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.0.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.0.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -1144,7 +1144,7 @@ jobs:
           echo "✅ Multi-arch app manifest created: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}"
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@c03d123cb480c08c69b054af418ea5e69fe6e57e # master
+        uses: aquasecurity/trivy-action@8f28faec26515256b6d22074d1d2a8986f4cbd87 # master
         with:
           image-ref: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
           format: 'table'
