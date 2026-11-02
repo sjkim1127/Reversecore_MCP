@@ -550,20 +550,18 @@ def parse_binary_with_lief(file_path: str, format: str = "json") -> ToolResult:
             hint="Set LIEF_MAX_FILE_SIZE environment variable to increase limit",
         )
 
-    # CRITICAL: Reject files over limit BEFORE lief.parse() to prevent OOM
-    # lief.parse() loads entire binary structure into memory, which can cause
-    # Python to consume several GB of RAM for large binaries due to object overhead.
-    if file_size_mb > LIEF_LIMIT_SIZE_MB:
-        return failure(
-            "FILE_TOO_LARGE_FOR_LIEF",
-            f"File size ({file_size_mb:.0f}MB) exceeds LIEF parsing limit ({LIEF_LIMIT_SIZE_MB}MB)",
-            hint="Use radare2 or other lightweight tools for analysis of very large binaries",
-        )
-
     # P2: Determine extraction limits based on file size
     extraction_warning = None
-    if file_size_mb > LIEF_WARN_SIZE_MB:
-        # Large file: reduced extraction
+    is_headers_only = False
+    if file_size_mb > LIEF_LIMIT_SIZE_MB:
+        # Very large file (>500MB): minimal parsing (headers only)
+        max_imports = 0
+        max_exports = 0
+        max_sections = 10
+        is_headers_only = True
+        extraction_warning = f"Large file ({file_size_mb:.0f}MB): minimal parsing (headers only)"
+    elif file_size_mb > LIEF_WARN_SIZE_MB:
+        # Large file (100MB-500MB): reduced extraction
         max_imports = 50
         max_exports = 50
         max_sections = 20
@@ -592,6 +590,7 @@ def parse_binary_with_lief(file_path: str, format: str = "json") -> ToolResult:
                 max_imports,
                 max_exports,
                 max_sections,
+                is_headers_only,
             )
 
             # Wait for result with timeout
@@ -679,16 +678,25 @@ def parse_binary_with_lief(file_path: str, format: str = "json") -> ToolResult:
     }
 
     _hints = finalize_hints(build_lief_hints(file_path, sections_list))
+    metadata_kwargs: dict[str, Any] = {
+        "parse_mode": result_data["_diagnostics"]["parse_mode"],
+        "partial_analysis": file_size_mb > LIEF_WARN_SIZE_MB,
+        "file_size_mb": round(file_size_mb, 1),
+    }
 
     if format.lower() == "json":
-        return success(result_data, hints=_hints or None)
+        return success(result_data, hints=_hints or None, **metadata_kwargs)
 
     formatted_text = _format_lief_output(result_data, format)
-    return success(formatted_text, hints=_hints or None)
+    return success(formatted_text, hints=_hints or None, **metadata_kwargs)
 
 
 def _run_lief_in_process(
-    file_path: str, max_imports: int, max_exports: int, max_sections: int | None
+    file_path: str,
+    max_imports: int,
+    max_exports: int,
+    max_sections: int | None,
+    headers_only: bool = False,
 ) -> dict[str, Any]:
     """
     Worker function to run LIEF parsing in a separate process.
@@ -698,10 +706,21 @@ def _run_lief_in_process(
 
     import lief
 
-    try:
-        binary = lief.parse(file_path)
-    except Exception as exc:
-        raise RuntimeError(f"LIEF parse failed: {exc}")
+    binary = None
+    if headers_only:
+        # Avoid reading whole 500+MB file into RAM: try bounded header buffer first
+        try:
+            with open(file_path, "rb") as f:
+                header_bytes = f.read(2 * 1024 * 1024)
+            binary = lief.parse(header_bytes)
+        except Exception:
+            binary = None
+
+    if binary is None:
+        try:
+            binary = lief.parse(file_path)
+        except Exception as exc:
+            raise RuntimeError(f"LIEF parse failed: {exc}")
 
     if binary is None:
         raise ValueError("Unsupported binary format")
@@ -721,50 +740,64 @@ def _run_lief_in_process(
     # Extract mitigations
     result_data["mitigations"] = _extract_mitigations(binary)
 
-    # Extract symbols
-    symbols = _extract_symbols(binary, max_imports=max_imports, max_exports=max_exports)
-    result_data.update(symbols)
+    # Extract symbols (if not headers_only)
+    if not headers_only:
+        symbols = _extract_symbols(binary, max_imports=max_imports, max_exports=max_exports)
+        result_data.update(symbols)
 
     # Calculate file entropy, anomalies, and overlay
-    try:
-        file_bytes = Path(file_path).read_bytes()
-        overall_entropy = calculate_shannon_entropy(file_bytes)
-        entropy_cat = get_entropy_category(overall_entropy)
+    if not headers_only:
+        try:
+            file_bytes = Path(file_path).read_bytes()
+            overall_entropy = calculate_shannon_entropy(file_bytes)
+            entropy_cat = get_entropy_category(overall_entropy)
 
-        ep_val = None
-        if result_data.get("entry_point"):
-            try:
-                ep_val = int(result_data["entry_point"], 16)
-            except ValueError:
-                ep_val = None
+            ep_val = None
+            if result_data.get("entry_point"):
+                try:
+                    ep_val = int(result_data["entry_point"], 16)
+                except ValueError:
+                    ep_val = None
 
-        section_anomalies = detect_section_anomalies(
-            sections=result_data.get("sections", []),
-            entrypoint=ep_val,
-            file_size=len(file_bytes),
-            format_type=result_data.get("format", "pe"),
-        )
+            section_anomalies = detect_section_anomalies(
+                sections=result_data.get("sections", []),
+                entrypoint=ep_val,
+                file_size=len(file_bytes),
+                format_type=result_data.get("format", "pe"),
+            )
 
-        max_extent = 0
-        for s in result_data.get("sections", []):
-            off = s.get("raw_offset", 0) or 0
-            sz = s.get("raw_size", 0) or 0
-            if (off + sz) > max_extent:
-                max_extent = off + sz
+            max_extent = 0
+            for s in result_data.get("sections", []):
+                off = s.get("raw_offset", 0) or 0
+                sz = s.get("raw_size", 0) or 0
+                if (off + sz) > max_extent:
+                    max_extent = off + sz
 
-        overlay_info = inspect_binary_overlay(
-            file_path=Path(file_path),
-            data=file_bytes,
-            binary_info={"physical_extent": max_extent},
-        )
+            overlay_info = inspect_binary_overlay(
+                file_path=Path(file_path),
+                data=file_bytes,
+                binary_info={"physical_extent": max_extent},
+            )
 
+            result_data["entropy"] = {
+                "overall_file": overall_entropy,
+                "category": entropy_cat,
+            }
+            result_data["section_anomalies"] = section_anomalies
+            result_data["overlay"] = overlay_info
+        except Exception:
+            pass
+    else:
+        # In headers-only mode (>500MB), avoid reading whole file for entropy/overlay
         result_data["entropy"] = {
-            "overall_file": overall_entropy,
-            "category": entropy_cat,
+            "overall_file": None,
+            "category": "unknown",
+            "note": "Skipped in headers-only mode (file > 500MB)",
         }
-        result_data["section_anomalies"] = section_anomalies
-        result_data["overlay"] = overlay_info
-    except Exception:
-        pass
+        result_data["section_anomalies"] = []
+        result_data["overlay"] = {
+            "has_overlay": False,
+            "note": "Skipped in headers-only mode (file > 500MB)",
+        }
 
     return result_data

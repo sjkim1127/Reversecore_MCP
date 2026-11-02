@@ -598,13 +598,27 @@ class TestParseBinaryWithLief:
         assert result.status == "error"
         assert result.error_code == "FILE_TOO_LARGE"
 
-    def test_file_size_exceeds_lief_limit(self, tmp_path):
+    def test_file_size_headers_only_mode(self, tmp_path):
+        """Files > 500MB (and <= lief_max_file_size) parse in headers_only mode without OOM."""
         from reversecore_mcp.tools.analysis.lief_tools import parse_binary_with_lief
 
-        # We need mock stat to return a huge size
         mock_path = MagicMock()
         mock_path.stat.return_value.st_size = 600 * 1024 * 1024  # 600MB
+        mock_path.stat.return_value.st_mtime_ns = 12345
         mock_path.exists.return_value = True
+
+        mock_result = {
+            "format": "pe",
+            "entry_point": "0x401000",
+            "sections": [{"name": ".text", "virtual_address": "0x1000", "size": 4096}],
+            "mitigations": {"nx": True, "pie": False},
+        }
+        mock_future = MagicMock()
+        mock_future.result.return_value = mock_result
+        mock_executor = MagicMock()
+        mock_executor.submit.return_value = mock_future
+        mock_executor.__enter__ = MagicMock(return_value=mock_executor)
+        mock_executor.__exit__ = MagicMock(return_value=False)
 
         with patch(
             "reversecore_mcp.tools.analysis.lief_tools.validate_file_path",
@@ -612,10 +626,60 @@ class TestParseBinaryWithLief:
         ):
             with patch("reversecore_mcp.tools.analysis.lief_tools.get_config") as mock_get_config:
                 mock_get_config.return_value.lief_max_file_size = 1000 * 1024 * 1024
-                result = parse_binary_with_lief(str(mock_path))
+                with patch("concurrent.futures.ProcessPoolExecutor", return_value=mock_executor):
+                    result = parse_binary_with_lief(str(mock_path))
 
-        assert result.status == "error"
-        assert result.error_code == "FILE_TOO_LARGE_FOR_LIEF"
+        assert result.status == "success"
+        assert result.data["_diagnostics"]["parse_mode"] == "headers_only (file > 500MB)"
+        assert result.metadata["parse_mode"] == "headers_only (file > 500MB)"
+        assert result.metadata["partial_analysis"] is True
+        assert result.metadata["file_size_mb"] == 600.0
+        assert "_warning" in result.data
+        assert "headers only" in result.data["_warning"]
+
+    def test_large_file_boundaries_and_rejection(self, tmp_path):
+        """Test boundaries across <=100MB, 100-500MB, 500MB-max, and >lief_max_file_size rejection."""
+        from reversecore_mcp.tools.analysis.lief_tools import parse_binary_with_lief
+
+        mock_path = MagicMock()
+        mock_path.stat.return_value.st_mtime_ns = 99999
+        mock_path.exists.return_value = True
+
+        mock_result = {"format": "pe", "entry_point": "0x1000"}
+        mock_future = MagicMock()
+        mock_future.result.return_value = mock_result
+        mock_executor = MagicMock()
+        mock_executor.submit.return_value = mock_future
+
+        with patch(
+            "reversecore_mcp.tools.analysis.lief_tools.validate_file_path",
+            return_value=mock_path,
+        ):
+            with patch("reversecore_mcp.tools.analysis.lief_tools.get_config") as mock_get_config:
+                # 1. Configured limit: 800MB
+                mock_get_config.return_value.lief_max_file_size = 800 * 1024 * 1024
+
+                # File at 900MB exceeds configured limit -> rejected
+                mock_path.stat.return_value.st_size = 900 * 1024 * 1024
+                res_rejected = parse_binary_with_lief(str(mock_path))
+                assert res_rejected.status == "error"
+                assert res_rejected.error_code == "FILE_TOO_LARGE"
+
+                # File at 501MB within configured limit -> headers_only mode
+                with patch("concurrent.futures.ProcessPoolExecutor", return_value=mock_executor):
+                    mock_path.stat.return_value.st_size = 501 * 1024 * 1024
+                    res_headers = parse_binary_with_lief(str(mock_path))
+                    assert res_headers.status == "success"
+                    assert "headers_only" in res_headers.metadata["parse_mode"]
+                    assert res_headers.metadata["partial_analysis"] is True
+
+                # File at 50MB (<= 100MB) -> full_detail mode
+                with patch("concurrent.futures.ProcessPoolExecutor", return_value=mock_executor):
+                    mock_path.stat.return_value.st_size = 50 * 1024 * 1024
+                    res_full = parse_binary_with_lief(str(mock_path))
+                    assert res_full.status == "success"
+                    assert res_full.metadata["parse_mode"] == "full_detail"
+                    assert res_full.metadata["partial_analysis"] is False
 
     def test_file_size_warning_truncated(self, tmp_path):
         from reversecore_mcp.tools.analysis.lief_tools import parse_binary_with_lief
