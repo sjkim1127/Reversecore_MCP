@@ -1,0 +1,27 @@
+{
+  "finding_id": "reg_refactor_001",
+  "status": "CHANGED",
+  "category": "benign_refactor",
+  "severity": "INFORMATIONAL",
+  "title": "Compiler Inlining and Register Allocation Reorder in Logger",
+  "description": "Function format_log_timestamp() was inlined into emit_log_message(), resulting in different instruction ordering and register usage. No change in control flow bounds or external data inputs.",
+  "security_relevant": false,
+  "old_location": {
+    "binary_name": "server_v1.0.bin",
+    "function_name": "format_log_timestamp",
+    "address": "0x403150",
+    "offset": 12624,
+    "code_snippet": "call sym.format_time"
+  },
+  "new_location": {
+    "binary_name": "server_v2.0.bin",
+    "function_name": "emit_log_message",
+    "address": "0x403890",
+    "offset": 14480,
+    "code_snippet": "lea rdi, [rip + 0x2000]; call sym.imp.strftime"
+  },
+  "provenance_tool": "analyze_variant_changes",
+  "evidence_level": "INFERRED",
+  "confidence_score": 0.25,
+  "remediation_or_fix_note": "Harmless code motion; no security consequence."
+}
