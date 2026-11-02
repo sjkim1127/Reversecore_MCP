@@ -1,0 +1,53 @@
+{
+  "description": "False-positive fixture: Apparent command execution sink that is unreachable dead code with unsatisfiable constraints",
+  "hypothesis_id": "hyp-dead-sink-002",
+  "title": "Unauthenticated command execution in dead_sink_402100",
+  "category": "vulnerability",
+  "initial_claim": "Function dead_sink_402100 executes arbitrary commands from user environment variables.",
+  "target_function": "dead_sink_402100",
+  "target_address": "0x00402100",
+  "steps": [
+    {
+      "stage": "static_observation",
+      "tool_name": "Radare2_list_strings",
+      "outcome": "supported",
+      "summary": "String heuristic identified cmd.exe format string referencing environment variables near dead_sink_402100",
+      "tool_evidence": {
+        "matched_string": "cmd.exe /c %USER_INPUT%",
+        "address": "0x00402110"
+      }
+    },
+    {
+      "stage": "structural_reachability",
+      "tool_name": "Radare2_xrefs_to",
+      "outcome": "contradicted",
+      "summary": "Function dead_sink_402100 has 0 incoming cross-references and is omitted from all exports, dispatch tables, and entrypoints",
+      "tool_evidence": {
+        "incoming_xrefs": [],
+        "is_exported": false,
+        "in_vtable": false
+      },
+      "contradictions": [
+        "Function dead_sink_402100 is completely unreferenced by any caller or dispatch table in the binary"
+      ]
+    },
+    {
+      "stage": "symbolic_constraint",
+      "tool_name": "verify_path_and_get_args",
+      "outcome": "contradicted",
+      "summary": "Path constraint guard (guard_val > 100 && guard_val < 50) is mathematically unsatisfiable (UNSAT)",
+      "tool_evidence": {
+        "solver_status": "UNSAT",
+        "contradictory_guard": "x > 100 && x < 50"
+      },
+      "contradictions": [
+        "Branch guard condition to dangerous block is mathematically unsatisfiable (UNSAT)"
+      ]
+    }
+  ],
+  "expected_final_status": "refuted",
+  "expected_final_evidence_level": "possible",
+  "expected_is_reachable": false,
+  "expected_is_tainted": false,
+  "expected_is_exploitable": false
+}
