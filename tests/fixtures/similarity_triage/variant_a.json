@@ -1,0 +1,118 @@
+{
+  "sample_id": "trojan_downloader_v1",
+  "binary_name": "payload_v1.exe",
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "family_label": "Trojan.Downloader.AgentX",
+  "architecture": "x86_64",
+  "metadata": {
+    "first_seen": "2026-01-10T12:00:00Z",
+    "compiler": "GCC 11.2",
+    "analyst_notes": "First generation AgentX downloader stage."
+  },
+  "signals": [
+    {
+      "signal_type": "api_hash_resolver",
+      "key": "algorithm:crc32",
+      "value": "CRC32",
+      "strength": "STRONG",
+      "provenance_tool": "resolve_api_hashes",
+      "description": "Custom API resolver hashing Win32 export names using CRC32"
+    },
+    {
+      "signal_type": "persistence_capability",
+      "key": "mechanism:run_key",
+      "value": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\UpdaterService",
+      "strength": "STRONG",
+      "provenance_tool": "run_capa",
+      "description": "Persistence via User Registry Run key"
+    },
+    {
+      "signal_type": "c2_communication",
+      "key": "domain_suffix:.cdn-telemetry-cache.net",
+      "value": ".cdn-telemetry-cache.net",
+      "strength": "STRONG",
+      "provenance_tool": "extract_iocs",
+      "description": "Overlapping C2 infrastructure domain suffix"
+    },
+    {
+      "signal_type": "crypto_constant",
+      "key": "constant:rc4_sbox_init",
+      "value": "rc4_sbox_init",
+      "strength": "STRONG",
+      "provenance_tool": "find_crypto_constants",
+      "description": "RC4 key scheduling initialization array"
+    },
+    {
+      "signal_type": "function_signature",
+      "key": "function:decode_c2_payload",
+      "value": "554889e54883ec2048894df8488b45f8",
+      "strength": "STRONG",
+      "provenance_tool": "generate_signature",
+      "description": "Normalized opcode sequence of RC4 payload decryptor at 0x401200"
+    },
+    {
+      "signal_type": "behavioral_capability",
+      "key": "capa:inject_thread",
+      "value": "inject_thread",
+      "strength": "MEDIUM",
+      "provenance_tool": "run_capa",
+      "description": "Process injection capability via CreateRemoteThread"
+    },
+    {
+      "signal_type": "notable_ioc",
+      "key": "mutex:Global\\AgentX_Mutex_v1",
+      "value": "Global\\AgentX_Mutex_v1",
+      "strength": "MEDIUM",
+      "provenance_tool": "extract_iocs",
+      "description": "Unique process mutex name"
+    },
+    {
+      "signal_type": "packer_protector",
+      "key": "packer_type",
+      "value": "None/Custom",
+      "strength": "MEDIUM",
+      "provenance_tool": "detect_packer",
+      "description": "Unpacked native binary"
+    },
+    {
+      "signal_type": "generic_import",
+      "key": "import:exitprocess",
+      "value": "ExitProcess",
+      "strength": "WEAK",
+      "provenance_tool": "parse_binary_with_lief",
+      "description": "Standard Win32 process exit API"
+    },
+    {
+      "signal_type": "generic_import",
+      "key": "import:loadlibrarya",
+      "value": "LoadLibraryA",
+      "strength": "WEAK",
+      "provenance_tool": "parse_binary_with_lief",
+      "description": "Standard Win32 library loader"
+    },
+    {
+      "signal_type": "generic_import",
+      "key": "import:getprocaddress",
+      "value": "GetProcAddress",
+      "strength": "WEAK",
+      "provenance_tool": "parse_binary_with_lief",
+      "description": "Standard Win32 procedure resolver"
+    },
+    {
+      "signal_type": "superficial_string",
+      "key": "string:usage",
+      "value": "Usage: service.exe [start|stop]",
+      "strength": "WEAK",
+      "provenance_tool": "extract_iocs",
+      "description": "Generic command line help string"
+    },
+    {
+      "signal_type": "superficial_string",
+      "key": "string:error",
+      "value": "Error: unable to allocate buffer",
+      "strength": "WEAK",
+      "provenance_tool": "extract_iocs",
+      "description": "Generic error string"
+    }
+  ]
+}
