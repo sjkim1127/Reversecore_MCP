@@ -10,7 +10,8 @@ def test_unified_runtime_uses_secure_pillow_without_qiling() -> None:
     compiler = (ROOT / "scripts" / "compile-requirements.sh").read_text(encoding="utf-8")
     trivy_ignore = (ROOT / ".trivyignore").read_text(encoding="utf-8")
 
-    assert '"pillow>=12.3.0,<13"' in pyproject
+    assert "\"pillow>=12.3.0; python_version < '3.11'\"" in pyproject
+    assert "\"pillow>=13.0.0; python_version >= '3.11'\"" in pyproject
     assert '"qiling>=' not in pyproject
     assert "pillow==12.3.0" in requirements
     assert "qiling==" not in requirements

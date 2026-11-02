@@ -474,7 +474,7 @@ def build_manifest(catalog: dict[str, Any]) -> dict[str, Any]:
         "total_tools": len(all_tools),
         "protocol_readiness": {
             "mcp_version": "2024-11-05",
-            "fastmcp_version": "3.4.4",
+            "fastmcp_version": "3.4.11",
             "capabilities": {
                 "tools": {"listChanged": False},
                 "resources": {"subscribe": False, "listChanged": False},

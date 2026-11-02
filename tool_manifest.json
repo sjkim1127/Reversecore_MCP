@@ -5,7 +5,7 @@
   "total_tools": 179,
   "protocol_readiness": {
     "mcp_version": "2024-11-05",
-    "fastmcp_version": "3.4.4",
+    "fastmcp_version": "3.4.11",
     "capabilities": {
       "tools": {
         "listChanged": false

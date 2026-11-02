@@ -15,7 +15,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-3069%20passed-brightgreen)](#testing)
 [![Coverage](https://img.shields.io/badge/coverage-88%25-green)](#testing)
-[![FastMCP](https://img.shields.io/badge/FastMCP-3.4.4-purple)](https://github.com/jlowin/fastmcp)
+[![FastMCP](https://img.shields.io/badge/FastMCP-3.4.11-purple)](https://github.com/jlowin/fastmcp)
 [![PyPI](https://img.shields.io/pypi/v/reversecore-mcp)](https://pypi.org/project/reversecore-mcp/)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io-blue)](https://github.com/sjkim1127/Reversecore_MCP/pkgs/container/reversecore_mcp)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/sjkim1127/Reversecore_MCP/badge)](https://scorecard.dev/viewer/?uri=github.com/sjkim1127/Reversecore_MCP)
@@ -95,7 +95,7 @@ AI Client (Claude / Cursor / any MCP-compatible client)
         │  MCP Protocol (stdio or HTTP/SSE)
         ▼
 ┌──────────────────────────────────────────────────────┐
-│                   FastMCP 3.4.4 Server               │
+│                   FastMCP 3.4.11 Server              │
 │          179 registered tools · Fully async          │
 │                  Python 3.10–3.12                    │
 ├────────────────────┬─────────────────────────────────┤
