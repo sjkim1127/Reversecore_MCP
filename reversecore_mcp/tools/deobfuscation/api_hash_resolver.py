@@ -62,6 +62,8 @@ _PEB_PATTERNS: list[tuple[re.Pattern, str]] = [
 _HEX_IMM_PATTERN = re.compile(r"\b0x([0-9a-fA-F]{5,8})\b")
 _INT_IMM_PATTERN = re.compile(r"\b([1-9][0-9]{7,9})\b")
 
+RAW_FALLBACK_MAX_OFFSET: int = 1024 * 1024  # 1 MiB scan window for raw fallback
+
 
 async def _run_r2_command(file_path: str | Path, command: str, timeout: int = 30) -> str:
     """Execute a radare2 command using async execution."""
@@ -188,11 +190,24 @@ async def resolve_api_hashes_impl(
                     pass
 
     # Step 3: Also scan raw binary data for DWORDs if few instructions were found
+    raw_fallback_used = False
+    raw_scan_bytes = 0
+    raw_scan_partial = False
+    file_size = 0
+
     if len(scanned_constants) < 20:
+        raw_fallback_used = True
         try:
-            raw_bytes = safe_path.read_bytes()
-            # Scan in 4-byte steps
-            for offset in range(0, min(len(raw_bytes) - 4, 1024 * 1024), 4):
+            file_size = safe_path.stat().st_size
+            max_read = RAW_FALLBACK_MAX_OFFSET + 4
+            with safe_path.open("rb") as f:
+                raw_bytes = f.read(max_read)
+
+            raw_scan_bytes = min(len(raw_bytes), RAW_FALLBACK_MAX_OFFSET)
+            raw_scan_partial = file_size > raw_scan_bytes
+
+            # Scan in 4-byte steps within the first 1 MiB window
+            for offset in range(0, min(len(raw_bytes) - 4, RAW_FALLBACK_MAX_OFFSET), 4):
                 val = struct.unpack("<I", raw_bytes[offset : offset + 4])[0]
                 if 0x10000 <= val <= 0xFFFFFFFF:
                     matches = db.lookup(val, algorithm=algo_filter)
@@ -246,7 +261,16 @@ async def resolve_api_hashes_impl(
         "summary": f"Scanned {len(scanned_constants)} constants; resolved {len(resolved_apis)} API hashes with {len(peb_walking_indicators)} PEB traversal indicators.",
     }
 
-    return success(result_payload)
+    metadata_kwargs: dict[str, Any] = {}
+    if raw_fallback_used:
+        metadata_kwargs = {
+            "raw_scan_bytes": raw_scan_bytes,
+            "file_size": file_size,
+            "raw_scan_partial": raw_scan_partial,
+        }
+        result_payload.update(metadata_kwargs)
+
+    return success(result_payload, **metadata_kwargs)
 
 
 def pe_has_peb_indicators(indicators: list[dict[str, Any]]) -> bool:
