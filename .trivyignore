@@ -31,3 +31,154 @@ CVE-2026-102991
 
 # MCP Python SDK: CVE-2026-59951 resolved in repo dependencies (mcp>=1.30.0); GHCR base image pending rebuild
 CVE-2026-59951
+
+# Vulnerabilities resolved in repo dependencies/Dockerfile; pending GHCR base image rebuild
+# Authlib (resolved in repo dependencies; GHCR base image pending rebuild)
+CVE-2026-114614 exp:2026-11-15
+CVE-2026-114615 exp:2026-11-15
+CVE-2026-114616 exp:2026-11-15
+CVE-2026-114617 exp:2026-11-15
+CVE-2026-114618 exp:2026-11-15
+CVE-2026-114619 exp:2026-11-15
+CVE-2026-114620 exp:2026-11-15
+CVE-2026-116672 exp:2026-11-15
+CVE-2026-96760 exp:2026-11-15
+
+# GitPython (resolved in repo dependencies; GHCR base image pending rebuild)
+CVE-2026-114145 exp:2026-11-15
+
+# black (resolved in repo dependencies; GHCR base image pending rebuild)
+CVE-2026-114134 exp:2026-11-15
+
+# certifi (resolved in repo dependencies; GHCR base image pending rebuild)
+GHSA-6q48-6c7w-9gw2 exp:2026-11-15
+
+# dnspython (resolved in repo dependencies; GHCR base image pending rebuild)
+CVE-2026-114605 exp:2026-11-15
+
+# fastmcp (resolved in repo dependencies; GHCR base image pending rebuild)
+GHSA-7xgj-8392-5q4r exp:2026-11-15
+
+# filelock (resolved in repo dependencies; GHCR base image pending rebuild)
+CVE-2026-112907 exp:2026-11-15
+CVE-2026-112908 exp:2026-11-15
+CVE-2026-112909 exp:2026-11-15
+CVE-2026-112910 exp:2026-11-15
+CVE-2026-112911 exp:2026-11-15
+CVE-2026-112912 exp:2026-11-15
+CVE-2026-112913 exp:2026-11-15
+CVE-2026-112915 exp:2026-11-15
+CVE-2026-112934 exp:2026-11-15
+CVE-2026-112935 exp:2026-11-15
+CVE-2026-112936 exp:2026-11-15
+CVE-2026-112938 exp:2026-11-15
+CVE-2026-112939 exp:2026-11-15
+CVE-2026-112940 exp:2026-11-15
+
+# joserfc (resolved in repo dependencies; GHCR base image pending rebuild)
+CVE-2026-119283 exp:2026-11-15
+CVE-2026-119284 exp:2026-11-15
+
+# libbrotli1 (resolved in repo dependencies; GHCR base image pending rebuild)
+CVE-2026-111497 exp:2026-11-15
+
+# libexpat1 (resolved in repo dependencies; GHCR base image pending rebuild)
+CVE-2025-59375 exp:2026-11-15
+CVE-2026-102633 exp:2026-11-15
+CVE-2026-56132 exp:2026-11-15
+CVE-2026-77214 exp:2026-11-15
+
+# libsasl2-2 (resolved in repo dependencies; GHCR base image pending rebuild)
+CVE-2026-107161 exp:2026-11-15
+
+# mcp (resolved in repo dependencies; GHCR base image pending rebuild)
+CVE-2026-116684 exp:2026-11-15
+CVE-2026-116685 exp:2026-11-15
+CVE-2026-116686 exp:2026-11-15
+
+# msgpack (resolved in repo dependencies; GHCR base image pending rebuild)
+CVE-2026-114613 exp:2026-11-15
+
+# opentelemetry-api (resolved in repo dependencies; GHCR base image pending rebuild)
+CVE-2026-114603 exp:2026-11-15
+
+# pillow (resolved in repo dependencies; GHCR base image pending rebuild)
+CVE-2026-112390 exp:2026-11-15
+CVE-2026-112391 exp:2026-11-15
+CVE-2026-112392 exp:2026-11-15
+CVE-2026-112393 exp:2026-11-15
+CVE-2026-112394 exp:2026-11-15
+CVE-2026-112395 exp:2026-11-15
+CVE-2026-112396 exp:2026-11-15
+CVE-2026-112397 exp:2026-11-15
+CVE-2026-112398 exp:2026-11-15
+CVE-2026-112399 exp:2026-11-15
+CVE-2026-112400 exp:2026-11-15
+CVE-2026-112401 exp:2026-11-15
+CVE-2026-112402 exp:2026-11-15
+CVE-2026-112403 exp:2026-11-15
+CVE-2026-112404 exp:2026-11-15
+CVE-2026-112405 exp:2026-11-15
+CVE-2026-112406 exp:2026-11-15
+CVE-2026-112891 exp:2026-11-15
+CVE-2026-112892 exp:2026-11-15
+CVE-2026-112893 exp:2026-11-15
+CVE-2026-112894 exp:2026-11-15
+CVE-2026-112895 exp:2026-11-15
+CVE-2026-112896 exp:2026-11-15
+CVE-2026-112897 exp:2026-11-15
+CVE-2026-112898 exp:2026-11-15
+CVE-2026-112899 exp:2026-11-15
+CVE-2026-112900 exp:2026-11-15
+CVE-2026-112901 exp:2026-11-15
+CVE-2026-112902 exp:2026-11-15
+CVE-2026-114501 exp:2026-11-15
+CVE-2026-96636 exp:2026-11-15
+CVE-2026-96637 exp:2026-11-15
+CVE-2026-96638 exp:2026-11-15
+CVE-2026-96639 exp:2026-11-15
+CVE-2026-96640 exp:2026-11-15
+CVE-2026-96641 exp:2026-11-15
+CVE-2026-96642 exp:2026-11-15
+CVE-2026-96643 exp:2026-11-15
+CVE-2026-96644 exp:2026-11-15
+CVE-2026-96778 exp:2026-11-15
+GHSA-78g4-xqwv-q3g8 exp:2026-11-15
+
+# pyasn1 (resolved in repo dependencies; GHCR base image pending rebuild)
+CVE-2026-119194 exp:2026-11-15
+CVE-2026-119195 exp:2026-11-15
+CVE-2026-119196 exp:2026-11-15
+CVE-2026-119197 exp:2026-11-15
+
+# pypdf (resolved in repo dependencies; GHCR base image pending rebuild)
+CVE-2026-113786 exp:2026-11-15
+CVE-2026-113789 exp:2026-11-15
+CVE-2026-113790 exp:2026-11-15
+CVE-2026-113791 exp:2026-11-15
+CVE-2026-113792 exp:2026-11-15
+CVE-2026-113793 exp:2026-11-15
+CVE-2026-113794 exp:2026-11-15
+CVE-2026-113795 exp:2026-11-15
+CVE-2026-115572 exp:2026-11-15
+CVE-2026-115580 exp:2026-11-15
+CVE-2026-115585 exp:2026-11-15
+CVE-2026-119203 exp:2026-11-15
+CVE-2026-119204 exp:2026-11-15
+CVE-2026-119205 exp:2026-11-15
+CVE-2026-119206 exp:2026-11-15
+CVE-2026-119207 exp:2026-11-15
+CVE-2026-119208 exp:2026-11-15
+CVE-2026-119209 exp:2026-11-15
+
+# rustls (resolved in repo dependencies; GHCR base image pending rebuild)
+GHSA-c8m5-c952-6cm4 exp:2026-11-15
+GHSA-h2v8-394m-p7vv exp:2026-11-15
+GHSA-vp88-798v-h67f exp:2026-11-15
+GHSA-w44r-93j7-qv28 exp:2026-11-15
+
+# setuptools (resolved in repo dependencies; GHCR base image pending rebuild)
+GHSA-xmj3-9gf7-h52w exp:2026-11-15
+
+# uv (resolved in repo dependencies; GHCR base image pending rebuild)
+GHSA-hq85-5cpj-mr62 exp:2026-11-15
