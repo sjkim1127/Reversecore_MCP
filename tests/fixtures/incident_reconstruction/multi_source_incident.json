@@ -1,0 +1,121 @@
+{
+  "incident_id": "inc_2026_apt_stage1",
+  "title": "Operation GhostPulse: Multi-Source C2 Beaconing and Staging Incident",
+  "summary_notes": "Correlated intrusion involving dropped backdoor on disk, memory injection, and encrypted C2 traffic observed in PCAP.",
+  "observations": [
+    {
+      "entity_type": "hash",
+      "value": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_type": "binary",
+      "source_artifact": "evidence/payload.exe",
+      "provenance_tool": "extract_iocs",
+      "timestamp": null,
+      "evidence_level": "OBSERVED",
+      "confidence": 1.0,
+      "context": {
+        "file_size": 65536,
+        "arch": "x86_64"
+      }
+    },
+    {
+      "entity_type": "domain",
+      "value": "c2-gateway.apt-actor.org",
+      "source_type": "binary",
+      "source_artifact": "evidence/payload.exe",
+      "provenance_tool": "extract_iocs",
+      "timestamp": null,
+      "evidence_level": "OBSERVED",
+      "confidence": 0.95,
+      "context": {
+        "description": "Embedded hardcoded C2 domain string in .rdata"
+      }
+    },
+    {
+      "entity_type": "ip",
+      "value": "198.51.100.42",
+      "source_type": "binary",
+      "source_artifact": "evidence/payload.exe",
+      "provenance_tool": "extract_iocs",
+      "timestamp": null,
+      "evidence_level": "OBSERVED",
+      "confidence": 0.9,
+      "context": {
+        "description": "Embedded fallback IP literal"
+      }
+    },
+    {
+      "entity_type": "file_path",
+      "value": "C:\\Users\\Public\\payload.exe",
+      "source_type": "disk",
+      "source_artifact": "evidence/disk_image.raw",
+      "provenance_tool": "disk_analyze_mft",
+      "timestamp": "2026-03-01T12:00:00Z",
+      "evidence_level": "OBSERVED",
+      "confidence": 1.0,
+      "context": {
+        "description": "MFT entry creation event in staging directory",
+        "mtime": "2026-03-01T12:00:00Z",
+        "compile_time": "2026-03-05T08:00:00Z"
+      }
+    },
+    {
+      "entity_type": "hash",
+      "value": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_type": "disk",
+      "source_artifact": "evidence/disk_image.raw",
+      "provenance_tool": "disk_extract_file",
+      "timestamp": "2026-03-01T12:01:00Z",
+      "evidence_level": "OBSERVED",
+      "confidence": 1.0,
+      "context": {
+        "description": "SHA-256 of extracted disk payload matches binary evidence"
+      }
+    },
+    {
+      "entity_type": "process_name",
+      "value": "payload.exe",
+      "source_type": "memory",
+      "source_artifact": "evidence/memdump.raw",
+      "provenance_tool": "memory_list_processes",
+      "timestamp": "2026-03-01T12:02:30Z",
+      "evidence_level": "OBSERVED",
+      "confidence": 1.0,
+      "context": {
+        "pid": 4820,
+        "ppid": 1044,
+        "executable_path": "C:\\Windows\\Temp\\payload.exe",
+        "description": "Running process identified in active memory pool"
+      }
+    },
+    {
+      "entity_type": "domain",
+      "value": "c2-gateway.apt-actor.org",
+      "source_type": "pcap",
+      "source_artifact": "evidence/network_capture.pcap",
+      "provenance_tool": "pcap_extract_dns",
+      "timestamp": "2026-03-01T12:05:00Z",
+      "evidence_level": "OBSERVED",
+      "confidence": 1.0,
+      "context": {
+        "query_type": "A",
+        "resolved_ip": "198.51.100.42",
+        "description": "DNS query originating from infected endpoint"
+      }
+    },
+    {
+      "entity_type": "ip",
+      "value": "198.51.100.42",
+      "source_type": "pcap",
+      "source_artifact": "evidence/network_capture.pcap",
+      "provenance_tool": "pcap_list_connections",
+      "timestamp": "2026-03-01T12:05:15Z",
+      "evidence_level": "OBSERVED",
+      "confidence": 1.0,
+      "context": {
+        "dest_port": 443,
+        "proto": "TCP",
+        "description": "Outbound TLS connection established to resolved C2"
+      }
+    }
+  ]
+}
