@@ -15076,7 +15076,7 @@
         "limit": {
           "default": 100,
           "type": "integer",
-          "description": "Maximum number of IOCs to return per category (default: 100)"
+          "description": "Maximum number of IOCs to return per category (0 to 10000, default: 100).\nA limit of 0 returns empty category lists while avoiding regex extraction overage."
         }
       },
       "type": "object"
