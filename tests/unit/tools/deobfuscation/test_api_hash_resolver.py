@@ -8,6 +8,7 @@ import pytest
 from reversecore_mcp.core.exceptions import ValidationError
 from reversecore_mcp.core.security import get_workspace_config
 from reversecore_mcp.tools.deobfuscation.api_hash_resolver import (
+    RAW_FALLBACK_MAX_OFFSET,
     _run_r2_command,
     pe_has_peb_indicators,
     resolve_api_hashes_impl,
@@ -122,3 +123,113 @@ class TestApiHashResolver:
         data = res.data
         assert data is not None
         assert any(item["api_name"] == "VirtualAlloc" for item in data["resolved_apis"])
+        assert res.metadata["raw_scan_bytes"] == len(raw_data)
+        assert res.metadata["file_size"] == len(raw_data)
+        assert res.metadata["raw_scan_partial"] is False
+
+    @pytest.mark.asyncio
+    async def test_raw_fallback_bounded_read_on_large_sparse_fixture(self):
+        """Verify raw fallback on large binaries is strictly bounded to the 1 MiB window."""
+        h_virtualalloc = ror13("VirtualAlloc")
+        h_createfilew = ror13("CreateFileW")
+
+        # Create sparse 100 MiB file
+        ws = get_workspace_config().workspace
+        test_bin = ws / "large_sparse_sample.bin"
+        with test_bin.open("wb") as f:
+            # Place VirtualAlloc at offset 0x100 (inside 1 MiB window)
+            f.seek(0x100)
+            f.write(h_virtualalloc.to_bytes(4, "little"))
+            # Place CreateFileW at offset 2 MiB (outside 1 MiB window)
+            f.seek(2 * 1024 * 1024)
+            f.write(h_createfilew.to_bytes(4, "little"))
+            # Extend file to 100 MiB
+            f.seek(100 * 1024 * 1024 - 1)
+            f.write(b"\x00")
+
+        file_size = test_bin.stat().st_size
+        assert file_size == 100 * 1024 * 1024
+
+        async def mock_r2_cmd(path, cmd, timeout=30):
+            return "[]"
+
+        # Intercept Path.open to track bytes read
+        real_open = Path.open
+        bytes_read_list: list[int] = []
+
+        def tracked_open(self_path, *args, **kwargs):
+            handle = real_open(self_path, *args, **kwargs)
+            mode = args[0] if args else kwargs.get("mode", "r")
+            if self_path == test_bin and "b" in mode:
+                real_read = handle.read
+
+                def tracked_read(size=-1):
+                    data = real_read(size)
+                    bytes_read_list.append(len(data))
+                    return data
+
+                handle.read = tracked_read
+            return handle
+
+        with (
+            patch(
+                "reversecore_mcp.tools.deobfuscation.api_hash_resolver._run_r2_command",
+                side_effect=mock_r2_cmd,
+            ),
+            patch.object(
+                Path, "read_bytes", side_effect=AssertionError("read_bytes() must not be called")
+            ),
+            patch.object(Path, "open", tracked_open),
+        ):
+            res = await resolve_api_hashes_impl(str(test_bin), algorithm="ror13")
+
+        assert res.status == "success"
+        data = res.data
+        assert data is not None
+
+        # 1. Bounded read verified
+        assert len(bytes_read_list) >= 1
+        assert max(bytes_read_list) <= RAW_FALLBACK_MAX_OFFSET + 4
+
+        # 2. Metadata reports partial scan of large file
+        assert res.metadata["raw_scan_bytes"] == RAW_FALLBACK_MAX_OFFSET
+        assert res.metadata["file_size"] == file_size
+        assert res.metadata["raw_scan_partial"] is True
+
+        # 3. Only the constant in the 1 MiB window is resolved
+        resolved_names = [item["api_name"] for item in data["resolved_apis"]]
+        assert "VirtualAlloc" in resolved_names
+        assert "CreateFileW" not in resolved_names
+
+    @pytest.mark.asyncio
+    async def test_raw_fallback_bounded_memory_on_sparse_file(self):
+        """Verify peak memory consumption remains under 10 MiB on a 500 MiB sparse fixture."""
+        import tracemalloc
+
+        ws = get_workspace_config().workspace
+        test_bin = ws / "huge_sparse_sample.bin"
+        with test_bin.open("wb") as f:
+            f.seek(0x200)
+            f.write(ror13("VirtualAlloc").to_bytes(4, "little"))
+            f.seek(500 * 1024 * 1024 - 1)
+            f.write(b"\x00")
+
+        async def mock_r2_cmd(path, cmd, timeout=30):
+            return "[]"
+
+        tracemalloc.start()
+        try:
+            with patch(
+                "reversecore_mcp.tools.deobfuscation.api_hash_resolver._run_r2_command",
+                side_effect=mock_r2_cmd,
+            ):
+                res = await resolve_api_hashes_impl(str(test_bin), algorithm="ror13")
+            _, peak_bytes = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+
+        assert res.status == "success"
+        assert res.metadata["raw_scan_partial"] is True
+        # If the 500MB file were read into memory, peak_bytes would exceed 500MB.
+        # With bounded read, peak allocated memory for the read buffer is ~1-3 MB.
+        assert peak_bytes < 10 * 1024 * 1024, f"Peak memory was too high: {peak_bytes} bytes"
