@@ -10,6 +10,7 @@ from reversecore_mcp.prompts.cve_research import (
     taint_analysis_mode,
 )
 from reversecore_mcp.prompts.deobfuscation_prompts import malware_deobfuscation_mode
+from reversecore_mcp.prompts.evidence_escalation import evidence_escalation_mode
 from reversecore_mcp.prompts.exploit_prompts import exploit_analysis_mode
 from reversecore_mcp.prompts.game import game_analysis_mode
 from reversecore_mcp.prompts.malware import (
@@ -48,6 +49,7 @@ __all__ = [
     "code_similarity_mode",
     "crypto_analysis_mode",
     "cve_discovery_pipeline_mode",
+    "evidence_escalation_mode",
     "exploit_analysis_mode",
     "firmware_analysis_mode",
     "full_analysis_mode",
@@ -119,6 +121,7 @@ def register_prompts(mcp: FastMCP):
 
     # Orchestration & Adaptive Planning Prompts
     mcp.prompt("auto_planning_mode")(auto_planning_mode)
+    mcp.prompt("evidence_escalation_mode")(evidence_escalation_mode)
 
     # Server Inspection Prompts
     mcp.prompt("server_health_check_mode")(server_health_check_mode)

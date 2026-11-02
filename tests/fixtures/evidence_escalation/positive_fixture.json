@@ -1,0 +1,79 @@
+{
+  "description": "Positive verification fixture: Dormant backdoor triggered by magic config token reaching command execution sink",
+  "hypothesis_id": "hyp-dormant-cmd-001",
+  "title": "Dormant command execution in sub_401340 via magic config token",
+  "category": "backdoor",
+  "initial_claim": "Function sub_401340 contains a dormant command execution path reachable only when a network config token equals 0x5339.",
+  "target_function": "sub_401340",
+  "target_address": "0x00401340",
+  "steps": [
+    {
+      "stage": "static_observation",
+      "tool_name": "dormant_detector",
+      "outcome": "supported",
+      "summary": "Detected hidden branch leading to dangerous sink system() in sub_401340 guarded by magic constant comparison",
+      "tool_evidence": {
+        "function": "sub_401340",
+        "suspicious_apis": ["system"],
+        "comparison_constant": "0x5339",
+        "sink_address": "0x00401385"
+      }
+    },
+    {
+      "stage": "structural_reachability",
+      "tool_name": "Radare2_xrefs_to",
+      "outcome": "supported",
+      "summary": "Recovered caller path from main -> network_dispatch_loop -> sub_401340",
+      "tool_evidence": {
+        "xrefs": [
+          {"from": "0x00401120", "function": "network_dispatch_loop", "type": "call"}
+        ],
+        "root_entry": "0x00401000",
+        "call_depth": 2
+      }
+    },
+    {
+      "stage": "dataflow_taint",
+      "tool_name": "taint_trace",
+      "outcome": "supported",
+      "summary": "Confirmed data-flow from network recv() socket buffer into sub_401340 argument pointer",
+      "tool_evidence": {
+        "source": "recv",
+        "sink": "system",
+        "tainted_args": ["arg1"],
+        "path_length": 4
+      }
+    },
+    {
+      "stage": "symbolic_constraint",
+      "tool_name": "verify_path_and_get_args",
+      "outcome": "supported",
+      "summary": "Symbolic solver proved reachability to 0x00401385 with SAT condition on token field",
+      "tool_evidence": {
+        "solver_status": "SAT",
+        "target_addr": "0x00401385",
+        "constraints_solved": 3
+      },
+      "concrete_inputs": {
+        "magic_token": "0x5339",
+        "payload": "whoami"
+      }
+    },
+    {
+      "stage": "emulation_runtime",
+      "tool_name": "dormant_detector",
+      "outcome": "supported",
+      "summary": "Emulated execution with registers eax=0x5339 confirmed reaching system() sink at 0x00401385",
+      "tool_evidence": {
+        "executed_instructions": 28,
+        "sink_hit": true,
+        "final_pc": "0x00401385"
+      }
+    }
+  ],
+  "expected_final_status": "verified",
+  "expected_final_evidence_level": "observed",
+  "expected_is_reachable": true,
+  "expected_is_tainted": true,
+  "expected_is_exploitable": true
+}
