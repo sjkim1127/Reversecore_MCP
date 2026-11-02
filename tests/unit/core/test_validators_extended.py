@@ -192,6 +192,30 @@ class TestValidatorsFinalPush:
 
         validate_tool_parameters("radare2", {"file_path": "/test.bin", "commands": ["aaa"]})
 
+    def test_validate_tool_parameters_extract_iocs(self):
+        """Test validate_tool_parameters for extract_iocs tool."""
+        from reversecore_mcp.core.exceptions import ValidationError
+        from reversecore_mcp.core.validators import validate_tool_parameters
+
+        # Valid limit
+        validate_tool_parameters("extract_iocs", {"limit": 50})
+        validate_tool_parameters("extract_iocs", {"limit": 0})
+
+        # Negative limit
+        with pytest.raises(ValidationError, match="non-negative"):
+            validate_tool_parameters("extract_iocs", {"limit": -1})
+
+        # Non-integer / boolean limit
+        with pytest.raises(ValidationError, match="integer"):
+            validate_tool_parameters("extract_iocs", {"limit": True})
+
+        with pytest.raises(ValidationError, match="integer"):
+            validate_tool_parameters("extract_iocs", {"limit": "50"})
+
+        # Exceeds max limit
+        with pytest.raises(ValidationError, match="cannot exceed"):
+            validate_tool_parameters("extract_iocs", {"limit": 10001})
+
 
 # ============================================================================
 # Error Formatting - additional coverage

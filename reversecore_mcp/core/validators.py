@@ -65,6 +65,7 @@ def validate_tool_parameters(tool_name: str, params: dict[str, Any]) -> None:
         "generate_yara_rule": _validate_yara_generation_params,
         "diff_binaries": _validate_diff_binaries_params,
         "match_libraries": _validate_match_libraries_params,
+        "extract_iocs": _validate_extract_iocs_params,
     }
 
     if tool_name in validators:
@@ -236,3 +237,15 @@ def _validate_match_libraries_params(params: dict[str, Any]) -> None:
     timeout = params.get("timeout", 300)
     if not isinstance(timeout, int) or timeout < 1:
         raise ValidationError("timeout must be a positive integer")
+
+
+def _validate_extract_iocs_params(params: dict[str, Any]) -> None:
+    """Validate extract_iocs parameters."""
+    if "limit" in params:
+        limit = params["limit"]
+        if isinstance(limit, bool) or not isinstance(limit, int):
+            raise ValidationError("Parameter 'limit' must be an integer")
+        if limit < 0:
+            raise ValidationError("Parameter 'limit' must be non-negative (>= 0)")
+        if limit > 10000:
+            raise ValidationError("Parameter 'limit' cannot exceed 10000")
