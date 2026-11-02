@@ -23,9 +23,10 @@ from reversecore_mcp import server
 # plus issue #320's registration of case state management tools (create_case_state, get_case_state, update_case_state, resume_case_state, list_case_states),
 # plus issue #323's registration of priority queue tools (plan_next_analysis_targets, populate_case_queue_from_triage, add_priority_target, update_priority_target, resolve_target_blocker),
 # plus issue #322's registration of cross-binary transfer tools (match_functions_across_binaries, transfer_annotations_across_binaries, review_transferred_annotations, apply_transferred_annotation),
-# plus issue #317's registration of analyst handoff bundle tools (export_handoff_bundle, import_handoff_bundle).
+# plus issue #317's registration of analyst handoff bundle tools (export_handoff_bundle, import_handoff_bundle),
+# plus issue #363's bounded limit documentation on extract_iocs.
 EXPECTED_TOOL_COUNT = 179
-EXPECTED_SCHEMA_SHA256 = "bfa6cdc829d9396b45b3748121c20cceb4b1bfd3c491cd53ecc2cabf092f34b6"
+EXPECTED_SCHEMA_SHA256 = "562f9ae4371787c02667f828fa30f7ff445a28522a14dbc89f7324f5ee474563"
 VALID_SCHEMA_SHA256S = {EXPECTED_SCHEMA_SHA256}
 
 
