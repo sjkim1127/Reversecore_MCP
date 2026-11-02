@@ -13,6 +13,9 @@ from reversecore_mcp.prompts.deobfuscation_prompts import malware_deobfuscation_
 from reversecore_mcp.prompts.evidence_escalation import evidence_escalation_mode
 from reversecore_mcp.prompts.exploit_prompts import exploit_analysis_mode
 from reversecore_mcp.prompts.game import game_analysis_mode
+from reversecore_mcp.prompts.incident_reconstruction import (
+    incident_reconstruction_mode,
+)
 from reversecore_mcp.prompts.malware import (
     apt_hunting_mode,
     basic_analysis_mode,
@@ -58,6 +61,7 @@ __all__ = [
     "fuzzing_mode",
     "game_analysis_mode",
     "heap_exploit_mode",
+    "incident_reconstruction_mode",
     "malware_analysis_mode",
     "malware_defense_mode",
     "malware_deobfuscation_mode",
@@ -128,6 +132,7 @@ def register_prompts(mcp: FastMCP):
     mcp.prompt("evidence_escalation_mode")(evidence_escalation_mode)
     mcp.prompt("similarity_triage_mode")(similarity_triage_mode)
     mcp.prompt("security_regression_mode")(security_regression_mode)
+    mcp.prompt("incident_reconstruction_mode")(incident_reconstruction_mode)
 
     # Server Inspection Prompts
     mcp.prompt("server_health_check_mode")(server_health_check_mode)
