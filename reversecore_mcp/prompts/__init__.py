@@ -38,6 +38,7 @@ from reversecore_mcp.prompts.server_health import (
     server_health_check_mode,
     server_tool_catalog_mode,
 )
+from reversecore_mcp.prompts.similarity_triage import similarity_triage_mode
 from reversecore_mcp.prompts.triage_prompts import vulnerability_triage_mode
 
 __all__ = [
@@ -66,6 +67,7 @@ __all__ = [
     "report_generation_mode",
     "server_health_check_mode",
     "server_tool_catalog_mode",
+    "similarity_triage_mode",
     "source_code_audit_mode",
     "taint_analysis_mode",
     "unpacking_mode",
@@ -122,6 +124,7 @@ def register_prompts(mcp: FastMCP):
     # Orchestration & Adaptive Planning Prompts
     mcp.prompt("auto_planning_mode")(auto_planning_mode)
     mcp.prompt("evidence_escalation_mode")(evidence_escalation_mode)
+    mcp.prompt("similarity_triage_mode")(similarity_triage_mode)
 
     # Server Inspection Prompts
     mcp.prompt("server_health_check_mode")(server_health_check_mode)

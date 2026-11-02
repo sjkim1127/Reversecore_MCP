@@ -1,0 +1,62 @@
+{
+  "sample_id": "clean_sysutil",
+  "binary_name": "sysutil_diagnostics.exe",
+  "sha256": "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+  "family_label": null,
+  "architecture": "x86_64",
+  "metadata": {
+    "first_seen": "2025-05-01T00:00:00Z",
+    "vendor": "CleanCorp Utilities",
+    "analyst_notes": "Legitimate benign diagnostic tool sharing only standard Windows C runtime APIs."
+  },
+  "signals": [
+    {
+      "signal_type": "generic_import",
+      "key": "import:exitprocess",
+      "value": "ExitProcess",
+      "strength": "WEAK",
+      "provenance_tool": "parse_binary_with_lief",
+      "description": "Standard Win32 process exit API"
+    },
+    {
+      "signal_type": "generic_import",
+      "key": "import:loadlibrarya",
+      "value": "LoadLibraryA",
+      "strength": "WEAK",
+      "provenance_tool": "parse_binary_with_lief",
+      "description": "Standard Win32 library loader"
+    },
+    {
+      "signal_type": "generic_import",
+      "key": "import:getprocaddress",
+      "value": "GetProcAddress",
+      "strength": "WEAK",
+      "provenance_tool": "parse_binary_with_lief",
+      "description": "Standard Win32 procedure resolver"
+    },
+    {
+      "signal_type": "superficial_string",
+      "key": "string:usage",
+      "value": "Usage: sysutil.exe --check-disks",
+      "strength": "WEAK",
+      "provenance_tool": "extract_iocs",
+      "description": "Command line usage string"
+    },
+    {
+      "signal_type": "superficial_string",
+      "key": "string:error",
+      "value": "Internal error occurred",
+      "strength": "WEAK",
+      "provenance_tool": "extract_iocs",
+      "description": "Generic error string"
+    },
+    {
+      "signal_type": "superficial_string",
+      "key": "string:windows",
+      "value": "Designed for Microsoft Windows",
+      "strength": "WEAK",
+      "provenance_tool": "extract_iocs",
+      "description": "Generic platform string"
+    }
+  ]
+}
