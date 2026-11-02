@@ -13,6 +13,7 @@ from reversecore_mcp.tools.cve_hunter.cve_hunt_pipeline import (
     hunt_cve_pipeline_impl,
 )
 from reversecore_mcp.tools.cve_hunter.cve_hunter_tools import hunt_cve_vulnerabilities
+from reversecore_mcp.tools.cve_hunter.poc_minimizer import MAX_C_POC_PAYLOAD_SIZE
 
 
 @pytest.fixture
@@ -202,7 +203,7 @@ class TestCveHuntPipeline:
     @pytest.mark.asyncio
     async def test_hunt_cve_pipeline_omits_truncated_c_harness(self, workspace_file):
         target_h = workspace_file("large_crash_target.fuzzer")
-        payload = b"LARGE_CRASH_INPUT" * 40
+        payload = b"LARGE_CRASH_INPUT" * (MAX_C_POC_PAYLOAD_SIZE // 17 + 10)
         crash_input = workspace_file("large-crash/crash", content=payload)
         fuzz_res = success(
             {

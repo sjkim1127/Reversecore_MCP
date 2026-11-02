@@ -4,7 +4,7 @@ import os
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -12,6 +12,7 @@ from reversecore_mcp.core.exceptions import ExecutionTimeoutError
 from reversecore_mcp.core.security import get_workspace_config
 from reversecore_mcp.tools.cve_hunter.cve_hunter_tools import cve_minimize_poc
 from reversecore_mcp.tools.cve_hunter.poc_minimizer import (
+    MAX_C_POC_PAYLOAD_SIZE,
     _test_input_causes_crash,
     delta_debug_minimize,
     generate_c_poc_harness,
@@ -70,8 +71,24 @@ class TestPocMinimizer:
         size_declaration = next(line for line in c_code.splitlines() if "g_poc_size =" in line)
         declared_size = int(size_declaration.split("=", 1)[1].strip().rstrip(";"))
 
-        assert len(emitted_elements) == min(payload_size, 512)
-        assert declared_size == len(emitted_elements)
+        # Issue #362: payloads are no longer silently truncated to 512 bytes
+        assert len(emitted_elements) == payload_size
+        assert declared_size == payload_size
+        assert "Standalone C Reproduction Harness" in c_code
+        assert "WARNING: Crash payload was truncated" not in c_code
+
+    def test_generate_c_poc_harness_explicit_truncation_warning(self):
+        """Verify explicit truncation limit emits warning and marks harness as incomplete."""
+        c_code = generate_c_poc_harness(
+            target_function="parse_header",
+            payload_bytes=b"B" * 1000,
+            cwe_id="CWE-122",
+            max_payload_size=512,
+        )
+        assert "Incomplete C Reproduction Harness for CWE-122" in c_code
+        assert "WARNING: Crash payload was truncated from 1000 bytes to 512 bytes." in c_code
+        assert "g_poc_size = 512" in c_code
+        assert "[!] WARNING: Incomplete testcase" in c_code
 
     @pytest.mark.asyncio
     async def test_test_input_causes_crash_subprocess(self, workspace_file):
@@ -323,3 +340,76 @@ class TestPocMinimizer:
         assert data["minimized_input_size_bytes"] < data["original_input_size_bytes"]
         assert "standalone_python_poc" in data
         assert "standalone_c_poc" in data
+        assert data["c_poc_truncated"] is False
+        assert data["c_poc_status"] == "standalone"
+
+    @pytest.mark.asyncio
+    async def test_minimize_poc_impl_preserves_crash_dependent_on_byte_past_512(
+        self, workspace_file
+    ):
+        """A fixture whose crash depends on a byte after offset 512 still reproduces through the C path."""
+        test_bin = workspace_file("test_bin_offset_crash.bin")
+        payload = bytearray(b"A" * 700)
+        payload[600] = 0xCC
+        crash_input = workspace_file("crash_seed_600.bin", content=bytes(payload))
+
+        async def mock_causes_crash(binary_path, data, timeout=5):
+            return len(data) > 600 and data[600] == 0xCC
+
+        with patch(
+            "reversecore_mcp.tools.cve_hunter.poc_minimizer._test_input_causes_crash",
+            side_effect=mock_causes_crash,
+        ):
+            res = await minimize_poc_impl(
+                binary_path=str(test_bin),
+                crash_input_path=str(crash_input),
+                target_function="parse_at_offset",
+            )
+
+        assert res.status == "success"
+        data = res.data
+        assert data is not None
+        assert data["c_poc_truncated"] is False
+        assert data["c_poc_status"] == "standalone"
+        assert res.metadata["original_payload_size"] == 700
+        assert res.metadata["minimized_payload_size"] >= 601
+        assert res.metadata["emitted_c_poc_payload_size"] == res.metadata["minimized_payload_size"]
+        assert "0xcc" in data["standalone_c_poc"]
+        assert "Standalone C Reproduction Harness" in data["standalone_c_poc"]
+
+    @pytest.mark.asyncio
+    async def test_minimize_poc_impl_exceeding_max_marks_c_poc_incomplete(self, workspace_file):
+        """Verify payloads exceeding MAX_C_POC_PAYLOAD_SIZE are explicitly marked as incomplete."""
+        test_bin = workspace_file("test_bin_huge.bin")
+        huge_payload = b"X" * (MAX_C_POC_PAYLOAD_SIZE + 50)
+        crash_input = workspace_file("huge_crash.bin", content=huge_payload)
+
+        async def mock_causes_crash(binary_path, data, timeout=5):
+            return True
+
+        with (
+            patch(
+                "reversecore_mcp.tools.cve_hunter.poc_minimizer._test_input_causes_crash",
+                side_effect=mock_causes_crash,
+            ),
+            patch(
+                "reversecore_mcp.tools.cve_hunter.poc_minimizer.delta_debug_minimize",
+                new_callable=AsyncMock,
+                return_value=huge_payload,
+            ),
+        ):
+            res = await minimize_poc_impl(
+                binary_path=str(test_bin),
+                crash_input_path=str(crash_input),
+                target_function="parse_huge",
+            )
+
+        assert res.status == "success"
+        data = res.data
+        assert data is not None
+        assert data["c_poc_truncated"] is True
+        assert data["c_poc_status"] == "incomplete"
+        assert data["c_poc_payload_size_bytes"] == MAX_C_POC_PAYLOAD_SIZE
+        assert "C reproducer harness is incomplete" in data["summary"]
+        assert res.metadata["c_poc_truncated"] is True
+        assert "Incomplete C Reproduction Harness" in data["standalone_c_poc"]
