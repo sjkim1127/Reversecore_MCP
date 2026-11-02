@@ -52,7 +52,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends --only-upgrade \
         curl libcurl3-gnutls libcurl4 libgraphite2-3 liblzma5 xz-utils libgd3 libssh2-1 libaom3 libpcre2-8-0 libde265-0 libssl3 openssl libexpat1 libsasl2-2 libsasl2-modules-db libbrotli1 \
     && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /opt/venv/bin/uv /opt/venv/bin/uvx /opt/venv/lib/python3.12/site-packages/uv*
+    && rm -rf /opt/venv/bin/uv /opt/venv/bin/uvx /opt/venv/lib/python3.12/site-packages/uv /opt/venv/lib/python3.12/site-packages/uv-*
 
 # Application source (invalidates on every code change)
 COPY scripts/            ./scripts/
