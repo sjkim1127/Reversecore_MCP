@@ -1,0 +1,21 @@
+{
+  "finding_id": "reg_intro_001",
+  "status": "INTRODUCED",
+  "category": "dangerous_sink",
+  "severity": "CRITICAL",
+  "title": "Introduced Command Injection Sink in Debug RPC Handler",
+  "description": "Release v2.0 introduced a new RPC management function handle_debug_command() which passes untrusted network input directly into system() without sanitization.",
+  "security_relevant": true,
+  "old_location": null,
+  "new_location": {
+    "binary_name": "server_v2.0.bin",
+    "function_name": "handle_debug_command",
+    "address": "0x405800",
+    "offset": 22528,
+    "code_snippet": "mov rdi, [rbp - 0x18]; call sym.imp.system"
+  },
+  "provenance_tool": "taint_trace",
+  "evidence_level": "OBSERVED",
+  "confidence_score": 0.9,
+  "remediation_or_fix_note": "Critical security regression: Remove unauthenticated debug endpoint or validate command against strict allowlist."
+}
