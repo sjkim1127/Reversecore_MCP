@@ -13,6 +13,8 @@ from reversecore_mcp.core.security import get_workspace_config
 from reversecore_mcp.tools.cve_hunter.cve_hunter_tools import cve_minimize_poc
 from reversecore_mcp.tools.cve_hunter.poc_minimizer import (
     MAX_C_POC_PAYLOAD_SIZE,
+    CrashClassification,
+    _classify_execution_outcome,
     _test_input_causes_crash,
     delta_debug_minimize,
     generate_c_poc_harness,
@@ -119,6 +121,42 @@ class TestPocMinimizer:
         ):
             assert await _test_input_causes_crash(test_bin, b"ASAN_PAYLOAD") is True
 
+        # Case 4: Target returning 1 for invalid input (e.g. parser rejection) is NOT considered crashed
+        rejection_err = subprocess.CalledProcessError(
+            1, [str(test_bin)], stderr="Syntax error: invalid input", output=""
+        )
+        with patch(
+            "reversecore_mcp.tools.cve_hunter.poc_minimizer.execute_subprocess_async",
+            side_effect=rejection_err,
+        ):
+            assert await _test_input_causes_crash(test_bin, b"BAD_SYNTAX") is False
+
+        # Case 5: Signal termination (e.g. returncode -11 for SIGSEGV) IS considered crashed
+        sigsegv_err = subprocess.CalledProcessError(-11, [str(test_bin)], stderr="", output="")
+        with patch(
+            "reversecore_mcp.tools.cve_hunter.poc_minimizer.execute_subprocess_async",
+            side_effect=sigsegv_err,
+        ):
+            assert await _test_input_causes_crash(test_bin, b"SIGSEGV_PAYLOAD") is True
+
+        # Case 6: Shell exit code for signal termination (e.g. returncode 139 for SIGSEGV) IS considered crashed
+        shell_sig_err = subprocess.CalledProcessError(139, [str(test_bin)], stderr="", output="")
+        with patch(
+            "reversecore_mcp.tools.cve_hunter.poc_minimizer.execute_subprocess_async",
+            side_effect=shell_sig_err,
+        ):
+            assert await _test_input_causes_crash(test_bin, b"SHELL_SIG_PAYLOAD") is True
+
+        # Case 7: Windows fatal NTSTATUS crash code (e.g. 0xC0000005) IS considered crashed
+        win_crash_err = subprocess.CalledProcessError(
+            0xC0000005, [str(test_bin)], stderr="", output=""
+        )
+        with patch(
+            "reversecore_mcp.tools.cve_hunter.poc_minimizer.execute_subprocess_async",
+            side_effect=win_crash_err,
+        ):
+            assert await _test_input_causes_crash(test_bin, b"WIN_CRASH_PAYLOAD") is True
+
     @pytest.mark.asyncio
     async def test_testcase_uses_new_workspace_cache_and_cleans_up(self, tmp_path, monkeypatch):
         workspace = tmp_path / "workspace"
@@ -156,7 +194,13 @@ class TestPocMinimizer:
 
     @pytest.mark.parametrize(
         ("outcome", "expected_crash"),
-        [("normal", False), ("timeout", False), ("subprocess_failure", True)],
+        [
+            ("normal", False),
+            ("timeout", False),
+            ("ordinary_rejection", False),
+            ("signal_crash", True),
+            ("asan_crash", True),
+        ],
     )
     @pytest.mark.asyncio
     async def test_candidate_is_cleaned_after_execution_outcomes(
@@ -183,8 +227,14 @@ class TestPocMinimizer:
             candidate_paths.append(candidate)
             if outcome == "timeout":
                 raise ExecutionTimeoutError(5)
-            if outcome == "subprocess_failure":
-                raise subprocess.CalledProcessError(1, command, output="", stderr="")
+            if outcome == "ordinary_rejection":
+                raise subprocess.CalledProcessError(1, command, output="", stderr="Syntax error")
+            if outcome == "signal_crash":
+                raise subprocess.CalledProcessError(-11, command, output="", stderr="")
+            if outcome == "asan_crash":
+                raise subprocess.CalledProcessError(
+                    1, command, output="", stderr="AddressSanitizer: heap-buffer-overflow"
+                )
             return "normal execution", len("normal execution")
 
         with patch(
@@ -413,3 +463,124 @@ class TestPocMinimizer:
         assert "C reproducer harness is incomplete" in data["summary"]
         assert res.metadata["c_poc_truncated"] is True
         assert "Incomplete C Reproduction Harness" in data["standalone_c_poc"]
+
+    def test_classify_execution_outcome(self):
+        """Test process exit classification into crash signatures or ordinary exits."""
+        # Ordinary exits (not crashes)
+        assert _classify_execution_outcome(0, "clean run", "") is None
+        assert _classify_execution_outcome(1, "", "Syntax error: invalid token") is None
+        assert _classify_execution_outcome(2, "", "Usage: ./bin [options]") is None
+        assert _classify_execution_outcome(255, "", "unknown error") is None
+
+        # Sanitizer crashes
+        c_asan = _classify_execution_outcome(
+            1, "", "==123==ERROR: AddressSanitizer: heap-buffer-overflow on address 0xdeadbeef"
+        )
+        assert c_asan is not None
+        assert c_asan.kind == "sanitizer"
+        assert c_asan.detail == "heap-buffer-overflow"
+
+        c_asan_summary = _classify_execution_outcome(
+            0, "SUMMARY: AddressSanitizer: global-buffer-overflow /src/parser.c", ""
+        )
+        assert c_asan_summary is not None
+        assert c_asan_summary.kind == "sanitizer"
+        assert c_asan_summary.detail == "global-buffer-overflow"
+
+        # Signal crashes (POSIX negative returncodes)
+        c_sigsegv = _classify_execution_outcome(-11, "", "")
+        assert c_sigsegv is not None
+        assert c_sigsegv.kind == "signal"
+        assert c_sigsegv.detail == "SIGSEGV"
+
+        c_sigabrt = _classify_execution_outcome(-6, "", "")
+        assert c_sigabrt is not None
+        assert c_sigabrt.kind == "signal"
+        assert c_sigabrt.detail == "SIGABRT"
+
+        # Shell exit codes (128 + signum)
+        c_shell_segv = _classify_execution_outcome(139, "", "")
+        assert c_shell_segv is not None
+        assert c_shell_segv.kind == "signal"
+        assert c_shell_segv.detail == "SIGSEGV"
+
+        c_shell_abrt = _classify_execution_outcome(134, "", "")
+        assert c_shell_abrt is not None
+        assert c_shell_abrt.kind == "signal"
+        assert c_shell_abrt.detail == "SIGABRT"
+
+        # Windows fatal NTSTATUS crash codes
+        c_win_av = _classify_execution_outcome(0xC0000005, "", "")
+        assert c_win_av is not None
+        assert c_win_av.kind == "fatal_code"
+        assert c_win_av.detail == "STATUS_ACCESS_VIOLATION"
+
+    @pytest.mark.asyncio
+    async def test_delta_debug_minimizer_preserves_crash_class(self, workspace_file):
+        """Delta debugging preserves the original crash classification instead of collapsing to different crashes."""
+        dummy_bin = workspace_file("test_bin_multi_crash.bin")
+        original_data = b"PREFIX_AAAA_CRASH_TARGET_BBBB"
+
+        baseline_crash = CrashClassification(kind="sanitizer", detail="heap-buffer-overflow")
+
+        async def mock_classify(binary_path, data, timeout=5):
+            # If payload contains 'INVALID', it exits with code 1 (not a crash)
+            if b"INVALID" in data:
+                return None
+            # If payload retains 'CRASH_TARGET', it triggers heap-buffer-overflow
+            if b"CRASH_TARGET" in data:
+                return CrashClassification(kind="sanitizer", detail="heap-buffer-overflow")
+            # If payload has truncated prefix, it triggers a different bug (e.g. stack-buffer-overflow)
+            return CrashClassification(kind="sanitizer", detail="stack-buffer-overflow")
+
+        with patch(
+            "reversecore_mcp.tools.cve_hunter.poc_minimizer._classify_input_crash",
+            side_effect=mock_classify,
+        ):
+            minimized = await delta_debug_minimize(
+                dummy_bin, original_data, max_iterations=20, expected_crash=baseline_crash
+            )
+
+        assert b"CRASH_TARGET" in minimized
+        assert len(minimized) < len(original_data)
+
+    @pytest.mark.asyncio
+    async def test_regression_minimizer_does_not_collapse_crash_into_parser_rejection(
+        self, workspace_file
+    ):
+        """Regression test for Issue #361:
+
+        A target that returns exit(1) when the header is missing must NOT be considered
+        crashed during delta-debugging. The minimizer must preserve both the required header
+        and the crash trigger rather than reducing into an invalid input.
+        """
+        dummy_bin = workspace_file("test_parser_bin.bin")
+        original_payload = b"MAGIC_HDR:" + b"PADDING_DATA_FILL_" * 5 + b":TRIGGER_OVERFLOW_BYTE"
+
+        async def simulate_parser_execution(command, **kwargs):
+            candidate_path = Path(command[1])
+            data = candidate_path.read_bytes()
+
+            # Rule 1: Missing or corrupted header causes parser rejection exit(1)
+            if not data.startswith(b"MAGIC_HDR:"):
+                raise subprocess.CalledProcessError(
+                    1, command, output="", stderr="ParserError: Invalid magic header"
+                )
+
+            # Rule 2: If header is present and trigger is present, target crashes with SIGSEGV
+            if b":TRIGGER_OVERFLOW_BYTE" in data:
+                raise subprocess.CalledProcessError(-11, command, output="", stderr="")
+
+            # Rule 3: Valid header without trigger completes cleanly (exit 0)
+            return "Parser completed normally", len("Parser completed normally")
+
+        with patch(
+            "reversecore_mcp.tools.cve_hunter.poc_minimizer.execute_subprocess_async",
+            side_effect=simulate_parser_execution,
+        ):
+            minimized = await delta_debug_minimize(dummy_bin, original_payload, max_iterations=30)
+
+        # Minimized payload must have stripped padding while preserving the header and trigger
+        assert len(minimized) < len(original_payload)
+        assert minimized.startswith(b"MAGIC_HDR:")
+        assert minimized.endswith(b":TRIGGER_OVERFLOW_BYTE")

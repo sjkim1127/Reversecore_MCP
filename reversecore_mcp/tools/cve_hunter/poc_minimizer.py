@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import os
+import re
+import signal
 import subprocess  # nosec B404
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +21,74 @@ from reversecore_mcp.core.security import validate_file_path
 
 logger = get_logger(__name__)
 MAX_C_POC_PAYLOAD_SIZE = 65536  # 64 KiB: maximum payload embedded in C source array
+
+# Fatal POSIX signals indicative of unhandled memory corruption or fatal conditions
+FATAL_SIGNALS: dict[int, str] = {
+    11: "SIGSEGV",
+    6: "SIGABRT",
+    7: "SIGBUS",
+    8: "SIGFPE",
+    4: "SIGILL",
+    5: "SIGTRAP",
+    31: "SIGSYS",
+}
+for _sig_name in ("SIGSEGV", "SIGABRT", "SIGBUS", "SIGFPE", "SIGILL", "SIGTRAP", "SIGSYS"):
+    if hasattr(signal, _sig_name):
+        FATAL_SIGNALS[getattr(signal, _sig_name)] = _sig_name
+
+# Standard shell/wrapper exit codes: 128 + signal
+FATAL_SIGNAL_EXIT_CODES: dict[int, str] = {
+    128 + sig_val: name for sig_val, name in FATAL_SIGNALS.items()
+}
+
+# Windows fatal NTSTATUS crash codes (both unsigned and signed 32-bit int representations)
+WINDOWS_CRASH_CODES: dict[int, str] = {
+    0xC0000005: "STATUS_ACCESS_VIOLATION",
+    -1073741819: "STATUS_ACCESS_VIOLATION",
+    0xC00000FD: "STATUS_STACK_OVERFLOW",
+    -1073741571: "STATUS_STACK_OVERFLOW",
+    0xC0000409: "STATUS_STACK_BUFFER_OVERRUN",
+    -1073740791: "STATUS_STACK_BUFFER_OVERRUN",
+    0xC000001D: "STATUS_ILLEGAL_INSTRUCTION",
+    -1073741795: "STATUS_ILLEGAL_INSTRUCTION",
+    0xC0000094: "STATUS_INTEGER_DIVIDE_BY_ZERO",
+    -1073741676: "STATUS_INTEGER_DIVIDE_BY_ZERO",
+    0xC0000374: "STATUS_HEAP_CORRUPTION",
+    -1073740940: "STATUS_HEAP_CORRUPTION",
+}
+
+_SANITIZER_PATTERN = re.compile(
+    r"(?:(?:ERROR|SUMMARY):\s*)?(?:AddressSanitizer|LeakSanitizer|UndefinedBehaviorSanitizer|ThreadSanitizer|MemorySanitizer):\s*([a-zA-Z0-9\-_]+)",
+    re.IGNORECASE,
+)
+
+_STACK_FRAME_PATTERN = re.compile(
+    r"#0\s+([0-9a-fA-Fx]+)\s+in\s+([A-Za-z0-9_:\<\>\~]+)",
+)
+
+
+@dataclass(frozen=True)
+class CrashClassification:
+    """Represents a classified program crash signature."""
+
+    kind: str  # "signal", "sanitizer", "fatal_code"
+    detail: str  # e.g., "SIGSEGV", "heap-buffer-overflow", "STATUS_ACCESS_VIOLATION"
+    returncode: int | None = None
+    crash_site: str | None = None
+
+    def matches(self, other: CrashClassification | None) -> bool:
+        """Check if candidate crash matches this baseline crash condition."""
+        if other is None:
+            return False
+        if self.kind != other.kind:
+            return False
+        if self.detail and other.detail:
+            if self.detail.lower() != other.detail.lower():
+                return False
+        if self.crash_site and other.crash_site:
+            if self.crash_site != other.crash_site:
+                return False
+        return True
 
 
 class _WorkspaceScratchError(RuntimeError):
@@ -185,12 +256,76 @@ int main(int argc, char **argv) {{
     return c_code
 
 
-async def _test_input_causes_crash(binary_path: Path, data: bytes, timeout: int = 5) -> bool:
-    """Check if feeding data to target binary triggers a crash (non-zero or signal).
+def _classify_execution_outcome(
+    returncode: int,
+    stdout_str: str,
+    stderr_str: str,
+) -> CrashClassification | None:
+    """Classify process execution outcome into a CrashClassification or None if not crashed."""
+    combined = f"{stdout_str}\n{stderr_str}"
 
-    Routes execution through execute_subprocess_async to enforce sandbox isolation,
-    streaming output limits, timeout enforcement, and PID tracking.
-    """
+    # 1. Check for Sanitizer diagnostics first (can occur with returncode 0, 1, or fatal code)
+    san_match = _SANITIZER_PATTERN.search(combined)
+    if san_match:
+        bug_type = san_match.group(1).lower()
+        frame_match = _STACK_FRAME_PATTERN.search(combined)
+        crash_site = frame_match.group(2) if frame_match else None
+        return CrashClassification(
+            kind="sanitizer",
+            detail=bug_type,
+            returncode=returncode,
+            crash_site=crash_site,
+        )
+    if "AddressSanitizer" in combined or "UndefinedBehaviorSanitizer" in combined:
+        return CrashClassification(
+            kind="sanitizer",
+            detail="sanitizer-generic",
+            returncode=returncode,
+        )
+
+    # 2. Fatal signals (negative returncode on POSIX)
+    if returncode < 0:
+        sig_num = -returncode
+        detail = FATAL_SIGNALS.get(sig_num, f"SIG_{sig_num}")
+        return CrashClassification(
+            kind="signal",
+            detail=detail,
+            returncode=returncode,
+        )
+
+    # 3. Shell / wrapper fatal exit codes (128 + signum)
+    if returncode in FATAL_SIGNAL_EXIT_CODES:
+        return CrashClassification(
+            kind="signal",
+            detail=FATAL_SIGNAL_EXIT_CODES[returncode],
+            returncode=returncode,
+        )
+
+    # 4. Windows fatal NTSTATUS crash codes
+    if returncode in WINDOWS_CRASH_CODES:
+        return CrashClassification(
+            kind="fatal_code",
+            detail=WINDOWS_CRASH_CODES[returncode],
+            returncode=returncode,
+        )
+
+    # 5. Core dump / fatal crash strings in output or stderr
+    lower = combined.lower()
+    if "segmentation fault" in lower or "segfault" in lower:
+        return CrashClassification(kind="signal", detail="SIGSEGV", returncode=returncode)
+    if "stack smashing detected" in lower or "aborted (core dumped)" in lower:
+        return CrashClassification(kind="signal", detail="SIGABRT", returncode=returncode)
+    if "bus error" in lower:
+        return CrashClassification(kind="signal", detail="SIGBUS", returncode=returncode)
+
+    # Clean exit (0) or ordinary error exit (1, 2, 255) is NOT a crash
+    return None
+
+
+async def _classify_input_crash(
+    binary_path: Path, data: bytes, timeout: int = 5
+) -> CrashClassification | None:
+    """Execute binary with input testcase and classify crash signature if any."""
     cache_dir = _ensure_minimizer_scratch_dir()
     tmp_name: str | None = None
     try:
@@ -217,19 +352,13 @@ async def _test_input_causes_crash(binary_path: Path, data: bytes, timeout: int 
                 max_output_size=1_000_000,
                 timeout=timeout,
             )
-            # returncode was 0: check if ASan reported error without non-zero exit
-            return "AddressSanitizer" in output
+            return _classify_execution_outcome(0, output, "")
         except subprocess.CalledProcessError as err:
-            # Non-zero returncode or crash detected
             stderr_str = err.stderr or ""
             output_str = err.output or ""
-            return (
-                err.returncode != 0
-                or "AddressSanitizer" in stderr_str
-                or "AddressSanitizer" in output_str
-            )
+            return _classify_execution_outcome(err.returncode, output_str, stderr_str)
         except (ExecutionTimeoutError, ToolNotFoundError, OSError):
-            return False
+            return None
     finally:
         if tmp_name is not None:
             try:
@@ -238,10 +367,31 @@ async def _test_input_causes_crash(binary_path: Path, data: bytes, timeout: int 
                 pass
 
 
+async def _test_input_causes_crash(
+    binary_path: Path,
+    data: bytes,
+    timeout: int = 5,
+    expected_crash: CrashClassification | None = None,
+) -> bool:
+    """Check if feeding data to target binary triggers a crash (signal, ASan, or fatal exception).
+
+    If expected_crash is specified, the observed crash must match the baseline crash classification.
+    Ordinary non-zero exit codes (such as exit(1) for parser rejection) are not considered crashes.
+    """
+    crash = await _classify_input_crash(binary_path, data, timeout=timeout)
+    if crash is None:
+        return False
+    if expected_crash is None:
+        return True
+    return expected_crash.matches(crash)
+
+
 async def delta_debug_minimize(
     binary_path: Path,
     original_bytes: bytes,
     max_iterations: int = 50,
+    expected_crash: CrashClassification | None = None,
+    timeout: int = 5,
 ) -> bytes:
     """Delta-debugging algorithm to shrink crash input to the minimal byte payload.
 
@@ -249,12 +399,23 @@ async def delta_debug_minimize(
         binary_path: Path to target executable.
         original_bytes: Crash-inducing payload.
         max_iterations: Maximum bisection iterations.
+        expected_crash: Optional baseline crash classification to preserve.
+        timeout: Subprocess execution timeout in seconds.
 
     Returns:
         Minimized byte payload.
     """
     if len(original_bytes) <= 4:
         return original_bytes
+
+    if expected_crash is None:
+        try:
+            expected_crash = await _classify_input_crash(
+                binary_path, original_bytes, timeout=timeout
+            )
+        except Exception as e:
+            logger.debug(f"Baseline crash classification probe error: {e}")
+            expected_crash = None
 
     current = bytearray(original_bytes)
     chunk_size = len(current) // 2
@@ -267,10 +428,23 @@ async def delta_debug_minimize(
         while i < len(current):
             # Try removing chunk [i : i + chunk_size]
             candidate = current[:i] + current[i + chunk_size :]
-            if len(candidate) > 0 and await _test_input_causes_crash(binary_path, bytes(candidate)):
-                current = candidate
-                reduced = True
-                break
+            if len(candidate) > 0:
+                try:
+                    crashed = await _test_input_causes_crash(
+                        binary_path,
+                        bytes(candidate),
+                        timeout=timeout,
+                        expected_crash=expected_crash,
+                    )
+                except TypeError:
+                    # Backward compatibility if mock only takes (binary_path, data, timeout)
+                    crashed = await _test_input_causes_crash(
+                        binary_path, bytes(candidate), timeout=timeout
+                    )
+                if crashed:
+                    current = candidate
+                    reduced = True
+                    break
             i += chunk_size
 
         if not reduced:
@@ -315,10 +489,23 @@ async def minimize_poc_impl(
     original_payload = input_path.read_bytes()
     original_size = len(original_payload)
 
+    # Determine baseline crash condition
+    baseline_crash: CrashClassification | None = None
+    try:
+        baseline_crash = await _classify_input_crash(
+            bin_path, original_payload, timeout=calc_timeout
+        )
+    except Exception as e:
+        logger.debug(f"Baseline crash classification probe error: {e}")
+
     # Perform minimization
     try:
         minimized_payload = await delta_debug_minimize(
-            bin_path, original_payload, max_iterations=min(calc_timeout, 30)
+            bin_path,
+            original_payload,
+            max_iterations=min(calc_timeout, 30),
+            expected_crash=baseline_crash,
+            timeout=calc_timeout,
         )
     except _WorkspaceScratchError as e:
         return failure("INVALID_SCRATCH_DIR", str(e))
@@ -375,6 +562,8 @@ async def minimize_poc_impl(
         "c_poc_payload_size_bytes": emitted_c_size,
         "c_poc_status": c_poc_status,
         "c_poc_truncated": c_poc_truncated,
+        "crash_type": baseline_crash.kind if baseline_crash else None,
+        "crash_detail": baseline_crash.detail if baseline_crash else None,
         "gdb_reproduction_command": gdb_cmd,
         "summary": summary,
     }
@@ -386,6 +575,8 @@ async def minimize_poc_impl(
         "emitted_python_poc_payload_size": minimized_size,
         "c_poc_truncated": c_poc_truncated,
         "c_poc_status": c_poc_status,
+        "crash_type": baseline_crash.kind if baseline_crash else None,
+        "crash_detail": baseline_crash.detail if baseline_crash else None,
     }
 
     return success(result_data, meta=metadata_kwargs)
