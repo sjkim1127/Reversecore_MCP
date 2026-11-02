@@ -158,7 +158,7 @@ dev = [
     "pip-tools>=7.4.0",
     "uv>=0.13.6",
     "bandit[toml]>=1.9.2",
-    "pip-audit>=2.9.0",
+    "pip-audit>=2.9.0; python_version >= '3.11'",
     "pip>=26.2.0",
     "setuptools>=84.2.1",
     "msgpack>=1.2.4",
