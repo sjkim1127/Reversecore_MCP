@@ -49,6 +49,15 @@ class TestClassifyIoc:
         assert _classify_ioc("") == "unknown"
         assert _classify_ioc("random string with spaces") == "unknown"
 
+    def test_rejects_malformed_dotted_values(self):
+        assert _classify_ioc("999.999.999.999") == "unknown"
+        assert _classify_ioc("..") == "unknown"
+        assert _classify_ioc("example.123") == "unknown"
+
+    def test_accepts_valid_domain_labels(self):
+        assert _classify_ioc("sub-domain.example.com") == "domain"
+        assert _classify_ioc("example.com.") == "domain"
+
     def test_strips_whitespace(self):
         assert _classify_ioc("  8.8.8.8  ") == "ip"
 
