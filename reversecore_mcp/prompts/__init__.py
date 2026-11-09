@@ -28,6 +28,7 @@ from reversecore_mcp.prompts.malware import (
     unpacking_mode,
 )
 from reversecore_mcp.prompts.planning import auto_planning_mode
+from reversecore_mcp.prompts.reconstruct_feature import reconstruct_feature_mode
 from reversecore_mcp.prompts.regression_review import security_regression_mode
 from reversecore_mcp.prompts.report import report_generation_mode
 from reversecore_mcp.prompts.security import (
@@ -68,6 +69,7 @@ __all__ = [
     "patch_analysis_mode",
     "patch_diff_auto_mode",
     "ransomware_triage_mode",
+    "reconstruct_feature_mode",
     "register_prompts",
     "report_generation_mode",
     "security_regression_mode",
@@ -129,6 +131,7 @@ def register_prompts(mcp: FastMCP):
 
     # Orchestration & Adaptive Planning Prompts
     mcp.prompt("auto_planning_mode")(auto_planning_mode)
+    mcp.prompt("reconstruct_feature_mode")(reconstruct_feature_mode)
     mcp.prompt("evidence_escalation_mode")(evidence_escalation_mode)
     mcp.prompt("similarity_triage_mode")(similarity_triage_mode)
     mcp.prompt("security_regression_mode")(security_regression_mode)

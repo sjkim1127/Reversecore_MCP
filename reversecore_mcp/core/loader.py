@@ -58,8 +58,11 @@ TOOL_PROFILES: dict[str, set[str]] = {
         "report_tools",
     },
 }
-# Alias
+# Alias & Tiered profiles
 TOOL_PROFILES["vuln_research"] = TOOL_PROFILES["vuln-research"]
+TOOL_PROFILES["tiered"] = TOOL_PROFILES["full"]
+TOOL_PROFILES["agents"] = TOOL_PROFILES["full"]
+TOOL_PROFILES["core"] = TOOL_PROFILES["full"]
 
 
 # Manifest mapping module prefixes to plugin names for pre-import filtering.

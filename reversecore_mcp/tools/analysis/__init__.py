@@ -83,9 +83,17 @@ class AnalysisToolsPlugin(Plugin):
             patch_diff_1day,
         )
         from reversecore_mcp.tools.analysis.emulation_tools import emulate_binary
+        from reversecore_mcp.tools.analysis.feature_reconstruction import (
+            reconstruct_feature_code,
+        )
         from reversecore_mcp.tools.analysis.fuzz_tools import generate_fuzzing_harness
         from reversecore_mcp.tools.analysis.fuzzing_campaign import run_fuzzing_campaign
         from reversecore_mcp.tools.analysis.lief_tools import parse_binary_with_lief
+        from reversecore_mcp.tools.analysis.modern_runtimes import (
+            inspect_electron_asar,
+            inspect_go_rust_binary,
+            inspect_unity_il2cpp,
+        )
         from reversecore_mcp.tools.analysis.patch_vuln_inference import (
             analyze_patch_diff_auto,
         )
@@ -150,8 +158,12 @@ class AnalysisToolsPlugin(Plugin):
         mcp_server.tool(review_transferred_annotations)
         mcp_server.tool(apply_transferred_annotation)
         mcp_server.tool(vt_lookup)
+        mcp_server.tool(reconstruct_feature_code)
+        mcp_server.tool(inspect_go_rust_binary)
+        mcp_server.tool(inspect_electron_asar)
+        mcp_server.tool(inspect_unity_il2cpp)
 
-        logger.info(f"Registered {self.name} plugin with 34 analysis tools (unified)")
+        logger.info(f"Registered {self.name} plugin with 38 analysis tools (unified)")
 
 
 __all__ = ["AnalysisToolsPlugin", *_LAZY_RESOURCE_MODULES]

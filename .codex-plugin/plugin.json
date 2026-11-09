@@ -1,0 +1,37 @@
+{
+  "name": "reversecore-mcp",
+  "version": "1.0.0",
+  "description": "Enterprise-grade AI reverse engineering MCP server: Radare2, r2ghidra, ESIL emulation, Go/Rust, Electron ASAR, Unity IL2CPP, and feature code reconstruction.",
+  "author": {
+    "name": "Reversecore Team",
+    "url": "https://github.com/sjkim1127/Reversecore_MCP"
+  },
+  "repository": "https://github.com/sjkim1127/Reversecore_MCP",
+  "license": "MIT",
+  "keywords": [
+    "reverse-engineering",
+    "binary-analysis",
+    "decompiler",
+    "radare2",
+    "mcp-server"
+  ],
+  "skills": "./.agents/skills",
+  "mcpServers": "./.codex-plugin/mcp.json",
+  "interface": {
+    "displayName": "Reversecore_MCP",
+    "shortDescription": "AI Reverse Engineering & Feature Reconstruction",
+    "longDescription": "Reverse engineer native binaries, Go/Rust executables, Electron ASAR apps, and Unity IL2CPP games with Radare2, r2ghidra, and ESIL emulation.",
+    "developerName": "Reversecore Team",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Use Reversecore_MCP to decompile and reconstruct this binary function into clean Python.",
+      "Use Reversecore_MCP to inspect this Electron app.asar and audit its IPC channels.",
+      "Use Reversecore_MCP to recover stripped Go/Rust symbols and dependencies."
+    ]
+  }
+}

@@ -60,7 +60,8 @@ vendor/
 site/
 docs/test-results/
 /workspace/
-.agents/
+.agents/*
+!.agents/skills/
 
 # Generated binary test fixtures (recreated by scripts/generate-ci-fixtures.py)
 /scratch/binaries/

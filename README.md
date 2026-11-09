@@ -32,7 +32,7 @@
 
 - [What is Reversecore MCP?](#what-is-reversecore-mcp)
 - [Architecture](#architecture)
-- [Tool Catalog (179 Tools)](#tool-catalog-179-tools)
+- [Tool Catalog (186 Tools)](#tool-catalog-186-tools)
 - [Guided Analysis Prompts (22 Modes)](#guided-analysis-prompts-22-modes)
 - [MCP Resources (11 URIs)](#mcp-resources-11-uris)
 - [Quick Start](#quick-start)
@@ -54,7 +54,7 @@
 
 ## What is Reversecore MCP?
 
-Reversecore MCP is a [Model Context Protocol](https://modelcontextprotocol.io/) server that wraps **179 analysis tools** into a single interface that AI assistants can call through natural language.
+Reversecore MCP is a [Model Context Protocol](https://modelcontextprotocol.io/) server that wraps **186 analysis tools** into a single interface that AI assistants can call through natural language.
 
 Instead of learning the command-line syntax for a dozen different tools, you describe what you want:
 
@@ -96,7 +96,7 @@ AI Client (Claude / Cursor / any MCP-compatible client)
         ▼
 ┌──────────────────────────────────────────────────────┐
 │                   FastMCP 3.4.11 Server              │
-│          179 registered tools · Fully async          │
+│          186 registered tools · Fully async          │
 │                  Python 3.10–3.12                    │
 ├────────────────────┬─────────────────────────────────┤
 │   Guided Prompts   │  Dynamic Resources              │
@@ -167,7 +167,7 @@ The `reversecore_mcp/core/` directory contains the shared infrastructure that al
 
 ---
 
-## Tool Catalog (179 Tools)
+## Tool Catalog (186 Tools)
 
 > 📖 **[Authoritative Tool Catalog & Parameter Reference (151 Tools)](docs/TOOLS.md)**
 > 📊 **[Tool Profile Footprint & Context Benchmark Matrix](docs/benchmarks/profile_footprint.md)**
@@ -176,11 +176,35 @@ Every tool returns a structured `ToolResult` — either a `ToolSuccess` with typ
 
 | Profile | Registered Tools | Schema Size | LLM Context Saving vs Full | Recommended Domain |
 |---|:---:|:---:|:---:|---|
-| `full` | **153** | 116.8 KB | Baseline (0%) | Complete enterprise reverse engineering suite |
+| `tiered` | **15** | ~11.5 KB | **-90.2%** (~26,300 tokens) | ⚡ **Daily interactive AI pair programming** (12 core tools + 3 sub-agent router tools accessing all 179 tools on demand) |
+| `full` | **179** | 138.4 KB | Baseline (0%) | Complete enterprise reverse engineering suite |
 | `vuln-research` | **105** | 73.3 KB | **-37.2%** (~10,800 tokens) | Fuzzing, ASan crash triage, CVE hunting, exploit research |
 | `static` | **99** | 67.7 KB | **-42.0%** (~12,200 tokens) | Disassembly, decompilation (r2ghidra), LIEF, static triage |
 | `malware` | **67** | 62.8 KB | **-46.2%** (~13,500 tokens) | Threat triage, YARA scanning, deobfuscation, anti-analysis |
 | `forensics` | **57** | 37.0 KB | **-68.4%** (~19,500 tokens) | Memory forensics (Volatility3), network PCAP (Scapy), disk |
+
+### ⚡ Tiered Tools & Multi-Agent Architecture (`REVERSECORE_PROFILE=tiered`)
+
+Exposing all 179 tools to an LLM on every turn wastes **~30,000+ tokens** of prompt context. Tiered mode solves this by exposing **only 15 high-frequency tools** while retaining seamless access to all 179 tools via specialized Sub-Agents and a dynamic tool router:
+
+1. **Tier-1: Daily Core Tools (12 tools)**:
+   - `run_file`, `parse_binary_with_lief`, `get_server_health`
+   - `Radare2_open_file`, `Radare2_close_file`, `Radare2_list_functions`, `Radare2_list_strings`, `Radare2_disassemble_function`, `Radare2_decompile_function`
+   - `extract_iocs`, `run_yara`, `create_analysis_report`
+
+2. **Tier-2: Domain Expert Sub-Agents & Universal Router (3 tools)**:
+   - `call_expert_agent`: Dispatches high-level multi-step domain tasks to specialized Sub-Agents:
+     - `vulnerability_hunter`: CVE scanning, dangerous API auditing, ROP gadget collection, heap analysis, crash triage
+     - `forensics`: Network PCAP analysis, C2 extraction, Volatility3 memory dumps, SleuthKit disk carving
+     - `malware_analyst`: IOC extraction, dormant backdoors, CAPA capability mapping, adaptive vaccines
+     - `deobfuscator`: DIE packer detection, string decryption, API hash resolution, dead-code elimination
+     - `symbolic_engine`: angr symbolic path reachability, constraint solving, dataflow taint tracing
+     - `diff_analyst`: Semantic binary diffing, 1-day patch review, cross-binary annotation transfer
+     - `source_auditor`: AST vulnerability scanning (Python) and regex pattern auditing (C/C++)
+   - `search_tools`: Dynamic keyword and domain search across all 179 tools with parameter schemas and example invocations.
+   - `execute_domain_tool`: Universal execution gateway to invoke any of the 179 specialized tools on demand with custom arguments.
+
+Enable tiered mode via `reversecore-mcp setup --tiered` or `export REVERSECORE_PROFILE=tiered`.
 
 ---
 
@@ -456,7 +480,7 @@ Resources are read-only data endpoints that AI clients can access through URI te
 |---|---|
 | `reversecore://guide` | Tool usage guide with file path rules and best practices |
 | `reversecore://guide/structures` | Structure recovery and cross-reference analysis technical guide |
-| `reversecore://tools` | Complete documentation for all 179 registered tools |
+| `reversecore://tools` | Complete documentation for all 186 registered tools |
 | `reversecore://logs` | Application logs (last 100 lines) |
 
 ### Dynamic Resources (Per-Binary Virtual Filesystem)
@@ -477,7 +501,38 @@ These URIs resolve per-binary and invoke the corresponding analysis tools on dem
 
 ## Quick Start
 
-### Option 1 — PyPI (Simplest)
+### ⚡ One-Line Automated Setup (Recommended)
+
+Automatically detects installed AI agents (**Cursor, Claude Code, Windsurf, Claude Desktop, Antigravity, VS Code Cline/Roo Code, Codex**) and registers Reversecore_MCP with automatic backups and zero manual JSON editing:
+
+```bash
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/sjkim1127/Reversecore_MCP/main/install.sh | bash
+
+# Or via uvx (zero installation required)
+uvx --from reversecore-mcp reversecore-setup
+
+# Or via pipx
+pipx run reversecore-mcp setup
+
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/sjkim1127/Reversecore_MCP/main/install.ps1 | iex
+```
+
+**Common Setup Options:**
+```bash
+reversecore-mcp setup --tiered   # Tiered Mode: 15 essential tools (>90% context token reduction)
+reversecore-mcp setup --docker   # Configure Docker container execution
+reversecore-mcp setup --dry-run  # Preview configuration changes without writing
+reversecore-mcp setup --list     # Inspect detected clients and config paths
+reversecore-mcp setup --remove   # Unregister Reversecore from all clients
+```
+
+---
+
+### Manual Installation Options
+
+#### Option 1 — PyPI (Simplest)
 
 ```bash
 pip install reversecore-mcp
@@ -1007,7 +1062,7 @@ reversecore_mcp/
 │       ├── rule_manager.py        # SAST rule loader
 │       └── default_rules.yaml     # Default scanning rules
 │
-├── tools/                         # MCP tool implementations (179 tools)
+├── tools/                         # MCP tool implementations (186 tools)
 │   ├── analysis/                  # Static analysis (24 tools)
 │   │   ├── static_analysis.py     # file, strings, binwalk
 │   │   ├── lief_tools.py          # LIEF binary parser

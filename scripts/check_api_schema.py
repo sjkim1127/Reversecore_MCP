@@ -24,10 +24,15 @@ from reversecore_mcp import server
 # plus issue #323's registration of priority queue tools (plan_next_analysis_targets, populate_case_queue_from_triage, add_priority_target, update_priority_target, resolve_target_blocker),
 # plus issue #322's registration of cross-binary transfer tools (match_functions_across_binaries, transfer_annotations_across_binaries, review_transferred_annotations, apply_transferred_annotation),
 # plus issue #317's registration of analyst handoff bundle tools (export_handoff_bundle, import_handoff_bundle),
-# plus issue #363's bounded limit documentation on extract_iocs.
-EXPECTED_TOOL_COUNT = 179
-EXPECTED_SCHEMA_SHA256 = "562f9ae4371787c02667f828fa30f7ff445a28522a14dbc89f7324f5ee474563"
-VALID_SCHEMA_SHA256S = {EXPECTED_SCHEMA_SHA256}
+# plus issue #363's bounded limit documentation on extract_iocs,
+# plus registration of reconstruct_feature_code and summary-first paging.
+EXPECTED_TOOL_COUNT = 186
+EXPECTED_SCHEMA_SHA256 = "e0852008f691e61314059d63949c500a862eb08dd19cbc1ab728d7f4f6ce18ff"
+VALID_SCHEMA_SHA256S = {
+    "562f9ae4371787c02667f828fa30f7ff445a28522a14dbc89f7324f5ee474563",
+    "c5702d1c5e737a5835e6de300db9e15c6cc7b602ca5393b6db7b1b9c7763ac03",
+    EXPECTED_SCHEMA_SHA256,
+}
 
 
 async def _canonical_schema() -> list[dict[str, Any]]:

@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "reversecore": {
+      "command": "python3",
+      "args": [
+        "-m",
+        "reversecore_mcp"
+      ],
+      "env": {
+        "REVERSECORE_TIERED_MODE": "true",
+        "REVERSECORE_SCHEMA_PROFILE": "compact"
+      }
+    }
+  }
+}

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import shutil
 import time
 from typing import Any
@@ -862,6 +863,7 @@ class Radare2ToolsPlugin(Plugin):
             filter: str | None = None,
             cursor: str | None = None,
             page_size: int = DEFAULT_PAGE_SIZE,
+            detail: str = "full",
         ) -> dict[str, Any]:
             """
             List strings from data sections with optional regex filter.
@@ -871,9 +873,10 @@ class Radare2ToolsPlugin(Plugin):
                 filter: Regular expression to filter results
                 cursor: Pagination cursor (line number to start from)
                 page_size: Number of lines per page (default: 1000, max: 10000)
+                detail: Detail level - 'full' (complete strings list) or 'summary' (categorized counts & sample)
 
             Returns:
-                List of strings with pagination
+                List of strings with pagination, or summary overview
             """
             session = await self._get_or_create_session(file_path)
             if not session.is_open:
@@ -888,6 +891,63 @@ class Radare2ToolsPlugin(Plugin):
                 result = await _filter_lines_by_regex_async(result, filter)
                 if _is_regex_filter_error(result):
                     return {"status": "error", "message": result}
+
+            if detail == "summary":
+                all_lines = [line.strip() for line in result.splitlines() if line.strip()]
+                total = len(all_lines)
+                urls = sum(
+                    1
+                    for line in all_lines
+                    if "http://" in line.lower() or "https://" in line.lower()
+                )
+                paths = sum(
+                    1
+                    for line in all_lines
+                    if "://" not in line
+                    and (
+                        "/" in line
+                        or "\\" in line
+                        or ".exe" in line.lower()
+                        or ".dll" in line.lower()
+                    )
+                )
+                ips = sum(
+                    1
+                    for line in all_lines
+                    if re.search(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", line)
+                )
+                keys = sum(
+                    1
+                    for line in all_lines
+                    if any(
+                        k in line.lower() for k in ("key", "token", "secret", "auth", "password")
+                    )
+                )
+                samples = all_lines[:5]
+                from reversecore_mcp.core.evidence_cache import get_evidence_cache
+
+                ev_id = get_evidence_cache().store(
+                    tool_name="Radare2_list_strings",
+                    target_path=file_path,
+                    facets={"strings": all_lines},
+                    summary={"total_strings": total},
+                    seed=filter or "",
+                )
+                return {
+                    "status": "success",
+                    "detail_level": "summary",
+                    "evidence_id": ev_id,
+                    "parent_evidence_id": ev_id,
+                    "total_strings": total,
+                    "categories": {
+                        "urls": urls,
+                        "file_paths": paths,
+                        "ip_addresses": ips,
+                        "secrets_or_keys": keys,
+                    },
+                    "sample_strings": samples,
+                    "hint": f"Use inspect_analysis_view(evidence_id='{ev_id}') or set detail='full' to paginate strings.",
+                }
 
             paginated, has_more, next_cursor = _paginate_text(result, cursor, page_size)
 
@@ -904,6 +964,7 @@ class Radare2ToolsPlugin(Plugin):
             filter: str | None = None,
             cursor: str | None = None,
             page_size: int = DEFAULT_PAGE_SIZE,
+            detail: str = "full",
         ) -> dict[str, Any]:
             """
             Scan the entire binary for strings with optional regex filter.
@@ -915,9 +976,10 @@ class Radare2ToolsPlugin(Plugin):
                 filter: Regular expression to filter results
                 cursor: Pagination cursor
                 page_size: Number of lines per page
+                detail: Detail level - 'full' (complete strings list) or 'summary' (categorized counts & sample)
 
             Returns:
-                List of all strings with pagination
+                List of all strings with pagination, or summary overview
             """
             session = await self._get_or_create_session(file_path)
             if not session.is_open:
@@ -932,6 +994,63 @@ class Radare2ToolsPlugin(Plugin):
                 result = await _filter_lines_by_regex_async(result, filter)
                 if _is_regex_filter_error(result):
                     return {"status": "error", "message": result}
+
+            if detail == "summary":
+                all_lines = [line.strip() for line in result.splitlines() if line.strip()]
+                total = len(all_lines)
+                urls = sum(
+                    1
+                    for line in all_lines
+                    if "http://" in line.lower() or "https://" in line.lower()
+                )
+                paths = sum(
+                    1
+                    for line in all_lines
+                    if "://" not in line
+                    and (
+                        "/" in line
+                        or "\\" in line
+                        or ".exe" in line.lower()
+                        or ".dll" in line.lower()
+                    )
+                )
+                ips = sum(
+                    1
+                    for line in all_lines
+                    if re.search(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", line)
+                )
+                keys = sum(
+                    1
+                    for line in all_lines
+                    if any(
+                        k in line.lower() for k in ("key", "token", "secret", "auth", "password")
+                    )
+                )
+                samples = all_lines[:5]
+                from reversecore_mcp.core.evidence_cache import get_evidence_cache
+
+                ev_id = get_evidence_cache().store(
+                    tool_name="Radare2_list_strings",
+                    target_path=file_path,
+                    facets={"strings": all_lines},
+                    summary={"total_strings": total},
+                    seed=filter or "",
+                )
+                return {
+                    "status": "success",
+                    "detail_level": "summary",
+                    "evidence_id": ev_id,
+                    "parent_evidence_id": ev_id,
+                    "total_strings": total,
+                    "categories": {
+                        "urls": urls,
+                        "file_paths": paths,
+                        "ip_addresses": ips,
+                        "secrets_or_keys": keys,
+                    },
+                    "sample_strings": samples,
+                    "hint": f"Use inspect_analysis_view(evidence_id='{ev_id}') or set detail='full' to paginate strings.",
+                }
 
             paginated, has_more, next_cursor = _paginate_text(result, cursor, page_size)
 
@@ -1011,6 +1130,7 @@ class Radare2ToolsPlugin(Plugin):
             file_path: str,
             address: str,
             num_instructions: int = 10,
+            detail: str = "full",
         ) -> dict[str, Any]:
             """
             Disassemble a specific number of instructions from an address.
@@ -1022,9 +1142,10 @@ class Radare2ToolsPlugin(Plugin):
                 file_path: Path to the binary file
                 address: Address to start disassembly
                 num_instructions: Number of instructions to disassemble (default: 10, max: 1000)
+                detail: Detail level - 'full' (complete instructions) or 'summary' (instruction count & preview)
 
             Returns:
-                Disassembled instructions
+                Disassembled instructions or summary overview
             """
             # Validate address
             try:
@@ -1043,6 +1164,57 @@ class Radare2ToolsPlugin(Plugin):
                 return {"status": "error", "message": "Failed to open file"}
 
             result = await self._run_session_cmd(session, f"pd {num_instructions} @ {address}")
+
+            if detail == "summary":
+                lines = [line.strip() for line in result.splitlines() if line.strip()]
+                total = len(lines)
+                calls = sum(1 for line in lines if "call" in line.lower())
+                branches = sum(
+                    1
+                    for line in lines
+                    if any(
+                        k in line.lower()
+                        for k in (
+                            "jmp",
+                            "je",
+                            "jne",
+                            "jz",
+                            "jnz",
+                            "jg",
+                            "jge",
+                            "jl",
+                            "jle",
+                            "ja",
+                            "jb",
+                        )
+                    )
+                )
+                returns = sum(1 for line in lines if "ret" in line.lower())
+                preview = lines[:3]
+                from reversecore_mcp.core.evidence_cache import get_evidence_cache
+
+                ev_id = get_evidence_cache().store(
+                    tool_name="Radare2_disassemble",
+                    target_path=file_path,
+                    facets={"instructions": lines},
+                    summary={"total_instructions": total},
+                    seed=address,
+                )
+                return {
+                    "status": "success",
+                    "detail_level": "summary",
+                    "evidence_id": ev_id,
+                    "parent_evidence_id": ev_id,
+                    "total_instructions": total,
+                    "metrics": {
+                        "branches": branches,
+                        "calls": calls,
+                        "returns": returns,
+                    },
+                    "preview": preview,
+                    "hint": f"Use inspect_analysis_view(evidence_id='{ev_id}') or set detail='full' to retrieve instructions.",
+                }
+
             return {"status": "success", "disassembly": result}
 
         @mcp.tool()
@@ -1052,6 +1224,7 @@ class Radare2ToolsPlugin(Plugin):
             format: str = "compact",
             cursor: str | None = None,
             page_size: int = DEFAULT_PAGE_SIZE,
+            detail: str = "full",
         ) -> dict[str, Any]:
             """
             Show assembly listing of the function at the specified address.
@@ -1067,9 +1240,10 @@ class Radare2ToolsPlugin(Plugin):
                     or 'raw' (raw visual text output). Default: 'compact'.
                 cursor: Pagination cursor
                 page_size: Number of lines per page
+                detail: Detail level - 'full' (complete instructions) or 'summary' (instruction count & preview)
 
             Returns:
-                Function disassembly with pagination
+                Function disassembly with pagination, or summary overview
             """
             # Validate address format (allows symbol names too)
             try:
@@ -1123,9 +1297,45 @@ class Radare2ToolsPlugin(Plugin):
                         comment = op.get("comment") or op.get("ptr_comment") or ""
                         instruction_tuples.append([addr_str, mnemonic, operands, comment])
 
+                    total_instructions = len(instruction_tuples)
+
+                    if detail == "summary":
+                        calls = sum(1 for it in instruction_tuples if it[1].lower() == "call")
+                        branches = sum(
+                            1 for it in instruction_tuples if it[1].lower().startswith("j")
+                        )
+                        returns = sum(
+                            1 for it in instruction_tuples if it[1].lower().startswith("ret")
+                        )
+                        from reversecore_mcp.core.evidence_cache import get_evidence_cache
+
+                        ev_id = get_evidence_cache().store(
+                            tool_name="Radare2_disassemble_function",
+                            target_path=file_path,
+                            facets={"instructions": instruction_tuples},
+                            summary={"total_instructions": total_instructions},
+                            seed=resolved_address,
+                        )
+                        return {
+                            "status": "success",
+                            "detail_level": "summary",
+                            "evidence_id": ev_id,
+                            "parent_evidence_id": ev_id,
+                            "format": "compact",
+                            "address_requested": address,
+                            "address_resolved": resolved_address,
+                            "total_instructions": total_instructions,
+                            "metrics": {
+                                "branches": branches,
+                                "calls": calls,
+                                "returns": returns,
+                            },
+                            "preview": instruction_tuples[:3],
+                            "hint": f"Use inspect_analysis_view(evidence_id='{ev_id}') or set detail='full' to retrieve instructions.",
+                        }
+
                     cursor_offset = int(cursor) if cursor and cursor.isdigit() else 0
                     limit = page_size if page_size > 0 else 100
-                    total_instructions = len(instruction_tuples)
                     end_offset = cursor_offset + limit
                     paginated_ops = instruction_tuples[cursor_offset:end_offset]
                     has_more = end_offset < total_instructions
@@ -1144,6 +1354,59 @@ class Radare2ToolsPlugin(Plugin):
                     }
 
             result = await self._run_session_cmd(session, f"pdf @ {resolved_address}")
+
+            if detail == "summary":
+                lines = [line.strip() for line in result.splitlines() if line.strip()]
+                total = len(lines)
+                calls = sum(1 for line in lines if "call" in line.lower())
+                branches = sum(
+                    1
+                    for line in lines
+                    if any(
+                        k in line.lower()
+                        for k in (
+                            "jmp",
+                            "je",
+                            "jne",
+                            "jz",
+                            "jnz",
+                            "jg",
+                            "jge",
+                            "jl",
+                            "jle",
+                            "ja",
+                            "jb",
+                        )
+                    )
+                )
+                returns = sum(1 for line in lines if "ret" in line.lower())
+                from reversecore_mcp.core.evidence_cache import get_evidence_cache
+
+                ev_id = get_evidence_cache().store(
+                    tool_name="Radare2_disassemble_function",
+                    target_path=file_path,
+                    facets={"instructions": lines},
+                    summary={"total_instructions": total},
+                    seed=resolved_address,
+                )
+                return {
+                    "status": "success",
+                    "detail_level": "summary",
+                    "evidence_id": ev_id,
+                    "parent_evidence_id": ev_id,
+                    "format": "raw",
+                    "address_requested": address,
+                    "address_resolved": resolved_address,
+                    "total_instructions": total,
+                    "metrics": {
+                        "branches": branches,
+                        "calls": calls,
+                        "returns": returns,
+                    },
+                    "preview": lines[:3],
+                    "hint": f"Use inspect_analysis_view(evidence_id='{ev_id}') or set detail='full' to retrieve instructions.",
+                }
+
             paginated, has_more, next_cursor = _paginate_text(result, cursor, page_size)
 
             return {
@@ -1164,6 +1427,7 @@ class Radare2ToolsPlugin(Plugin):
             max_lines: int = 200,
             cursor: str | None = None,
             page_size: int = DEFAULT_PAGE_SIZE,
+            detail: str = "full",
         ) -> dict[str, Any]:
             """
             Show C-like pseudocode of the function at the given address.
@@ -1178,9 +1442,10 @@ class Radare2ToolsPlugin(Plugin):
                 max_lines: Maximum lines of pseudocode per window (default: 200)
                 cursor: Legacy pagination cursor (overridden by line_offset if provided)
                 page_size: Legacy page size (overridden by max_lines if provided)
+                detail: Detail level - 'full' (complete decompiled code) or 'summary' (signature, metrics & preview)
 
             Returns:
-                Decompiled pseudocode with summary header and pagination
+                Decompiled pseudocode with summary header and pagination, or summary overview
             """
             # Validate address
             try:
@@ -1230,6 +1495,46 @@ class Radare2ToolsPlugin(Plugin):
                     else "0-0"
                 ),
             }
+
+            if detail == "summary":
+                loops = sum(
+                    1 for line in lines if any(w in line for w in ("while", "for (", "do {"))
+                )
+                branches = sum(
+                    1 for line in lines if any(w in line for w in ("if (", "else", "switch ("))
+                )
+                calls = sum(
+                    1
+                    for line in lines
+                    if "(" in line
+                    and not any(w in line for w in ("if (", "while (", "for (", "switch ("))
+                )
+                preview = "\n".join(lines[:5])
+                from reversecore_mcp.core.evidence_cache import get_evidence_cache
+
+                ev_id = get_evidence_cache().store(
+                    tool_name="Radare2_decompile_function",
+                    target_path=file_path,
+                    facets={"lines": lines, "pseudocode": result},
+                    summary={"signature": signature, "total_lines": total_lines},
+                    seed=address,
+                )
+                return {
+                    "status": "success",
+                    "detail_level": "summary",
+                    "evidence_id": ev_id,
+                    "parent_evidence_id": ev_id,
+                    "summary": summary_header,
+                    "signature": signature,
+                    "total_lines": total_lines,
+                    "control_flow_metrics": {
+                        "loops": loops,
+                        "conditionals": branches,
+                        "calls": calls,
+                    },
+                    "preview": preview,
+                    "hint": f"Use inspect_analysis_view(evidence_id='{ev_id}') or set detail='full' to retrieve pseudocode.",
+                }
 
             return {
                 "status": "success",

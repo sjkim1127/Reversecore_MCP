@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "name": "reversecore_mcp",
   "description": "Enterprise-grade MCP server for binary reverse engineering, decompilation, malware triage, and vulnerability hunting.",
-  "total_tools": 179,
+  "total_tools": 186,
   "protocol_readiness": {
     "mcp_version": "2024-11-05",
     "fastmcp_version": "3.4.11",
@@ -786,6 +786,11 @@
             "default": 1000,
             "type": "integer",
             "description": "Legacy page size (overridden by max_lines if provided)"
+          },
+          "detail": {
+            "default": "full",
+            "type": "string",
+            "description": "Detail level - 'full' (complete decompiled code) or 'summary' (signature, metrics & preview)"
           }
         },
         "required": [
@@ -974,6 +979,11 @@
             "default": 10,
             "type": "integer",
             "description": "Number of instructions to disassemble (default: 10, max: 1000)"
+          },
+          "detail": {
+            "default": "full",
+            "type": "string",
+            "description": "Detail level - 'full' (complete instructions) or 'summary' (instruction count & preview)"
           }
         },
         "required": [
@@ -1179,6 +1189,11 @@
             "default": 1000,
             "type": "integer",
             "description": "Number of lines per page"
+          },
+          "detail": {
+            "default": "full",
+            "type": "string",
+            "description": "Detail level - 'full' (complete instructions) or 'summary' (instruction count & preview)"
           }
         },
         "required": [
@@ -1748,6 +1763,11 @@
             "default": 1000,
             "type": "integer",
             "description": "Number of lines per page"
+          },
+          "detail": {
+            "default": "full",
+            "type": "string",
+            "description": "Detail level - 'full' (complete strings list) or 'summary' (categorized counts & sample)"
           }
         },
         "required": [
@@ -3603,6 +3623,11 @@
             "default": 1000,
             "type": "integer",
             "description": "Number of lines per page (default: 1000, max: 10000)"
+          },
+          "detail": {
+            "default": "full",
+            "type": "string",
+            "description": "Detail level - 'full' (complete strings list) or 'summary' (categorized counts & sample)"
           }
         },
         "required": [
@@ -20430,6 +20455,818 @@
       }
     },
     {
+      "name": "inspect_analysis_view",
+      "description": "Paginate and filter a retained analysis result by its ``evidence_id``.\n\nWhen a tool is called with ``detail=\"summary\"``, it caches the complete output\nin the session EvidenceCache and returns an ``evidence_id`` (e.g. ``ev_8f3a92b1c4d0``).\nUse ``inspect_analysis_view`` to inspect specific pages or filter items without\nflooding the LLM context window. Pass ``evidence_id=\"list\"`` to view all\nretained evidence handles in the current session.",
+      "plugin": "common_tools",
+      "profiles": [
+        "full",
+        "static",
+        "malware",
+        "forensics",
+        "vuln-research"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence_id": {
+            "type": "string",
+            "description": "Retained evidence identifier (e.g. 'ev_8f3a92b1c4d0'), or 'list'\nto enumerate all cached evidence records in the session."
+          },
+          "facet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional facet name to inspect (e.g. 'instructions', 'lines', 'strings',\n'functions', 'files', 'packages', 'literals'). Defaults to primary facet."
+          },
+          "offset": {
+            "default": 0,
+            "type": "integer",
+            "description": "Zero-based starting item index for pagination (default: 0)."
+          },
+          "limit": {
+            "default": 50,
+            "type": "integer",
+            "description": "Maximum number of items to return per page (default: 50, max: 500)."
+          },
+          "filter_query": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional case-insensitive substring filter applied before slicing."
+          }
+        },
+        "required": [
+          "evidence_id"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "returned_bytes": {
+                "type": "integer"
+              },
+              "total_captured_bytes": {
+                "type": "integer"
+              },
+              "saved_artifact": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "continuation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "cursor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "inspect_electron_asar",
+      "description": "Inspect, audit, and optionally unpack an Electron `.asar` application archive.\n\nParses Chromium's binary Pickle header and JSON virtual filesystem in pure Python:\n- Inventories all bundled JavaScript, HTML, CSS, JSON, and `.node` native addons.\n- Extracts `package.json` metadata (app name, version, main entry, dependencies).\n- Audits Electron security settings (`nodeIntegration`, `contextIsolation`, `webSecurity`).\n- Discovers IPC attack surface (`ipcMain.handle`, `ipcMain.on`, `ipcRenderer.invoke`, `contextBridge`).\n- Optionally searches source files for `search_pattern` or extracts files into `extract_path`.",
+      "plugin": "analysis_tools",
+      "profiles": [
+        "full",
+        "static",
+        "malware",
+        "vuln-research"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "Path to the `.asar` file (e.g. `app.asar`)."
+          },
+          "extract_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional workspace directory path to unpack archive files into."
+          },
+          "search_pattern": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional regex or substring pattern to search across bundled JS/JSON files."
+          },
+          "detail": {
+            "default": "summary",
+            "type": "string",
+            "description": "Detail level ('summary' or 'full'). Default: 'summary'."
+          }
+        },
+        "required": [
+          "file_path"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "returned_bytes": {
+                "type": "integer"
+              },
+              "total_captured_bytes": {
+                "type": "integer"
+              },
+              "saved_artifact": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "continuation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "cursor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "inspect_go_rust_binary",
+      "description": "Recover compiler metadata, stripped symbols, and dependencies from Go and Rust binaries.\n\nInspects native binaries (ELF, PE, Mach-O) in pure Python without requiring a Go\nor Rust toolchain:\n- **Go**: Detects `gopclntab` headers (`0xfffffffb`/`fa`/`f0`/`f1`), `Go build ID`,\n  `Go buildinf` module tables, user package functions (`main.*`, `github.com/*`), and `.go` files.\n- **Rust**: Detects `/rustc/<commit>/` compiler provenance, decodes `.dep-v0`\n  (`cargo-auditable`) dependency graphs, extracts cargo crate versions, and demangles `_ZN...E` symbols.",
+      "plugin": "analysis_tools",
+      "profiles": [
+        "full",
+        "static",
+        "malware",
+        "vuln-research"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "Path to the target binary file."
+          },
+          "detail": {
+            "default": "summary",
+            "type": "string",
+            "description": "Output detail level ('summary' or 'full'). Default: 'summary'."
+          },
+          "limit": {
+            "default": 100,
+            "type": "integer",
+            "description": "Maximum items per category when detail='full' (default: 100, max: 1000)."
+          }
+        },
+        "required": [
+          "file_path"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "returned_bytes": {
+                "type": "integer"
+              },
+              "total_captured_bytes": {
+                "type": "integer"
+              },
+              "saved_artifact": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "continuation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "cursor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "inspect_unity_il2cpp",
+      "description": "Parse Unity IL2CPP ``global-metadata.dat`` and optional ``libil2cpp.so`` / ``GameAssembly.dll``.\n\nRecovers managed C# string literals, namespaces, class names, and method identifiers\ndirectly from Unity's ``global-metadata.dat`` without requiring Unity or Il2CppDumper:\n- Validates header magic (`0xFAB11BAF`) and metadata format version (v24, v27, v29, v31+).\n- Detects encrypted/obfuscated metadata headers via entropy and magic diagnostics.\n- Extracts the C# `stringLiteral` table and identifier `string` table.\n- Optionally correlates native exports and registration routines in `binary_path`.",
+      "plugin": "analysis_tools",
+      "profiles": [
+        "full",
+        "static",
+        "malware",
+        "vuln-research"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "metadata_path": {
+            "type": "string",
+            "description": "Path to `global-metadata.dat`."
+          },
+          "binary_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional path to `libil2cpp.so` or `GameAssembly.dll`."
+          },
+          "detail": {
+            "default": "summary",
+            "type": "string",
+            "description": "Detail level ('summary' or 'full'). Default: 'summary'."
+          },
+          "limit": {
+            "default": 100,
+            "type": "integer",
+            "description": "Maximum items per table when detail='full' (default: 100, max: 1000)."
+          }
+        },
+        "required": [
+          "metadata_path"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "returned_bytes": {
+                "type": "integer"
+              },
+              "total_captured_bytes": {
+                "type": "integer"
+              },
+              "saved_artifact": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "continuation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "cursor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "list_case_states",
       "description": "List persistent analysis cases.",
       "plugin": "common_tools",
@@ -22170,6 +23007,11 @@
             "default": 500,
             "type": "integer",
             "description": "Maximum number of strings to return (default: 500)."
+          },
+          "detail": {
+            "default": "full",
+            "type": "string",
+            "description": "Detail level - 'full' (complete strings list) or 'summary' (counts & samples)"
           }
         },
         "required": [
@@ -25218,6 +26060,11 @@
             "default": 120,
             "type": "integer",
             "description": "Maximum execution time in seconds (default 300)."
+          },
+          "detail": {
+            "default": "full",
+            "type": "string",
+            "description": "Detail level - 'full' (complete pseudocode) or 'summary' (signature, metrics & preview)"
           }
         },
         "required": [
@@ -26889,6 +27736,191 @@
       }
     },
     {
+      "name": "read_guidance_section",
+      "description": "Read the full markdown content of a specific guidance section by its locator.",
+      "plugin": "common_tools",
+      "profiles": [
+        "full",
+        "static",
+        "malware",
+        "forensics",
+        "vuln-research"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "locator": {
+            "type": "string",
+            "description": "Section locator returned by ``search_guidance``\n(e.g. 'playbook:go-rust-reversing#gopclntab-and-crates' or 'docs/EMULATION.md#overview')."
+          },
+          "max_chars": {
+            "default": 4000,
+            "type": "integer",
+            "description": "Maximum characters to return (default: 4000, max: 20000)."
+          }
+        },
+        "required": [
+          "locator"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "returned_bytes": {
+                "type": "integer"
+              },
+              "total_captured_bytes": {
+                "type": "integer"
+              },
+              "saved_artifact": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "continuation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "cursor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "recall_memory_item",
       "description": "Search and recall memories from past analyses.\n\nUse this when you need to remember something from earlier,\nor when the user asks about previous findings.",
       "plugin": "memory_tools",
@@ -27179,6 +28211,215 @@
             "description": "Optional time or resource budget in seconds (e.g. 30 for quick, 120 for standard, 300+ for deep)."
           }
         },
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "returned_bytes": {
+                "type": "integer"
+              },
+              "total_captured_bytes": {
+                "type": "integer"
+              },
+              "saved_artifact": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "continuation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "cursor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "reconstruct_feature_code",
+      "description": "Reconstruct a compiled binary function into clean, verified modern code.\n\nDecompiles the target function, strips compiler/decompiler noise (stack canaries,\nsegment registers), synthesizes idiomatic modern code (C or Python), and verifies\nboth structural parity (branches, API calls) and behavioral equivalence.",
+      "plugin": "analysis_tools",
+      "profiles": [
+        "full",
+        "static",
+        "malware",
+        "vuln-research"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "Path to the target binary file."
+          },
+          "address_or_symbol": {
+            "type": "string",
+            "description": "Function address (e.g. '0x401000') or symbol name ('main')."
+          },
+          "target_language": {
+            "default": "c",
+            "type": "string",
+            "description": "Target output language ('c' or 'python', default: 'c')."
+          },
+          "test_inputs": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional list of test inputs (hex strings or values) for ESIL emulation."
+          },
+          "timeout": {
+            "default": 300,
+            "type": "integer",
+            "description": "Maximum execution timeout in seconds."
+          }
+        },
+        "required": [
+          "file_path",
+          "address_or_symbol"
+        ],
         "type": "object"
       },
       "outputSchema": {
@@ -31143,6 +32384,203 @@
             "description": "Global timeout for the batch operation in seconds."
           }
         },
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "returned_bytes": {
+                "type": "integer"
+              },
+              "total_captured_bytes": {
+                "type": "integer"
+              },
+              "saved_artifact": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "continuation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "cursor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "search_guidance",
+      "description": "Search reverse engineering playbooks, tool recipes, and documentation on demand.\n\nUse this tool when encountering an unfamiliar target format (e.g. Go/Rust binaries,\nElectron ASAR bundles, Unity IL2CPP metadata), workflow (summary-first paging,\nfeature reconstruction), or architecture question instead of guessing parameters.",
+      "plugin": "common_tools",
+      "profiles": [
+        "full",
+        "static",
+        "malware",
+        "forensics",
+        "vuln-research"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search keywords (e.g. 'go binary', 'asar', 'il2cpp', 'paging', 'reconstruct', 'emulation')."
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional category filter (e.g. 'workflow', 'modern-runtimes', 'user-guide', 'api')."
+          },
+          "limit": {
+            "default": 10,
+            "type": "integer",
+            "description": "Maximum number of matching sections to return (default: 10, max: 30)."
+          }
+        },
+        "required": [
+          "query"
+        ],
         "type": "object"
       },
       "outputSchema": {

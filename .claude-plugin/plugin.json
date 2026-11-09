@@ -1,0 +1,34 @@
+{
+  "name": "reversecore-mcp",
+  "version": "1.0.0",
+  "description": "Enterprise-grade AI reverse engineering MCP server: Radare2, r2ghidra, ESIL emulation, Go/Rust, Electron ASAR, Unity IL2CPP, and feature code reconstruction.",
+  "author": {
+    "name": "Reversecore Team",
+    "url": "https://github.com/sjkim1127/Reversecore_MCP"
+  },
+  "repository": "https://github.com/sjkim1127/Reversecore_MCP",
+  "license": "MIT",
+  "keywords": [
+    "reverse-engineering",
+    "binary-analysis",
+    "decompiler",
+    "radare2",
+    "ghidra",
+    "malware-analysis",
+    "mcp-server"
+  ],
+  "skills": "./.agents/skills",
+  "mcpServers": {
+    "reversecore": {
+      "command": "python3",
+      "args": [
+        "-m",
+        "reversecore_mcp"
+      ],
+      "env": {
+        "REVERSECORE_TIERED_MODE": "true",
+        "REVERSECORE_SCHEMA_PROFILE": "compact"
+      }
+    }
+  }
+}

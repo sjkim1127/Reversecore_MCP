@@ -11,11 +11,11 @@ tool hallucinations caused by excessive schema exposure.
 
 | Profile | Registered Tools | Schema Size (Bytes) | Schema Size (KB) | Schema Reduction | Est. Context Tokens (~4B/tok) | Tokens Saved | Cold Start | Loaded Modules | Peak RSS |
 |:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| `full` | 173 | 139,051 B | 135.8 KB | Baseline (0%) | ~34,763 | — | 1060.9 ms | 154 | 193.5 MB |
-| `static` | 119 | 88,778 B | 86.7 KB | **-36.2%** | ~22,194 | **+12,568 tok** | 824.5 ms | 148 | 189.9 MB |
-| `malware` | 87 | 83,775 B | 81.8 KB | **-39.8%** | ~20,944 | **+13,819 tok** | 826.6 ms | 152 | 188.8 MB |
-| `forensics` | 76 | 56,147 B | 54.8 KB | **-59.6%** | ~14,037 | **+20,726 tok** | 737.0 ms | 140 | 188.5 MB |
-| `vuln-research` | 125 | 94,532 B | 92.3 KB | **-32.0%** | ~23,633 | **+11,130 tok** | 877.7 ms | 148 | 189.3 MB |
+| `full` | 186 | 153,673 B | 150.1 KB | Baseline (0%) | ~38,418 | — | 1880.1 ms | 163 | 195.0 MB |
+| `static` | 132 | 103,165 B | 100.7 KB | **-32.9%** | ~25,791 | **+12,627 tok** | 1614.2 ms | 157 | 191.0 MB |
+| `malware` | 100 | 97,362 B | 95.1 KB | **-36.6%** | ~24,340 | **+14,078 tok** | 1639.9 ms | 161 | 191.9 MB |
+| `forensics` | 81 | 61,496 B | 60.1 KB | **-60.0%** | ~15,374 | **+23,044 tok** | 1171.7 ms | 145 | 188.3 MB |
+| `vuln-research` | 138 | 108,919 B | 106.4 KB | **-29.1%** | ~27,230 | **+11,188 tok** | 1443.5 ms | 157 | 192.1 MB |
 
 ---
 

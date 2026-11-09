@@ -43,6 +43,7 @@ class CommonToolsPlugin(Plugin):
             resume_case_state,
             update_case_state,
         )
+        from reversecore_mcp.tools.common.evidence_view_tools import inspect_analysis_view
         from reversecore_mcp.tools.common.file_operations import (
             copy_to_workspace,
             create_directory,
@@ -50,6 +51,10 @@ class CommonToolsPlugin(Plugin):
             retrieve_truncated_output,
             run_file,
             scan_workspace,
+        )
+        from reversecore_mcp.tools.common.guidance_tools import (
+            read_guidance_section,
+            search_guidance,
         )
         from reversecore_mcp.tools.common.handoff_tools import (
             export_handoff_bundle,
@@ -128,6 +133,11 @@ class CommonToolsPlugin(Plugin):
 
         # Assembler tool
         mcp_server.tool(assemble_instructions)
+
+        # Retained evidence paging & on-demand guidance tools
+        mcp_server.tool(inspect_analysis_view)
+        mcp_server.tool(search_guidance)
+        mcp_server.tool(read_guidance_section)
 
         logger.info(f"Registered {self.name} plugin with common utilities (unified)")
 

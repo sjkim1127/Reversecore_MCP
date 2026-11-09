@@ -556,6 +556,7 @@ async def memory_extract_strings(
     dump_path: str,
     min_length: int = 6,
     limit: int = 500,
+    detail: str = "full",
 ) -> ToolResult:
     """Extract ASCII and Unicode strings from a memory dump.
 
@@ -563,6 +564,7 @@ async def memory_extract_strings(
         dump_path: Path to the memory dump file.
         min_length: Minimum string length to include (default: 6).
         limit: Maximum number of strings to return (default: 500).
+        detail: Detail level - 'full' (complete strings list) or 'summary' (counts & samples)
 
     Returns:
         ToolResult with extracted strings, counts, and notable patterns (IPs, URLs).
@@ -609,6 +611,30 @@ async def memory_extract_strings(
         await asyncio.to_thread(extract_strings)
 
     notable = {"ips": summary.ips, "urls": summary.urls}
+
+    if detail == "summary":
+        from reversecore_mcp.core.evidence_cache import get_evidence_cache
+
+        ev_id = get_evidence_cache().store(
+            tool_name="memory_extract_strings",
+            target_path=str(validated),
+            facets={"strings": summary.strings, "urls": summary.urls, "ips": summary.ips},
+            summary={"string_count": summary.string_count},
+            seed=str(min_length),
+        )
+        return success(
+            {
+                "dump_path": str(validated),
+                "detail_level": "summary",
+                "evidence_id": ev_id,
+                "parent_evidence_id": ev_id,
+                "string_count": summary.string_count,
+                "sample_strings": summary.strings[:5],
+                "notable": notable,
+                "hint": f"Use inspect_analysis_view(evidence_id='{ev_id}') or set detail='full' to paginate strings.",
+                "truncated": summary.truncated or output_limit_reached or command_incomplete,
+            }
+        )
 
     return success(
         {

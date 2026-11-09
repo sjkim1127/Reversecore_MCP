@@ -81,6 +81,7 @@ Changelog = "https://github.com/sjkim1127/Reversecore_MCP/releases"
 
 [project.scripts]
 reversecore-mcp = "reversecore_mcp.server:main"
+reversecore-setup = "reversecore_mcp.setup:main"
 
 [project.optional-dependencies]
 analysis = [

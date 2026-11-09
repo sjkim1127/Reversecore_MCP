@@ -9,6 +9,7 @@ import asyncio
 import re
 import shutil
 import stat
+import sys
 import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -424,6 +425,16 @@ from reversecore_mcp.core.task_queue import get_job_result  # noqa: E402
 mcp.tool()(get_job_result)
 logger.info("Registered get_job_result tool")
 
+# Configure Tiered Tools & Multi-Agent mode if active
+from reversecore_mcp.core.tiered import setup_tiered_mode  # noqa: E402
+
+setup_tiered_mode(mcp, get_config().tool_profile)
+
+# Configure Compact Schema Profile if active
+from reversecore_mcp.core.compact_schema import setup_compact_schema_mode  # noqa: E402
+
+setup_compact_schema_mode(mcp, get_config().schema_profile)
+
 
 # ============================================================================
 # Security & Authentication Middleware
@@ -437,6 +448,12 @@ from reversecore_mcp.web.middleware import (  # noqa: E402
 
 def main():
     """Run the MCP server."""
+    # Support CLI subcommands: setup wizard
+    if len(sys.argv) > 1 and sys.argv[1] in ("setup", "--setup"):
+        from reversecore_mcp.setup import main as setup_main
+
+        sys.exit(setup_main(sys.argv[2:]))
+
     # Get transport mode from settings (default: stdio)
     settings = get_config()
 

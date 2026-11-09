@@ -329,6 +329,11 @@ class Settings(BaseSettings):
         alias="REVERSECORE_PROFILE",
         description="Tool profile to load: 'full', 'static', 'malware', 'forensics', 'vuln-research', or comma-separated plugin names",
     )
+    schema_profile: str = Field(
+        default="full",
+        alias="REVERSECORE_SCHEMA_PROFILE",
+        description="MCP schema profile: 'full' (canonical detailed schemas) or 'compact' (optimized shallow schemas for low-context LLMs)",
+    )
 
     # ------------------------------------------------------------------
     # Threat Intelligence
@@ -452,6 +457,7 @@ class Config:
         clang_path: str | None = None,
         enable_live_fuzzing: bool | None = None,
         tool_profile: str | None = None,
+        schema_profile: str | None = None,
         _warn_deprecated: bool = True,
     ):
         """Initialize Config with optional Settings instance or individual values.
@@ -513,6 +519,8 @@ class Config:
                 env_overrides["enable_live_fuzzing"] = enable_live_fuzzing
             if tool_profile is not None:
                 env_overrides["tool_profile"] = tool_profile
+            if schema_profile is not None:
+                env_overrides["schema_profile"] = schema_profile
 
             if env_overrides:
                 self._settings = Settings(**env_overrides)
@@ -684,6 +692,10 @@ class Config:
     @property
     def tool_profile(self) -> str:
         return self._settings.tool_profile
+
+    @property
+    def schema_profile(self) -> str:
+        return self._settings.schema_profile
 
     @property
     def mock_mode(self) -> bool:

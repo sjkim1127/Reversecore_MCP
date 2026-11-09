@@ -108,6 +108,7 @@ async def r2_decompile(
     line_offset: int = 0,
     max_lines: int = 200,
     timeout: int = DEFAULT_TIMEOUT,
+    detail: str = "full",
 ) -> ToolResult:
     """Decompile a binary function to pseudo-C using the r2ghidra plugin.
 
@@ -122,6 +123,7 @@ async def r2_decompile(
         line_offset: Starting line offset for windowed output (default: 0).
         max_lines: Maximum number of lines to return (default: 200).
         timeout: Maximum execution time in seconds (default 300).
+        detail: Detail level - 'full' (complete pseudocode) or 'summary' (signature, metrics & preview)
 
     Returns:
         ToolResult with windowed ``pseudo_c`` string, summary header, and pagination metadata.
@@ -255,6 +257,48 @@ async def r2_decompile(
     }
 
     hints = finalize_hints(build_decompile_hints(file_path, function_address, windowed_pseudo_c))
+
+    if detail == "summary":
+        loops = sum(1 for line in lines if any(w in line for w in ("while", "for (", "do {")))
+        conditionals = sum(
+            1 for line in lines if any(w in line for w in ("if (", "else", "switch ("))
+        )
+        calls = sum(
+            1
+            for line in lines
+            if "(" in line and not any(w in line for w in ("if (", "while (", "for (", "switch ("))
+        )
+        preview = "\n".join(lines[:5])
+        from reversecore_mcp.core.evidence_cache import get_evidence_cache
+
+        ev_id = get_evidence_cache().store(
+            tool_name="r2_decompile",
+            target_path=str(validated),
+            facets={"lines": lines, "pseudocode": pseudo_c},
+            summary={"signature": signature, "total_lines": total_lines},
+            seed=function_address,
+        )
+        return success(
+            {
+                "function": function_address,
+                "signature": signature,
+                "detail_level": "summary",
+                "evidence_id": ev_id,
+                "parent_evidence_id": ev_id,
+                "summary": summary_header,
+                "total_lines": total_lines,
+                "control_flow_metrics": {
+                    "loops": loops,
+                    "conditionals": conditionals,
+                    "calls": calls,
+                },
+                "preview": preview,
+                "hint": f"Use inspect_analysis_view(evidence_id='{ev_id}') or set detail='full' to retrieve pseudocode.",
+            },
+            hints=hints or None,
+            **meta,
+        )
+
     return success(
         {
             "function": function_address,
