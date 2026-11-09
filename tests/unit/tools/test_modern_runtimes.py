@@ -158,7 +158,7 @@ async def test_inspect_electron_asar(tmp_path: Path):
         b"const win = new BrowserWindow({ webPreferences: { nodeIntegration: true, contextIsolation: false } });\n"
         b"ipcMain.handle('execute-shell-cmd', async (e, cmd) => {});\n"
         b"const endpoint = 'https://api.secret-app.io/v1/telemetry';\n"
-        b"const ADMIN_TOKEN = 'sk_live_9988776655';\n"
+        b"const ADMIN_TOKEN = 'bearer_token_9988776655';\n"
     )
     asar_file.write_bytes(_build_test_asar({"package.json": pkg_json, "main.js": main_js}))
 
@@ -177,7 +177,7 @@ async def test_inspect_electron_asar(tmp_path: Path):
             res = await inspect_electron_asar(
                 str(asar_file),
                 extract_path=str(extract_dir),
-                search_pattern="sk_live_",
+                search_pattern="bearer_token_",
                 detail="summary",
             )
             assert isinstance(res, ToolSuccess)

@@ -26,6 +26,9 @@ CVE-2026-58051 exp:2026-11-15
 CVE-2026-66032 exp:2026-11-15
 CVE-2026-66034 exp:2026-11-15
 
+# apt / libapt-pkg6.0 Remote code execution via hard link reuse; added --only-upgrade apt libapt-pkg6.0 to Dockerfile
+CVE-2026-109518 exp:2026-11-15
+
 # Mako template engine: Windows-only path traversal via drive-letter URI in TemplateLookup (container environment is Debian Linux)
 CVE-2026-102991
 

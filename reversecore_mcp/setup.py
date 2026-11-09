@@ -89,19 +89,27 @@ def get_supported_clients(home: Path | None = None) -> list[ClientDefinition]:
             user_home / "Library" / "Application Support" / "Code" / "User" / "globalStorage"
         )
     elif system == "Windows":
-        app_data = Path(os.environ.get("APPDATA", str(user_home / "AppData" / "Roaming")))
+        app_data = (
+            user_home / "AppData" / "Roaming"
+            if home is not None
+            else Path(os.environ.get("APPDATA", str(user_home / "AppData" / "Roaming")))
+        )
         claude_desktop_cfg = app_data / "Claude" / "claude_desktop_config.json"
         claude_desktop_marker = app_data / "Claude"
         cursor_app_support = app_data / "Cursor"
         code_storage = app_data / "Code" / "User" / "globalStorage"
     else:  # Linux / Unix
-        config_home = Path(os.environ.get("XDG_CONFIG_HOME", str(user_home / ".config")))
+        config_home = (
+            user_home / ".config"
+            if home is not None
+            else Path(os.environ.get("XDG_CONFIG_HOME", str(user_home / ".config")))
+        )
         claude_desktop_cfg = config_home / "Claude" / "claude_desktop_config.json"
         claude_desktop_marker = config_home / "Claude"
         cursor_app_support = config_home / "Cursor"
         code_storage = config_home / "Code" / "User" / "globalStorage"
 
-    claude_config_dir = os.environ.get("CLAUDE_CONFIG_DIR")
+    claude_config_dir = os.environ.get("CLAUDE_CONFIG_DIR") if home is None else None
     claude_code_cfg = (
         Path(claude_config_dir) / ".claude.json"
         if claude_config_dir
