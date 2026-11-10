@@ -99,8 +99,8 @@ async def _r2_run(
 @cache_tool_result(
     "r2_decompile",
     ttl=86400,
-    cache_kwargs=["function_address", "line_offset", "max_lines"],
-    cache_version=2,
+    cache_kwargs=["function_address", "line_offset", "max_lines", "detail"],
+    cache_version=3,
 )
 async def r2_decompile(
     file_path: str,

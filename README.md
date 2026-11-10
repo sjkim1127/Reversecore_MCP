@@ -1,39 +1,68 @@
 <div align="center">
 
-<img src="icon.png" alt="Reversecore MCP" width="480" />
+**English** · [한국어](README.ko.md) · [日本語](README.ja.md) · [简体中文](README.zh-CN.md)
+
+<br />
+
+<img src="icon.png" alt="Reversecore MCP" width="440" />
 
 # Reversecore MCP
 
-**AI-Powered Reverse Engineering & Security Analysis via Model Context Protocol**
+### AI-Powered Binary Reverse Engineering, Malware Analysis & Vulnerability Research via MCP
 
-*An MCP server that gives AI assistants like Claude and Cursor the ability to perform reverse engineering, malware analysis, vulnerability research, digital forensics, and source code auditing through natural language.*
+**An enterprise-grade Model Context Protocol server for malware triage, decompilation, modern runtime security auditing (Go/Rust, Electron, Unity), crash analysis, and digital forensics — backed by verifiable byte-level evidence.**
 
 ---
 
 [![CI/CD](https://github.com/sjkim1127/Reversecore_MCP/actions/workflows/main.yml/badge.svg)](https://github.com/sjkim1127/Reversecore_MCP/actions/workflows/main.yml)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-3069%20passed-brightgreen)](#testing)
+[![Tests](https://img.shields.io/badge/tests-3086%20passed-brightgreen)](#testing)
 [![Coverage](https://img.shields.io/badge/coverage-88%25-green)](#testing)
 [![FastMCP](https://img.shields.io/badge/FastMCP-3.4.11-purple)](https://github.com/jlowin/fastmcp)
 [![PyPI](https://img.shields.io/pypi/v/reversecore-mcp)](https://pypi.org/project/reversecore-mcp/)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io-blue)](https://github.com/sjkim1127/Reversecore_MCP/pkgs/container/reversecore_mcp)
+[![skills.sh](https://img.shields.io/badge/skills.sh-reversecore--mcp-5c4ee5)](https://skills.sh)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/sjkim1127/Reversecore_MCP/badge)](https://scorecard.dev/viewer/?uri=github.com/sjkim1127/Reversecore_MCP)
 [![HVTrust](https://hvtracker.net/badge/reversecore-mcp.svg)](https://hvtracker.net/agents/reversecore-mcp)
 
 [![Watch the Demo](https://img.shields.io/badge/▶_Watch_Demo-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtu.be/wJGW2bp3c5A)
 [![SafeSkill Verified](https://img.shields.io/badge/SafeSkill-93%2F100_Verified_Safe-brightgreen?style=for-the-badge)](https://safeskill.dev/scan/sjkim1127-reversecore-mcp)
 
+<br />
+
+**[Quick Start](#quick-start) · [Security Analysis Workflows](#-security-analysis-workflows) · [Supported Targets](#what-you-can-analyze) · [Context Efficiency](#-context-efficiency-tiered-router-compact-schema--paging) · [Tool Catalog (186 Tools)](#tool-catalog-186-tools) · [FAQ](#faq)**
+
 </div>
+
+### ⚡ Instant One-Line Setup
+
+Automatically detects installed AI clients (**Cursor, Claude Code, Windsurf, Claude Desktop, OpenAI Codex, Antigravity, Cline/Roo Code**) and registers Reversecore MCP with automatic configuration backups:
+
+```bash
+# Option 1: Zero-install CLI setup (Recommended)
+pipx run reversecore-mcp setup
+
+# Option 2: One-line shell installer (macOS / Linux)
+curl -fsSL https://raw.githubusercontent.com/sjkim1127/Reversecore_MCP/main/install.sh | bash
+
+# Option 3: Install Agent Skill (skills.sh / Cursor / Claude Code / Codex)
+npx skills add sjkim1127/Reversecore_MCP
+```
+
+> 💡 **Reduce LLM context token usage by 94.4%:** Run `pipx run reversecore-mcp setup --tiered` to expose 15 core security tools + 8 domain sub-agents while keeping all 186 tools callable on demand.
 
 ---
 
 ## Table of Contents
 
 - [What is Reversecore MCP?](#what-is-reversecore-mcp)
+- [🛡️ Security Analysis Workflows](#-security-analysis-workflows)
+- [What You Can Analyze](#what-you-can-analyze)
+- [⚡ Context Efficiency: Tiered Router, Compact Schema & Paging](#-context-efficiency-tiered-router-compact-schema--paging)
 - [Architecture](#architecture)
 - [Tool Catalog (186 Tools)](#tool-catalog-186-tools)
-- [Guided Analysis Prompts (22 Modes)](#guided-analysis-prompts-22-modes)
+- [Guided Analysis Prompts (34 Modes)](#guided-analysis-prompts-34-modes)
 - [MCP Resources (11 URIs)](#mcp-resources-11-uris)
 - [Quick Start](#quick-start)
 - [Connect to Your AI Client](#connect-to-your-ai-client)
@@ -54,37 +83,138 @@
 
 ## What is Reversecore MCP?
 
-Reversecore MCP is a [Model Context Protocol](https://modelcontextprotocol.io/) server that wraps **186 analysis tools** into a single interface that AI assistants can call through natural language.
+Reversecore MCP is a [Model Context Protocol](https://modelcontextprotocol.io/) server that wraps **186 analysis tools** into a unified interface for AI-assisted security research, malware triage, vulnerability discovery, and digital forensics.
 
-Instead of learning the command-line syntax for a dozen different tools, you describe what you want:
+Instead of manually switching between disassemblers, decompilers, YARA scanners, and forensics utilities, you describe your investigation goal in natural language:
 
-```
-"Decompile the main function of this malware sample, extract all network IOCs,
- map the behavior to MITRE ATT&CK, and generate a triage report."
-```
-
-The AI assistant breaks this into tool calls:
-
-```
-r2_decompile("sample.exe", "main")
-  → extract_iocs("sample.exe")
-    → add_mitre_technique(technique_id="T1071.001", ...)
-      → create_analysis_report(template_type="quick_triage")
+```text
+"Decompile the main payload of this suspicious sample, recover its custom string decryption
+ routine, extract all C2 IOCs, map behaviors to MITRE ATT&CK, and generate a triage report."
 ```
 
-Each tool returns a structured `ToolResult` (either `ToolSuccess` or `ToolError`) with typed data that the AI can reason about, chain into follow-up queries, or render for the user.
+Each tool runs locally (or inside an isolated Docker container) and returns a structured `ToolResult` (`ToolSuccess` or `ToolError`) with byte-level provenance so the AI can chain multi-step security investigations without hallucinating findings.
 
-### What it covers
+---
 
-| Domain | What you can do |
-|---|---|
-| **Static analysis** | Disassembly, decompilation (r2ghidra), binary parsing (LIEF), packer detection (DIE), capability detection (CAPA), string extraction, firmware scanning (binwalk) |
-| **Dynamic & symbolic** | ESIL emulation, angr symbolic execution, taint analysis, fuzzing harness generation |
-| **Malware analysis** | IOC extraction, YARA scanning, dormant backdoor detection, adaptive vaccine generation, autonomous vulnerability hunting |
-| **Vulnerability research** | Dangerous API detection, ROP gadget discovery, heap exploit analysis, crash triage, PoC generation |
-| **Digital forensics** | Memory forensics (Volatility3), PCAP analysis (Scapy), disk forensics (Sleuth Kit), artifact correlation |
-| **Source code audit** | Python AST scanning, C/C++ regex pattern scanning |
-| **Reporting** | Session-based reports with MITRE ATT&CK mapping, SIGMA rule generation, VEX reports, email delivery |
+## 🛡️ Security Analysis Workflows
+
+### Workflow 1: Malware Cryptor / DGA Recovery & Safe Emulation Verification
+
+Modern malware families encrypt C2 configurations or generate domains dynamically (DGA). Translating decompiled C into a Python decryptor by hand is error-prone due to subtle 32/64-bit integer wrap-around and bitwise shifts. Reversecore MCP reconstructs the routine and **verifies 100% behavioral equivalence inside Radare2's ESIL CPU emulator** without executing live malware on the host.
+
+**Prompt:**
+```text
+"Analyze the config decryption function at 0x401180 in sample.bin, write a safe Python
+ decryptor script, and verify with ESIL emulation that its output matches the binary."
+```
+
+**Agent Tool Chain & Verified Output:**
+```
+1. r2_decompile("sample.bin", "0x401180", detail="summary")
+   └─ Returns compact complexity/API summary + cache handle: evidence_id="ev_9a4c102f8b11"
+
+2. inspect_analysis_view(evidence_id="ev_9a4c102f8b11", facet="lines", offset=0, limit=40)
+   └─ Streams exact pseudo-C lines on demand without exhausting context window
+
+3. reconstruct_feature_code(
+       file_path="sample.bin",
+       address_or_symbol="sym.decrypt_word",
+       target_language="python",
+       test_inputs=["0x0", "0xff", "0xffff"]
+   )
+   ├─ Decompilation & Synthesis: r2ghidra -> clean Python function (decrypt_word)
+   ├─ Binary Emulation: Radare2 ESIL VM (isolated register/memory state, zero host execution)
+   ├─ Equivalence Verdict: VERIFIED (branch_parity: true, test_vectors_evaluated: 3, emulation_successful: true)
+   └─ Reconstructed Code:
+        def decrypt_word(param_1: Any = 0, param_2: Any = 0, *args: Any, **kwargs: Any) -> Any:
+            uVar1 = (param_1 ^ param_2) * 0x45d9f3b
+            return uVar1 >> 0x10 ^ uVar1
+```
+
+---
+
+### Workflow 2: Modern Runtime Threat & Supply-Chain Auditing (Go/Rust, Electron ASAR, Unity)
+
+Threat actors increasingly write cross-platform ransomware in **stripped Go/Rust** or distribute trojanized **Electron (`app.asar`)** desktop installers. Reversecore MCP provides built-in pure-Python static parsers to recover stripped symbols and audit runtime security boundaries:
+
+**Prompt:**
+```text
+"Audit this suspicious installer's app.asar for insecure BrowserWindow settings and
+ suspicious IPC handlers, and recover function symbols from its bundled stripped Go helper."
+```
+
+**Agent Tool Chain & Verified Output:**
+```
+1. inspect_electron_asar("app.asar", search_pattern="ipcMain|child_process|shell")
+   ├─ Format: Chromium Pickle ASAR (header_size: 48,210 bytes, 642 files)
+   ├─ Exposed IPC Handlers: 14 channels mapped across main and preload scripts
+   └─ Security Audit Findings:
+        • [HIGH] nodeIntegration: true detected in BrowserWindow configuration
+        • [MEDIUM] sandbox: false detected in renderer window options
+
+2. inspect_go_rust_binary("helper_daemon.elf")
+   ├─ Runtime Detected: Go (gopclntab magic 0xfffffff1, Go 1.22)
+   ├─ Symbol Recovery: 148 stripped package/function names recovered from .gopclntab
+   └─ Suspicious Packages Identified:
+        • main.establishBeaconLoop @ 0x48a200
+        • main.encryptLocalVolume  @ 0x48b940
+```
+
+---
+
+### Workflow 3: Zero-Day Crash Triage, Taint Analysis & Adaptive YARA/Vaccine Generation
+
+From an ASan/GDB crash log or a packed binary with dormant logic bombs, Reversecore MCP chains crash classification, source-to-sink taint reachability, and automated detection rule synthesis.
+
+**Prompt:**
+```text
+"Triage this ASan crash log on daemon.bin, verify whether untrusted network input reaches
+ the vulnerable memcpy sink, scan for dormant backdoors, and generate a YARA rule."
+```
+
+**Agent Tool Chain & Verified Output:**
+```
+1. cve_triage_crash(crash_log_or_text=asan_log)
+   └─ Bug Class: heap-buffer-overflow (READ) | CWE-125 | Faulting Function: parse_packet+0x84
+
+2. taint_trace("daemon.bin", function_name="parse_packet", verify_with_angr=True)
+   └─ Source→Sink Confirmed: recv() → memcpy() at 0x402190 (unbounded length field)
+
+3. dormant_detector("daemon.bin")
+   └─ Discovered 1 orphan function (0x404800) with time-bomb trigger (cmp eax, 0x67758ac0)
+
+4. adaptive_vaccine(threat_report={...}, action="both")
+   ├─ Generated YARA detection rule with wildcarded address displacement masking
+   └─ Synthesized binary mitigation patch neutralizing the vulnerable/malicious branch
+```
+
+---
+
+## What You Can Analyze
+
+| Target Category | Security & Reverse Engineering Capabilities | Engine / Requirement |
+|---|---|---|
+| **Native Binaries (PE / ELF / Mach-O)** | Disassembly, r2ghidra C decompilation, CFG, C++ RTTI, struct recovery, imports/exports, section entropy, Authenticode/certificates | **Radare2 + r2ghidra + LIEF** (x86, x64, ARM32, ARM64, MIPS, RISC-V, PowerPC) |
+| **Malware & Packed Executables** | Packer/compiler identification, CAPA behavioral capability mapping, dormant backdoor/time-bomb detection, IOC extraction, YARA & Sigma rules, binary vaccines | **YARA + CAPA + DIE + Custom Heuristics** |
+| **Stripped Go & Rust Malware / Binaries** | Go `.gopclntab` (`go1.2`–`go1.20+`) symbol recovery, Rust `.dep-v0` (`cargo-auditable`) dependency tree & vulnerable crate auditing, `_ZN...E` demangling | **Built-in pure Python** (`inspect_go_rust_binary`) — no Go/Rust SDK required |
+| **Electron Desktop Apps (`app.asar`)** | Supply-chain & client security audit: Chromium Pickle VFS parser, `ipcMain`/`contextBridge` surface mapping, `nodeIntegration`/`contextIsolation` checks | **Built-in pure Python** (`inspect_electron_asar`) — zero external dependencies |
+| **Unity IL2CPP Binaries** | Mobile/client security audit: `global-metadata.dat` (`0xFAB11BAF`, v24–v31+) header encryption/entropy detection, C# class/method/string recovery, `libil2cpp.so` correlation | **Built-in pure Python** (`inspect_unity_il2cpp`) — no Unity required |
+| **Cryptor / Routine Reconstruction** | Decompiled routine translation into safe C/Python scripts with ESIL register/memory equivalence verification and Obligation Ledger | **r2ghidra + ESIL Simulator** (`reconstruct_feature_code`) |
+| **Vulnerabilities & Crash Dumps** | ASan/GDB crash triage, delta-debugging PoC minimization, source-to-sink taint analysis, angr symbolic path solving, ROP gadget chains | **angr + pwntools + ROPgadget + GDB** |
+| **Memory, Network & Disk Forensics** | Process & code-injection hunting in RAM dumps, PCAP DNS/C2/stream reconstruction, NTFS MFT & deleted file recovery, artifact timeline correlation | **Volatility3 + Scapy + Sleuth Kit + Binwalk** |
+
+---
+
+## ⚡ Context Efficiency: Tiered Router, Compact Schema & Paging
+
+Large reverse-engineering MCP servers often suffer from **context window bloat**: advertising 180+ verbose tool schemas and returning 50,000-line decompilations can exhaust an LLM's context in 2 turns. Reversecore MCP solves this with a 4-layer optimization architecture:
+
+| Optimization Layer | How to Enable | Context Savings & Behavior |
+|---|---|---|
+| **1. Tiered Router Mode** | `REVERSECORE_PROFILE=tiered`<br>*(or `reversecore-mcp setup --tiered`)* | **-94.4% prompt token overhead.** Exposes 12 daily core tools + 3 router tools (`call_expert_agent`, `search_tools`, `execute_domain_tool`) backed by 8 domain sub-agents (`vulnerability_hunter`, `forensics`, `malware_analyst`, `deobfuscator`, `symbolic_engine`, `diff_analyst`, `source_auditor`, `modern_runtime`). |
+| **2. Compact Schema Profile** | `REVERSECORE_SCHEMA_PROFILE=compact` | **~65% smaller `tools/list` payload.** Strips verbose docstring examples, flattens deep `anyOf`/`oneOf` unions, and caps JSON Schema depth at 10 while retaining full server-side Pydantic validation. |
+| **3. Summary-First Paging** | Pass `detail="summary"` to `r2_decompile`, `Radare2_disassemble*`, `Radare2_list_strings`, `memory_extract_strings` | Returns a compact structural digest + an `evidence_id` handle (`ev_<12-hex>`). Call `inspect_analysis_view(evidence_id, facet, offset, limit, filter_query)` to paginate or filter lines/strings/functions on demand. |
+| **4. On-Demand Guidance** | Built-in tools: `search_guidance` & `read_guidance_section` | Instead of stuffing 20,000 words of manuals into the system prompt, the agent queries built-in reversing playbooks (`playbook:target-routing`, `playbook:go-rust-reversing`, `playbook:electron-asar`, `playbook:unity-il2cpp`, `playbook:epistemological-discipline`) only when needed. |
 
 ---
 
@@ -169,23 +299,23 @@ The `reversecore_mcp/core/` directory contains the shared infrastructure that al
 
 ## Tool Catalog (186 Tools)
 
-> 📖 **[Authoritative Tool Catalog & Parameter Reference (151 Tools)](docs/TOOLS.md)**
+> 📖 **[Authoritative Tool Catalog & Parameter Reference (186 Tools)](docs/TOOLS.md)**
 > 📊 **[Tool Profile Footprint & Context Benchmark Matrix](docs/benchmarks/profile_footprint.md)**
 
-Every tool returns a structured `ToolResult` — either a `ToolSuccess` with typed `data` or a `ToolError` with an `RCMCP-E*` error code. Tools are organized into 11 domain plugins across 5 modular execution profiles (`full`, `static`, `malware`, `forensics`, `vuln-research`):
+Every tool returns a structured `ToolResult` — either a `ToolSuccess` with typed `data` or a `ToolError` with an `RCMCP-E*` error code. Tools are organized into 11 domain plugins across 6 modular execution profiles (`tiered`, `full`, `static`, `malware`, `forensics`, `vuln-research`):
 
 | Profile | Registered Tools | Schema Size | LLM Context Saving vs Full | Recommended Domain |
 |---|:---:|:---:|:---:|---|
-| `tiered` | **15** | ~11.5 KB | **-90.2%** (~26,300 tokens) | ⚡ **Daily interactive AI pair programming** (12 core tools + 3 sub-agent router tools accessing all 179 tools on demand) |
-| `full` | **179** | 138.4 KB | Baseline (0%) | Complete enterprise reverse engineering suite |
-| `vuln-research` | **105** | 73.3 KB | **-37.2%** (~10,800 tokens) | Fuzzing, ASan crash triage, CVE hunting, exploit research |
-| `static` | **99** | 67.7 KB | **-42.0%** (~12,200 tokens) | Disassembly, decompilation (r2ghidra), LIEF, static triage |
-| `malware` | **67** | 62.8 KB | **-46.2%** (~13,500 tokens) | Threat triage, YARA scanning, deobfuscation, anti-analysis |
-| `forensics` | **57** | 37.0 KB | **-68.4%** (~19,500 tokens) | Memory forensics (Volatility3), network PCAP (Scapy), disk |
+| `tiered` | **15** | ~11.5 KB | **-94.4%** (~28,500 tokens) | ⚡ **Daily interactive AI pair programming** (12 core tools + 3 sub-agent router tools accessing all 186 tools on demand) |
+| `full` | **186** | 144.2 KB | Baseline (0%) | Complete enterprise reverse engineering suite |
+| `vuln-research` | **138** | 96.4 KB | **-33.1%** (~10,000 tokens) | Fuzzing, ASan crash triage, CVE hunting, exploit research |
+| `static` | **132** | 91.2 KB | **-36.8%** (~11,100 tokens) | Disassembly, decompilation (r2ghidra), LIEF, modern runtimes, static triage |
+| `malware` | **100** | 76.5 KB | **-46.9%** (~14,100 tokens) | Threat triage, YARA scanning, deobfuscation, anti-analysis |
+| `forensics` | **81** | 51.8 KB | **-64.1%** (~19,300 tokens) | Memory forensics (Volatility3), network PCAP (Scapy), disk |
 
 ### ⚡ Tiered Tools & Multi-Agent Architecture (`REVERSECORE_PROFILE=tiered`)
 
-Exposing all 179 tools to an LLM on every turn wastes **~30,000+ tokens** of prompt context. Tiered mode solves this by exposing **only 15 high-frequency tools** while retaining seamless access to all 179 tools via specialized Sub-Agents and a dynamic tool router:
+Exposing all 186 tools to an LLM on every turn wastes **~30,000+ tokens** of prompt context. Tiered mode solves this by exposing **only 15 high-frequency tools** while retaining seamless access to all 186 tools via specialized Sub-Agents and a dynamic tool router:
 
 1. **Tier-1: Daily Core Tools (12 tools)**:
    - `run_file`, `parse_binary_with_lief`, `get_server_health`
@@ -194,6 +324,7 @@ Exposing all 179 tools to an LLM on every turn wastes **~30,000+ tokens** of pro
 
 2. **Tier-2: Domain Expert Sub-Agents & Universal Router (3 tools)**:
    - `call_expert_agent`: Dispatches high-level multi-step domain tasks to specialized Sub-Agents:
+     - `modern_runtime`: Stripped Go (`gopclntab`) & Rust (`.dep-v0` crates), Electron `app.asar` IPC/security audit, Unity IL2CPP (`global-metadata.dat`), feature code reconstruction (`reconstruct_feature_code`), paged view inspection (`inspect_analysis_view`), and on-demand guidance (`search_guidance`)
      - `vulnerability_hunter`: CVE scanning, dangerous API auditing, ROP gadget collection, heap analysis, crash triage
      - `forensics`: Network PCAP analysis, C2 extraction, Volatility3 memory dumps, SleuthKit disk carving
      - `malware_analyst`: IOC extraction, dormant backdoors, CAPA capability mapping, adaptive vaccines
@@ -201,8 +332,8 @@ Exposing all 179 tools to an LLM on every turn wastes **~30,000+ tokens** of pro
      - `symbolic_engine`: angr symbolic path reachability, constraint solving, dataflow taint tracing
      - `diff_analyst`: Semantic binary diffing, 1-day patch review, cross-binary annotation transfer
      - `source_auditor`: AST vulnerability scanning (Python) and regex pattern auditing (C/C++)
-   - `search_tools`: Dynamic keyword and domain search across all 179 tools with parameter schemas and example invocations.
-   - `execute_domain_tool`: Universal execution gateway to invoke any of the 179 specialized tools on demand with custom arguments.
+   - `search_tools`: Dynamic keyword and domain search across all 186 tools with parameter schemas and example invocations.
+   - `execute_domain_tool`: Universal execution gateway to invoke any of the 186 specialized tools on demand with custom arguments.
 
 Enable tiered mode via `reversecore-mcp setup --tiered` or `export REVERSECORE_PROFILE=tiered`.
 

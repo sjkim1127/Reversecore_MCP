@@ -89,6 +89,14 @@ def cache_tool_result(
 
             # Attempt to get from cache
             cached_result = await get_cached_result(file_path, cache_key)
+            if cached_result is not None and isinstance(cached_result, ToolSuccess):
+                if isinstance(cached_result.data, dict) and "evidence_id" in cached_result.data:
+                    from reversecore_mcp.core.evidence_cache import get_evidence_cache
+
+                    ev_id = cached_result.data.get("evidence_id")
+                    if ev_id and get_evidence_cache().get(str(ev_id)) is None:
+                        cached_result = None
+
             if cached_result is not None:
                 metrics_collector.record_cache_hit(tool_name)
                 logger.debug(f"Cache HIT for {tool_name} on {file_path}")

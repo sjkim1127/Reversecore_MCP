@@ -60,28 +60,39 @@ def _clean_decompiler_artifacts(pseudo_c: str) -> list[str]:
     return cleaned_lines
 
 
-def _extract_called_apis(disasm_output: str, pseudo_c: str) -> list[str]:
+def _extract_called_apis(disasm_output: str, pseudo_c: str, self_name: str = "") -> list[str]:
     """Identify external library and system calls made by the function."""
     apis: set[str] = set()
+    clean_self = re.sub(r"^(?:sym\.imp\.|sym\.|fcn\.)", "", self_name).lstrip("_")
+    ignored = {"if", "while", "for", "switch", "return", "sizeof", "xref", clean_self.lower()}
 
     for line in disasm_output.splitlines():
-        if "call" in line.lower():
+        if "call" in line.lower() and "xref" not in line.lower():
             # Check for sym.imp or call target
             match = re.search(
-                r"call\s+(?:qword\s+)?(?:\[)?(?:sym\.imp\.|sym\.|sub\.)?([a-zA-Z0-9_]+)",
+                r"\bcall\s+(?:qword\s+)?(?:\[)?(?:sym\.imp\.|sym\.|sub\.)?([a-zA-Z0-9_]+)",
                 line,
                 re.IGNORECASE,
             )
             if match:
                 target = match.group(1).lstrip("_")
-                if not target.startswith("0x") and not target.startswith("sub_"):
+                if (
+                    not target.startswith("0x")
+                    and not target.startswith("sub_")
+                    and target.lower() not in ignored
+                ):
                     apis.add(target)
 
-    for line in pseudo_c.splitlines():
+    c_lines = pseudo_c.splitlines()
+    for idx, line in enumerate(c_lines):
+        # Skip function signature header line when scanning for called APIs
+        if idx == 0 and "(" in line and not line.strip().endswith(";"):
+            continue
         matches = _API_CALL_PATTERN.findall(line)
         for m in matches:
-            if m not in ("if", "while", "for", "switch", "return"):
-                apis.add(m.lstrip("_"))
+            clean_m = m.lstrip("_")
+            if clean_m.lower() not in ignored:
+                apis.add(clean_m)
 
     return sorted(apis)
 
@@ -93,8 +104,30 @@ def _synthesize_python_code(
 ) -> str:
     """Synthesize clean, idiomatic Python code from cleaned pseudocode."""
     indent = "    "
+    param_sig = "*args: Any, **kwargs: Any"
+    body_start_idx = 0
+
+    for idx, raw_line in enumerate(cleaned_c_lines):
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("//") or stripped.startswith("/*"):
+            continue
+        if "(" in stripped and stripped.endswith(")") and not stripped.endswith(";"):
+            m_params = re.search(r"\(([^)]*)\)", stripped)
+            if m_params:
+                raw_params = m_params.group(1).strip()
+                if raw_params and raw_params != "void":
+                    extracted_names: list[str] = []
+                    for part in raw_params.split(","):
+                        tokens = re.findall(r"[a-zA-Z_][a-zA-Z0-9_]*", part)
+                        if tokens:
+                            extracted_names.append(f"{tokens[-1]}: Any = 0")
+                    if extracted_names:
+                        param_sig = ", ".join(extracted_names) + ", *args: Any, **kwargs: Any"
+            body_start_idx = idx + 1
+        break
+
     py_lines: list[str] = [
-        f"def {func_name}(*args: Any, **kwargs: Any) -> Any:",
+        f"def {func_name}({param_sig}) -> Any:",
         f'{indent}"""Reconstructed implementation of {func_name}.',
         f"{indent}",
         f"{indent}Preserved APIs: {', '.join(called_apis) if called_apis else 'None (pure logic)'}",
@@ -102,7 +135,7 @@ def _synthesize_python_code(
     ]
 
     has_body = False
-    for line in cleaned_c_lines:
+    for line in cleaned_c_lines[body_start_idx:]:
         t = line.strip()
         if not t or t.startswith("//") or t.startswith("/*") or t == "{" or t == "}":
             continue
@@ -188,11 +221,16 @@ async def reconstruct_feature_code(
         lang = "c"
 
     # Step 1: Decompile function via r2ghidra / pdc
-    decompile_res = await r2_decompile(str(validated), address_or_symbol, timeout=timeout)
+    decompile_res = await r2_decompile(
+        str(validated), address_or_symbol, timeout=timeout, detail="full"
+    )
     raw_pseudo_c = ""
     if decompile_res.status == "success" and isinstance(decompile_res.data, dict):
         raw_pseudo_c = str(
-            decompile_res.data.get("full_pseudo_c") or decompile_res.data.get("pseudo_c") or ""
+            decompile_res.data.get("full_pseudo_c")
+            or decompile_res.data.get("pseudo_c")
+            or decompile_res.data.get("preview")
+            or ""
         )
 
     # Step 2: Disassemble and analyze ground-truth assembly & control flow
@@ -220,14 +258,16 @@ async def reconstruct_feature_code(
             for j in ("jmp", "je", "jne", "jz", "jnz", "jg", "jge", "jl", "jle", "ja", "jb")
         )
     )
-    called_apis = _extract_called_apis(disasm_output, raw_pseudo_c)
+    called_apis = _extract_called_apis(disasm_output, raw_pseudo_c, self_name=address_or_symbol)
 
     # Step 4: Synthesize clean code
-    func_name = (
+    raw_name = (
         address_or_symbol
         if not address_or_symbol.startswith("0x")
         else f"sub_{address_or_symbol.replace('0x', '')}"
     )
+    func_name = re.sub(r"^(?:sym\.imp\.|sym\.|fcn\.)", "", raw_name)
+    func_name = re.sub(r"[^a-zA-Z0-9_]", "_", func_name) or "reconstructed_func"
     cleaned_c_lines = _clean_decompiler_artifacts(raw_pseudo_c)
 
     if lang == "python":
