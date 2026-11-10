@@ -32,6 +32,9 @@ logger = get_logger(__name__)
 _IPV4_RE = re.compile(r"^(\d{1,3}\.){3}\d{1,3}$")
 _HASH_RE = re.compile(r"^[0-9a-fA-F]{32}$|^[0-9a-fA-F]{40}$|^[0-9a-fA-F]{64}$")
 _URL_RE = re.compile(r"^https?://", re.IGNORECASE)
+_DOMAIN_RE = re.compile(
+    r"^(?=.{1,253}\.?$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}\.?$"
+)
 
 
 def _classify_ioc(ioc: str) -> str:
@@ -46,8 +49,8 @@ def _classify_ioc(ioc: str) -> str:
         return "ip"
     except ValueError:
         pass
-    # Coarse domain check: has a dot, no spaces, no slashes
-    if "." in ioc and " " not in ioc and "/" not in ioc:
+    # Require valid DNS labels and a non-numeric top-level domain.
+    if _DOMAIN_RE.fullmatch(ioc):
         return "domain"
     return "unknown"
 
