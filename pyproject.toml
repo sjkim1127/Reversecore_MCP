@@ -69,6 +69,7 @@ dependencies = [
     "pyxdia<=0.1.0",
     # Exploit generation tools
     "pwntools>=4.12.0",
+    "mako>=1.4.2",
     "ROPgadget>=7.3",
 ]
 

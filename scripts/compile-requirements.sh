@@ -24,7 +24,7 @@ echo "Compiling requirements.txt (all extras, including development tools)..."
 # uv preserves compatible pins already in requirements.txt and resolves any
 # package whose locked version no longer satisfies pyproject.toml.
 uv pip compile --quiet --all-extras --generate-hashes --universal --python-version 3.10 \
-    -P authlib -P certifi -P dnspython -P filelock -P joserfc -P opentelemetry-api \
+    -P authlib -P certifi -P dnspython -P filelock -P joserfc -P mako -P opentelemetry-api \
     --output-file requirements.txt pyproject.toml "$@"
 
 # Post-process requirements.txt to replace the local absolute file path with relative editable path

@@ -211,8 +211,39 @@ async def inspect_go_rust_binary(
     go_user_functions = [
         f
         for f in go_functions
-        if f.startswith("main.") or "/" in f and not f.startswith(("runtime/", "internal/"))
+        if (
+            f.startswith("main.")
+            or (
+                "/" in f
+                and not f.startswith(
+                    (
+                        "runtime/",
+                        "internal/",
+                        "eq.",
+                        "type:.",
+                        "go:itab.",
+                        "crypto/internal/",
+                        "vendor/",
+                    )
+                )
+            )
+        )
     ]
+
+    # Recover Go custom structs, type equality descriptors, and interface itabs
+    go_types_set: set[str] = set()
+    for m in re.finditer(
+        rb"(?:type:\.eq\.|go:itab\.|\*?(?:main|(?:[a-z0-9\-]+\.)+[a-z]{2,}/[a-zA-Z0-9_\-\./]+)\.)([A-Za-z][a-zA-Z0-9_,\.\*]{2,80})",
+        data,
+    ):
+        raw_t = m.group(0).decode("ascii", errors="ignore")
+        if not raw_t.endswith(".go") and ".." not in raw_t:
+            go_types_set.add(raw_t)
+    for fn_name in go_functions:
+        if fn_name.startswith("eq.") and not fn_name.startswith(("eq.runtime.", "eq.internal/")):
+            go_types_set.add(fn_name[3:])
+    go_types = sorted(go_types_set)
+
     go_source_files = sorted(
         {
             m.decode("utf-8", errors="ignore")
@@ -229,10 +260,10 @@ async def inspect_go_rust_binary(
             f"Detected Rust compiler commit hash(es): {', '.join(rustc_commits[:3])}."
         )
 
-    # Extract crates from /cargo/registry/src/.../<crate>-<semver>/
+    # Extract crates from Unix/Windows /cargo/registry/src/.../<crate>-<semver>/ and git checkouts
     rust_crates_map: dict[str, dict[str, str]] = {}
     for m in re.finditer(
-        rb"/cargo/registry/src/[^/\x00]+/([a-zA-Z0-9_\-]+)-(\d+\.\d+\.\d+[a-zA-Z0-9\.\-\+]*)/",
+        rb"(?:/|\\)cargo(?:/|\\)registry(?:/|\\)src(?:/|\\)[^/\\\x00]+(?:/|\\)([a-zA-Z0-9_\-]+)-(\d+\.\d+\.\d+[a-zA-Z0-9\.\-\+]*)(?:/|\\)",
         data,
     ):
         crate_name = m.group(1).decode("ascii", errors="ignore")
@@ -241,6 +272,17 @@ async def inspect_go_rust_binary(
             "name": crate_name,
             "version": crate_ver,
             "source": "cargo-registry-path",
+        }
+    for m in re.finditer(
+        rb"(?:/|\\)cargo(?:/|\\)git(?:/|\\)checkouts(?:/|\\)([a-zA-Z0-9_\-]+)-([0-9a-f]{7,16})(?:/|\\)",
+        data,
+    ):
+        crate_name = m.group(1).decode("ascii", errors="ignore")
+        git_rev = m.group(2).decode("ascii", errors="ignore")
+        rust_crates_map[f"{crate_name}@{git_rev}"] = {
+            "name": crate_name,
+            "version": f"git:{git_rev}",
+            "source": "cargo-git-checkout",
         }
 
     # Check for cargo-auditable (.dep-v0) compressed JSON if present
@@ -272,18 +314,43 @@ async def inspect_go_rust_binary(
             except Exception:
                 continue
 
-    rust_crates = sorted(rust_crates_map.values(), key=lambda x: x["name"])
-
     # Extract and demangle Rust mangled symbols (_ZN...E)
     raw_rust_syms = {
         m.decode("ascii", errors="ignore")
         for m in re.findall(rb"_?_ZN[0-9a-zA-Z_\$]{6,160}E", data)
     }
     demangled_rust_symbols: list[dict[str, str]] = []
+    _rust_stdlib_crates = {
+        "std",
+        "core",
+        "alloc",
+        "proc_macro",
+        "test",
+        "rustc_std_workspace_core",
+        "rustc_demangle",
+        " unwind",
+        "panic_unwind",
+        "panic_abort",
+    }
     for sym in sorted(raw_rust_syms):
         demangled = _demangle_rust_symbol(sym)
         if "::" in demangled:
             demangled_rust_symbols.append({"mangled": sym, "demangled": demangled})
+            # Fallback crate inference from top-level namespace if not already in rust_crates_map
+            top_ns = demangled.split("::", 1)[0].lstrip("_<>")
+            if (
+                top_ns
+                and re.fullmatch(r"[a-z][a-z0-9_]{2,40}", top_ns)
+                and top_ns not in _rust_stdlib_crates
+                and not any(v["name"] == top_ns for v in rust_crates_map.values())
+            ):
+                rust_crates_map[f"{top_ns}@unknown"] = {
+                    "name": top_ns,
+                    "version": "unknown (inferred from symbol)",
+                    "source": "symbol-namespace-inference",
+                }
+
+    rust_crates = sorted(rust_crates_map.values(), key=lambda x: x["name"])
 
     rust_source_files = sorted(
         {
@@ -292,9 +359,21 @@ async def inspect_go_rust_binary(
         }
     )
 
+    rust_panic_strings = sorted(
+        {
+            m.decode("utf-8", errors="ignore").strip()
+            for m in re.findall(
+                rb"(?:panicked at [^\x00\n\r]{4,120}|called `(?:Option|Result)::[a-z_]+\(\)` on an? `[^\x00\n\r]{2,80}|index out of bounds: the len is [^\x00\n\r]{2,60})",
+                data,
+            )
+        }
+    )
+
     # Determine primary language classification
     is_go = bool(pclntab_hits or go_build_id or go_version_matches or len(go_functions) >= 3)
-    is_rust = bool(rustc_commits or rust_crates or len(demangled_rust_symbols) >= 3)
+    is_rust = bool(
+        rustc_commits or rust_crates or len(demangled_rust_symbols) >= 3 or rust_panic_strings
+    )
 
     if is_go and is_rust:
         detected_runtime = "go+rust (hybrid/cgo-ffi)"
@@ -322,12 +401,14 @@ async def inspect_go_rust_binary(
         "go_pclntab_count": len(pclntab_hits),
         "go_total_functions": len(go_functions),
         "go_user_functions_count": len(go_user_functions),
+        "go_types_count": len(go_types),
         "go_modules_count": len(go_modules),
         "go_source_files_count": len(go_source_files),
         "rust_compiler_commits": rustc_commits[:3],
         "rust_crates_count": len(rust_crates),
         "rust_demangled_symbols_count": len(demangled_rust_symbols),
         "rust_source_files_count": len(rust_source_files),
+        "rust_panic_strings_count": len(rust_panic_strings),
     }
 
     ev_id = get_evidence_cache().store(
@@ -335,12 +416,14 @@ async def inspect_go_rust_binary(
         target_path=str(validated),
         facets={
             "go_user_functions": go_user_functions,
+            "go_types": go_types,
             "go_all_functions": go_functions,
             "go_modules": go_modules,
             "go_source_files": go_source_files,
             "rust_crates": rust_crates,
             "rust_symbols": demangled_rust_symbols,
             "rust_source_files": rust_source_files,
+            "rust_panic_strings": rust_panic_strings,
         },
         summary=summary_metrics,
     )
@@ -359,17 +442,19 @@ async def inspect_go_rust_binary(
                 "go_preview": {
                     "pclntab_headers": pclntab_hits[:3],
                     "sample_user_functions": go_user_functions[:10],
+                    "sample_types": go_types[:10],
                     "sample_modules": go_modules[:5],
                 },
                 "rust_preview": {
                     "sample_crates": rust_crates[:10],
                     "sample_demangled_symbols": demangled_rust_symbols[:10],
+                    "sample_panic_strings": rust_panic_strings[:5],
                 },
                 "observations": observations,
                 "inferences": inferences,
                 "residual_unknowns": residual_unknowns,
                 "hint": (
-                    f"Use inspect_analysis_view(evidence_id='{ev_id}', facet='go_user_functions' | 'rust_crates' | 'rust_symbols') "
+                    f"Use inspect_analysis_view(evidence_id='{ev_id}', facet='go_user_functions' | 'go_types' | 'rust_crates' | 'rust_symbols') "
                     "to paginate full recovered tables."
                 ),
             },
@@ -388,6 +473,7 @@ async def inspect_go_rust_binary(
             "go": {
                 "pclntab_headers": pclntab_hits,
                 "user_functions": go_user_functions[:safe_limit],
+                "types": go_types[:safe_limit],
                 "all_functions": go_functions[:safe_limit],
                 "modules": go_modules[:safe_limit],
                 "source_files": go_source_files[:safe_limit],
@@ -397,6 +483,7 @@ async def inspect_go_rust_binary(
                 "crates": rust_crates[:safe_limit],
                 "demangled_symbols": demangled_rust_symbols[:safe_limit],
                 "source_files": rust_source_files[:safe_limit],
+                "panic_strings": rust_panic_strings[:safe_limit],
             },
             "observations": observations,
             "inferences": inferences,

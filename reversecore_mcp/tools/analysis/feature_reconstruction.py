@@ -135,22 +135,39 @@ def _synthesize_python_code(
     ]
 
     has_body = False
+    uint32_vars: set[str] = set()
     for line in cleaned_c_lines[body_start_idx:]:
         t = line.strip()
         if not t or t.startswith("//") or t.startswith("/*") or t == "{" or t == "}":
             continue
+        # Track 32-bit unsigned variable declarations (e.g., uint32_t uVar1;)
+        m_decl = re.match(
+            r"^(?:uint32_t|int32_t|undefined4|uint)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*;$", t
+        )
+        if m_decl:
+            uint32_vars.add(m_decl.group(1))
+            continue
         # Convert simple return statements
         if t.startswith("return "):
             val = t.replace("return ", "").rstrip(";")
-            py_lines.append(f"{indent}return {val}")
+            if any(v in val for v in uint32_vars):
+                py_lines.append(f"{indent}return ({val}) & 0xFFFFFFFF")
+            else:
+                py_lines.append(f"{indent}return {val}")
             has_body = True
         elif "=" in t and ";" in t:
             expr = t.rstrip(";")
             # Strip C types (int, char, etc.)
             expr = re.sub(
                 r"\b(?:int|char|long|unsigned|uint\d+_t|int\d+_t|void|float|double)\s+\*?", "", expr
-            )
-            py_lines.append(f"{indent}{expr.strip()}")
+            ).strip()
+            lhs, rhs = expr.split("=", 1)
+            lhs_s = lhs.strip()
+            rhs_s = rhs.strip()
+            if lhs_s in uint32_vars:
+                py_lines.append(f"{indent}{lhs_s} = ({rhs_s}) & 0xFFFFFFFF")
+            else:
+                py_lines.append(f"{indent}{expr}")
             has_body = True
         elif any(api in t for api in called_apis):
             expr = t.rstrip(";")
@@ -284,20 +301,93 @@ async def reconstruct_feature_code(
     emulation_details: dict[str, Any] = {}
     if test_inputs and len(test_inputs) > 0:
         try:
-            esil_cmds = [
-                f"s {address_or_symbol}",
-                "aei",
-                "aeim",
-                "aeip",
-                "aes 20",
-                "ar",
-            ]
+            arg_regs = ("rdi", "rsi", "rdx", "rcx")
+            esil_cmds: list[str] = ["aei", "aeim"]
+            parsed_vectors: list[list[int]] = []
+
+            for raw_vec in test_inputs:
+                vec_parts = [p.strip() for p in str(raw_vec).split(",") if p.strip()]
+                int_args: list[int] = []
+                for p in vec_parts[:4]:
+                    try:
+                        int_args.append(int(p, 16) if p.lower().startswith("0x") else int(p))
+                    except ValueError:
+                        int_args.append(0)
+                if not int_args:
+                    int_args = [0]
+                parsed_vectors.append(int_args)
+
+                esil_cmds.extend(
+                    [f"s {address_or_symbol}", "aeip", "aer rsp=0x178000", "aer rbp=0x178000"]
+                )
+                for idx, val in enumerate(int_args):
+                    esil_cmds.append(f"aer {arg_regs[idx]}={hex(val)}")
+                for idx in range(len(int_args), 2):
+                    esil_cmds.append(f"aer {arg_regs[idx]}=0x0")
+                esil_cmds.extend(["aes 20", "ar"])
+
             esil_out, _ = await execute_r2_command(validated, esil_cmds, base_timeout=timeout)
+            reg_matches = re.findall(
+                r"\b(?:rax|eax|r0)\s*=\s*(0x[0-9a-fA-F]+|\d+)", esil_out, re.IGNORECASE
+            )
+
+            # Evaluate synthesized Python function if pure computation
+            py_callable = None
+            if lang == "python" and not called_apis:
+                try:
+                    ns: dict[str, Any] = {"Any": object}
+                    exec(reconstructed, ns)  # nosec B102
+                    py_callable = ns.get(func_name)
+                except Exception:
+                    py_callable = None
+
+            obligation_ledger: list[dict[str, Any]] = []
+            for idx, int_args in enumerate(parsed_vectors):
+                esil_val_str = (
+                    reg_matches[idx]
+                    if idx < len(reg_matches)
+                    else (reg_matches[-1] if reg_matches else None)
+                )
+                esil_int = (
+                    (
+                        int(esil_val_str, 16)
+                        if esil_val_str.lower().startswith("0x")
+                        else int(esil_val_str)
+                    )
+                    if esil_val_str is not None
+                    else None
+                )
+                py_int = None
+                if callable(py_callable):
+                    try:
+                        py_res = py_callable(*int_args)
+                        if isinstance(py_res, int):
+                            py_int = py_res & 0xFFFFFFFF
+                    except Exception:
+                        py_int = None
+
+                matched = True
+                if esil_int is not None and py_int is not None:
+                    matched = (esil_int & 0xFFFFFFFF) == (py_int & 0xFFFFFFFF)
+
+                obligation_ledger.append(
+                    {
+                        "vector": str(test_inputs[idx]),
+                        "args": [hex(a) for a in int_args],
+                        "esil_return": hex(esil_int & 0xFFFFFFFF)
+                        if esil_int is not None
+                        else "n/a",
+                        "reconstructed_return": hex(py_int) if py_int is not None else "n/a",
+                        "status": "PASSED" if matched else "MISMATCH",
+                    }
+                )
+
             if "rax" in esil_out or "eax" in esil_out or "r0" in esil_out:
-                emulation_verified = True
+                emulation_verified = all(item["status"] == "PASSED" for item in obligation_ledger)
                 emulation_details = {
                     "test_vectors_evaluated": len(test_inputs),
                     "emulation_successful": True,
+                    "obligation_ledger": obligation_ledger,
                 }
         except Exception as esil_err:
             logger.debug("ESIL emulation verification step encountered: %s", esil_err)

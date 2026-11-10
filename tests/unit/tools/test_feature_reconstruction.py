@@ -142,9 +142,8 @@ async def test_reconstruct_feature_code_workflow(tmp_path):
                     assert res_py.status == "success"
                     assert res_py.data["target_language"] == "python"
                     assert res_py.data["equivalence_status"] == "VERIFIED"
-                    assert (
-                        res_py.data["verification_ledger"]["emulation_verification"][
-                            "emulation_successful"
-                        ]
-                        is True
-                    )
+                    emul_ver = res_py.data["verification_ledger"]["emulation_verification"]
+                    assert emul_ver["emulation_successful"] is True
+                    assert len(emul_ver["obligation_ledger"]) == 1
+                    assert emul_ver["obligation_ledger"][0]["esil_return"] == "0x1505"
+                    assert emul_ver["obligation_ledger"][0]["status"] == "PASSED"

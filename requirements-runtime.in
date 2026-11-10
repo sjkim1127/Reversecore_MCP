@@ -38,6 +38,7 @@ contourpy<1.3.3
 pyxbe<=1.0.3
 pyxdia<=0.1.0
 pwntools>=4.12.0
+mako>=1.4.2
 ROPgadget>=7.3
 
 # Analysis

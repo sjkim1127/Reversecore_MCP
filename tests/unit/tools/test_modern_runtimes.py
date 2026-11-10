@@ -257,3 +257,26 @@ async def test_inspect_unity_il2cpp_valid_and_encrypted(tmp_path: Path):
         assert isinstance(res_enc, ToolSuccess)
         assert res_enc.data["status"] == "encrypted_or_nonstandard_magic"
         assert res_enc.data["header_magic"] == "0xdeadbeef"
+
+
+@pytest.mark.unit
+def test_evidence_cache_disk_persistence(tmp_path: Path):
+    """Verify EvidenceCache persists records to disk and reloads them in a new instance."""
+    from reversecore_mcp.core.evidence_cache import EvidenceCache
+
+    cache_dir = tmp_path / "evidence_store"
+    c1 = EvidenceCache(max_records=16, ttl_seconds=3600, cache_dir=cache_dir)
+    ev_id = c1.store(
+        tool_name="r2_decompile",
+        target_path="/workspace/sample.bin",
+        facets={"lines": ["line 1", "line 2", "line 3"]},
+        summary={"total_lines": 3},
+    )
+    assert (cache_dir / f"{ev_id}.json").is_file()
+
+    # Create a brand-new EvidenceCache instance pointing to the same disk directory
+    c2 = EvidenceCache(max_records=16, ttl_seconds=3600, cache_dir=cache_dir)
+    view = c2.query_view(ev_id, facet="lines", offset=0, limit=10)
+    assert view is not None
+    assert view["total_items"] == 3
+    assert view["items"] == ["line 1", "line 2", "line 3"]

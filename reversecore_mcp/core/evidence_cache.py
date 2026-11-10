@@ -10,10 +10,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import tempfile
 import threading
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 
@@ -30,12 +33,115 @@ class EvidenceRecord:
 
 
 class EvidenceCache:
-    """Thread-safe bounded LRU cache for retained analysis evidence."""
+    """Thread-safe bounded LRU cache with disk persistence for retained analysis evidence."""
 
-    def __init__(self, max_records: int = 128) -> None:
+    def __init__(
+        self,
+        max_records: int = 128,
+        ttl_seconds: int = 86400,
+        cache_dir: str | Path | None = None,
+    ) -> None:
         self._max_records = max(8, max_records)
+        self._ttl_seconds = max(60, ttl_seconds)
+        self._explicit_cache_dir = Path(cache_dir) if cache_dir else None
         self._records: OrderedDict[str, EvidenceRecord] = OrderedDict()
         self._lock = threading.Lock()
+
+    def _resolve_cache_dir(self) -> Path | None:
+        """Resolve writable directory for persisting evidence records across processes."""
+        if self._explicit_cache_dir is not None:
+            try:
+                self._explicit_cache_dir.mkdir(parents=True, exist_ok=True)
+                return self._explicit_cache_dir
+            except OSError:
+                return None
+
+        env_dir = os.environ.get("REVERSECORE_EVIDENCE_CACHE_DIR", "").strip()
+        if env_dir:
+            try:
+                p = Path(env_dir)
+                p.mkdir(parents=True, exist_ok=True)
+                return p
+            except OSError:
+                pass
+
+        ws_dir = os.environ.get("REVERSECORE_WORKSPACE", "").strip()
+        if ws_dir:
+            try:
+                ws_path = Path(ws_dir)
+                if ws_path.is_dir():
+                    p = ws_path / ".reversecore_cache" / "evidence"
+                    p.mkdir(parents=True, exist_ok=True)
+                    return p
+            except OSError:
+                pass
+
+        try:
+            fallback = Path(tempfile.gettempdir()) / "reversecore_evidence_cache"
+            fallback.mkdir(parents=True, exist_ok=True)
+            return fallback
+        except OSError:
+            return None
+
+    def _persist_to_disk(self, record: EvidenceRecord) -> None:
+        """Write EvidenceRecord to disk JSON file and prune expired/excess files."""
+        cdir = self._resolve_cache_dir()
+        if cdir is None:
+            return
+        try:
+            file_path = cdir / f"{record.evidence_id}.json"
+            payload = {
+                "evidence_id": record.evidence_id,
+                "tool_name": record.tool_name,
+                "target_path": record.target_path,
+                "created_at": record.created_at,
+                "summary": record.summary,
+                "facets": record.facets,
+            }
+            tmp_path = cdir / f".{record.evidence_id}.{os.getpid()}.tmp"
+            tmp_path.write_text(
+                json.dumps(payload, ensure_ascii=False, default=str),
+                encoding="utf-8",
+            )
+            tmp_path.replace(file_path)
+
+            # Lightweight pruning of excess disk files
+            disk_files = sorted(
+                cdir.glob("ev_*.json"),
+                key=lambda p: p.stat().st_mtime if p.exists() else 0.0,
+            )
+            while len(disk_files) > self._max_records:
+                oldest = disk_files.pop(0)
+                oldest.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    def _load_from_disk(self, evidence_id: str) -> EvidenceRecord | None:
+        """Load an EvidenceRecord from disk if present and not expired."""
+        if not evidence_id.startswith("ev_") or "/" in evidence_id or "\\" in evidence_id:
+            return None
+        cdir = self._resolve_cache_dir()
+        if cdir is None:
+            return None
+        file_path = cdir / f"{evidence_id}.json"
+        if not file_path.is_file():
+            return None
+        try:
+            raw = json.loads(file_path.read_text(encoding="utf-8"))
+            created_at = float(raw.get("created_at", 0.0))
+            if (time.time() - created_at) > self._ttl_seconds:
+                file_path.unlink(missing_ok=True)
+                return None
+            return EvidenceRecord(
+                evidence_id=str(raw["evidence_id"]),
+                tool_name=str(raw.get("tool_name", "unknown")),
+                target_path=str(raw.get("target_path", "")),
+                created_at=created_at,
+                facets=dict(raw.get("facets") or {}),
+                summary=dict(raw.get("summary") or {}),
+            )
+        except Exception:
+            return None
 
     def store(
         self,
@@ -77,15 +183,30 @@ class EvidenceCache:
             while len(self._records) > self._max_records:
                 self._records.popitem(last=False)
 
+        self._persist_to_disk(record)
         return evidence_id
 
     def get(self, evidence_id: str) -> EvidenceRecord | None:
-        """Retrieve an EvidenceRecord by ID and refresh its LRU position."""
+        """Retrieve an EvidenceRecord by ID (from memory or disk fallback) and refresh LRU."""
         with self._lock:
             record = self._records.get(evidence_id)
             if record is not None:
+                if (time.time() - record.created_at) > self._ttl_seconds:
+                    self._records.pop(evidence_id, None)
+                    return None
                 self._records.move_to_end(evidence_id)
-            return record
+                return record
+
+        disk_record = self._load_from_disk(evidence_id)
+        if disk_record is not None:
+            with self._lock:
+                self._records[evidence_id] = disk_record
+                self._records.move_to_end(evidence_id)
+                while len(self._records) > self._max_records:
+                    self._records.popitem(last=False)
+            return disk_record
+
+        return None
 
     def list_records(self, limit: int = 25) -> list[dict[str, Any]]:
         """List recently retained evidence records."""
@@ -104,11 +225,18 @@ class EvidenceCache:
         ]
 
     def clear(self) -> int:
-        """Clear all cached records and return count removed."""
+        """Clear all cached records (memory and disk) and return count removed."""
         with self._lock:
             count = len(self._records)
             self._records.clear()
-            return count
+        cdir = self._resolve_cache_dir()
+        if cdir is not None:
+            try:
+                for p in cdir.glob("ev_*.json"):
+                    p.unlink(missing_ok=True)
+            except OSError:
+                pass
+        return count
 
     def query_view(
         self,
