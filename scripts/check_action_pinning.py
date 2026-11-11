@@ -11,6 +11,11 @@ from pathlib import Path
 ACTION_REGEX = re.compile(r"^\s*(?:-\s+)?uses:\s+([^./\s][^@\s]*?)@([^\s#]+)")
 SHA_REGEX = re.compile(r"^[0-9a-f]{40}$")
 
+# Reusable workflows that architecturally require semantic version tags (e.g. @vX.Y.Z)
+# for cryptographic builder provenance verification in builder-fetch.sh and reject commit SHAs.
+EXEMPTED_ACTION_PREFIXES = ("slsa-framework/slsa-github-generator/",)
+SEMVER_TAG_REGEX = re.compile(r"^v\d+\.\d+\.\d+$")
+
 
 def check_action_pinning(workflows_dir: Path) -> int:
     """Scan workflow YAML files and assert all external actions use 40-char commit SHAs.
@@ -40,6 +45,11 @@ def check_action_pinning(workflows_dir: Path) -> int:
                 action_name = match.group(1).strip()
                 ref = match.group(2).strip()
                 checked_count += 1
+
+                if any(action_name.startswith(prefix) for prefix in EXEMPTED_ACTION_PREFIXES):
+                    if not (SHA_REGEX.match(ref) or SEMVER_TAG_REGEX.match(ref)):
+                        violations.append((file_path, line_no, action_name, ref))
+                    continue
 
                 if not SHA_REGEX.match(ref):
                     violations.append((file_path, line_no, action_name, ref))
