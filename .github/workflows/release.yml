@@ -194,9 +194,19 @@ jobs:
         run: |
           set -euo pipefail
           for attempt in 1 2 3 4 5 6; do
-            if ./mcp-publisher publish; then
+            set +e
+            output=$(./mcp-publisher publish 2>&1)
+            status=$?
+            set -e
+            if [ "${status}" -eq 0 ]; then
+              echo "${output}"
               exit 0
             fi
+            if echo "${output}" | grep -qi "already exists"; then
+              echo "Version is already published to the MCP Registry: ${output}"
+              exit 0
+            fi
+            echo "${output}" >&2
             if [ "${attempt}" -eq 6 ]; then
               echo "MCP Registry publication failed after ${attempt} attempts" >&2
               exit 1
