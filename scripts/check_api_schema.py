@@ -25,12 +25,14 @@ from reversecore_mcp import server
 # plus issue #322's registration of cross-binary transfer tools (match_functions_across_binaries, transfer_annotations_across_binaries, review_transferred_annotations, apply_transferred_annotation),
 # plus issue #317's registration of analyst handoff bundle tools (export_handoff_bundle, import_handoff_bundle),
 # plus issue #363's bounded limit documentation on extract_iocs,
-# plus registration of reconstruct_feature_code and summary-first paging.
-EXPECTED_TOOL_COUNT = 186
-EXPECTED_SCHEMA_SHA256 = "e0852008f691e61314059d63949c500a862eb08dd19cbc1ab728d7f4f6ce18ff"
+# plus registration of reconstruct_feature_code and summary-first paging,
+# plus Layer 1 meta-tools: analyze_binary, triage_incident, investigate_vulnerability.
+EXPECTED_TOOL_COUNT = 189
+EXPECTED_SCHEMA_SHA256 = "e8fcbdcebf2834ed77e3dd04b6ad5167504e4c1c46958bf831291c2987036611"
 VALID_SCHEMA_SHA256S = {
     "562f9ae4371787c02667f828fa30f7ff445a28522a14dbc89f7324f5ee474563",
     "c5702d1c5e737a5835e6de300db9e15c6cc7b602ca5393b6db7b1b9c7763ac03",
+    "e0852008f691e61314059d63949c500a862eb08dd19cbc1ab728d7f4f6ce18ff",
     EXPECTED_SCHEMA_SHA256,
 }
 

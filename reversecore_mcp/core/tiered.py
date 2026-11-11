@@ -23,9 +23,14 @@ from reversecore_mcp.core.result import ToolResult, failure, success
 logger = get_logger(__name__)
 
 # ==============================================================================
-# Tier 1: Daily Essential Core Tools (12 tools)
+# Tier 1: Daily Essential Core & Progressive Disclosure Meta Tools (15 tools)
 # ==============================================================================
 TIER1_CORE_TOOLS: list[str] = [
+    # Layer 1 Progressive Disclosure Meta-Tools (1-Turn Orchestration Entrypoints)
+    "analyze_binary",  # 1-turn unified binary triage, format, mitigations, decompilation preview
+    "triage_incident",  # 1-turn DFIR incident triage (PCAP, Memory dump, Disk artifacts)
+    "investigate_vulnerability",  # 1-turn exploitability scoring, crash triage, dangerous APIs
+    # Essential Daily Tools
     "run_file",  # File type, arch, compiler, MIME
     "Radare2_open_file",  # Open binary session
     "Radare2_close_file",  # Close binary session

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "name": "reversecore_mcp",
   "description": "Enterprise-grade MCP server for binary reverse engineering, decompilation, malware triage, and vulnerability hunting.",
-  "total_tools": 186,
+  "total_tools": 189,
   "protocol_readiness": {
     "mcp_version": "2024-11-05",
     "fastmcp_version": "3.4.11",
@@ -6867,6 +6867,201 @@
         "readOnlyHint": false,
         "destructiveHint": false,
         "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "analyze_binary",
+      "description": "Perform a comprehensive, 1-turn binary analysis and orchestration summary.\n\nCombines file metadata, LIEF structure parsing, section entropy, security\nmitigations, dangerous functions, suspicious strings, and entrypoint\ndecompilation into a single structured report with next-step tool guidance.",
+      "plugin": "common_tools",
+      "profiles": [
+        "full",
+        "static",
+        "malware",
+        "forensics",
+        "vuln-research"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the binary."
+          },
+          "goal": {
+            "default": "general",
+            "type": "string",
+            "description": "Target analysis goal ('general', 'malware', 'vuln'). Default is 'general'."
+          },
+          "decompile": {
+            "default": true,
+            "type": "boolean",
+            "description": "If True, attempts pseudo-C decompilation of entrypoint or main."
+          },
+          "timeout": {
+            "default": 120,
+            "type": "integer",
+            "description": "Execution timeout in seconds."
+          }
+        },
+        "required": [
+          "file_path"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "returned_bytes": {
+                "type": "integer"
+              },
+              "total_captured_bytes": {
+                "type": "integer"
+              },
+              "saved_artifact": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "continuation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "cursor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
         "openWorldHint": false
       }
     },
@@ -21267,6 +21462,215 @@
       }
     },
     {
+      "name": "investigate_vulnerability",
+      "description": "Analyze vulnerability exploitability, crash traces, and dangerous APIs in 1-turn.\n\nCombines crash analysis (ASan/GDB triage), binary mitigation posture,\ndangerous C/C++ API calls, and ROP/Heap exploitability assessment.",
+      "plugin": "common_tools",
+      "profiles": [
+        "full",
+        "static",
+        "malware",
+        "forensics",
+        "vuln-research"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "binary_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to target binary."
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional function symbol or hex address to focus analysis on (e.g. 'main', '0x401122')."
+          },
+          "crash_log": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional crash trace string (ASan, UBSan, or GDB backtrace) or path to crash file."
+          },
+          "timeout": {
+            "default": 120,
+            "type": "integer",
+            "description": "Execution timeout in seconds."
+          }
+        },
+        "required": [
+          "binary_path"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "returned_bytes": {
+                "type": "integer"
+              },
+              "total_captured_bytes": {
+                "type": "integer"
+              },
+              "saved_artifact": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "continuation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "cursor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "list_case_states",
       "description": "List persistent analysis cases.",
       "plugin": "common_tools",
@@ -35112,6 +35516,201 @@
         "required": [
           "binary_path",
           "crash_file"
+        ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "returned_bytes": {
+                "type": "integer"
+              },
+              "total_captured_bytes": {
+                "type": "integer"
+              },
+              "saved_artifact": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "continuation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "cursor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "triage_incident",
+      "description": "Triage digital incident artifacts (PCAP, Memory dump, or Disk image) in 1-turn.\n\nAutomatically identifies artifact type, performs protocol/process/anomaly\ntriage, extracts network and host IoCs, and assigns a preliminary threat score.",
+      "plugin": "common_tools",
+      "profiles": [
+        "full",
+        "static",
+        "malware",
+        "forensics",
+        "vuln-research"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_path": {
+            "type": "string",
+            "description": "Path to capture file (.pcap/.pcapng), memory dump (.dmp/.raw/.vmem),\n           or disk image (.img/.vmdk/.E01)."
+          },
+          "artifact_type": {
+            "default": "auto",
+            "type": "string",
+            "description": "Artifact category ('auto', 'pcap', 'memory', 'disk')."
+          },
+          "focus": {
+            "default": "auto",
+            "type": "string",
+            "description": "Investigation focus ('auto', 'network_c2', 'injected_code', 'persistence')."
+          },
+          "timeout": {
+            "default": 120,
+            "type": "integer",
+            "description": "Execution timeout in seconds."
+          }
+        },
+        "required": [
+          "artifact_path"
         ],
         "type": "object"
       },

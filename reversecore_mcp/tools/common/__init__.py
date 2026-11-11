@@ -60,6 +60,11 @@ class CommonToolsPlugin(Plugin):
             export_handoff_bundle,
             import_handoff_bundle,
         )
+        from reversecore_mcp.tools.common.meta_tools import (
+            analyze_binary,
+            investigate_vulnerability,
+            triage_incident,
+        )
         from reversecore_mcp.tools.common.patch_explainer import explain_patch
         from reversecore_mcp.tools.common.planning_tools import recommend_analysis_plan
         from reversecore_mcp.tools.common.priority_queue_tools import (
@@ -138,6 +143,11 @@ class CommonToolsPlugin(Plugin):
         mcp_server.tool(inspect_analysis_view)
         mcp_server.tool(search_guidance)
         mcp_server.tool(read_guidance_section)
+
+        # Progressive Disclosure Layer 1 Meta-tools
+        mcp_server.tool(analyze_binary)
+        mcp_server.tool(triage_incident)
+        mcp_server.tool(investigate_vulnerability)
 
         logger.info(f"Registered {self.name} plugin with common utilities (unified)")
 
