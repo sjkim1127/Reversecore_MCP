@@ -4,7 +4,7 @@
 
 As Reversecore MCP has grown to **151 specialized security tools**, the tool definitions and JSON schemas exposed during MCP session initialization consume **112.6 KB (~28,834 tokens)**. For AI agents operating in 64k or 128k context windows, this represents substantial token overhead, increased latency, and a higher probability of tool hallucination.
 
-While the **tool profile filtering** introduced in v3.0.4 (`static`, `malware`, `forensics`, `vuln-research`) successfully reduced schema footprint by **37% to 68%**, **Progressive Disclosure** (scheduled for v3.1.0) introduces dynamic, hierarchical tool exposition. Instead of exposing tens of granular tools upfront, the server initially presents a compact set of **high-level orchestration tools (<10 tools, ~2,500 tokens)** and dynamically reveals specialized subsystems on demand.
+While the **tool profile filtering** introduced in v3.0.4 (`static`, `malware`, `forensics`, `vuln-research`) successfully reduced schema footprint by **37% to 68%**, **Progressive Disclosure** (delivered in v3.1.0 via `REVERSECORE_PROFILE=tiered`) introduces dynamic, hierarchical tool exposition. Instead of exposing tens of granular tools upfront, the server presents a compact set of **12 core tools + 3 orchestration router tools (15 tools, ~2,611 tokens, -93.2% to -94.4% reduction)** and dynamically dispatches to specialized subsystems on demand.
 
 ---
 

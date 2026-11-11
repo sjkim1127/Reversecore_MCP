@@ -38,7 +38,7 @@ anything is attached, so findings can never land on the wrong sample.
   "manifest": {
     "sample":   {"sha256": "...", "name": "...", "size_bytes": 0, "format": null},
     "scope":    {"case_id": "...", "session_id": "...", "phase": "deep_analysis"},
-    "environment": {"reversecore_version": "3.0.5", "python": "3.12.1", "platform": "..."},
+    "environment": {"reversecore_version": "3.1.0", "python": "3.12.1", "platform": "..."},
     "sections": {                       // digest + item count per section
       "case_state":      {"sha256": "...", "count": 1},
       "memory_session":  {"sha256": "...", "count": 3},

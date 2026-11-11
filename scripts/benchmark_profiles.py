@@ -20,12 +20,12 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DOCS_OUTPUT = ROOT / "docs" / "benchmarks" / "profile_footprint.md"
 
-PROFILES = ["full", "static", "malware", "forensics", "vuln-research"]
+PROFILES = ["full", "static", "malware", "forensics", "vuln-research", "tiered"]
 
 # Expected tool counts per profile (derived from plugin memberships + core task queue)
 EXPECTED_PROFILE_TOOL_COUNTS = {
@@ -34,6 +34,7 @@ EXPECTED_PROFILE_TOOL_COUNTS = {
     "malware": 100,
     "forensics": 81,
     "vuln-research": 138,
+    "tiered": 15,
 }
 
 SUBPROCESS_WORKER_CODE = """
@@ -59,6 +60,10 @@ async def run_benchmark(profile: str) -> None:
     # Core task queue tool
     from reversecore_mcp.core.task_queue import get_job_result
     mcp.tool()(get_job_result)
+
+    # Setup tiered mode if profile is tiered
+    from reversecore_mcp.core.tiered import setup_tiered_mode
+    setup_tiered_mode(mcp, profile)
 
     tools_raw = await mcp.list_tools()
     tools_list = tools_raw if isinstance(tools_raw, list) else list(tools_raw.values())
@@ -105,7 +110,8 @@ def measure_profile(profile: str) -> dict[str, Any]:
     )
     for line in proc.stdout.splitlines():
         if line.startswith("BENCHMARK_RESULT:"):
-            return json.loads(line.removeprefix("BENCHMARK_RESULT:"))
+            payload = line.removeprefix("BENCHMARK_RESULT:")
+            return cast(dict[str, Any], json.loads(payload))
     raise RuntimeError(
         f"Failed to extract benchmark result for profile '{profile}':\n{proc.stderr}"
     )
@@ -175,11 +181,13 @@ def render_markdown_report(results: list[dict[str, Any]]) -> str:
             "",
             "### 1. LLM Context Window & Token Efficiency",
             "In MCP (Model Context Protocol), clients fetch the full tool list and JSON schema during session initialization.",
-            "With the `full` profile (156 tools), the schema payload is approximately **119 KB (~29,600 tokens)**.",
+            "With the `full` profile (186 tools), the schema payload is approximately **150.1 KB (~38,400 tokens)**.",
             "By selecting a focused profile:",
-            "- **`forensics` profile**: Reduces schema size by **67.7%**, freeing up **~19,500 tokens** in every conversation context.",
-            "- **`malware` profile**: Cuts tool count from 156 to 70 (**-46.0% schema reduction**), preserving **~13,500 tokens**.",
-            "- **`static` profile**: Focuses strictly on reverse engineering and decompilation, trimming **~12,000 tokens** (**-41.0%**).",
+            "- **`tiered` profile (Router)**: Reduces schema size by **93.2%**, exposing 12 core tools + 3 router tools (15 total) and freeing up **~35,800 tokens** in every conversation context.",
+            "- **`forensics` profile**: Reduces schema size by **60.0%**, freeing up **~23,000 tokens**.",
+            "- **`malware` profile**: Cuts tool count from 186 to 100 (**-36.6% schema reduction**), preserving **~14,000 tokens**.",
+            "- **`static` profile**: Focuses strictly on reverse engineering and decompilation, trimming **~12,600 tokens** (**-32.9%**).",
+            "- **`vuln-research` profile**: Trims **~11,200 tokens** (**-29.1%**) while keeping full CVE hunter, fuzzing, and static analysis suites.",
             "",
             "### 2. Pre-Import Module Isolation",
             "Reversecore MCP implements a pre-import filter (`MODULE_TO_PLUGIN_NAME` manifest in `PluginLoader`).",
@@ -195,11 +203,12 @@ def render_markdown_report(results: list[dict[str, Any]]) -> str:
             "",
             "| Analysis Task | Recommended Profile | Key Included Toolsets |",
             "|---|---|---|",
+            "| **Context-Optimized Orchestration (Router)** | `REVERSECORE_PROFILE=tiered` | 12 Core tools + 3 Router/Agent tools (`call_expert_agent`, `search_tools`, `execute_domain_tool`) with on-demand access to all 186 tools |",
             "| **Binary Reversing & Disassembly** | `REVERSECORE_PROFILE=static` | Radare2, r2ghidra, LIEF, strings, binwalk, static analysis, reports |",
             "| **Malware Triage & Reverse Engineering** | `REVERSECORE_PROFILE=malware` | YARA, packer detection, dormant hunter, deobfuscator, anti-analysis, reports |",
             "| **Incident Response & Memory/PCAP** | `REVERSECORE_PROFILE=forensics` | Memory forensics (Volatility3), network PCAP (Scapy), disk forensics, artifacts |",
             "| **Vulnerability Hunting & Fuzzing** | `REVERSECORE_PROFILE=vuln-research` | CVE hunter, ASan triager, harness synthesizer, hybrid fuzzing, Radare2, source auditor |",
-            "| **Enterprise All-in-One** | `REVERSECORE_PROFILE=full` | All 156 tools across all domains (default) |",
+            "| **Enterprise All-in-One** | `REVERSECORE_PROFILE=full` | All 186 tools across all domains (default) |",
             "",
             "---",
             "",
@@ -207,7 +216,7 @@ def render_markdown_report(results: list[dict[str, Any]]) -> str:
             "",
             "### Environment Variable",
             "```bash",
-            "export REVERSECORE_PROFILE=static",
+            "export REVERSECORE_PROFILE=tiered",
             "python server.py",
             "```",
             "",
@@ -216,24 +225,24 @@ def render_markdown_report(results: list[dict[str, Any]]) -> str:
             "docker run -i --rm \\",
             "  -v /path/to/samples:/app/workspace \\",
             "  -e REVERSECORE_WORKSPACE=/app/workspace \\",
-            "  -e REVERSECORE_PROFILE=malware \\",
+            "  -e REVERSECORE_PROFILE=tiered \\",
             "  -e MCP_TRANSPORT=stdio \\",
-            "  ghcr.io/sjkim1127/reversecore_mcp:3.0.4",
+            "  ghcr.io/sjkim1127/reversecore_mcp:3.1.0",
             "```",
             "",
             "### MCP Client Configuration (`claude_desktop_config.json`)",
             "```json",
             "{",
             '  "mcpServers": {',
-            '    "reversecore-static": {',
+            '    "reversecore-tiered": {',
             '      "command": "docker",',
             '      "args": [',
             '        "run", "-i", "--rm",',
             '        "-v", "/Users/username/samples:/app/workspace",',
             '        "-e", "REVERSECORE_WORKSPACE=/app/workspace",',
-            '        "-e", "REVERSECORE_PROFILE=static",',
+            '        "-e", "REVERSECORE_PROFILE=tiered",',
             '        "-e", "MCP_TRANSPORT=stdio",',
-            '        "ghcr.io/sjkim1127/reversecore_mcp:3.0.4"',
+            '        "ghcr.io/sjkim1127/reversecore_mcp:3.1.0"',
             "      ]",
             "    }",
             "  }",
