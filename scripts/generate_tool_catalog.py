@@ -175,6 +175,11 @@ PLUGIN_METADATA: dict[str, dict[str, str]] = {
         "domain": "Session Reports, MITRE Mapping, SIGMA & VEX Generation",
         "icon": "📋",
     },
+    "dynamic_tools": {
+        "title": "Dynamic Analysis & OS Sandbox",
+        "domain": "Execution Tracing, Crash Signals, Syscalls & Runtime Memory Dumps",
+        "icon": "⚡",
+    },
     "core_task_queue": {
         "title": "Task Queue & Async Jobs",
         "domain": "Background Job Status & Result Retrieval",

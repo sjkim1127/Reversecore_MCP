@@ -17,6 +17,7 @@ TOOL_PROFILES: dict[str, set[str]] = {
         "analysis_tools",
         "source_auditor",
         "common_tools",
+        "dynamic_tools",
         "memory_tools",
         "server_tools",
         "cve_hunter_tools",
@@ -35,6 +36,7 @@ TOOL_PROFILES: dict[str, set[str]] = {
     },
     "malware": {
         "common_tools",
+        "dynamic_tools",
         "server_tools",
         "malware_tools",
         "analysis_tools",
@@ -76,6 +78,7 @@ MODULE_TO_PLUGIN_NAME: dict[str, str] = {
     "reversecore_mcp.tools.common": "common_tools",
     "reversecore_mcp.tools.cve_hunter": "cve_hunter_tools",
     "reversecore_mcp.tools.deobfuscation": "deobfuscation_tools",
+    "reversecore_mcp.tools.dynamic": "dynamic_tools",
     "reversecore_mcp.tools.forensics": "forensics_tools",
     "reversecore_mcp.tools.malware": "malware_tools",
     "reversecore_mcp.tools.radare2": "radare2_mcp_tools",

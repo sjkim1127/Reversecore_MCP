@@ -34,6 +34,8 @@ _LAZY_MODULES: Final[dict[str, str]] = {
     "cve_hunter_tools": "reversecore_mcp.tools.cve_hunter",
     # Deobfuscation tools
     "deobfuscation_tools": "reversecore_mcp.tools.deobfuscation",
+    # Dynamic tools
+    "dynamic_tools": "reversecore_mcp.tools.dynamic",
     # Forensics tools
     "artifact": "reversecore_mcp.tools.forensics.artifact",
     "disk": "reversecore_mcp.tools.forensics.disk",
