@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "name": "reversecore_mcp",
   "description": "Enterprise-grade MCP server for binary reverse engineering, decompilation, malware triage, and vulnerability hunting.",
-  "total_tools": 191,
+  "total_tools": 193,
   "protocol_readiness": {
     "mcp_version": "2024-11-05",
     "fastmcp_version": "3.4.11",
@@ -10052,6 +10052,222 @@
       }
     },
     {
+      "name": "capture_network_traffic",
+      "description": "Capture live network packets to a PCAP file and summarize communication flows.\n\nCaptures ingress and egress network packets, records them to an industry-standard\nPCAP file in the workspace, and extracts protocol breakdowns, unique endpoints,\nand DNS lookups. Integrates seamlessly with downstream PCAP forensics tools.",
+      "plugin": "dynamic_tools",
+      "profiles": [
+        "full",
+        "malware"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "output_pcap": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional path or filename for the resulting PCAP file."
+          },
+          "duration_seconds": {
+            "default": 5,
+            "type": "integer",
+            "description": "Duration to record network packets in seconds (default: 5, max: 60)."
+          },
+          "interface": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Specific network interface to monitor (e.g. 'eth0', 'lo', None for default)."
+          },
+          "bpf_filter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional BPF filter expression (e.g. 'tcp', 'port 53', 'ip proto 17')."
+          },
+          "packet_limit": {
+            "default": 500,
+            "type": "integer",
+            "description": "Maximum number of packets to capture (default: 500)."
+          }
+        },
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "returned_bytes": {
+                "type": "integer"
+              },
+              "total_captured_bytes": {
+                "type": "integer"
+              },
+              "saved_artifact": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "continuation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "cursor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "complete_memory_session",
       "description": "Mark an analysis session as completed with a summary.\n\nUse this when finishing an analysis to save a summary\nfor future reference.",
       "plugin": "memory_tools",
@@ -14443,7 +14659,7 @@
     },
     {
       "name": "dump_process_memory",
-      "description": "Execute a binary, wait for dynamic unpacking, and dump memory segments.\n\nFreezes the target process, inspects virtual memory mappings, and extracts\nexecutable or self-modifying code segments (e.g. RWX or unbacked code),\nproducing clean binary dumps ready for Fission or decompiler restoration.",
+      "description": "Execute a binary, wait for dynamic unpacking, and dump memory segments.\n\nFreezes the target process, inspects virtual memory mappings, and extracts\nexecutable or self-modifying code segments (e.g. RWX or unbacked code),\nproducing clean binary dumps ready for Fission or decompiler restoration.\nOptionally logs real-time network packets to PCAP during the unpacking window.",
       "plugin": "dynamic_tools",
       "profiles": [
         "full",
@@ -14497,6 +14713,11 @@
             "default": 15,
             "type": "integer",
             "description": "Maximum execution timeout in seconds."
+          },
+          "capture_pcap": {
+            "default": false,
+            "type": "boolean",
+            "description": "If True, records live network traffic to a PCAP file during unpacking."
           }
         },
         "required": [
@@ -17651,6 +17872,213 @@
         "required": [
           "file_path"
         ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "returned_bytes": {
+                "type": "integer"
+              },
+              "total_captured_bytes": {
+                "type": "integer"
+              },
+              "saved_artifact": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "continuation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "cursor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "generate_seccomp_profile",
+      "description": "Generate an OCI/Docker Seccomp JSON profile or systemd filter for sandbox isolation.\n\nCreates production-grade syscall filtering policies for containing untrusted binaries\nduring dynamic analysis, malware triage, and sandbox execution.",
+      "plugin": "dynamic_tools",
+      "profiles": [
+        "full",
+        "malware"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "profile_type": {
+            "default": "no_network",
+            "type": "string",
+            "description": "Built-in profile ('strict', 'no_network', 'read_only', 'minimal_sandbox')."
+          },
+          "custom_blocked_syscalls": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional extra syscall names to block."
+          },
+          "output_filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional name for the output profile file."
+          },
+          "output_format": {
+            "default": "oci_json",
+            "type": "string",
+            "description": "Output policy format ('oci_json' for Docker/Podman or 'systemd')."
+          }
+        },
         "type": "object"
       },
       "outputSchema": {
@@ -34151,7 +34579,7 @@
     },
     {
       "name": "trace_execution",
-      "description": "Execute a binary under sandbox monitoring to trace runtime behavior.\n\nMonitors file system modifications, child process creation, network sockets,\nexit codes, crashes, and syscall activity. Works independently of Radare2.",
+      "description": "Execute a binary under sandbox monitoring to trace runtime behavior.\n\nMonitors file system modifications, child process creation, network sockets,\nexit codes, crashes, and syscall activity. Supports Seccomp syscall filtering\nprofiles and simultaneous live network PCAP logging.",
       "plugin": "dynamic_tools",
       "profiles": [
         "full",
@@ -34215,6 +34643,23 @@
             "default": 100000,
             "type": "integer",
             "description": "Maximum stdout/stderr capture length (default: 100,000 bytes)."
+          },
+          "capture_pcap": {
+            "default": false,
+            "type": "boolean",
+            "description": "If True, records live network traffic to a PCAP file during execution."
+          },
+          "seccomp_profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional Seccomp profile ('strict', 'no_network', 'read_only', 'minimal_sandbox')."
           }
         },
         "required": [

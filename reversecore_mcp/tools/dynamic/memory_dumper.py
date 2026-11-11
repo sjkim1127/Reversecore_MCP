@@ -4,6 +4,7 @@ Provides memory dumping of live processes or spawned binaries:
 - Inspects virtual memory segment mappings (/proc/<pid>/maps on Linux, vmmap fallback)
 - Extracts executable (RX / RWX) code segments after runtime unpacking/decryption loops
 - Calculates entropy and SHA256 of extracted segments to verify unpacking status
+- Supports simultaneous network PCAP logging during unpacking execution
 - Produces clean binary dumps in the workspace ready for Fission / decompiler restoration
 """
 
@@ -15,16 +16,17 @@ import math
 import os
 import re
 import signal
+import time
 from pathlib import Path
 from typing import Any
 
-from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.result import ToolResult, failure, success
-from reversecore_mcp.core.security import validate_file_path
+from reversecore_mcp.core.security import get_workspace_config, validate_file_path
+from reversecore_mcp.tools.dynamic.network_capture import LivePcapRecorder
 
 logger = get_logger(__name__)
 
@@ -102,12 +104,14 @@ async def dump_process_memory(
     filter_permissions: str = "rwx",
     output_name: str | None = None,
     timeout: int = 15,
+    capture_pcap: bool = False,
 ) -> ToolResult:
     """Execute a binary, wait for dynamic unpacking, and dump memory segments.
 
     Freezes the target process, inspects virtual memory mappings, and extracts
     executable or self-modifying code segments (e.g. RWX or unbacked code),
     producing clean binary dumps ready for Fission or decompiler restoration.
+    Optionally logs real-time network packets to PCAP during the unpacking window.
 
     Args:
         file_path: Absolute or workspace-relative path to the target binary.
@@ -116,12 +120,18 @@ async def dump_process_memory(
         filter_permissions: Memory permission filter ('rwx', 'rx', 'all'). Default: 'rwx'.
         output_name: Optional prefix or name for the dumped files.
         timeout: Maximum execution timeout in seconds.
+        capture_pcap: If True, records live network traffic to a PCAP file during unpacking.
 
     Returns:
         ToolResult with dumped segments, base addresses, entropy, and file paths.
+
+    Example:
+        >>> result = await dump_process_memory("/app/workspace/packed.exe", wait_ms=200, capture_pcap=True)
+        >>> print(result.status)
+        'success'
     """
     validated_path = validate_file_path(file_path)
-    workspace = get_config().workspace
+    workspace = get_workspace_config().workspace.resolve()
     dump_dir = workspace / "dumps"
     dump_dir.mkdir(parents=True, exist_ok=True)
     args_list = arguments or []
@@ -140,6 +150,16 @@ async def dump_process_memory(
         "TMPDIR": str(workspace / "tmp"),
     }
 
+    # Initialize live packet capture if requested
+    pcap_recorder: LivePcapRecorder | None = None
+    pcap_summary: dict[str, Any] | None = None
+    if capture_pcap:
+        captures_dir = workspace / "captures"
+        captures_dir.mkdir(parents=True, exist_ok=True)
+        pcap_file = captures_dir / f"pcap_dump_{validated_path.stem}_{int(time.time() * 1000)}.pcap"
+        pcap_recorder = LivePcapRecorder(output_pcap=pcap_file)
+        pcap_recorder.start()
+
     # Launch process
     proc = None
     try:
@@ -152,6 +172,8 @@ async def dump_process_memory(
             env=safe_env,
         )
     except Exception as exc:
+        if pcap_recorder:
+            pcap_recorder.stop()
         return failure("SPAWN_FAILED", f"Failed to spawn target process: {exc}")
 
     pid = proc.pid
@@ -267,13 +289,15 @@ async def dump_process_memory(
                 await proc.wait()
             except Exception:
                 pass
+        if pcap_recorder:
+            pcap_summary = pcap_recorder.stop()
 
     # Assessment of unpacked state
     unpacked_candidates = [
         f for f in dumped_files if f.get("is_rwx") or f.get("entropy", 0.0) < 6.8
     ]
 
-    report = {
+    report: dict[str, Any] = {
         "status": "success",
         "target_binary": validated_path.name,
         "pid": pid,
@@ -290,10 +314,17 @@ async def dump_process_memory(
         ),
     }
 
+    if pcap_summary:
+        report["pcap_capture"] = pcap_summary
+
+    msg = (
+        f"Dumped {len(dumped_files)} memory segment(s) from '{validated_path.name}'. "
+        f"Unpacked code candidates: {len(unpacked_candidates)}."
+    )
+    if pcap_summary:
+        msg += f" Logged PCAP ({pcap_summary['total_packets']} pkts)."
+
     return success(
         data=report,
-        message=(
-            f"Dumped {len(dumped_files)} memory segment(s) from '{validated_path.name}'. "
-            f"Unpacked code candidates: {len(unpacked_candidates)}."
-        ),
+        message=msg,
     )

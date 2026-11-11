@@ -91,7 +91,7 @@ async def run_demo(
     # 1. Environment & Architecture Summary
     section("1. ARCHITECTURE & CONTEXT FOOTPRINT POSTURE")
     format_kv("Active Mode", f"{CYAN}Progressive Disclosure (REVERSECORE_PROFILE=tiered){RESET}")
-    format_kv("Full Tool Catalog", "191 specialized tools (155.1 KB schema / ~39,500 tokens)")
+    format_kv("Full Tool Catalog", "193 specialized tools (156.0 KB schema / ~39,800 tokens)")
     format_kv("Tiered Handshake Set", "18 tools (15 Core + 3 Universal Routers / ~3,200 tokens)")
     format_kv(
         "Context Tax Reduction",
@@ -281,7 +281,7 @@ async def run_demo(
         print("  1. Handshake schema reduced from 155.1 KB to 12.8 KB (-91.7%).")
         print("  2. Layer 1 Meta-tools completed comprehensive triage in single turns.")
         print("  3. Tier 2 Domain Sub-Agents orchestrated deep tasks autonomously.")
-        print("  4. Universal Router provided seamless on-demand access to all 191 tools.")
+        print("  4. Universal Router provided seamless on-demand access to all 193 tools.")
         print(f"\n{CYAN}{BOLD}Demo completed successfully.{RESET}\n")
 
     finally:

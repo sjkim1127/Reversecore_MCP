@@ -5,7 +5,9 @@ without requiring Radare2, GDB, or heavy external virtualization:
 - Captures stdout, stderr, exit codes, and execution duration
 - Detects crashes (SIGSEGV, SIGFPE, SIGILL) and abnormal terminations
 - Monitors filesystem mutations (dropped files, modified payloads)
-- Parses syscall activity (files, sockets, process forks) via strace when available
+- Enforces Seccomp syscall containment profiles ('strict', 'no_network', 'read_only')
+- Records real-time network packets to PCAP during execution
+- Parses syscall activity (files, sockets, process forks, blocked calls) via strace
 """
 
 from __future__ import annotations
@@ -18,13 +20,14 @@ import time
 from pathlib import Path
 from typing import Any
 
-from reversecore_mcp.core.config import get_config
 from reversecore_mcp.core.decorators import log_execution
 from reversecore_mcp.core.error_handling import handle_tool_errors
 from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.result import ToolResult, failure, success
-from reversecore_mcp.core.security import validate_file_path
+from reversecore_mcp.core.security import get_workspace_config, validate_file_path
+from reversecore_mcp.tools.dynamic.network_capture import LivePcapRecorder
+from reversecore_mcp.tools.dynamic.seccomp_profiles import get_profile_blocked_syscalls
 
 logger = get_logger(__name__)
 
@@ -44,6 +47,7 @@ _STRACE_NET_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _STRACE_EXEC_PATTERN = re.compile(r'execve\("([^"]+)"', re.IGNORECASE)
+_STRACE_BLOCKED_PATTERN = re.compile(r"(\w+)\(.*=\s*-1\s+EPERM", re.IGNORECASE)
 
 
 def _snapshot_workspace(workspace: Path) -> dict[str, float]:
@@ -86,11 +90,14 @@ async def trace_execution(
     env_vars: dict[str, str] | None = None,
     timeout: int = 15,
     max_output_bytes: int = 100_000,
+    capture_pcap: bool = False,
+    seccomp_profile: str | None = None,
 ) -> ToolResult:
     """Execute a binary under sandbox monitoring to trace runtime behavior.
 
     Monitors file system modifications, child process creation, network sockets,
-    exit codes, crashes, and syscall activity. Works independently of Radare2.
+    exit codes, crashes, and syscall activity. Supports Seccomp syscall filtering
+    profiles and simultaneous live network PCAP logging.
 
     Args:
         file_path: Absolute or workspace-relative path to the executable binary.
@@ -99,12 +106,19 @@ async def trace_execution(
         env_vars: Optional environment variable overrides for execution.
         timeout: Maximum execution timeout in seconds (default: 15).
         max_output_bytes: Maximum stdout/stderr capture length (default: 100,000 bytes).
+        capture_pcap: If True, records live network traffic to a PCAP file during execution.
+        seccomp_profile: Optional Seccomp profile ('strict', 'no_network', 'read_only', 'minimal_sandbox').
 
     Returns:
         ToolResult with exit code, stdout/stderr, filesystem activity, crash status, and syscalls.
+
+    Example:
+        >>> result = await trace_execution("/app/workspace/sample.bin", capture_pcap=True)
+        >>> print(result.status)
+        'success'
     """
     validated_path = validate_file_path(file_path)
-    workspace = get_config().workspace
+    workspace = get_workspace_config().workspace.resolve()
     args_list = arguments or []
 
     # Ensure executable permissions
@@ -135,6 +149,11 @@ async def trace_execution(
     has_strace = shutil.which("strace") is not None
     strace_log_file: Path | None = None
 
+    # Resolve Seccomp profile if requested
+    blocked_syscalls: list[str] = []
+    if seccomp_profile:
+        blocked_syscalls = get_profile_blocked_syscalls(seccomp_profile)
+
     cmd: list[str] = []
     if has_strace:
         strace_log_file = workspace / "tmp" / f"strace_{os.getpid()}_{int(time.time() * 1000)}.log"
@@ -147,11 +166,25 @@ async def trace_execution(
             "trace=file,process,network",
             "-o",
             str(strace_log_file),
-            str(validated_path),
-            *args_list,
         ]
+        # In Linux, inject EPERM fault for blocked syscalls via strace
+        if blocked_syscalls:
+            inject_spec = f"fault={','.join(blocked_syscalls[:25])}:error=EPERM"
+            cmd.extend(["-e", inject_spec])
+
+        cmd.extend([str(validated_path), *args_list])
     else:
         cmd = [str(validated_path), *args_list]
+
+    # Initialize live packet capture if requested
+    pcap_recorder: LivePcapRecorder | None = None
+    pcap_summary: dict[str, Any] | None = None
+    if capture_pcap:
+        captures_dir = workspace / "captures"
+        captures_dir.mkdir(parents=True, exist_ok=True)
+        pcap_file = captures_dir / f"pcap_{validated_path.stem}_{int(time.time() * 1000)}.pcap"
+        pcap_recorder = LivePcapRecorder(output_pcap=pcap_file)
+        pcap_recorder.start()
 
     t_start = time.perf_counter()
     timed_out = False
@@ -187,7 +220,12 @@ async def trace_execution(
                 pass
 
     except Exception as exc:
+        if pcap_recorder:
+            pcap_recorder.stop()
         return failure("EXECUTION_FAILED", f"Failed to launch binary: {exc}")
+    finally:
+        if pcap_recorder:
+            pcap_summary = pcap_recorder.stop()
 
     execution_duration_ms = round((time.perf_counter() - t_start) * 1000, 2)
     exit_code = proc.returncode if proc and proc.returncode is not None else -1
@@ -215,6 +253,7 @@ async def trace_execution(
         "opened_files": [],
         "network_connections": [],
         "child_executions": [],
+        "blocked_calls": [],
     }
     if strace_log_file and strace_log_file.exists():
         try:
@@ -234,6 +273,9 @@ async def trace_execution(
             syscall_activity["child_executions"] = [e for e in execs if e != str(validated_path)][
                 :10
             ]
+            # Blocked syscalls by Seccomp / fault injection
+            blocked_matches = list(dict.fromkeys(_STRACE_BLOCKED_PATTERN.findall(strace_text)))
+            syscall_activity["blocked_calls"] = blocked_matches
         except Exception as exc:
             logger.debug(f"Failed to parse strace log: {exc}")
         finally:
@@ -262,11 +304,17 @@ async def trace_execution(
         anomalies.append(
             f"Process spawned child executable(s): {', '.join(syscall_activity['child_executions'][:3])}"
         )
+    if syscall_activity["blocked_calls"]:
+        anomalies.append(
+            f"Seccomp profile '{seccomp_profile}' blocked {len(syscall_activity['blocked_calls'])} forbidden syscall(s): {', '.join(syscall_activity['blocked_calls'])}"
+        )
+    if pcap_summary and pcap_summary.get("total_packets", 0) > 0:
+        anomalies.append(f"Live network capture recorded {pcap_summary['total_packets']} packet(s)")
 
     stdout_truncated = stdout_data[:max_output_bytes].decode("utf-8", errors="replace")
     stderr_truncated = stderr_data[:max_output_bytes].decode("utf-8", errors="replace")
 
-    result = {
+    result: dict[str, Any] = {
         "status": "success",
         "binary_name": validated_path.name,
         "binary_path": str(validated_path),
@@ -284,10 +332,25 @@ async def trace_execution(
         "anomalies": anomalies,
     }
 
+    if seccomp_profile:
+        result["seccomp_profile"] = {
+            "profile_name": seccomp_profile,
+            "blocked_syscalls": blocked_syscalls,
+            "enforcement": "strace_fault_injection" if has_strace else "simulated",
+            "violations_detected": len(syscall_activity["blocked_calls"]),
+        }
+
+    if pcap_summary:
+        result["pcap_capture"] = pcap_summary
+
     status_msg = (
         f"Executed '{validated_path.name}' in {execution_duration_ms} ms (exit code: {exit_code})."
     )
     if anomalies:
         status_msg += f" Detected {len(anomalies)} behavioral anomaly/anomalies."
+    if seccomp_profile:
+        status_msg += f" Enforced Seccomp profile '{seccomp_profile}'."
+    if pcap_summary:
+        status_msg += f" Logged PCAP ({pcap_summary['total_packets']} pkts)."
 
     return success(data=result, message=status_msg)

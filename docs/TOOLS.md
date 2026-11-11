@@ -1,9 +1,9 @@
-# Reversecore MCP Tool Catalog (191 Tools)
+# Reversecore MCP Tool Catalog (193 Tools)
 
 > **Single Source of Truth**: This document is automatically generated from the FastMCP runtime
 > tool registry by `scripts/generate_tool_catalog.py`. Do not edit manually.
 
-Reversecore MCP exposes **191 production-grade security analysis tools** and **11 dynamic resource templates** via the Model Context Protocol (MCP).
+Reversecore MCP exposes **193 production-grade security analysis tools** and **11 dynamic resource templates** via the Model Context Protocol (MCP).
 
 ---
 
@@ -38,9 +38,9 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 | 🛠️ Common Binary Utilities | `common_tools` | **34** | File Operations, Hashing, Patch Explanations & Assembly |
 | 🖥️ Server Lifecycle & State | `server_tools` | **2** | Server Status, Health & Memory Cache Management |
 | 📋 Reporting & MITRE ATT&CK | `report_tools` | **14** | Session Reports, MITRE Mapping, SIGMA & VEX Generation |
-| ⚡ Dynamic Analysis & OS Sandbox | `dynamic_tools` | **2** | Execution Tracing, Crash Signals, Syscalls & Runtime Memory Dumps |
+| ⚡ Dynamic Analysis & OS Sandbox | `dynamic_tools` | **4** | Execution Tracing, Crash Signals, Syscalls & Runtime Memory Dumps |
 | ⏳ Task Queue & Async Jobs | `core_task_queue` | **1** | Background Job Status & Result Retrieval |
-| **Total** | — | **191** | **Complete Reversecore MCP Suite** |
+| **Total** | — | **193** | **Complete Reversecore MCP Suite** |
 
 ---
 
@@ -333,14 +333,16 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 
 ---
 
-### ⚡ Dynamic Analysis & OS Sandbox (`dynamic_tools` — 2 tools)
+### ⚡ Dynamic Analysis & OS Sandbox (`dynamic_tools` — 4 tools)
 
 *Execution Tracing, Crash Signals, Syscalls & Runtime Memory Dumps*
 
 | # | Tool Name | Description | Key Parameters | Profiles |
 |:---:|---|---|---|---|
-| 189 | `dump_process_memory` | Execute a binary, wait for dynamic unpacking, and dump memory segments. | `file_path` (string, req), `arguments` (array), `wait_ms` (integer), `filter_permissions` (string), `output_name` (string), `timeout` (integer) | `malware` |
-| 190 | `trace_execution` | Execute a binary under sandbox monitoring to trace runtime behavior. | `file_path` (string, req), `arguments` (array), `stdin_input` (string), `env_vars` (object), `timeout` (integer), `max_output_bytes` (integer) | `malware` |
+| 189 | `capture_network_traffic` | Capture live network packets to a PCAP file and summarize communication flows. | `output_pcap` (string), `duration_seconds` (integer), `interface` (string), `bpf_filter` (string), `packet_limit` (integer) | `malware` |
+| 190 | `dump_process_memory` | Execute a binary, wait for dynamic unpacking, and dump memory segments. | `file_path` (string, req), `arguments` (array), `wait_ms` (integer), `filter_permissions` (string), `output_name` (string), `timeout` (integer), `capture_pcap` (boolean) | `malware` |
+| 191 | `generate_seccomp_profile` | Generate an OCI/Docker Seccomp JSON profile or systemd filter for sandbox isolation. | `profile_type` (string), `custom_blocked_syscalls` (array), `output_filename` (string), `output_format` (string) | `malware` |
+| 192 | `trace_execution` | Execute a binary under sandbox monitoring to trace runtime behavior. | `file_path` (string, req), `arguments` (array), `stdin_input` (string), `env_vars` (object), `timeout` (integer), `max_output_bytes` (integer), `capture_pcap` (boolean), `seccomp_profile` (string) | `malware` |
 
 ---
 
@@ -350,7 +352,7 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 
 | # | Tool Name | Description | Key Parameters | Profiles |
 |:---:|---|---|---|---|
-| 191 | `get_job_result` | Retrieve the status and result of a background job from the task queue. | `job_id` (string, req) | `static`, `malware`, `forensics`, `vuln-research` |
+| 193 | `get_job_result` | Retrieve the status and result of a background job from the task queue. | `job_id` (string, req) | `static`, `malware`, `forensics`, `vuln-research` |
 
 ---
 
