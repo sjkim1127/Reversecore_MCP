@@ -61,7 +61,7 @@ npx skills add sjkim1127/Reversecore_MCP
 - [What You Can Analyze](#what-you-can-analyze)
 - [⚡ Context Efficiency: Tiered Router, Compact Schema & Paging](#-context-efficiency-tiered-router-compact-schema--paging)
 - [Architecture](#architecture)
-- [Tool Catalog (193 Tools)](#tool-catalog-193-tools)
+- [Tool Catalog (194 Tools)](#tool-catalog-194-tools)
 - [Guided Analysis Prompts (34 Modes)](#guided-analysis-prompts-34-modes)
 - [MCP Resources (11 URIs)](#mcp-resources-11-uris)
 - [Quick Start](#quick-start)
@@ -83,7 +83,7 @@ npx skills add sjkim1127/Reversecore_MCP
 
 ## What is Reversecore MCP?
 
-Reversecore MCP is a [Model Context Protocol](https://modelcontextprotocol.io/) server that wraps **193 analysis tools** into a unified interface for AI-assisted security research, malware triage, vulnerability discovery, and digital forensics.
+Reversecore MCP is a [Model Context Protocol](https://modelcontextprotocol.io/) server that wraps **194 analysis tools** into a unified interface for AI-assisted security research, malware triage, vulnerability discovery, and digital forensics.
 
 Instead of manually switching between disassemblers, decompilers, YARA scanners, and forensics utilities, you describe your investigation goal in natural language:
 
@@ -226,7 +226,7 @@ AI Client (Claude / Cursor / any MCP-compatible client)
         ▼
 ┌──────────────────────────────────────────────────────┐
 │                   FastMCP 3.4.11 Server              │
-│          193 registered tools · Fully async          │
+│          194 registered tools · Fully async          │
 │                  Python 3.10–3.12                    │
 ├────────────────────┬─────────────────────────────────┤
 │   Guided Prompts   │  Dynamic Resources              │
@@ -297,7 +297,7 @@ The `reversecore_mcp/core/` directory contains the shared infrastructure that al
 
 ---
 
-## Tool Catalog (193 Tools)
+## Tool Catalog (194 Tools)
 
 > 📖 **[Authoritative Tool Catalog & Parameter Reference (186 Tools)](docs/TOOLS.md)**
 > 📊 **[Tool Profile Footprint & Context Benchmark Matrix](docs/benchmarks/profile_footprint.md)**
@@ -611,7 +611,7 @@ Resources are read-only data endpoints that AI clients can access through URI te
 |---|---|
 | `reversecore://guide` | Tool usage guide with file path rules and best practices |
 | `reversecore://guide/structures` | Structure recovery and cross-reference analysis technical guide |
-| `reversecore://tools` | Complete documentation for all 193 registered tools |
+| `reversecore://tools` | Complete documentation for all 194 registered tools |
 | `reversecore://logs` | Application logs (last 100 lines) |
 
 ### Dynamic Resources (Per-Binary Virtual Filesystem)
@@ -1193,7 +1193,7 @@ reversecore_mcp/
 │       ├── rule_manager.py        # SAST rule loader
 │       └── default_rules.yaml     # Default scanning rules
 │
-├── tools/                         # MCP tool implementations (193 tools)
+├── tools/                         # MCP tool implementations (194 tools)
 │   ├── analysis/                  # Static analysis (24 tools)
 │   │   ├── static_analysis.py     # file, strings, binwalk
 │   │   ├── lief_tools.py          # LIEF binary parser

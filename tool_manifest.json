@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "name": "reversecore_mcp",
   "description": "Enterprise-grade MCP server for binary reverse engineering, decompilation, malware triage, and vulnerability hunting.",
-  "total_tools": 193,
+  "total_tools": 194,
   "protocol_readiness": {
     "mcp_version": "2024-11-05",
     "fastmcp_version": "3.4.11",
@@ -16993,6 +16993,188 @@
           "file_path",
           "address"
         ],
+        "type": "object"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "True if operation succeeded, False otherwise"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "data": {
+            "type": [
+              "object",
+              "string",
+              "array",
+              "null"
+            ],
+            "description": "Structured analysis payload on success"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable error code (e.g. FILE_NOT_FOUND, VALIDATION_ERROR)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the caller may retry"
+              },
+              "recovery_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Actionable recovery advice"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "meta": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "pagination": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "page_size": {
+                "type": "integer"
+              },
+              "total_items": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              },
+              "has_next": {
+                "type": "boolean"
+              },
+              "has_previous": {
+                "type": "boolean"
+              }
+            }
+          },
+          "truncation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "truncated": {
+                "type": "boolean"
+              },
+              "returned_bytes": {
+                "type": "integer"
+              },
+              "total_captured_bytes": {
+                "type": "integer"
+              },
+              "saved_artifact": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "continuation": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "length": {
+                    "type": "integer"
+                  },
+                  "cursor": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "recommended_next_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ok",
+          "status"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "generate_api_hook_library",
+      "description": "Generate and compile a user-space API hooking shared library for sandbox dynamic analysis.\n\nProduces an LD_PRELOAD (Linux) or DYLD_INSERT_LIBRARIES (macOS) shared library that\nintercepts high-risk API calls (filesystem, process execution, socket connects) and\nspoofs anti-debugging checks (ptrace) to observe binary behavior without virtualization.",
+      "plugin": "dynamic_tools",
+      "profiles": [
+        "full",
+        "malware"
+      ],
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "output_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional prefix or name for the generated hook files."
+          }
+        },
         "type": "object"
       },
       "outputSchema": {
@@ -34579,7 +34761,7 @@
     },
     {
       "name": "trace_execution",
-      "description": "Execute a binary under sandbox monitoring to trace runtime behavior.\n\nMonitors file system modifications, child process creation, network sockets,\nexit codes, crashes, and syscall activity. Supports Seccomp syscall filtering\nprofiles and simultaneous live network PCAP logging.",
+      "description": "Execute a binary under sandbox monitoring to trace runtime behavior.\n\nMonitors file system modifications, child process creation, network sockets,\nexit codes, crashes, and syscall activity. Supports Bubblewrap ('bwrap') namespace\ncontainment, user-space API hooking, Seccomp policies, and live network PCAP logging.",
       "plugin": "dynamic_tools",
       "profiles": [
         "full",
@@ -34660,6 +34842,16 @@
             ],
             "default": null,
             "description": "Optional Seccomp profile ('strict', 'no_network', 'read_only', 'minimal_sandbox')."
+          },
+          "isolation_backend": {
+            "default": "auto",
+            "type": "string",
+            "description": "Isolation sandbox backend ('auto', 'bwrap', 'host'). Default: 'auto'."
+          },
+          "api_hooking": {
+            "default": false,
+            "type": "boolean",
+            "description": "If True, injects user-space API hooking to trace fopen, connect, system, execve."
           }
         },
         "required": [

@@ -34,6 +34,7 @@ class DynamicToolsPlugin(Plugin):
 
     def register(self, mcp_server: Any) -> None:
         """Register dynamic analysis tools."""
+        from reversecore_mcp.tools.dynamic.api_hooker import generate_api_hook_library
         from reversecore_mcp.tools.dynamic.memory_dumper import dump_process_memory
         from reversecore_mcp.tools.dynamic.network_capture import capture_network_traffic
         from reversecore_mcp.tools.dynamic.sandbox_tracer import trace_execution
@@ -43,8 +44,9 @@ class DynamicToolsPlugin(Plugin):
         mcp_server.tool(dump_process_memory)
         mcp_server.tool(capture_network_traffic)
         mcp_server.tool(generate_seccomp_profile)
+        mcp_server.tool(generate_api_hook_library)
 
-        logger.info(f"Registered {self.name} plugin with 4 dynamic analysis tools")
+        logger.info(f"Registered {self.name} plugin with 5 dynamic analysis tools")
 
 
 __all__ = ["DynamicToolsPlugin"]

@@ -6,6 +6,7 @@ without requiring Radare2, GDB, or heavy external virtualization:
 - Detects crashes (SIGSEGV, SIGFPE, SIGILL) and abnormal terminations
 - Monitors filesystem mutations (dropped files, modified payloads)
 - Enforces Seccomp syscall containment profiles ('strict', 'no_network', 'read_only')
+- Supports Bubblewrap ('bwrap') namespace containment and user-space API hooking
 - Records real-time network packets to PCAP during execution
 - Parses syscall activity (files, sockets, process forks, blocked calls) via strace
 """
@@ -14,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import platform
 import re
 import shutil
 import time
@@ -26,6 +28,7 @@ from reversecore_mcp.core.logging_config import get_logger
 from reversecore_mcp.core.metrics import track_metrics
 from reversecore_mcp.core.result import ToolResult, failure, success
 from reversecore_mcp.core.security import get_workspace_config, validate_file_path
+from reversecore_mcp.tools.dynamic.api_hooker import compile_api_hook, parse_hook_log
 from reversecore_mcp.tools.dynamic.network_capture import LivePcapRecorder
 from reversecore_mcp.tools.dynamic.seccomp_profiles import get_profile_blocked_syscalls
 
@@ -92,12 +95,14 @@ async def trace_execution(
     max_output_bytes: int = 100_000,
     capture_pcap: bool = False,
     seccomp_profile: str | None = None,
+    isolation_backend: str = "auto",
+    api_hooking: bool = False,
 ) -> ToolResult:
     """Execute a binary under sandbox monitoring to trace runtime behavior.
 
     Monitors file system modifications, child process creation, network sockets,
-    exit codes, crashes, and syscall activity. Supports Seccomp syscall filtering
-    profiles and simultaneous live network PCAP logging.
+    exit codes, crashes, and syscall activity. Supports Bubblewrap ('bwrap') namespace
+    containment, user-space API hooking, Seccomp policies, and live network PCAP logging.
 
     Args:
         file_path: Absolute or workspace-relative path to the executable binary.
@@ -108,12 +113,14 @@ async def trace_execution(
         max_output_bytes: Maximum stdout/stderr capture length (default: 100,000 bytes).
         capture_pcap: If True, records live network traffic to a PCAP file during execution.
         seccomp_profile: Optional Seccomp profile ('strict', 'no_network', 'read_only', 'minimal_sandbox').
+        isolation_backend: Isolation sandbox backend ('auto', 'bwrap', 'host'). Default: 'auto'.
+        api_hooking: If True, injects user-space API hooking to trace fopen, connect, system, execve.
 
     Returns:
-        ToolResult with exit code, stdout/stderr, filesystem activity, crash status, and syscalls.
+        ToolResult with exit code, stdout/stderr, filesystem activity, crash status, syscalls, and API calls.
 
     Example:
-        >>> result = await trace_execution("/app/workspace/sample.bin", capture_pcap=True)
+        >>> result = await trace_execution("/app/workspace/sample.bin", capture_pcap=True, api_hooking=True)
         >>> print(result.status)
         'success'
     """
@@ -154,10 +161,20 @@ async def trace_execution(
     if seccomp_profile:
         blocked_syscalls = get_profile_blocked_syscalls(seccomp_profile)
 
+    # Check for Bubblewrap (bwrap) isolation
+    has_bwrap = shutil.which("bwrap") is not None
+    backend = isolation_backend.strip().lower()
+    if backend == "bwrap" and not has_bwrap:
+        return failure(
+            "DEPENDENCY_MISSING", "Bubblewrap ('bwrap') is not installed on this system."
+        )
+
+    use_bwrap = has_bwrap and backend in ("auto", "bwrap")
+
     cmd: list[str] = []
     if has_strace:
         strace_log_file = workspace / "tmp" / f"strace_{os.getpid()}_{int(time.time() * 1000)}.log"
-        cmd = [
+        strace_cmd = [
             "strace",
             "-f",  # Follow child processes
             "-s",
@@ -167,14 +184,48 @@ async def trace_execution(
             "-o",
             str(strace_log_file),
         ]
-        # In Linux, inject EPERM fault for blocked syscalls via strace
         if blocked_syscalls:
             inject_spec = f"fault={','.join(blocked_syscalls[:25])}:error=EPERM"
-            cmd.extend(["-e", inject_spec])
+            strace_cmd.extend(["-e", inject_spec])
 
-        cmd.extend([str(validated_path), *args_list])
+        strace_cmd.extend([str(validated_path), *args_list])
+        cmd = strace_cmd
     else:
         cmd = [str(validated_path), *args_list]
+
+    # Prepend bwrap sandbox if enabled
+    if use_bwrap:
+        bwrap_prefix = [
+            "bwrap",
+            "--ro-bind",
+            "/",
+            "/",
+            "--bind",
+            str(workspace),
+            str(workspace),
+            "--tmpfs",
+            "/tmp",
+            "--proc",
+            "/proc",
+            "--dev",
+            "/dev",
+            "--die-with-parent",
+            "--new-session",
+        ]
+        if seccomp_profile in ("no_network", "strict"):
+            bwrap_prefix.append("--unshare-net")
+        cmd = [*bwrap_prefix, *cmd]
+
+    # Configure API hooking if requested
+    hook_log_file: Path | None = None
+    if api_hooking:
+        lib_hook, _ = compile_api_hook(workspace)
+        if lib_hook and lib_hook.exists():
+            hook_log_file = workspace / "tmp" / f"hook_{os.getpid()}_{int(time.time() * 1000)}.log"
+            is_darwin = platform.system() == "Darwin"
+            preload_var = "DYLD_INSERT_LIBRARIES" if is_darwin else "LD_PRELOAD"
+            safe_env[preload_var] = str(lib_hook)
+            safe_env["REVERSECORE_HOOK_LOG"] = str(hook_log_file)
 
     # Initialize live packet capture if requested
     pcap_recorder: LivePcapRecorder | None = None
@@ -284,6 +335,15 @@ async def trace_execution(
             except Exception:
                 pass
 
+    # Parse hooked API log if available
+    api_calls: list[dict[str, Any]] = []
+    if hook_log_file and hook_log_file.exists():
+        api_calls = parse_hook_log(hook_log_file)
+        try:
+            hook_log_file.unlink(missing_ok=True)
+        except Exception:
+            pass
+
     # Anomaly scoring
     anomalies: list[str] = []
     if timed_out:
@@ -310,6 +370,12 @@ async def trace_execution(
         )
     if pcap_summary and pcap_summary.get("total_packets", 0) > 0:
         anomalies.append(f"Live network capture recorded {pcap_summary['total_packets']} packet(s)")
+    if api_calls:
+        risk_apis = [c["api"] for c in api_calls if c.get("api") in ("system", "execve", "connect")]
+        if risk_apis:
+            anomalies.append(
+                f"Intercepted {len(risk_apis)} high-risk API call(s): {', '.join(set(risk_apis))}"
+            )
 
     stdout_truncated = stdout_data[:max_output_bytes].decode("utf-8", errors="replace")
     stderr_truncated = stderr_data[:max_output_bytes].decode("utf-8", errors="replace")
@@ -326,11 +392,19 @@ async def trace_execution(
         "stderr": stderr_truncated,
         "stdout_bytes": len(stdout_data),
         "stderr_bytes": len(stderr_data),
+        "isolation_backend": "bwrap" if use_bwrap else "host",
         "crash_info": crash_info,
         "file_activity": fs_diff,
         "syscall_activity": syscall_activity,
         "anomalies": anomalies,
     }
+
+    if api_hooking:
+        result["api_activity"] = {
+            "hooking_enabled": True,
+            "total_calls_intercepted": len(api_calls),
+            "calls": api_calls[:50],
+        }
 
     if seccomp_profile:
         result["seccomp_profile"] = {
@@ -352,5 +426,7 @@ async def trace_execution(
         status_msg += f" Enforced Seccomp profile '{seccomp_profile}'."
     if pcap_summary:
         status_msg += f" Logged PCAP ({pcap_summary['total_packets']} pkts)."
+    if api_hooking:
+        status_msg += f" Intercepted {len(api_calls)} API call(s)."
 
     return success(data=result, message=status_msg)

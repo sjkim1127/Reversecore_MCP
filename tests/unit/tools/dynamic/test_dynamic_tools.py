@@ -230,3 +230,44 @@ async def test_generate_seccomp_profile_invalid_type(patched_workspace_config):
     res = await generate_seccomp_profile(profile_type="invalid_unknown_type")
     assert res.status == "error"
     assert res.error is not None
+
+
+@pytest.mark.asyncio
+async def test_generate_api_hook_library_basic(patched_workspace_config):
+    """Test generating user-space API hooking library."""
+    from reversecore_mcp.tools.dynamic.api_hooker import generate_api_hook_library
+
+    res = await generate_api_hook_library()
+    assert isinstance(res, ToolResult)
+    assert res.status in ("success", "warning")
+    data = res.data
+    assert "c_source_path" in data
+    assert os.path.exists(data["c_source_path"])
+    assert "supported_apis" in data
+    assert "fopen" in data["supported_apis"]
+
+
+@pytest.mark.asyncio
+async def test_trace_execution_with_api_hooking(mock_exec_binary, patched_workspace_config):
+    """Test trace execution with api_hooking flag enabled."""
+    res = await trace_execution(str(mock_exec_binary), api_hooking=True, timeout=5)
+    assert res.status == "success"
+    data = res.data
+    assert "api_activity" in data
+    assert data["api_activity"]["hooking_enabled"] is True
+
+
+@pytest.mark.asyncio
+async def test_trace_execution_bwrap_handling(mock_exec_binary, patched_workspace_config):
+    """Test trace execution with isolation backend bwrap."""
+    # When bwrap is not installed, requesting it explicitly returns an error
+    import shutil
+
+    has_bwrap = shutil.which("bwrap") is not None
+    res = await trace_execution(str(mock_exec_binary), isolation_backend="bwrap", timeout=5)
+    if has_bwrap:
+        assert res.status == "success"
+        assert res.data["isolation_backend"] == "bwrap"
+    else:
+        assert res.status == "error"
+        assert "bwrap" in str(res.error).lower()
