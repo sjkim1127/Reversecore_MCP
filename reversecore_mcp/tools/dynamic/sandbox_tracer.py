@@ -18,6 +18,7 @@ import os
 import platform
 import re
 import shutil
+import subprocess
 import time
 from pathlib import Path
 from typing import Any
@@ -51,6 +52,30 @@ _STRACE_NET_PATTERN = re.compile(
 )
 _STRACE_EXEC_PATTERN = re.compile(r'execve\("([^"]+)"', re.IGNORECASE)
 _STRACE_BLOCKED_PATTERN = re.compile(r"(\w+)\(.*=\s*-1\s+EPERM", re.IGNORECASE)
+
+_BWRAP_SUPPORTED: bool | None = None
+
+
+def _is_bwrap_supported() -> bool:
+    """Check if Bubblewrap is available and permitted to create user namespaces."""
+    global _BWRAP_SUPPORTED
+    if _BWRAP_SUPPORTED is not None:
+        return _BWRAP_SUPPORTED
+    if shutil.which("bwrap") is None:
+        _BWRAP_SUPPORTED = False
+        return False
+    try:
+        res = subprocess.run(
+            ["bwrap", "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "true"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=2,
+            check=False,
+        )
+        _BWRAP_SUPPORTED = res.returncode == 0
+    except Exception:
+        _BWRAP_SUPPORTED = False
+    return _BWRAP_SUPPORTED
 
 
 def _snapshot_workspace(workspace: Path) -> dict[str, float]:
@@ -162,11 +187,12 @@ async def trace_execution(
         blocked_syscalls = get_profile_blocked_syscalls(seccomp_profile)
 
     # Check for Bubblewrap (bwrap) isolation
-    has_bwrap = shutil.which("bwrap") is not None
+    has_bwrap = _is_bwrap_supported()
     backend = isolation_backend.strip().lower()
     if backend == "bwrap" and not has_bwrap:
         return failure(
-            "DEPENDENCY_MISSING", "Bubblewrap ('bwrap') is not installed on this system."
+            "DEPENDENCY_MISSING",
+            "Bubblewrap ('bwrap') is not installed or lacks namespace permissions on this system.",
         )
 
     use_bwrap = has_bwrap and backend in ("auto", "bwrap")

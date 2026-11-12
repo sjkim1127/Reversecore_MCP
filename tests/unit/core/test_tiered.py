@@ -60,9 +60,9 @@ def mock_mcp() -> FastMCP:
 
 def test_tiered_tool_definitions():
     """Verify tier 1 and tier 2 tool configurations."""
-    assert len(TIER1_CORE_TOOLS) == 12
+    assert len(TIER1_CORE_TOOLS) == 15
     assert len(TIER2_ROUTER_TOOLS) == 3
-    assert len(TIERED_TOOL_NAMES) == 15
+    assert len(TIERED_TOOL_NAMES) == 18
     assert "run_file" in TIER1_CORE_TOOLS
     assert "Radare2_open_file" in TIER1_CORE_TOOLS
     assert "Radare2_decompile_function" in TIER1_CORE_TOOLS
@@ -169,7 +169,7 @@ async def test_setup_tiered_mode(mock_mcp: FastMCP):
     # 2. Tiered mode: list_tools is filtered to exactly TIERED_TOOL_NAMES
     setup_tiered_mode(mock_mcp, profile="tiered")
     tiered_tools = await mock_mcp.list_tools()
-    assert len(tiered_tools) == 15
+    assert len(tiered_tools) == 18
     tiered_names = {t.name for t in tiered_tools}
     assert tiered_names == TIERED_TOOL_NAMES
 

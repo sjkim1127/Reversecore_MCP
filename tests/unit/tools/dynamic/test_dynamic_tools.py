@@ -33,6 +33,9 @@ def mock_exec_binary(workspace_dir):
         "if [ \"$1\" = 'hang' ]; then\n"
         "  sleep 10\n"
         "fi\n"
+        "if [ \"$1\" = 'sleep' ]; then\n"
+        "  sleep 1\n"
+        "fi\n"
         "exit 0\n"
     )
     sample.write_text(content)
@@ -106,7 +109,11 @@ async def test_trace_execution_with_pcap_and_seccomp(mock_exec_binary, patched_w
 async def test_dump_process_memory_basic(mock_exec_binary, patched_workspace_config):
     """Test dump_process_memory spawns, inspects, and creates dump segments."""
     res = await dump_process_memory(
-        str(mock_exec_binary), wait_ms=50, filter_permissions="all", timeout=5
+        str(mock_exec_binary),
+        arguments=["sleep"],
+        wait_ms=50,
+        filter_permissions="all",
+        timeout=5,
     )
     assert isinstance(res, ToolResult)
     assert res.status == "success"
@@ -126,6 +133,7 @@ async def test_dump_process_memory_with_pcap(mock_exec_binary, patched_workspace
     """Test dump_process_memory with PCAP logging."""
     res = await dump_process_memory(
         str(mock_exec_binary),
+        arguments=["sleep"],
         wait_ms=50,
         filter_permissions="all",
         capture_pcap=True,

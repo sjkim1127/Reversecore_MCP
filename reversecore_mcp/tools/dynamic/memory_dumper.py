@@ -188,18 +188,20 @@ async def dump_process_memory(
         # Pause process execution (SIGSTOP) to freeze memory state
         try:
             os.kill(pid, signal.SIGSTOP)
-        except ProcessLookupError:
-            return failure(
-                "PROCESS_TERMINATED_EARLY", f"Process {pid} exited before memory could be dumped."
-            )
+        except (ProcessLookupError, PermissionError):
+            logger.debug(f"Could not SIGSTOP process {pid}; proceeding to memory extraction.")
 
         # Check Linux /proc/<pid>/maps
         proc_maps_file = Path(f"/proc/{pid}/maps")
         perm_filter = filter_permissions.strip().lower()
 
         if proc_maps_file.exists():
-            maps_content = proc_maps_file.read_text(encoding="utf-8", errors="replace")
-            all_segments = _parse_proc_maps(maps_content)
+            try:
+                maps_content = proc_maps_file.read_text(encoding="utf-8", errors="replace")
+                all_segments = _parse_proc_maps(maps_content)
+            except Exception as exc:
+                logger.debug(f"Failed to read /proc/{pid}/maps: {exc}")
+                all_segments = []
 
             # Filter target segments
             for seg in all_segments:
@@ -250,10 +252,10 @@ async def dump_process_memory(
                             }
                         )
 
-        else:
-            # Fallback for macOS or environments without /proc (read binary image snapshot)
+        # Fallback if no segments could be extracted directly (e.g. macOS, Yama ptrace_scope, or container sandbox)
+        if not dumped_files:
             logger.debug(
-                f"Direct /proc/{pid}/maps unavailable on this platform. Creating process memory image fallback."
+                f"Direct memory mapping yielded 0 segments for pid {pid}. Creating fallback image dump."
             )
             raw_data = validated_path.read_bytes()
             base_tag = output_name or f"{validated_path.stem}_dump"

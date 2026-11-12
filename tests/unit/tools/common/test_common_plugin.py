@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+from typing import cast
 
 from fastmcp import FastMCP
 
@@ -13,7 +14,7 @@ def _get_registered_tools(mcp: FastMCP) -> dict[str, object]:
     """Extract registered tools dict across FastMCP 2.x and 3.x."""
     # FastMCP 2.x compatibility
     if hasattr(mcp, "_tool_manager") and hasattr(mcp._tool_manager, "_tools"):
-        return mcp._tool_manager._tools
+        return cast(dict[str, object], mcp._tool_manager._tools)
 
     # FastMCP 3.x compatibility
     local_provider = getattr(mcp, "_local_provider", None) or getattr(mcp, "local_provider", None)
@@ -46,14 +47,14 @@ class TestCommonToolsPlugin:
         assert "Unified common tools" in plugin.description
 
     def test_register_default_no_subplugins(self):
-        """Test that default register() registers 31 tools without memory/server subplugins."""
+        """Test that default register() registers 34 tools without memory/server subplugins."""
         mcp = FastMCP("test_common_default")
         plugin = CommonToolsPlugin()
 
         plugin.register(mcp)
 
         tools = _get_registered_tools(mcp)
-        assert len(tools) == 31
+        assert len(tools) == 34
         expected_tools = {
             "run_file",
             "copy_to_workspace",
@@ -86,18 +87,21 @@ class TestCommonToolsPlugin:
             "inspect_analysis_view",
             "search_guidance",
             "read_guidance_section",
+            "analyze_binary",
+            "triage_incident",
+            "investigate_vulnerability",
         }
         assert set(tools.keys()) == expected_tools
 
     def test_register_with_subplugins(self):
-        """Test that register(include_subplugins=True) registers 44 tools."""
+        """Test that register(include_subplugins=True) registers 47 tools."""
         mcp = FastMCP("test_common_with_subplugins")
         plugin = CommonToolsPlugin()
 
         plugin.register(mcp, include_subplugins=True)
 
         tools = _get_registered_tools(mcp)
-        assert len(tools) == 44
+        assert len(tools) == 47
         # Check presence of subplugin tools
         assert "create_memory_session" in tools
         assert "get_server_health" in tools
