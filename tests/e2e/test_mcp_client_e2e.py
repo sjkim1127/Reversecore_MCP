@@ -160,8 +160,8 @@ class TestMcpClientE2EWorkflows:
                 tools_res = await session.list_tools()
                 exposed_tools = {t.name for t in tools_res.tools}
 
-                # Contract: Exactly 132 tools for static profile
-                assert len(exposed_tools) == 132, f"Expected 132 tools, got {len(exposed_tools)}"
+                # Contract: Exactly 135 tools for static profile
+                assert len(exposed_tools) == 135, f"Expected 135 tools, got {len(exposed_tools)}"
                 # Static analysis tools must be present
                 assert "run_file" in exposed_tools
                 assert "parse_binary_with_lief" in exposed_tools
@@ -313,10 +313,10 @@ class TestMcpClientE2EWorkflows:
             )
 
             async with spawn_mcp_session("malware", ws_path) as session:
-                # 1. Profile Exposure Check (Contract: Exactly 100 tools)
+                # 1. Profile Exposure Check (Contract: Exactly 108 tools)
                 tools_res = await session.list_tools()
                 exposed_tools = {t.name for t in tools_res.tools}
-                assert len(exposed_tools) == 100, f"Expected 100 tools, got {len(exposed_tools)}"
+                assert len(exposed_tools) == 108, f"Expected 108 tools, got {len(exposed_tools)}"
                 assert "extract_iocs" in exposed_tools
                 assert "run_yara" in exposed_tools
                 assert "detect_anti_analysis" in exposed_tools
@@ -430,10 +430,10 @@ class TestMcpClientE2EWorkflows:
             bin_v2.chmod(0o755)
 
             async with spawn_mcp_session("vuln-research", ws_path) as session:
-                # 1. Profile Exposure Check
+                # 1. Profile Exposure Check (Contract: Exactly 141 tools)
                 tools_res = await session.list_tools()
                 exposed_tools = {t.name for t in tools_res.tools}
-                assert len(exposed_tools) == 138, f"Expected 138 tools, got {len(exposed_tools)}"
+                assert len(exposed_tools) == 141, f"Expected 141 tools, got {len(exposed_tools)}"
                 assert "diff_binaries" in exposed_tools
                 assert "analyze_patch_diff_auto" in exposed_tools
 
@@ -498,10 +498,10 @@ class TestMcpClientE2EWorkflows:
             shutil.copy2(fixture_pcap, target_pcap)
 
             async with spawn_mcp_session("forensics", ws_path) as session:
-                # 1. Profile Exposure Check (Contract: Exactly 81 tools)
+                # 1. Profile Exposure Check (Contract: Exactly 84 tools)
                 tools_res = await session.list_tools()
                 exposed_tools = {t.name for t in tools_res.tools}
-                assert len(exposed_tools) == 81, f"Expected 81 tools, got {len(exposed_tools)}"
+                assert len(exposed_tools) == 84, f"Expected 84 tools, got {len(exposed_tools)}"
                 assert "pcap_analyze" in exposed_tools
                 assert "pcap_extract_dns" in exposed_tools
                 assert "pcap_list_connections" in exposed_tools
@@ -628,8 +628,8 @@ class TestMcpClientE2EWorkflows:
                 tools_res = await session.list_tools()
                 exposed_tools = {t.name for t in tools_res.tools}
 
-                # Contract: Exactly 138 tools for vuln-research profile
-                assert len(exposed_tools) == 138, f"Expected 138 tools, got {len(exposed_tools)}"
+                # Contract: Exactly 141 tools for vuln-research profile
+                assert len(exposed_tools) == 141, f"Expected 141 tools, got {len(exposed_tools)}"
                 # Vulnerability research tools must be present
                 assert "cve_triage_crash" in exposed_tools
                 assert "cve_minimize_poc" in exposed_tools
