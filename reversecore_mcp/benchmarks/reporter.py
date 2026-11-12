@@ -160,12 +160,12 @@ class UnifiedBenchmarkReporter:
     @classmethod
     def to_markdown(cls, summary: UnifiedBenchmarkScorecardSummary) -> str:
         """Generate a comprehensive multi-domain Markdown evaluation report."""
-        md = f"""# 🛡️ Reversecore_MCP Unified Multi-Domain Benchmark Report
+        md = f"""# Reversecore_MCP Unified Multi-Domain Benchmark Report
 
 **Generated:** {summary.execution_timestamp}
 **Total Suite Duration:** {summary.total_duration_seconds:.2f}s
 
-## 🌐 Multi-Domain Benchmark Overview
+## Multi-Domain Benchmark Overview
 
 | Evaluation Domain | Targets | Primary Metric | Result | Status |
 | :--- | :--- | :--- | :--- | :--- |
@@ -192,7 +192,7 @@ class UnifiedBenchmarkReporter:
             md += f"""
 ---
 
-## ⚡ Layer 1 Meta-Tool Triage Evaluation
+## Layer 1 Meta-Tool Triage Evaluation
 
 - **Total Targets:** {tr.total_targets}
 - **Accuracy Rate:** {tr.triage_accuracy_pct:.1f}%
@@ -219,7 +219,7 @@ class UnifiedBenchmarkReporter:
             md += f"""
 ---
 
-## 🧪 Dynamic Execution Sandbox & Tracing
+## Dynamic Execution Sandbox & Tracing
 
 - **Total Targets:** {dyn.total_targets}
 - **Mean Latency:** {dyn.mean_latency_seconds:.3f}s
@@ -245,7 +245,7 @@ class UnifiedBenchmarkReporter:
             md += """
 ---
 
-## ⚙️ Multi-Engine Comparative Evaluation (Radare2 vs Fission vs Mock)
+## Multi-Engine Comparative Evaluation (Radare2 vs Fission vs Mock)
 
 | Engine | Analyses Completed | Total Funcs Recovered | Avg Latency (s) | Symbol Recovery % | Decompilation Ready |
 | :--- | :--- | :--- | :--- | :--- | :--- |

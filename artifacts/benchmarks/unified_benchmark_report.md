@@ -1,9 +1,9 @@
-# 🛡️ Reversecore_MCP Unified Multi-Domain Benchmark Report
+# Reversecore_MCP Unified Multi-Domain Benchmark Report
 
 **Generated:** 2026-11-12T00:09:06.567063+00:00
 **Total Suite Duration:** 0.87s
 
-## 🌐 Multi-Domain Benchmark Overview
+## Multi-Domain Benchmark Overview
 
 | Evaluation Domain | Targets | Primary Metric | Result | Status |
 | :--- | :--- | :--- | :--- | :--- |
@@ -14,7 +14,7 @@
 
 ---
 
-## ⚡ Layer 1 Meta-Tool Triage Evaluation
+## Layer 1 Meta-Tool Triage Evaluation
 
 - **Total Targets:** 4
 - **Accuracy Rate:** 100.0%
@@ -33,7 +33,7 @@
 
 ---
 
-## 🧪 Dynamic Execution Sandbox & Tracing
+## Dynamic Execution Sandbox & Tracing
 
 - **Total Targets:** 3
 - **Mean Latency:** 0.005s
@@ -50,7 +50,7 @@
 
 ---
 
-## ⚙️ Multi-Engine Comparative Evaluation (Radare2 vs Fission vs Mock)
+## Multi-Engine Comparative Evaluation (Radare2 vs Fission vs Mock)
 
 | Engine | Analyses Completed | Total Funcs Recovered | Avg Latency (s) | Symbol Recovery % | Decompilation Ready |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -59,14 +59,14 @@
 | **mock** | 1/1 | 5 | 0.0020s | 100.0% | `True` |
 
 ---
-# 🎯 Reversecore_MCP CVE Discovery Benchmark Evaluation Report
+# Reversecore_MCP CVE Discovery Benchmark Evaluation Report
 
 **Generated:** 2026-11-12T00:09:06.848297+00:00
 **Duration:** 0.28s
 **Total Targets:** 10
 **Overall Discovery Rate (TPR):** 100.0%
 
-## 📊 Executive Scorecard
+## Executive Scorecard
 
 | Metric | Score / Value | Status |
 | :--- | :--- | :--- |
@@ -79,7 +79,7 @@
 
 ---
 
-## 🔬 Target Evaluation Breakdown
+## Target Evaluation Breakdown
 
 | Target ID | Vulnerability Class | GT CWE | Pred CWE | Match | GT CVSS | Pred CVSS | Δ | TTC (s) | PoC Red % | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -96,7 +96,7 @@
 
 ---
 
-## 🧩 Vulnerability Class Stratification
+## Vulnerability Class Stratification
 
 | Vulnerability Class | Total | Discovered (TP) | Missed (FN) | TPR (%) | Avg TTC (s) | Avg PoC Reduction |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |

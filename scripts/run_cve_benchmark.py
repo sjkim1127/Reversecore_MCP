@@ -258,7 +258,7 @@ async def async_main(args: argparse.Namespace) -> int:
             print(md_report)
         else:
             print("\n" + "=" * 70)
-            print("📊 BENCHMARK SCORECARD SUMMARY (CVE)")
+            print("BENCHMARK SCORECARD SUMMARY (CVE)")
             print("=" * 70)
             print(f"Total Targets Evaluated: {scorecard.total_targets}")
             print(
@@ -305,7 +305,7 @@ async def async_main(args: argparse.Namespace) -> int:
             print(md_report)
         else:
             print("\n" + "=" * 70)
-            print(f"📊 UNIFIED BENCHMARK REPORT (Mode: {args.mode.upper()})")
+            print(f"UNIFIED BENCHMARK REPORT (Mode: {args.mode.upper()})")
             print("=" * 70)
             if unified.cve_summary:
                 print(f"• CVE Discovery TPR: {unified.cve_summary.discovery_rate_tpr_pct:.1f}%")
@@ -333,7 +333,7 @@ async def async_main(args: argparse.Namespace) -> int:
             for fmt, path in saved.items():
                 print(f"[+] Saved Unified {fmt.capitalize()} Report: {path}")
 
-    print("✅ PASS: Benchmark evaluation completed successfully.")
+    print("PASS: Benchmark evaluation completed successfully.")
     return 0
 
 

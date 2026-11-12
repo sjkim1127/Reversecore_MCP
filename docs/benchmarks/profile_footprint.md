@@ -7,7 +7,7 @@ tool hallucinations caused by excessive schema exposure.
 
 ---
 
-## 📊 Profile Benchmark Matrix
+## Profile Benchmark Matrix
 
 | Profile | Registered Tools | Schema Size (Bytes) | Schema Size (KB) | Schema Reduction | Est. Context Tokens (~4B/tok) | Tokens Saved | Cold Start | Loaded Modules | Peak RSS |
 |:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -20,7 +20,7 @@ tool hallucinations caused by excessive schema exposure.
 
 ---
 
-## 💡 Architectural Insights & Benefits
+## Architectural Insights & Benefits
 
 ### 1. LLM Context Window & Token Efficiency
 In MCP (Model Context Protocol), clients fetch the full tool list and JSON schema during session initialization.
@@ -42,7 +42,7 @@ Python skips walking and importing those module trees entirely. This guarantees:
 
 ---
 
-## 🎯 Profile Recommendations by Domain
+## Profile Recommendations by Domain
 
 | Analysis Task | Recommended Profile | Key Included Toolsets |
 |---|---|---|
@@ -55,7 +55,7 @@ Python skips walking and importing those module trees entirely. This guarantees:
 
 ---
 
-## 🚀 How to Enable Profiles
+## How to Enable Profiles
 
 ### Environment Variable
 ```bash

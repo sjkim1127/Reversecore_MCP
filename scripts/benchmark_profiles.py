@@ -152,7 +152,7 @@ def render_markdown_report(results: list[dict[str, Any]]) -> str:
         "",
         "---",
         "",
-        "## 📊 Profile Benchmark Matrix",
+        "## Profile Benchmark Matrix",
         "",
         "| Profile | Registered Tools | Schema Size (Bytes) | Schema Size (KB) | Schema Reduction | Est. Context Tokens (~4B/tok) | Tokens Saved | Cold Start | Loaded Modules | Peak RSS |",
         "|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|",
@@ -177,7 +177,7 @@ def render_markdown_report(results: list[dict[str, Any]]) -> str:
             "",
             "---",
             "",
-            "## 💡 Architectural Insights & Benefits",
+            "## Architectural Insights & Benefits",
             "",
             "### 1. LLM Context Window & Token Efficiency",
             "In MCP (Model Context Protocol), clients fetch the full tool list and JSON schema during session initialization.",
@@ -199,7 +199,7 @@ def render_markdown_report(results: list[dict[str, Any]]) -> str:
             "",
             "---",
             "",
-            "## 🎯 Profile Recommendations by Domain",
+            "## Profile Recommendations by Domain",
             "",
             "| Analysis Task | Recommended Profile | Key Included Toolsets |",
             "|---|---|---|",
@@ -212,7 +212,7 @@ def render_markdown_report(results: list[dict[str, Any]]) -> str:
             "",
             "---",
             "",
-            "## 🚀 How to Enable Profiles",
+            "## How to Enable Profiles",
             "",
             "### Environment Variable",
             "```bash",
@@ -298,7 +298,7 @@ def main() -> int:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     report_content = render_markdown_report(results)
     args.output.write_text(report_content, encoding="utf-8")
-    print(f"✅ Benchmark report written to {args.output}")
+    print(f"Benchmark report written to {args.output}")
     for r in results:
         red = f"-{r['schema_reduction_pct']}%" if r["schema_reduction_pct"] else "baseline"
         print(

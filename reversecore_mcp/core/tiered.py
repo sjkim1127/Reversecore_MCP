@@ -951,7 +951,7 @@ def setup_tiered_mode(mcp_server: FastMCP, profile: str | None = None) -> None:
         return
 
     logger.info(
-        "🚀 Activating Tiered Tools / Agents Mode: Reducing LLM context tokens by >90% "
+        "Activating Tiered Tools / Agents Mode: Reducing LLM context tokens by >90% "
         "(Exposing 12 Core Tools + 3 Router/Agent Tools)."
     )
 
