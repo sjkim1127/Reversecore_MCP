@@ -1,0 +1,1027 @@
+{
+  "cve_summary": {
+    "total_targets": 10,
+    "discovered_count": 10,
+    "missed_count": 0,
+    "error_count": 0,
+    "discovery_rate_tpr_pct": 100.0,
+    "mean_time_to_crash_seconds": 0.029,
+    "avg_throughput_exec_per_sec": 4501785.7,
+    "avg_poc_reduction_pct": 72.6,
+    "cwe_exact_match_rate_pct": 100.0,
+    "cwe_hierarchical_match_rate_pct": 100.0,
+    "cvss_mean_absolute_error": 0.0,
+    "cvss_tolerance_match_rate_pct": 100.0,
+    "severity_concordance_rate_pct": 100.0,
+    "class_breakdown": {
+      "heap_buffer_overflow": {
+        "total": 2,
+        "discovered": 2,
+        "missed": 0,
+        "tpr_pct": 100.0,
+        "avg_ttc_s": 0.141,
+        "avg_reduction_pct": 81.9
+      },
+      "integer_overflow": {
+        "total": 2,
+        "discovered": 2,
+        "missed": 0,
+        "tpr_pct": 100.0,
+        "avg_ttc_s": 0.001,
+        "avg_reduction_pct": 70.5
+      },
+      "use_after_free": {
+        "total": 1,
+        "discovered": 1,
+        "missed": 0,
+        "tpr_pct": 100.0,
+        "avg_ttc_s": 0.001,
+        "avg_reduction_pct": 48.7
+      },
+      "double_free": {
+        "total": 1,
+        "discovered": 1,
+        "missed": 0,
+        "tpr_pct": 100.0,
+        "avg_ttc_s": 0.001,
+        "avg_reduction_pct": 82.4
+      },
+      "infinite_loop": {
+        "total": 1,
+        "discovered": 1,
+        "missed": 0,
+        "tpr_pct": 100.0,
+        "avg_ttc_s": 0.001,
+        "avg_reduction_pct": 87.5
+      },
+      "information_exposure": {
+        "total": 1,
+        "discovered": 1,
+        "missed": 0,
+        "tpr_pct": 100.0,
+        "avg_ttc_s": 0.001,
+        "avg_reduction_pct": 68.8
+      },
+      "out_of_bounds_read": {
+        "total": 1,
+        "discovered": 1,
+        "missed": 0,
+        "tpr_pct": 100.0,
+        "avg_ttc_s": 0.001,
+        "avg_reduction_pct": 81.2
+      },
+      "type_confusion": {
+        "total": 1,
+        "discovered": 1,
+        "missed": 0,
+        "tpr_pct": 100.0,
+        "avg_ttc_s": 0.001,
+        "avg_reduction_pct": 52.9
+      }
+    },
+    "target_results": [
+      {
+        "target_id": "sqlite3_fts5_unicode",
+        "target_name": "SQLite FTS5 Unicode Tokenizer Heap Buffer Overflow",
+        "vulnerability_class": "heap_buffer_overflow",
+        "status": "DISCOVERED",
+        "is_true_positive": true,
+        "time_to_crash_seconds": 0.28,
+        "total_executions": 5000,
+        "throughput_execs_per_sec": 17857.1,
+        "original_poc_size_bytes": 39,
+        "minimized_poc_size_bytes": 6,
+        "poc_reduction_percentage": 84.6,
+        "ground_truth_cwe": "CWE-122",
+        "predicted_cwe": "CWE-122",
+        "cwe_exact_match": true,
+        "cwe_hierarchical_match": true,
+        "cwe_match_score": 1.0,
+        "ground_truth_cvss": 8.8,
+        "predicted_cvss": 8.8,
+        "cvss_delta": 0.0,
+        "cvss_tolerance_passed": true,
+        "predicted_severity": "HIGH",
+        "ground_truth_severity": "HIGH",
+        "severity_match": true,
+        "faulting_symbol": "fts5UnicodeTokenize",
+        "error_message": null,
+        "details": {
+          "target_file": "tests/fixtures/benchmarks/targets/sqlite_fts5/vulnerable.c",
+          "target_function": "fts5UnicodeTokenize",
+          "vulnerability_class": "heap_buffer_overflow",
+          "cwe_id": "CWE-122",
+          "cvss_v31_score": 8.8,
+          "cvss_severity": "HIGH",
+          "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H",
+          "harness_synthesis": {
+            "candidate_functions": [
+              "fts5UnicodeTokenize"
+            ],
+            "dictionary_token_count": 5
+          },
+          "fuzzing_stats": {
+            "executions": 5000,
+            "crashes_detected": 1
+          },
+          "triaged_crashes": [
+            {
+              "cwe_id": "CWE-122",
+              "cwe_name": "Heap-based Buffer Overflow",
+              "faulting_function": "fts5UnicodeTokenize",
+              "cvss": {
+                "cvss_v31_score": 8.8,
+                "severity": "HIGH"
+              }
+            }
+          ],
+          "original_input_size_bytes": 39,
+          "minimized_input_size_bytes": 6,
+          "reduction_percentage": "84.6%",
+          "summary": "Mock evaluation discovered CWE-122 in fts5UnicodeTokenize. CVSS v3.1: 8.8 (HIGH)."
+        }
+      },
+      {
+        "target_id": "libpng_eXIf_int_overflow",
+        "target_name": "LibPNG EXIF Chunk Integer Overflow to Heap OOB Write",
+        "vulnerability_class": "integer_overflow",
+        "status": "DISCOVERED",
+        "is_true_positive": true,
+        "time_to_crash_seconds": 0.001,
+        "total_executions": 5000,
+        "throughput_execs_per_sec": 5000000.0,
+        "original_poc_size_bytes": 69,
+        "minimized_poc_size_bytes": 16,
+        "poc_reduction_percentage": 76.8,
+        "ground_truth_cwe": "CWE-190",
+        "predicted_cwe": "CWE-190",
+        "cwe_exact_match": true,
+        "cwe_hierarchical_match": true,
+        "cwe_match_score": 1.0,
+        "ground_truth_cvss": 8.8,
+        "predicted_cvss": 8.8,
+        "cvss_delta": 0.0,
+        "cvss_tolerance_passed": true,
+        "predicted_severity": "HIGH",
+        "ground_truth_severity": "HIGH",
+        "severity_match": true,
+        "faulting_symbol": "png_handle_eXIf",
+        "error_message": null,
+        "details": {
+          "target_file": "tests/fixtures/benchmarks/targets/libpng_parser/vulnerable.c",
+          "target_function": "png_handle_eXIf",
+          "vulnerability_class": "integer_overflow",
+          "cwe_id": "CWE-190",
+          "cvss_v31_score": 8.8,
+          "cvss_severity": "HIGH",
+          "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H",
+          "harness_synthesis": {
+            "candidate_functions": [
+              "png_handle_eXIf"
+            ],
+            "dictionary_token_count": 5
+          },
+          "fuzzing_stats": {
+            "executions": 5000,
+            "crashes_detected": 1
+          },
+          "triaged_crashes": [
+            {
+              "cwe_id": "CWE-190",
+              "cwe_name": "Integer Overflow or Wraparound",
+              "faulting_function": "png_handle_eXIf",
+              "cvss": {
+                "cvss_v31_score": 8.8,
+                "severity": "HIGH"
+              }
+            }
+          ],
+          "original_input_size_bytes": 69,
+          "minimized_input_size_bytes": 16,
+          "reduction_percentage": "76.8%",
+          "summary": "Mock evaluation discovered CWE-190 in png_handle_eXIf. CVSS v3.1: 8.8 (HIGH)."
+        }
+      },
+      {
+        "target_id": "libxml2_entity_uaf",
+        "target_name": "LibXML2 Entity Expansion Use-After-Free",
+        "vulnerability_class": "use_after_free",
+        "status": "DISCOVERED",
+        "is_true_positive": true,
+        "time_to_crash_seconds": 0.001,
+        "total_executions": 5000,
+        "throughput_execs_per_sec": 5000000.0,
+        "original_poc_size_bytes": 115,
+        "minimized_poc_size_bytes": 59,
+        "poc_reduction_percentage": 48.7,
+        "ground_truth_cwe": "CWE-416",
+        "predicted_cwe": "CWE-416",
+        "cwe_exact_match": true,
+        "cwe_hierarchical_match": true,
+        "cwe_match_score": 1.0,
+        "ground_truth_cvss": 8.8,
+        "predicted_cvss": 8.8,
+        "cvss_delta": 0.0,
+        "cvss_tolerance_passed": true,
+        "predicted_severity": "HIGH",
+        "ground_truth_severity": "HIGH",
+        "severity_match": true,
+        "faulting_symbol": "xmlParseAttValueComplex",
+        "error_message": null,
+        "details": {
+          "target_file": "tests/fixtures/benchmarks/targets/libxml2_parser/vulnerable.c",
+          "target_function": "xmlParseAttValueComplex",
+          "vulnerability_class": "use_after_free",
+          "cwe_id": "CWE-416",
+          "cvss_v31_score": 8.8,
+          "cvss_severity": "HIGH",
+          "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:H",
+          "harness_synthesis": {
+            "candidate_functions": [
+              "xmlParseAttValueComplex"
+            ],
+            "dictionary_token_count": 5
+          },
+          "fuzzing_stats": {
+            "executions": 5000,
+            "crashes_detected": 1
+          },
+          "triaged_crashes": [
+            {
+              "cwe_id": "CWE-416",
+              "cwe_name": "Use After Free",
+              "faulting_function": "xmlParseAttValueComplex",
+              "cvss": {
+                "cvss_v31_score": 8.8,
+                "severity": "HIGH"
+              }
+            }
+          ],
+          "original_input_size_bytes": 115,
+          "minimized_input_size_bytes": 59,
+          "reduction_percentage": "48.7%",
+          "summary": "Mock evaluation discovered CWE-416 in xmlParseAttValueComplex. CVSS v3.1: 8.8 (HIGH)."
+        }
+      },
+      {
+        "target_id": "libarchive_rar_double_free",
+        "target_name": "LibArchive RAR Format Corrupt Huffman Tree Double Free",
+        "vulnerability_class": "double_free",
+        "status": "DISCOVERED",
+        "is_true_positive": true,
+        "time_to_crash_seconds": 0.001,
+        "total_executions": 5000,
+        "throughput_execs_per_sec": 5000000.0,
+        "original_poc_size_bytes": 68,
+        "minimized_poc_size_bytes": 12,
+        "poc_reduction_percentage": 82.4,
+        "ground_truth_cwe": "CWE-415",
+        "predicted_cwe": "CWE-415",
+        "cwe_exact_match": true,
+        "cwe_hierarchical_match": true,
+        "cwe_match_score": 1.0,
+        "ground_truth_cvss": 8.1,
+        "predicted_cvss": 8.1,
+        "cvss_delta": 0.0,
+        "cvss_tolerance_passed": true,
+        "predicted_severity": "HIGH",
+        "ground_truth_severity": "HIGH",
+        "severity_match": true,
+        "faulting_symbol": "rar_free_codes",
+        "error_message": null,
+        "details": {
+          "target_file": "tests/fixtures/benchmarks/targets/libarchive_parser/vulnerable.c",
+          "target_function": "rar_free_codes",
+          "vulnerability_class": "double_free",
+          "cwe_id": "CWE-415",
+          "cvss_v31_score": 8.1,
+          "cvss_severity": "HIGH",
+          "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:H/A:H",
+          "harness_synthesis": {
+            "candidate_functions": [
+              "rar_free_codes"
+            ],
+            "dictionary_token_count": 4
+          },
+          "fuzzing_stats": {
+            "executions": 5000,
+            "crashes_detected": 1
+          },
+          "triaged_crashes": [
+            {
+              "cwe_id": "CWE-415",
+              "cwe_name": "Double Free",
+              "faulting_function": "rar_free_codes",
+              "cvss": {
+                "cvss_v31_score": 8.1,
+                "severity": "HIGH"
+              }
+            }
+          ],
+          "original_input_size_bytes": 68,
+          "minimized_input_size_bytes": 12,
+          "reduction_percentage": "82.4%",
+          "summary": "Mock evaluation discovered CWE-415 in rar_free_codes. CVSS v3.1: 8.1 (HIGH)."
+        }
+      },
+      {
+        "target_id": "openssl_bn_infinite_loop",
+        "target_name": "OpenSSL BN_mod_sqrt Infinite Loop via Crafted Certificate",
+        "vulnerability_class": "infinite_loop",
+        "status": "DISCOVERED",
+        "is_true_positive": true,
+        "time_to_crash_seconds": 0.001,
+        "total_executions": 5000,
+        "throughput_execs_per_sec": 5000000.0,
+        "original_poc_size_bytes": 512,
+        "minimized_poc_size_bytes": 64,
+        "poc_reduction_percentage": 87.5,
+        "ground_truth_cwe": "CWE-835",
+        "predicted_cwe": "CWE-835",
+        "cwe_exact_match": true,
+        "cwe_hierarchical_match": true,
+        "cwe_match_score": 1.0,
+        "ground_truth_cvss": 7.5,
+        "predicted_cvss": 7.5,
+        "cvss_delta": 0.0,
+        "cvss_tolerance_passed": true,
+        "predicted_severity": "HIGH",
+        "ground_truth_severity": "HIGH",
+        "severity_match": true,
+        "faulting_symbol": "BN_mod_sqrt",
+        "error_message": null,
+        "details": {
+          "target_file": "tests/fixtures/benchmarks/targets/openssl_bn/vulnerable.c",
+          "target_function": "BN_mod_sqrt",
+          "vulnerability_class": "infinite_loop",
+          "cwe_id": "CWE-835",
+          "cvss_v31_score": 7.5,
+          "cvss_severity": "HIGH",
+          "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+          "harness_synthesis": {
+            "candidate_functions": [
+              "BN_mod_sqrt"
+            ],
+            "dictionary_token_count": 5
+          },
+          "fuzzing_stats": {
+            "executions": 5000,
+            "crashes_detected": 1
+          },
+          "triaged_crashes": [
+            {
+              "cwe_id": "CWE-835",
+              "cwe_name": "Loop with Unreachable Exit Condition (Infinite Loop)",
+              "faulting_function": "BN_mod_sqrt",
+              "cvss": {
+                "cvss_v31_score": 7.5,
+                "severity": "HIGH"
+              }
+            }
+          ],
+          "original_input_size_bytes": 512,
+          "minimized_input_size_bytes": 64,
+          "reduction_percentage": "87.5%",
+          "summary": "Mock evaluation discovered CWE-835 in BN_mod_sqrt. CVSS v3.1: 7.5 (HIGH)."
+        }
+      },
+      {
+        "target_id": "zlib_inflate_heap_oob",
+        "target_name": "zlib inflateGetHeader Heap Buffer Overflow via Crafted gzip Stream",
+        "vulnerability_class": "heap_buffer_overflow",
+        "status": "DISCOVERED",
+        "is_true_positive": true,
+        "time_to_crash_seconds": 0.001,
+        "total_executions": 5000,
+        "throughput_execs_per_sec": 5000000.0,
+        "original_poc_size_bytes": 48,
+        "minimized_poc_size_bytes": 10,
+        "poc_reduction_percentage": 79.2,
+        "ground_truth_cwe": "CWE-787",
+        "predicted_cwe": "CWE-787",
+        "cwe_exact_match": true,
+        "cwe_hierarchical_match": true,
+        "cwe_match_score": 1.0,
+        "ground_truth_cvss": 9.8,
+        "predicted_cvss": 9.8,
+        "cvss_delta": 0.0,
+        "cvss_tolerance_passed": true,
+        "predicted_severity": "CRITICAL",
+        "ground_truth_severity": "CRITICAL",
+        "severity_match": true,
+        "faulting_symbol": "inflateGetHeader",
+        "error_message": null,
+        "details": {
+          "target_file": "tests/fixtures/benchmarks/targets/zlib_inflate/vulnerable.c",
+          "target_function": "inflateGetHeader",
+          "vulnerability_class": "heap_buffer_overflow",
+          "cwe_id": "CWE-787",
+          "cvss_v31_score": 9.8,
+          "cvss_severity": "CRITICAL",
+          "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+          "harness_synthesis": {
+            "candidate_functions": [
+              "inflateGetHeader"
+            ],
+            "dictionary_token_count": 5
+          },
+          "fuzzing_stats": {
+            "executions": 5000,
+            "crashes_detected": 1
+          },
+          "triaged_crashes": [
+            {
+              "cwe_id": "CWE-787",
+              "cwe_name": "Out-of-bounds Write",
+              "faulting_function": "inflateGetHeader",
+              "cvss": {
+                "cvss_v31_score": 9.8,
+                "severity": "CRITICAL"
+              }
+            }
+          ],
+          "original_input_size_bytes": 48,
+          "minimized_input_size_bytes": 10,
+          "reduction_percentage": "79.2%",
+          "summary": "Mock evaluation discovered CWE-787 in inflateGetHeader. CVSS v3.1: 9.8 (CRITICAL)."
+        }
+      },
+      {
+        "target_id": "curl_cookie_leak_info",
+        "target_name": "cURL HTTP Cookie Header Information Disclosure via Header Injection",
+        "vulnerability_class": "information_exposure",
+        "status": "DISCOVERED",
+        "is_true_positive": true,
+        "time_to_crash_seconds": 0.001,
+        "total_executions": 5000,
+        "throughput_execs_per_sec": 5000000.0,
+        "original_poc_size_bytes": 128,
+        "minimized_poc_size_bytes": 40,
+        "poc_reduction_percentage": 68.8,
+        "ground_truth_cwe": "CWE-200",
+        "predicted_cwe": "CWE-200",
+        "cwe_exact_match": true,
+        "cwe_hierarchical_match": true,
+        "cwe_match_score": 1.0,
+        "ground_truth_cvss": 6.5,
+        "predicted_cvss": 6.5,
+        "cvss_delta": 0.0,
+        "cvss_tolerance_passed": true,
+        "predicted_severity": "MEDIUM",
+        "ground_truth_severity": "MEDIUM",
+        "severity_match": true,
+        "faulting_symbol": "Curl_http_output_auth",
+        "error_message": null,
+        "details": {
+          "target_file": "tests/fixtures/benchmarks/targets/curl_cookie/vulnerable.c",
+          "target_function": "Curl_http_output_auth",
+          "vulnerability_class": "information_exposure",
+          "cwe_id": "CWE-200",
+          "cvss_v31_score": 6.5,
+          "cvss_severity": "MEDIUM",
+          "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:N/A:N",
+          "harness_synthesis": {
+            "candidate_functions": [
+              "Curl_http_output_auth"
+            ],
+            "dictionary_token_count": 5
+          },
+          "fuzzing_stats": {
+            "executions": 5000,
+            "crashes_detected": 1
+          },
+          "triaged_crashes": [
+            {
+              "cwe_id": "CWE-200",
+              "cwe_name": "Exposure of Sensitive Information to an Unauthorized Actor",
+              "faulting_function": "Curl_http_output_auth",
+              "cvss": {
+                "cvss_v31_score": 6.5,
+                "severity": "MEDIUM"
+              }
+            }
+          ],
+          "original_input_size_bytes": 139,
+          "minimized_input_size_bytes": 40,
+          "reduction_percentage": "71.2%",
+          "summary": "Mock evaluation discovered CWE-200 in Curl_http_output_auth. CVSS v3.1: 6.5 (MEDIUM)."
+        }
+      },
+      {
+        "target_id": "ffmpeg_hevc_oob_read",
+        "target_name": "FFmpeg HEVC Bitstream NULL Dereference Out-of-Bounds Read",
+        "vulnerability_class": "out_of_bounds_read",
+        "status": "DISCOVERED",
+        "is_true_positive": true,
+        "time_to_crash_seconds": 0.001,
+        "total_executions": 5000,
+        "throughput_execs_per_sec": 5000000.0,
+        "original_poc_size_bytes": 256,
+        "minimized_poc_size_bytes": 48,
+        "poc_reduction_percentage": 81.2,
+        "ground_truth_cwe": "CWE-125",
+        "predicted_cwe": "CWE-125",
+        "cwe_exact_match": true,
+        "cwe_hierarchical_match": true,
+        "cwe_match_score": 1.0,
+        "ground_truth_cvss": 5.5,
+        "predicted_cvss": 5.5,
+        "cvss_delta": 0.0,
+        "cvss_tolerance_passed": true,
+        "predicted_severity": "MEDIUM",
+        "ground_truth_severity": "MEDIUM",
+        "severity_match": true,
+        "faulting_symbol": "hevc_parse_slice_header",
+        "error_message": null,
+        "details": {
+          "target_file": "tests/fixtures/benchmarks/targets/ffmpeg_hevc/vulnerable.c",
+          "target_function": "hevc_parse_slice_header",
+          "vulnerability_class": "out_of_bounds_read",
+          "cwe_id": "CWE-125",
+          "cvss_v31_score": 5.5,
+          "cvss_severity": "MEDIUM",
+          "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:N/A:L",
+          "harness_synthesis": {
+            "candidate_functions": [
+              "hevc_parse_slice_header"
+            ],
+            "dictionary_token_count": 5
+          },
+          "fuzzing_stats": {
+            "executions": 5000,
+            "crashes_detected": 1
+          },
+          "triaged_crashes": [
+            {
+              "cwe_id": "CWE-125",
+              "cwe_name": "Out-of-bounds Read",
+              "faulting_function": "hevc_parse_slice_header",
+              "cvss": {
+                "cvss_v31_score": 5.5,
+                "severity": "MEDIUM"
+              }
+            }
+          ],
+          "original_input_size_bytes": 256,
+          "minimized_input_size_bytes": 48,
+          "reduction_percentage": "81.2%",
+          "summary": "Mock evaluation discovered CWE-125 in hevc_parse_slice_header. CVSS v3.1: 5.5 (MEDIUM)."
+        }
+      },
+      {
+        "target_id": "php_spl_type_confusion",
+        "target_name": "PHP SPL SplDoublyLinkedList Uninitialized Pointer Type Confusion",
+        "vulnerability_class": "type_confusion",
+        "status": "DISCOVERED",
+        "is_true_positive": true,
+        "time_to_crash_seconds": 0.001,
+        "total_executions": 5000,
+        "throughput_execs_per_sec": 5000000.0,
+        "original_poc_size_bytes": 87,
+        "minimized_poc_size_bytes": 41,
+        "poc_reduction_percentage": 52.9,
+        "ground_truth_cwe": "CWE-763",
+        "predicted_cwe": "CWE-763",
+        "cwe_exact_match": true,
+        "cwe_hierarchical_match": true,
+        "cwe_match_score": 1.0,
+        "ground_truth_cvss": 9.8,
+        "predicted_cvss": 9.8,
+        "cvss_delta": 0.0,
+        "cvss_tolerance_passed": true,
+        "predicted_severity": "CRITICAL",
+        "ground_truth_severity": "CRITICAL",
+        "severity_match": true,
+        "faulting_symbol": "spl_dllist_object_free_storage",
+        "error_message": null,
+        "details": {
+          "target_file": "tests/fixtures/benchmarks/targets/php_spl/vulnerable.c",
+          "target_function": "spl_dllist_object_free_storage",
+          "vulnerability_class": "type_confusion",
+          "cwe_id": "CWE-763",
+          "cvss_v31_score": 9.8,
+          "cvss_severity": "CRITICAL",
+          "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+          "harness_synthesis": {
+            "candidate_functions": [
+              "spl_dllist_object_free_storage"
+            ],
+            "dictionary_token_count": 5
+          },
+          "fuzzing_stats": {
+            "executions": 5000,
+            "crashes_detected": 1
+          },
+          "triaged_crashes": [
+            {
+              "cwe_id": "CWE-763",
+              "cwe_name": "Release of Invalid Pointer or Reference",
+              "faulting_function": "spl_dllist_object_free_storage",
+              "cvss": {
+                "cvss_v31_score": 9.8,
+                "severity": "CRITICAL"
+              }
+            }
+          ],
+          "original_input_size_bytes": 100,
+          "minimized_input_size_bytes": 41,
+          "reduction_percentage": "59.0%",
+          "summary": "Mock evaluation discovered CWE-763 in spl_dllist_object_free_storage. CVSS v3.1: 9.8 (CRITICAL)."
+        }
+      },
+      {
+        "target_id": "expat_entity_int_overflow",
+        "target_name": "Expat storeRawNames Integer Overflow to Heap Buffer Overflow",
+        "vulnerability_class": "integer_overflow",
+        "status": "DISCOVERED",
+        "is_true_positive": true,
+        "time_to_crash_seconds": 0.001,
+        "total_executions": 5000,
+        "throughput_execs_per_sec": 5000000.0,
+        "original_poc_size_bytes": 95,
+        "minimized_poc_size_bytes": 34,
+        "poc_reduction_percentage": 64.2,
+        "ground_truth_cwe": "CWE-190",
+        "predicted_cwe": "CWE-190",
+        "cwe_exact_match": true,
+        "cwe_hierarchical_match": true,
+        "cwe_match_score": 1.0,
+        "ground_truth_cvss": 9.8,
+        "predicted_cvss": 9.8,
+        "cvss_delta": 0.0,
+        "cvss_tolerance_passed": true,
+        "predicted_severity": "CRITICAL",
+        "ground_truth_severity": "CRITICAL",
+        "severity_match": true,
+        "faulting_symbol": "storeRawNames",
+        "error_message": null,
+        "details": {
+          "target_file": "tests/fixtures/benchmarks/targets/expat_entity/vulnerable.c",
+          "target_function": "storeRawNames",
+          "vulnerability_class": "integer_overflow",
+          "cwe_id": "CWE-190",
+          "cvss_v31_score": 9.8,
+          "cvss_severity": "CRITICAL",
+          "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+          "harness_synthesis": {
+            "candidate_functions": [
+              "storeRawNames"
+            ],
+            "dictionary_token_count": 5
+          },
+          "fuzzing_stats": {
+            "executions": 5000,
+            "crashes_detected": 1
+          },
+          "triaged_crashes": [
+            {
+              "cwe_id": "CWE-190",
+              "cwe_name": "Integer Overflow or Wraparound",
+              "faulting_function": "storeRawNames",
+              "cvss": {
+                "cvss_v31_score": 9.8,
+                "severity": "CRITICAL"
+              }
+            }
+          ],
+          "original_input_size_bytes": 93,
+          "minimized_input_size_bytes": 34,
+          "reduction_percentage": "63.4%",
+          "summary": "Mock evaluation discovered CWE-190 in storeRawNames. CVSS v3.1: 9.8 (CRITICAL)."
+        }
+      }
+    ],
+    "execution_timestamp": "2026-11-12T00:09:06.848297+00:00",
+    "total_duration_seconds": 0.28
+  },
+  "triage_summary": {
+    "total_targets": 4,
+    "success_count": 4,
+    "error_count": 0,
+    "triage_accuracy_pct": 100.0,
+    "mean_latency_seconds": 0.005,
+    "avg_mitigations_accuracy_pct": 100.0,
+    "avg_dangerous_apis_recall_pct": 100.0,
+    "cwe_identification_rate_pct": 100.0,
+    "risk_concordance_rate_pct": 100.0,
+    "avg_estimated_tokens": 44,
+    "target_results": [
+      {
+        "target_id": "pe_mingw_sample",
+        "target_file": "tests/fixtures/workspace/binaries/pe/mingw_x86.exe",
+        "status": "SUCCESS",
+        "latency_seconds": 0.005,
+        "format_matched": true,
+        "arch_matched": true,
+        "mitigations_accuracy_pct": 100.0,
+        "dangerous_apis_recall_pct": 100.0,
+        "cwe_candidates_found": [],
+        "cwe_matched": true,
+        "risk_level_predicted": "LOW",
+        "risk_level_matched": true,
+        "estimated_tokens": 43,
+        "error_message": null,
+        "details": {
+          "format": "PE",
+          "architecture": "x86",
+          "mitigations": {
+            "nx": false,
+            "pie": false
+          },
+          "dangerous_calls": [],
+          "cwe_candidates": [],
+          "risk_assessment": {
+            "overall_risk": "LOW"
+          }
+        }
+      },
+      {
+        "target_id": "pe_minimal_x64",
+        "target_file": "tests/fixtures/workspace/binaries/pe/minimal_x64.exe",
+        "status": "SUCCESS",
+        "latency_seconds": 0.005,
+        "format_matched": true,
+        "arch_matched": true,
+        "mitigations_accuracy_pct": 100.0,
+        "dangerous_apis_recall_pct": 100.0,
+        "cwe_candidates_found": [],
+        "cwe_matched": true,
+        "risk_level_predicted": "LOW",
+        "risk_level_matched": true,
+        "estimated_tokens": 43,
+        "error_message": null,
+        "details": {
+          "format": "PE",
+          "architecture": "x86_64",
+          "mitigations": {
+            "nx": true,
+            "pie": true
+          },
+          "dangerous_calls": [],
+          "cwe_candidates": [],
+          "risk_assessment": {
+            "overall_risk": "LOW"
+          }
+        }
+      },
+      {
+        "target_id": "synthetic_evasion_peb",
+        "target_file": "tests/fixtures/synthetic_evasion/synthetic_peb_debug.exe",
+        "status": "SUCCESS",
+        "latency_seconds": 0.005,
+        "format_matched": true,
+        "arch_matched": true,
+        "mitigations_accuracy_pct": 100.0,
+        "dangerous_apis_recall_pct": 100.0,
+        "cwe_candidates_found": [
+          "CWE-732"
+        ],
+        "cwe_matched": true,
+        "risk_level_predicted": "MEDIUM",
+        "risk_level_matched": true,
+        "estimated_tokens": 52,
+        "error_message": null,
+        "details": {
+          "format": "PE",
+          "architecture": "x86",
+          "mitigations": {},
+          "dangerous_calls": [
+            {
+              "function": "IsDebuggerPresent",
+              "cwe": "CWE-120"
+            }
+          ],
+          "cwe_candidates": [
+            "CWE-732"
+          ],
+          "risk_assessment": {
+            "overall_risk": "MEDIUM"
+          }
+        }
+      },
+      {
+        "target_id": "pcap_traffic_sample",
+        "target_file": "tests/fixtures/pcap/sample_traffic.pcap",
+        "status": "SUCCESS",
+        "latency_seconds": 0.005,
+        "format_matched": true,
+        "arch_matched": true,
+        "mitigations_accuracy_pct": 100.0,
+        "dangerous_apis_recall_pct": 100.0,
+        "cwe_candidates_found": [],
+        "cwe_matched": true,
+        "risk_level_predicted": "LOW",
+        "risk_level_matched": true,
+        "estimated_tokens": 38,
+        "error_message": null,
+        "details": {
+          "format": "PCAP",
+          "architecture": "x86_64",
+          "mitigations": {},
+          "dangerous_calls": [],
+          "cwe_candidates": [],
+          "risk_assessment": {
+            "overall_risk": "LOW"
+          }
+        }
+      }
+    ],
+    "execution_timestamp": "2026-11-12T00:09:06.848503+00:00",
+    "total_duration_seconds": 0.0
+  },
+  "dynamic_summary": {
+    "total_targets": 3,
+    "success_count": 3,
+    "error_count": 0,
+    "mean_latency_seconds": 0.005,
+    "avg_syscall_coverage_pct": 100.0,
+    "anti_debug_bypass_rate_pct": 100.0,
+    "network_beacon_detection_rate_pct": 100.0,
+    "containment_enforcement_rate_pct": 100.0,
+    "target_results": [
+      {
+        "target_id": "clean_echo_baseline",
+        "status": "SUCCESS",
+        "isolation_backend": "mock",
+        "latency_seconds": 0.005,
+        "syscalls_captured_count": 2,
+        "syscall_coverage_pct": 100.0,
+        "anti_debug_bypassed": true,
+        "network_beacons_detected": [],
+        "network_detection_rate_pct": 100.0,
+        "seccomp_containment_verified": true,
+        "error_message": null,
+        "details": {
+          "isolation_backend": "mock",
+          "syscalls": [
+            {
+              "name": "execve",
+              "count": 1
+            },
+            {
+              "name": "write",
+              "count": 1
+            }
+          ],
+          "anti_debug_bypassed": true,
+          "network_activity": {
+            "detected_beacons": []
+          },
+          "seccomp_blocked": false
+        }
+      },
+      {
+        "target_id": "anti_debug_evasion_test",
+        "status": "SUCCESS",
+        "isolation_backend": "mock",
+        "latency_seconds": 0.005,
+        "syscalls_captured_count": 1,
+        "syscall_coverage_pct": 100.0,
+        "anti_debug_bypassed": true,
+        "network_beacons_detected": [],
+        "network_detection_rate_pct": 100.0,
+        "seccomp_containment_verified": true,
+        "error_message": null,
+        "details": {
+          "isolation_backend": "mock",
+          "syscalls": [
+            {
+              "name": "execve",
+              "count": 1
+            }
+          ],
+          "anti_debug_bypassed": true,
+          "network_activity": {
+            "detected_beacons": []
+          },
+          "seccomp_blocked": false
+        }
+      },
+      {
+        "target_id": "strict_seccomp_containment_test",
+        "status": "SUCCESS",
+        "isolation_backend": "mock",
+        "latency_seconds": 0.005,
+        "syscalls_captured_count": 1,
+        "syscall_coverage_pct": 100.0,
+        "anti_debug_bypassed": true,
+        "network_beacons_detected": [],
+        "network_detection_rate_pct": 100.0,
+        "seccomp_containment_verified": true,
+        "error_message": null,
+        "details": {
+          "isolation_backend": "mock",
+          "syscalls": [
+            {
+              "name": "execve",
+              "count": 1
+            }
+          ],
+          "anti_debug_bypassed": true,
+          "network_activity": {
+            "detected_beacons": []
+          },
+          "seccomp_blocked": false
+        }
+      }
+    ],
+    "execution_timestamp": "2026-11-12T00:09:06.848590+00:00",
+    "total_duration_seconds": 0.0
+  },
+  "engine_summary": {
+    "total_targets": 1,
+    "engines_evaluated": [
+      "radare2",
+      "fission",
+      "mock"
+    ],
+    "engine_metrics": {
+      "radare2": {
+        "total_targets": 1,
+        "successful_analyses": 1,
+        "total_functions_recovered": 0,
+        "avg_latency_seconds": 0.585,
+        "avg_symbol_recovery_rate_pct": 0.0,
+        "decompilation_support_count": 1
+      },
+      "fission": {
+        "total_targets": 1,
+        "successful_analyses": 1,
+        "total_functions_recovered": 14,
+        "avg_latency_seconds": 0.005,
+        "avg_symbol_recovery_rate_pct": 100.0,
+        "decompilation_support_count": 1
+      },
+      "mock": {
+        "total_targets": 1,
+        "successful_analyses": 1,
+        "total_functions_recovered": 5,
+        "avg_latency_seconds": 0.002,
+        "avg_symbol_recovery_rate_pct": 100.0,
+        "decompilation_support_count": 1
+      }
+    },
+    "results_by_target": {
+      "mingw_x86.exe": {
+        "radare2": {
+          "engine_name": "radare2",
+          "target_id": "mingw_x86.exe",
+          "binary_path": "/Users/sjkim1127/Reversecore_MCP/tests/fixtures/workspace/binaries/pe/mingw_x86.exe",
+          "latency_seconds": 0.585,
+          "functions_count": 0,
+          "entry_point_found": true,
+          "key_symbols_recovered": [],
+          "symbols_recovery_rate_pct": 0.0,
+          "decompilation_supported": true,
+          "decompilation_latency_seconds": 0.0,
+          "decompiled_code_chars": 0,
+          "error_message": null,
+          "details": {}
+        },
+        "fission": {
+          "engine_name": "fission",
+          "target_id": "mingw_x86.exe",
+          "binary_path": "/Users/sjkim1127/Reversecore_MCP/tests/fixtures/workspace/binaries/pe/mingw_x86.exe",
+          "latency_seconds": 0.005,
+          "functions_count": 14,
+          "entry_point_found": true,
+          "key_symbols_recovered": [
+            "main",
+            "_start"
+          ],
+          "symbols_recovery_rate_pct": 100.0,
+          "decompilation_supported": true,
+          "decompilation_latency_seconds": 0.0,
+          "decompiled_code_chars": 0,
+          "error_message": null,
+          "details": {
+            "mode": "transition_preview",
+            "fission_ready": true
+          }
+        },
+        "mock": {
+          "engine_name": "mock",
+          "target_id": "mingw_x86.exe",
+          "binary_path": "/Users/sjkim1127/Reversecore_MCP/tests/fixtures/workspace/binaries/pe/mingw_x86.exe",
+          "latency_seconds": 0.002,
+          "functions_count": 5,
+          "entry_point_found": true,
+          "key_symbols_recovered": [
+            "main",
+            "_start"
+          ],
+          "symbols_recovery_rate_pct": 100.0,
+          "decompilation_supported": true,
+          "decompilation_latency_seconds": 0.0,
+          "decompiled_code_chars": 120,
+          "error_message": null,
+          "details": {}
+        }
+      }
+    },
+    "execution_timestamp": "2026-11-12T00:09:07.436239+00:00",
+    "total_duration_seconds": 0.588
+  },
+  "execution_timestamp": "2026-11-12T00:09:06.567063+00:00",
+  "total_duration_seconds": 0.869
+}

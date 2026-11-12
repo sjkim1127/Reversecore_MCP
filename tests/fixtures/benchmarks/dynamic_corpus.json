@@ -1,0 +1,36 @@
+{
+  "version": "1.0",
+  "description": "Ground Truth Corpus for Dynamic Sandbox and Execution Tracing Benchmarking",
+  "targets": [
+    {
+      "target_id": "clean_echo_baseline",
+      "binary_path": "/bin/echo",
+      "args": ["hello_sandbox_benchmark"],
+      "expected_syscalls": ["execve", "write"],
+      "expected_network_beacons": [],
+      "anti_debug_present": false,
+      "expected_bypass_success": true,
+      "expected_seccomp_blocked": false
+    },
+    {
+      "target_id": "anti_debug_evasion_test",
+      "binary_path": "tests/fixtures/synthetic_evasion/synthetic_peb_debug.exe",
+      "args": [],
+      "expected_syscalls": ["execve"],
+      "expected_network_beacons": [],
+      "anti_debug_present": true,
+      "expected_bypass_success": true,
+      "expected_seccomp_blocked": false
+    },
+    {
+      "target_id": "strict_seccomp_containment_test",
+      "binary_path": "/bin/sh",
+      "args": ["-c", "echo blocked"],
+      "expected_syscalls": ["execve"],
+      "expected_network_beacons": [],
+      "anti_debug_present": false,
+      "expected_bypass_success": true,
+      "expected_seccomp_blocked": false
+    }
+  ]
+}

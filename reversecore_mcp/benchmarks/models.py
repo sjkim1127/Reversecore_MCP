@@ -329,3 +329,250 @@ class ExecutionOptions(BaseModel):
     def from_dict(cls, data: dict[str, Any]) -> ExecutionOptions:
         """Deserialize options from a dictionary."""
         return cls.model_validate(data)
+
+
+# ============================================================================
+# Layer 1 Meta-tool Triage Benchmark Models
+# ============================================================================
+
+
+class TriageGroundTruth(BaseModel):
+    """Ground truth expectations for 1-turn meta-tool triage (analyze_binary, triage_incident)."""
+
+    model_config = ConfigDict(extra="allow", validate_assignment=True)
+
+    target_id: str = Field(..., min_length=1, description="Unique target identifier")
+    target_file: str = Field(
+        ..., min_length=1, description="Relative or absolute path to target binary/artifact"
+    )
+    category: str = Field(
+        default="binary", description="Target category: binary, incident_pcap, memory_dump, etc."
+    )
+    expected_arch: str | None = Field(
+        default=None, description="Expected CPU architecture (e.g. x86_64, aarch64)"
+    )
+    expected_format: str | None = Field(
+        default=None, description="Expected binary format (e.g. ELF, PE, Mach-O)"
+    )
+    expected_mitigations: dict[str, bool] = Field(
+        default_factory=dict, description="Expected binary protections (canary, nx, pie, relro)"
+    )
+    expected_dangerous_apis: list[str] = Field(
+        default_factory=list, description="Expected flagged dangerous/vulnerable APIs"
+    )
+    expected_cwe_candidates: list[str] = Field(
+        default_factory=list, description="Expected candidate CWEs"
+    )
+    expected_risk_level: Literal["INFORMATIONAL", "LOW", "MEDIUM", "HIGH", "CRITICAL"] = Field(
+        default="MEDIUM", description="Canonical risk severity level"
+    )
+
+
+@dataclass
+class TriageTargetResult:
+    """Evaluation result for 1-turn triage of a single target."""
+
+    target_id: str
+    target_file: str
+    status: str  # "SUCCESS", "MISMATCH", "ERROR", "TIMEOUT"
+    latency_seconds: float
+    format_matched: bool
+    arch_matched: bool
+    mitigations_accuracy_pct: float
+    dangerous_apis_recall_pct: float
+    cwe_candidates_found: list[str]
+    cwe_matched: bool
+    risk_level_predicted: str
+    risk_level_matched: bool
+    estimated_tokens: int
+    error_message: str | None = None
+    details: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize triage target result to a dictionary."""
+        return asdict(self)
+
+
+@dataclass
+class TriageScorecardSummary:
+    """Aggregated scorecard summary for 1-turn triage benchmark."""
+
+    total_targets: int = 0
+    success_count: int = 0
+    error_count: int = 0
+    triage_accuracy_pct: float = 0.0
+    mean_latency_seconds: float = 0.0
+    avg_mitigations_accuracy_pct: float = 0.0
+    avg_dangerous_apis_recall_pct: float = 0.0
+    cwe_identification_rate_pct: float = 0.0
+    risk_concordance_rate_pct: float = 0.0
+    avg_estimated_tokens: int = 0
+    target_results: list[TriageTargetResult] = field(default_factory=list)
+    execution_timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    total_duration_seconds: float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize scorecard summary to a dictionary."""
+        return asdict(self)
+
+    def to_json(self, indent: int | None = None) -> str:
+        """Serialize scorecard summary to a JSON string."""
+        return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
+
+
+# ============================================================================
+# Dynamic Sandbox Benchmark Models
+# ============================================================================
+
+
+class DynamicSandboxGroundTruth(BaseModel):
+    """Ground truth expectations for dynamic execution sandboxing."""
+
+    model_config = ConfigDict(extra="allow", validate_assignment=True)
+
+    target_id: str = Field(..., min_length=1, description="Unique target identifier")
+    binary_path: str = Field(..., min_length=1, description="Path or command to execute")
+    args: list[str] = Field(default_factory=list, description="CLI arguments for invocation")
+    expected_syscalls: list[str] = Field(
+        default_factory=list,
+        description="Expected critical syscalls captured (e.g. execve, openat, connect)",
+    )
+    expected_network_beacons: list[str] = Field(
+        default_factory=list, description="Expected IPs or hostnames contacted"
+    )
+    anti_debug_present: bool = Field(
+        default=False, description="Whether target employs anti-debugging"
+    )
+    expected_bypass_success: bool = Field(
+        default=True, description="Whether anti-debug was successfully bypassed"
+    )
+    expected_seccomp_blocked: bool = Field(
+        default=False, description="Whether strict seccomp should block the target"
+    )
+
+
+@dataclass
+class DynamicSandboxTargetResult:
+    """Evaluation result for dynamic sandboxing of a single target."""
+
+    target_id: str
+    status: str  # "SUCCESS", "CONTAINED", "ERROR", "TIMEOUT"
+    isolation_backend: str  # "bwrap", "host", "mock"
+    latency_seconds: float
+    syscalls_captured_count: int
+    syscall_coverage_pct: float
+    anti_debug_bypassed: bool
+    network_beacons_detected: list[str]
+    network_detection_rate_pct: float
+    seccomp_containment_verified: bool
+    error_message: str | None = None
+    details: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize dynamic target result to a dictionary."""
+        return asdict(self)
+
+
+@dataclass
+class DynamicSandboxScorecardSummary:
+    """Aggregated scorecard summary for dynamic sandboxing benchmark."""
+
+    total_targets: int = 0
+    success_count: int = 0
+    error_count: int = 0
+    mean_latency_seconds: float = 0.0
+    avg_syscall_coverage_pct: float = 0.0
+    anti_debug_bypass_rate_pct: float = 0.0
+    network_beacon_detection_rate_pct: float = 0.0
+    containment_enforcement_rate_pct: float = 0.0
+    target_results: list[DynamicSandboxTargetResult] = field(default_factory=list)
+    execution_timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    total_duration_seconds: float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize scorecard summary to a dictionary."""
+        return asdict(self)
+
+    def to_json(self, indent: int | None = None) -> str:
+        """Serialize scorecard summary to a JSON string."""
+        return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
+
+
+# ============================================================================
+# Multi-Engine Abstraction Benchmark Models (Radare2 vs Fission vs Mock)
+# ============================================================================
+
+
+@dataclass
+class EngineAnalysisResult:
+    """Analysis metrics produced by a specific reverse engineering engine."""
+
+    engine_name: str
+    target_id: str
+    binary_path: str
+    latency_seconds: float
+    functions_count: int
+    entry_point_found: bool
+    key_symbols_recovered: list[str]
+    symbols_recovery_rate_pct: float
+    decompilation_supported: bool
+    decompilation_latency_seconds: float = 0.0
+    decompiled_code_chars: int = 0
+    error_message: str | None = None
+    details: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize engine analysis result to a dictionary."""
+        return asdict(self)
+
+
+@dataclass
+class EngineComparisonSummary:
+    """Comparative benchmark summary between multiple analysis engines."""
+
+    total_targets: int = 0
+    engines_evaluated: list[str] = field(default_factory=list)
+    engine_metrics: dict[str, dict[str, Any]] = field(default_factory=dict)
+    results_by_target: dict[str, dict[str, EngineAnalysisResult]] = field(default_factory=dict)
+    execution_timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    total_duration_seconds: float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize comparison summary to a dictionary."""
+        return asdict(self)
+
+    def to_json(self, indent: int | None = None) -> str:
+        """Serialize comparison summary to a JSON string."""
+        return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
+
+
+# ============================================================================
+# Unified Multi-Domain Benchmark Scorecard
+# ============================================================================
+
+
+@dataclass
+class UnifiedBenchmarkScorecardSummary:
+    """Master benchmark scorecard uniting CVE, Triage, Dynamic Sandbox, and Engine benchmarks."""
+
+    cve_summary: BenchmarkScorecardSummary | None = None
+    triage_summary: TriageScorecardSummary | None = None
+    dynamic_summary: DynamicSandboxScorecardSummary | None = None
+    engine_summary: EngineComparisonSummary | None = None
+    execution_timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    total_duration_seconds: float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize unified scorecard summary to a dictionary."""
+        return {
+            "cve_summary": self.cve_summary.to_dict() if self.cve_summary else None,
+            "triage_summary": self.triage_summary.to_dict() if self.triage_summary else None,
+            "dynamic_summary": self.dynamic_summary.to_dict() if self.dynamic_summary else None,
+            "engine_summary": self.engine_summary.to_dict() if self.engine_summary else None,
+            "execution_timestamp": self.execution_timestamp,
+            "total_duration_seconds": self.total_duration_seconds,
+        }
+
+    def to_json(self, indent: int | None = None) -> str:
+        """Serialize unified scorecard summary to a JSON string."""
+        return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)

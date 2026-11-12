@@ -8,7 +8,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from reversecore_mcp.benchmarks.models import BenchmarkScorecardSummary
+from reversecore_mcp.benchmarks.models import (
+    BenchmarkScorecardSummary,
+    UnifiedBenchmarkScorecardSummary,
+)
 
 
 class BenchmarkReporter:
@@ -140,6 +143,149 @@ class BenchmarkReporter:
 
         if fmt in ("json", "both"):
             json_path = out_path / "benchmark_summary.json"
+            json_path.write_text(cls.to_json(summary, indent=2), encoding="utf-8")
+            saved["json"] = json_path
+
+        return saved
+
+
+class UnifiedBenchmarkReporter:
+    """Formatter and exporter for multi-domain unified benchmark scorecards."""
+
+    @staticmethod
+    def to_json(summary: UnifiedBenchmarkScorecardSummary, indent: int = 2) -> str:
+        """Serialize unified benchmark scorecard summary to JSON string."""
+        return summary.to_json(indent=indent)
+
+    @classmethod
+    def to_markdown(cls, summary: UnifiedBenchmarkScorecardSummary) -> str:
+        """Generate a comprehensive multi-domain Markdown evaluation report."""
+        md = f"""# 🛡️ Reversecore_MCP Unified Multi-Domain Benchmark Report
+
+**Generated:** {summary.execution_timestamp}
+**Total Suite Duration:** {summary.total_duration_seconds:.2f}s
+
+## 🌐 Multi-Domain Benchmark Overview
+
+| Evaluation Domain | Targets | Primary Metric | Result | Status |
+| :--- | :--- | :--- | :--- | :--- |
+"""
+        if summary.cve_summary:
+            cve = summary.cve_summary
+            tpr_st = "PASS" if cve.discovery_rate_tpr_pct >= 75.0 else "WARN"
+            md += f"| **CVE Discovery & Reproduction** | {cve.total_targets} | True Positive Rate (TPR) | `{cve.discovery_rate_tpr_pct:.1f}%` ({cve.discovered_count}/{cve.total_targets}) | `{tpr_st}` |\n"
+        if summary.triage_summary:
+            tr = summary.triage_summary
+            tr_st = "PASS" if tr.triage_accuracy_pct >= 80.0 else "WARN"
+            md += f"| **Layer 1 Meta-tool Triage** | {tr.total_targets} | Triage Accuracy | `{tr.triage_accuracy_pct:.1f}%` ({tr.success_count}/{tr.total_targets}) | `{tr_st}` |\n"
+        if summary.dynamic_summary:
+            dyn = summary.dynamic_summary
+            dyn_st = "PASS" if dyn.containment_enforcement_rate_pct >= 80.0 else "WARN"
+            md += f"| **Dynamic Execution Sandbox** | {dyn.total_targets} | Containment Enforcement | `{dyn.containment_enforcement_rate_pct:.1f}%` (Syscall Cov: {dyn.avg_syscall_coverage_pct:.1f}%) | `{dyn_st}` |\n"
+        if summary.engine_summary:
+            eng = summary.engine_summary
+            md += f"| **Multi-Engine Benchmarks** | {eng.total_targets} | Engines Compared | `{len(eng.engines_evaluated)} engines` ({', '.join(eng.engines_evaluated)}) | `INFO` |\n"
+
+        # Section 1: Triage
+        if summary.triage_summary:
+            tr = summary.triage_summary
+            md += f"""
+---
+
+## ⚡ Layer 1 Meta-Tool Triage Evaluation
+
+- **Total Targets:** {tr.total_targets}
+- **Accuracy Rate:** {tr.triage_accuracy_pct:.1f}%
+- **Mean Latency:** {tr.mean_latency_seconds:.3f}s
+- **Mitigations Accuracy:** {tr.avg_mitigations_accuracy_pct:.1f}%
+- **Dangerous APIs Recall:** {tr.avg_dangerous_apis_recall_pct:.1f}%
+- **Risk Level Concordance:** {tr.risk_concordance_rate_pct:.1f}%
+- **Average Token Footprint:** ~{tr.avg_estimated_tokens} tokens / 1-turn response
+
+| Target ID | Latency | Format/Arch | Mitig Acc % | API Recall % | CWE Found | Risk Predicted | Status |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+"""
+            for r in tr.target_results:
+                md += (
+                    f"| `{r.target_id}` | {r.latency_seconds:.3f}s | "
+                    f"`{r.format_matched and r.arch_matched}` | {r.mitigations_accuracy_pct:.1f}% | "
+                    f"{r.dangerous_apis_recall_pct:.1f}% | `{','.join(r.cwe_candidates_found) or 'None'}` | "
+                    f"`{r.risk_level_predicted}` | `{r.status}` |\n"
+                )
+
+        # Section 2: Dynamic Sandbox
+        if summary.dynamic_summary:
+            dyn = summary.dynamic_summary
+            md += f"""
+---
+
+## 🧪 Dynamic Execution Sandbox & Tracing
+
+- **Total Targets:** {dyn.total_targets}
+- **Mean Latency:** {dyn.mean_latency_seconds:.3f}s
+- **Syscall Coverage:** {dyn.avg_syscall_coverage_pct:.1f}%
+- **Anti-Debug Bypass Rate:** {dyn.anti_debug_bypass_rate_pct:.1f}%
+- **Network Beacon Detection:** {dyn.network_beacon_detection_rate_pct:.1f}%
+- **Containment Enforcement:** {dyn.containment_enforcement_rate_pct:.1f}%
+
+| Target ID | Backend | Latency | Syscalls (Cov %) | Anti-Debug Bypass | Beacons Detected | Containment OK | Status |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+"""
+            for dr in dyn.target_results:
+                md += (
+                    f"| `{dr.target_id}` | `{dr.isolation_backend}` | {dr.latency_seconds:.3f}s | "
+                    f"{dr.syscalls_captured_count} ({dr.syscall_coverage_pct:.1f}%) | "
+                    f"`{dr.anti_debug_bypassed}` | `{len(dr.network_beacons_detected)}` | "
+                    f"`{dr.seccomp_containment_verified}` | `{dr.status}` |\n"
+                )
+
+        # Section 3: Engine Comparison
+        if summary.engine_summary:
+            eng = summary.engine_summary
+            md += """
+---
+
+## ⚙️ Multi-Engine Comparative Evaluation (Radare2 vs Fission vs Mock)
+
+| Engine | Analyses Completed | Total Funcs Recovered | Avg Latency (s) | Symbol Recovery % | Decompilation Ready |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+"""
+            for name, m in eng.engine_metrics.items():
+                md += (
+                    f"| **{name}** | {m.get('successful_analyses', 0)}/{m.get('total_targets', 0)} | "
+                    f"{m.get('total_functions_recovered', 0)} | {m.get('avg_latency_seconds', 0.0):.4f}s | "
+                    f"{m.get('avg_symbol_recovery_rate_pct', 0.0):.1f}% | "
+                    f"`{m.get('decompilation_support_count', 0) > 0}` |\n"
+                )
+
+        # Section 4: CVE Discovery
+        if summary.cve_summary:
+            md += "\n---\n" + BenchmarkReporter.to_markdown(summary.cve_summary)
+
+        md += "\n---\n*Report auto-generated by Reversecore_MCP Unified Benchmark Suite.*\n"
+        return md
+
+    @classmethod
+    def save_reports(
+        cls,
+        summary: UnifiedBenchmarkScorecardSummary,
+        output_dir: str | Path,
+        output_format: str = "both",
+    ) -> dict[str, Path]:
+        """Save formatted unified reports to target directory."""
+        out_path = Path(output_dir)
+        out_path.mkdir(parents=True, exist_ok=True)
+        saved: dict[str, Path] = {}
+
+        fmt = output_format.strip().lower()
+
+        if fmt in ("markdown", "both", "md"):
+            md_path = out_path / "unified_benchmark_report.md"
+            md_path.write_text(cls.to_markdown(summary), encoding="utf-8")
+            saved["markdown"] = md_path
+
+        if fmt in ("json", "both"):
+            json_path = out_path / "unified_benchmark_summary.json"
             json_path.write_text(cls.to_json(summary, indent=2), encoding="utf-8")
             saved["json"] = json_path
 

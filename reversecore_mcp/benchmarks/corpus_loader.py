@@ -11,7 +11,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from reversecore_mcp.benchmarks.models import TargetGroundTruth
+from reversecore_mcp.benchmarks.models import (
+    DynamicSandboxGroundTruth,
+    TargetGroundTruth,
+    TriageGroundTruth,
+)
 from reversecore_mcp.benchmarks.taxonomy import normalize_cwe_id
 from reversecore_mcp.core import json_utils as json
 
@@ -192,3 +196,55 @@ class CorpusLoader:
             "total_targets": len(target_list),
             "target_details": details,
         }
+
+    def load_triage_corpus(
+        self,
+        corpus_path: str | Path | None = None,
+    ) -> list[TriageGroundTruth]:
+        """Load triage targets from triage_corpus.json.
+
+        Args:
+            corpus_path: Path to triage_corpus.json or None for default.
+
+        Returns:
+            List of validated TriageGroundTruth instances.
+        """
+        path = Path(corpus_path) if corpus_path else self.corpus_dir / "triage_corpus.json"
+        if not path.exists():
+            return []
+
+        with open(path, "rb") as f:
+            data = json.loads(f.read())
+
+        raw_targets = (
+            data.get("targets", [])
+            if isinstance(data, dict)
+            else (data if isinstance(data, list) else [])
+        )
+        return [TriageGroundTruth.model_validate(item) for item in raw_targets]
+
+    def load_dynamic_corpus(
+        self,
+        corpus_path: str | Path | None = None,
+    ) -> list[DynamicSandboxGroundTruth]:
+        """Load dynamic sandbox targets from dynamic_corpus.json.
+
+        Args:
+            corpus_path: Path to dynamic_corpus.json or None for default.
+
+        Returns:
+            List of validated DynamicSandboxGroundTruth instances.
+        """
+        path = Path(corpus_path) if corpus_path else self.corpus_dir / "dynamic_corpus.json"
+        if not path.exists():
+            return []
+
+        with open(path, "rb") as f:
+            data = json.loads(f.read())
+
+        raw_targets = (
+            data.get("targets", [])
+            if isinstance(data, dict)
+            else (data if isinstance(data, list) else [])
+        )
+        return [DynamicSandboxGroundTruth.model_validate(item) for item in raw_targets]

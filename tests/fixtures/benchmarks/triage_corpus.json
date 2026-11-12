@@ -1,0 +1,56 @@
+{
+  "version": "1.0",
+  "description": "Ground Truth Corpus for Layer 1 Meta-tool Triage Benchmarking",
+  "targets": [
+    {
+      "target_id": "pe_mingw_sample",
+      "target_file": "tests/fixtures/workspace/binaries/pe/mingw_x86.exe",
+      "category": "binary",
+      "expected_format": "PE",
+      "expected_arch": "x86",
+      "expected_mitigations": {
+        "nx": false,
+        "pie": false
+      },
+      "expected_dangerous_apis": [],
+      "expected_cwe_candidates": [],
+      "expected_risk_level": "LOW"
+    },
+    {
+      "target_id": "pe_minimal_x64",
+      "target_file": "tests/fixtures/workspace/binaries/pe/minimal_x64.exe",
+      "category": "binary",
+      "expected_format": "PE",
+      "expected_arch": "x86_64",
+      "expected_mitigations": {
+        "nx": true,
+        "pie": true
+      },
+      "expected_dangerous_apis": [],
+      "expected_cwe_candidates": [],
+      "expected_risk_level": "LOW"
+    },
+    {
+      "target_id": "synthetic_evasion_peb",
+      "target_file": "tests/fixtures/synthetic_evasion/synthetic_peb_debug.exe",
+      "category": "binary",
+      "expected_format": "PE",
+      "expected_arch": "x86",
+      "expected_mitigations": {},
+      "expected_dangerous_apis": ["IsDebuggerPresent"],
+      "expected_cwe_candidates": ["CWE-732"],
+      "expected_risk_level": "MEDIUM"
+    },
+    {
+      "target_id": "pcap_traffic_sample",
+      "target_file": "tests/fixtures/pcap/sample_traffic.pcap",
+      "category": "incident_pcap",
+      "expected_format": "PCAP",
+      "expected_arch": null,
+      "expected_mitigations": {},
+      "expected_dangerous_apis": [],
+      "expected_cwe_candidates": [],
+      "expected_risk_level": "LOW"
+    }
+  ]
+}
