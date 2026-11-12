@@ -312,7 +312,7 @@ jobs:
           python3 scripts/generate-pe-and-large-binaries.py
 
       - name: Log in to GHCR (for base image pull)
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.0.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.0.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -368,7 +368,7 @@ jobs:
              ! command -v pip && ! command -v pip3'
 
       - name: Run Trivy container security scan
-        uses: aquasecurity/trivy-action@8f28faec26515256b6d22074d1d2a8986f4cbd87 # master
+        uses: aquasecurity/trivy-action@38b337fff0a2f984d5be173c99e3f633438167ec # master
         with:
           image-ref: 'reversecore-mcp:ci'
           format: 'table'
@@ -665,13 +665,13 @@ jobs:
           fetch-depth: 0
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           languages: python
           config-file: ./.github/codeql/codeql-config.yml
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
 
   # ──────────────────────────────────────────────────────────────────────────
   # Build base image — matrix strategy: one native runner per architecture.
@@ -713,7 +713,7 @@ jobs:
           driver: docker  # Uses bundled BuildKit — no Docker Hub pull needed
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.0.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.0.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -771,7 +771,7 @@ jobs:
           echo "BASE_IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/base" >> "${GITHUB_ENV}"
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.0.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.0.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -950,7 +950,7 @@ jobs:
           echo "BASE_IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/base" >> "${GITHUB_ENV}"
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.0.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.0.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -1081,7 +1081,7 @@ jobs:
           driver: docker  # Uses bundled BuildKit — no Docker Hub pull needed
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.0.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.0.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -1123,7 +1123,7 @@ jobs:
           echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> "${GITHUB_ENV}"
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.0.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.0.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -1144,7 +1144,7 @@ jobs:
           echo "✅ Multi-arch app manifest created: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}"
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@8f28faec26515256b6d22074d1d2a8986f4cbd87 # master
+        uses: aquasecurity/trivy-action@38b337fff0a2f984d5be173c99e3f633438167ec # master
         with:
           image-ref: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
           format: 'table'
