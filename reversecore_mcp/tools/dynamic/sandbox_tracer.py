@@ -54,6 +54,7 @@ _STRACE_EXEC_PATTERN = re.compile(r'execve\("([^"]+)"', re.IGNORECASE)
 _STRACE_BLOCKED_PATTERN = re.compile(r"(\w+)\(.*=\s*-1\s+EPERM", re.IGNORECASE)
 
 _BWRAP_SUPPORTED: bool | None = None
+_STRACE_SUPPORTED: bool | None = None
 
 
 def _is_bwrap_supported() -> bool:
@@ -66,7 +67,17 @@ def _is_bwrap_supported() -> bool:
         return False
     try:
         res = subprocess.run(
-            ["bwrap", "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "true"],
+            [
+                "bwrap",
+                "--ro-bind",
+                "/",
+                "/",
+                "--dev",
+                "/dev",
+                "--proc",
+                "/proc",
+                "true",
+            ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             timeout=2,
@@ -76,6 +87,28 @@ def _is_bwrap_supported() -> bool:
     except Exception:
         _BWRAP_SUPPORTED = False
     return _BWRAP_SUPPORTED
+
+
+def _is_strace_supported() -> bool:
+    """Check if strace is available and permitted to trace processes (ptrace permitted)."""
+    global _STRACE_SUPPORTED
+    if _STRACE_SUPPORTED is not None:
+        return _STRACE_SUPPORTED
+    if shutil.which("strace") is None:
+        _STRACE_SUPPORTED = False
+        return False
+    try:
+        res = subprocess.run(
+            ["strace", "-e", "trace=none", "true"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=2,
+            check=False,
+        )
+        _STRACE_SUPPORTED = res.returncode == 0
+    except Exception:
+        _STRACE_SUPPORTED = False
+    return _STRACE_SUPPORTED
 
 
 def _snapshot_workspace(workspace: Path) -> dict[str, float]:
@@ -177,15 +210,6 @@ async def trace_execution(
     # Snapshot workspace state before run
     before_snap = _snapshot_workspace(workspace)
 
-    # Check for strace on Linux
-    has_strace = shutil.which("strace") is not None
-    strace_log_file: Path | None = None
-
-    # Resolve Seccomp profile if requested
-    blocked_syscalls: list[str] = []
-    if seccomp_profile:
-        blocked_syscalls = get_profile_blocked_syscalls(seccomp_profile)
-
     # Check for Bubblewrap (bwrap) isolation
     has_bwrap = _is_bwrap_supported()
     backend = isolation_backend.strip().lower()
@@ -196,6 +220,13 @@ async def trace_execution(
         )
 
     use_bwrap = has_bwrap and backend in ("auto", "bwrap")
+    has_strace = _is_strace_supported() and not use_bwrap
+    strace_log_file: Path | None = None
+
+    # Resolve Seccomp profile if requested
+    blocked_syscalls: list[str] = []
+    if seccomp_profile:
+        blocked_syscalls = get_profile_blocked_syscalls(seccomp_profile)
 
     cmd: list[str] = []
     if has_strace:
@@ -306,6 +337,55 @@ async def trace_execution(
 
     execution_duration_ms = round((time.perf_counter() - t_start) * 1000, 2)
     exit_code = proc.returncode if proc and proc.returncode is not None else -1
+
+    # Fallback to direct host execution if bwrap or strace wrapper failed due to sandbox/permission issues
+    if (
+        backend == "auto"
+        and (use_bwrap or has_strace)
+        and exit_code != 0
+        and not timed_out
+        and (
+            b"bwrap:" in stderr_data
+            or b"ptrace" in stderr_data
+            or b"Operation not permitted" in stderr_data
+            or b"No permissions" in stderr_data
+            or b"cannot set up" in stderr_data
+        )
+    ):
+        logger.info(
+            f"Sandbox wrapper failed with permission error; falling back to direct host execution for {validated_path.name}"
+        )
+        use_bwrap = False
+        has_strace = False
+        strace_log_file = None
+        cmd = [str(validated_path), *args_list]
+        try:
+            fallback_proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdin=asyncio.subprocess.PIPE if stdin_input is not None else None,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=str(workspace),
+                env=safe_env,
+            )
+            input_bytes = stdin_input.encode("utf-8", errors="replace") if stdin_input else None
+            try:
+                fb_stdout, fb_stderr = await asyncio.wait_for(
+                    fallback_proc.communicate(input=input_bytes),
+                    timeout=timeout,
+                )
+                stdout_data = fb_stdout or b""
+                stderr_data = fb_stderr or b""
+                exit_code = fallback_proc.returncode if fallback_proc.returncode is not None else -1
+            except asyncio.TimeoutError:
+                timed_out = True
+                try:
+                    fallback_proc.kill()
+                    await fallback_proc.wait()
+                except Exception:
+                    pass
+        except Exception as fb_exc:
+            logger.debug(f"Fallback execution exception: {fb_exc}")
 
     # Detect signals or crashes
     crash_info: dict[str, Any] | None = None
