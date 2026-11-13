@@ -685,7 +685,7 @@ class TestCICDContinuousEvaluationModeE2E:
             timeout=10,
         )
         assert proc.returncode == 0
-        assert "✅ PASS" in proc.stdout
+        assert "PASS: Benchmark evaluation completed successfully." in proc.stdout
 
 
 # ==============================================================================
