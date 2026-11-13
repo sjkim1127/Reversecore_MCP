@@ -146,6 +146,8 @@ CVE-2026-96642 exp:2026-11-15
 CVE-2026-96643 exp:2026-11-15
 CVE-2026-96644 exp:2026-11-15
 CVE-2026-96778 exp:2026-11-15
+CVE-2026-128066 exp:2026-11-15
+CVE-2026-128067 exp:2026-11-15
 GHSA-78g4-xqwv-q3g8 exp:2026-11-15
 
 # pyasn1 (resolved in repo dependencies; GHCR base image pending rebuild)
