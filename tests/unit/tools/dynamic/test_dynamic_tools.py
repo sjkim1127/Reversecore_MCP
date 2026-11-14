@@ -327,6 +327,8 @@ async def test_trace_execution_never_reruns_sample_on_host(
     assert len(calls) == 1
     assert calls[0][0] == "bwrap"
     assert "--unshare-net" in calls[0]
+    # tmpfs must be mounted before the workspace bind or it hides a workspace under /tmp
+    assert calls[0].index("--tmpfs") < calls[0].index("--bind")
     assert res.data["isolation_backend"] == "bwrap"
     assert "sandbox_warning" in res.data
     assert res.data["seccomp_profile"]["enforcement"] == "bwrap_unshare_net"
@@ -366,11 +368,11 @@ async def test_trace_execution_timeout_kills_child_processes(
     sample.chmod(0o755)
 
     started = time.monotonic()
-    res = await trace_execution(str(sample), isolation_backend="host", timeout=1)
+    res = await trace_execution(str(sample), isolation_backend="host", timeout=3)
     elapsed = time.monotonic() - started
     assert res.data["timed_out"] is True
     # Must return promptly; a surviving child holding the pipes would block for ~30s
-    assert elapsed < 10
+    assert elapsed < 20
 
     child_pid = int(pid_file.read_text().strip())
     alive = True

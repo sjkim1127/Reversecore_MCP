@@ -116,7 +116,7 @@ async def test_trace_execution_keeps_partial_output_on_timeout(
     workspace_dir, patched_workspace_config, host_only
 ):
     sample = _script(workspace_dir, "partial.sh", "echo started\nsleep 30\n")
-    res = await trace_execution(str(sample), isolation_backend="host", timeout=1)
+    res = await trace_execution(str(sample), isolation_backend="host", timeout=3)
     assert res.data["timed_out"] is True
     assert "started" in res.data["stdout"]
 

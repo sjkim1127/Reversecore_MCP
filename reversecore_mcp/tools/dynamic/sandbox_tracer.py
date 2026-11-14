@@ -323,11 +323,13 @@ async def trace_execution(
             "--ro-bind",
             "/",
             "/",
+            # Mount order matters: the tmpfs must come first, otherwise it hides a
+            # workspace that lives under /tmp (bwrap applies mounts in order).
+            "--tmpfs",
+            "/tmp",
             "--bind",
             str(workspace),
             str(workspace),
-            "--tmpfs",
-            "/tmp",
             "--proc",
             "/proc",
             "--dev",
