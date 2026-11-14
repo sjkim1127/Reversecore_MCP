@@ -279,3 +279,145 @@ async def test_trace_execution_bwrap_handling(mock_exec_binary, patched_workspac
     else:
         assert res.status == "error"
         assert "bwrap" in str(res.error).lower()
+
+
+class _FakeProc:
+    """Minimal asyncio subprocess stand-in for sandbox wrapper failure scenarios."""
+
+    def __init__(self, returncode: int, stderr: bytes) -> None:
+        self.returncode = returncode
+        self._stderr = stderr
+
+    async def communicate(self, input=None):  # noqa: A002
+        return b"", self._stderr
+
+    def kill(self) -> None:
+        pass
+
+    async def wait(self) -> int:
+        return self.returncode
+
+
+@pytest.mark.asyncio
+async def test_trace_execution_never_reruns_sample_on_host(
+    mock_exec_binary, patched_workspace_config, monkeypatch
+):
+    """A sample printing wrapper-like stderr must not be re-executed outside the sandbox."""
+    import asyncio
+
+    from reversecore_mcp.tools.dynamic import sandbox_tracer as st
+
+    monkeypatch.setattr(st, "_is_bwrap_supported", lambda: True)
+    monkeypatch.setattr(st, "_is_strace_supported", lambda: False)
+    calls: list[list[str]] = []
+
+    async def fake_exec(*cmd, **kwargs):
+        calls.append(list(cmd))
+        return _FakeProc(1, b"Operation not permitted (emitted by the sample)")
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+
+    res = await trace_execution(str(mock_exec_binary), seccomp_profile="no_network", timeout=3)
+
+    assert len(calls) == 1
+    assert calls[0][0] == "bwrap"
+    assert "--unshare-net" in calls[0]
+    assert res.data["isolation_backend"] == "bwrap"
+    assert "sandbox_warning" in res.data
+    assert res.data["seccomp_profile"]["enforcement"] == "bwrap_unshare_net"
+
+
+@pytest.mark.asyncio
+async def test_trace_execution_reports_seccomp_not_enforced(
+    mock_exec_binary, patched_workspace_config, monkeypatch
+):
+    """Profiles that no backend can enforce must be reported as not enforced."""
+    from reversecore_mcp.tools.dynamic import sandbox_tracer as st
+
+    monkeypatch.setattr(st, "_is_bwrap_supported", lambda: False)
+    monkeypatch.setattr(st, "_is_strace_supported", lambda: False)
+
+    res = await trace_execution(str(mock_exec_binary), seccomp_profile="read_only", timeout=5)
+
+    assert res.data["seccomp_profile"]["enforcement"] == "not_enforced"
+    assert res.data["seccomp_profile"]["enforced_syscalls"] == []
+
+
+@pytest.mark.asyncio
+async def test_trace_execution_timeout_kills_child_processes(
+    workspace_dir, patched_workspace_config, monkeypatch
+):
+    """On timeout the whole process group is killed, not only the direct child."""
+    import time
+
+    from reversecore_mcp.tools.dynamic import sandbox_tracer as st
+
+    monkeypatch.setattr(st, "_is_bwrap_supported", lambda: False)
+    monkeypatch.setattr(st, "_is_strace_supported", lambda: False)
+
+    pid_file = workspace_dir / "child.pid"
+    sample = workspace_dir / "spawner.sh"
+    sample.write_text(f"#!/bin/sh\nsleep 30 &\necho $! > {pid_file}\nsleep 30\n")
+    sample.chmod(0o755)
+
+    started = time.monotonic()
+    res = await trace_execution(str(sample), isolation_backend="host", timeout=1)
+    elapsed = time.monotonic() - started
+    assert res.data["timed_out"] is True
+    # Must return promptly; a surviving child holding the pipes would block for ~30s
+    assert elapsed < 10
+
+    child_pid = int(pid_file.read_text().strip())
+    alive = True
+    for _ in range(20):
+        try:
+            os.kill(child_pid, 0)
+        except ProcessLookupError:
+            alive = False
+            break
+        time.sleep(0.1)
+    if alive:
+        os.kill(child_pid, 9)  # cleanup so the test never leaks a process
+    assert not alive, "child process survived the timeout"
+
+
+@pytest.mark.asyncio
+async def test_trace_execution_restores_original_file_mode(
+    workspace_dir, patched_workspace_config, monkeypatch
+):
+    """The sample's permissions must not be altered permanently."""
+    from reversecore_mcp.tools.dynamic import sandbox_tracer as st
+
+    monkeypatch.setattr(st, "_is_bwrap_supported", lambda: False)
+    monkeypatch.setattr(st, "_is_strace_supported", lambda: False)
+
+    sample = workspace_dir / "noexec.sh"
+    sample.write_text("#!/bin/sh\necho ran\n")
+    sample.chmod(0o644)
+
+    res = await trace_execution(str(sample), isolation_backend="host", timeout=5)
+
+    assert "ran" in res.data["stdout"]
+    assert (sample.stat().st_mode & 0o777) == 0o644
+
+
+def test_live_pcap_recorder_stop_is_idempotent(tmp_path, monkeypatch):
+    """A second stop() must not overwrite the PCAP with an empty packet list."""
+    from reversecore_mcp.tools.dynamic import network_capture as nc
+
+    writes: list[int] = []
+
+    class _FakeScapy:
+        @staticmethod
+        def wrpcap(path, packets):
+            writes.append(len(packets))
+            with open(path, "wb") as fh:
+                fh.write(b"pcap")
+
+    monkeypatch.setattr(nc, "_get_scapy", lambda: _FakeScapy)
+    recorder = nc.LivePcapRecorder(output_pcap=tmp_path / "x.pcap")
+    first = recorder.stop()
+    second = recorder.stop()
+
+    assert len(writes) == 1
+    assert first == second
