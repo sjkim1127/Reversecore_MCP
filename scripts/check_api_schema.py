@@ -27,10 +27,12 @@ from reversecore_mcp import server
 # plus issue #363's bounded limit documentation on extract_iocs,
 # plus registration of reconstruct_feature_code and summary-first paging,
 # plus Layer 1 meta-tools: analyze_binary, triage_incident, investigate_vulnerability,
-# plus Dynamic tools: trace_execution, dump_process_memory, capture_network_traffic, generate_seccomp_profile, generate_api_hook_library.
+# plus Dynamic tools: trace_execution, dump_process_memory, capture_network_traffic, generate_seccomp_profile, generate_api_hook_library,
+# plus trace_execution's resource_limits parameter.
 EXPECTED_TOOL_COUNT = 194
-EXPECTED_SCHEMA_SHA256 = "9b49a0443713b4d140ccdc3cf131eb9c252fb8fe365e8331eba6dc59a8cfc31d"
+EXPECTED_SCHEMA_SHA256 = "aa06e707d2916c0cf68fa339eda8827c3a39d468c406f19ad748c94a37f332f9"
 VALID_SCHEMA_SHA256S = {
+    "9b49a0443713b4d140ccdc3cf131eb9c252fb8fe365e8331eba6dc59a8cfc31d",
     "562f9ae4371787c02667f828fa30f7ff445a28522a14dbc89f7324f5ee474563",
     "c5702d1c5e737a5835e6de300db9e15c6cc7b602ca5393b6db7b1b9c7763ac03",
     "e0852008f691e61314059d63949c500a862eb08dd19cbc1ab728d7f4f6ce18ff",
