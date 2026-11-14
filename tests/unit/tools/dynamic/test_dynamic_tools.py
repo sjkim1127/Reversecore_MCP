@@ -285,17 +285,22 @@ class _FakeProc:
     """Minimal asyncio subprocess stand-in for sandbox wrapper failure scenarios."""
 
     def __init__(self, returncode: int, stderr: bytes) -> None:
+        import asyncio
+
         self.returncode = returncode
-        self._stderr = stderr
-
-    async def communicate(self, input=None):  # noqa: A002
-        return b"", self._stderr
-
-    def kill(self) -> None:
-        pass
+        self.pid = 999_999
+        self.stdin = None
+        self.stdout = asyncio.StreamReader()
+        self.stderr = asyncio.StreamReader()
+        self.stdout.feed_eof()
+        self.stderr.feed_data(stderr)
+        self.stderr.feed_eof()
 
     async def wait(self) -> int:
         return self.returncode
+
+    def kill(self) -> None:
+        pass
 
 
 @pytest.mark.asyncio

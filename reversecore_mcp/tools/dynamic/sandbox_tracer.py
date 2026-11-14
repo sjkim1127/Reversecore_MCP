@@ -9,6 +9,10 @@ without requiring Radare2, GDB, or heavy external virtualization:
 - Supports Bubblewrap ('bwrap') namespace containment and user-space API hooking
 - Records real-time network packets to PCAP during execution
 - Parses syscall activity (files, sockets, process forks, blocked calls) via strace
+- Streams stdout/stderr into capped buffers (bounded memory, partial output on timeout)
+- Classifies signal deaths (negative asyncio codes and 128+N), with opt-in rlimits
+- Hashes and classifies dropped files and derives an explainable risk assessment
+  (see ``trace_analysis``)
 """
 
 from __future__ import annotations
@@ -33,17 +37,17 @@ from reversecore_mcp.core.security import get_workspace_config, validate_file_pa
 from reversecore_mcp.tools.dynamic.api_hooker import compile_api_hook, parse_hook_log
 from reversecore_mcp.tools.dynamic.network_capture import LivePcapRecorder
 from reversecore_mcp.tools.dynamic.seccomp_profiles import get_profile_blocked_syscalls
+from reversecore_mcp.tools.dynamic.trace_analysis import (
+    CappedBuffer,
+    assess_risk,
+    build_preexec,
+    classify_exit,
+    collect_output,
+    describe_dropped_files,
+    validate_resource_limits,
+)
 
 logger = get_logger(__name__)
-
-# Common crash exit codes (128 + signal number)
-_SIGNAL_NAMES: dict[int, str] = {
-    132: "SIGILL (Illegal Instruction)",
-    134: "SIGABRT (Abort)",
-    136: "SIGFPE (Floating Point Exception)",
-    139: "SIGSEGV (Segmentation Fault)",
-    143: "SIGTERM (Terminated)",
-}
 
 # Regex patterns for parsing strace output
 _STRACE_FILE_PATTERN = re.compile(r'(?:open|openat|creat)\([^"]*"([^"]+)"', re.IGNORECASE)
@@ -176,13 +180,25 @@ def _snapshot_workspace(workspace: Path) -> dict[str, float]:
     return snapshot
 
 
-def _diff_workspace(workspace: Path, before: dict[str, float]) -> dict[str, list[str]]:
-    """Compare workspace before and after execution to find created/modified files."""
+def _diff_workspace(
+    workspace: Path, before: dict[str, float], exclude: set[str] | None = None
+) -> dict[str, list[str]]:
+    """Compare workspace before and after execution to find created/modified files.
+
+    Args:
+        workspace: Workspace root.
+        before: Snapshot taken before execution.
+        exclude: Workspace-relative paths owned by the tracer itself (strace/hook logs,
+            PCAP output) that must not be reported as sample activity.
+    """
     after = _snapshot_workspace(workspace)
     created: list[str] = []
     modified: list[str] = []
+    skip = exclude or set()
 
     for rel_path, mtime in after.items():
+        if rel_path in skip:
+            continue
         if rel_path not in before:
             created.append(rel_path)
         elif mtime > before[rel_path]:
@@ -205,6 +221,7 @@ async def trace_execution(
     seccomp_profile: str | None = None,
     isolation_backend: str = "auto",
     api_hooking: bool = False,
+    resource_limits: dict[str, int] | None = None,
 ) -> ToolResult:
     """Execute a binary under sandbox monitoring to trace runtime behavior.
 
@@ -223,9 +240,15 @@ async def trace_execution(
         seccomp_profile: Optional Seccomp profile ('strict', 'no_network', 'read_only', 'minimal_sandbox').
         isolation_backend: Isolation sandbox backend ('auto', 'bwrap', 'host'). Default: 'auto'.
         api_hooking: If True, injects user-space API hooking to trace fopen, connect, system, execve.
+        resource_limits: Optional POSIX resource limits applied to the sample and its children:
+            'cpu_seconds' (1-3600), 'memory_mb' (16-65536), 'max_file_size_mb' (1-10240),
+            'max_open_files' (8-65536). Core dumps are disabled when any limit is set.
+            Best effort per platform (e.g. memory limits are not enforced on macOS).
 
     Returns:
-        ToolResult with exit code, stdout/stderr, filesystem activity, crash status, syscalls, and API calls.
+        ToolResult with exit code, stdout/stderr (capped at max_output_bytes, with truncation
+        flags), filesystem activity, hashed dropped files, crash status (including signal
+        deaths), syscalls, API calls and an explainable risk_assessment.
 
     Example:
         >>> result = await trace_execution("/app/workspace/sample.bin", capture_pcap=True, api_hooking=True)
@@ -235,6 +258,8 @@ async def trace_execution(
     validated_path = validate_file_path(file_path)
     workspace = get_workspace_config().workspace.resolve()
     args_list = arguments or []
+    limits = validate_resource_limits(resource_limits)
+    preexec = build_preexec(limits)
 
     # Build safe execution environment
     safe_env = {
@@ -248,9 +273,6 @@ async def trace_execution(
         for k, v in env_vars.items():
             if isinstance(k, str) and isinstance(v, str):
                 safe_env[k] = v
-
-    # Snapshot workspace state before run
-    before_snap = _snapshot_workspace(workspace)
 
     # Check for Bubblewrap (bwrap) isolation
     has_bwrap = _is_bwrap_supported()
@@ -331,6 +353,7 @@ async def trace_execution(
     # Initialize live packet capture if requested
     pcap_recorder: LivePcapRecorder | None = None
     pcap_summary: dict[str, Any] | None = None
+    pcap_file: Path | None = None
     if capture_pcap:
         captures_dir = workspace / "captures"
         captures_dir.mkdir(parents=True, exist_ok=True)
@@ -338,12 +361,16 @@ async def trace_execution(
         pcap_recorder = LivePcapRecorder(output_pcap=pcap_file)
         pcap_recorder.start()
 
+    # Snapshot workspace state right before the run (after tracer setup such as the
+    # hook library build), so only sample activity shows up in the diff
+    before_snap = _snapshot_workspace(workspace)
+
     t_start = time.perf_counter()
     timed_out = False
     proc = None
     original_mode: int | None = None
-    stdout_data = b""
-    stderr_data = b""
+    stdout_buf = CappedBuffer(max_output_bytes)
+    stderr_buf = CappedBuffer(max_output_bytes)
 
     try:
         # Temporarily make the sample executable; the original mode is restored in finally
@@ -355,17 +382,18 @@ async def trace_execution(
             stderr=asyncio.subprocess.PIPE,
             cwd=str(workspace),
             env=safe_env,
+            preexec_fn=preexec,
             **_SPAWN_KWARGS,
         )
 
         input_bytes = stdin_input.encode("utf-8", errors="replace") if stdin_input else None
         try:
-            stdout_raw, stderr_raw = await asyncio.wait_for(
-                proc.communicate(input=input_bytes),
+            # Output is streamed into capped buffers: memory stays bounded and partial
+            # output is preserved if the timeout fires.
+            await asyncio.wait_for(
+                collect_output(proc, input_bytes, stdout_buf, stderr_buf),
                 timeout=timeout,
             )
-            stdout_data = stdout_raw or b""
-            stderr_data = stderr_raw or b""
         except asyncio.TimeoutError:
             timed_out = True
             logger.warning(f"Execution of {validated_path.name} timed out after {timeout}s")
@@ -394,7 +422,7 @@ async def trace_execution(
         (use_bwrap or has_strace)
         and exit_code != 0
         and not timed_out
-        and any(sig in stderr_data for sig in _WRAPPER_FAILURE_SIGNATURES)
+        and any(sig in bytes(stderr_buf.data) for sig in _WRAPPER_FAILURE_SIGNATURES)
     ):
         sandbox_wrapper_warning = (
             "Sandbox wrapper (bwrap/strace) may have failed with a permission error. "
@@ -403,23 +431,19 @@ async def trace_execution(
         )
         logger.warning(sandbox_wrapper_warning)
 
-    # Detect signals or crashes
-    crash_info: dict[str, Any] | None = None
-    if exit_code in _SIGNAL_NAMES:
-        crash_info = {
-            "signal_code": exit_code,
-            "signal_name": _SIGNAL_NAMES[exit_code],
-            "is_crash": True,
-        }
-    elif exit_code != 0:
-        crash_info = {
-            "signal_code": exit_code,
-            "signal_name": "NON_ZERO_EXIT",
-            "is_crash": False,
-        }
+    # Detect signals or crashes (handles negative asyncio codes and 128+N shell codes)
+    crash_info: dict[str, Any] | None = classify_exit(exit_code)
 
     # Workspace file activity diff
-    fs_diff = _diff_workspace(workspace, before_snap)
+    own_artifacts = {
+        str(p.relative_to(workspace))
+        for p in (strace_log_file, hook_log_file, pcap_file)
+        if p is not None and p.is_relative_to(workspace)
+    }
+    fs_diff = _diff_workspace(workspace, before_snap, own_artifacts)
+    dropped_files = describe_dropped_files(
+        workspace, fs_diff["created_files"] + fs_diff["modified_files"]
+    )
 
     # Parse strace output if available
     syscall_activity: dict[str, Any] = {
@@ -499,8 +523,18 @@ async def trace_execution(
                 f"Intercepted {len(risk_apis)} high-risk API call(s): {', '.join(set(risk_apis))}"
             )
 
-    stdout_truncated = stdout_data[:max_output_bytes].decode("utf-8", errors="replace")
-    stderr_truncated = stderr_data[:max_output_bytes].decode("utf-8", errors="replace")
+    stdout_text = bytes(stdout_buf.data).decode("utf-8", errors="replace")
+    stderr_text = bytes(stderr_buf.data).decode("utf-8", errors="replace")
+
+    risk_assessment = assess_risk(
+        crash_info=crash_info,
+        timed_out=timed_out,
+        dropped_files=dropped_files,
+        created_files=fs_diff["created_files"],
+        syscall_activity=syscall_activity,
+        api_calls=api_calls,
+        pcap_summary=pcap_summary,
+    )
 
     result: dict[str, Any] = {
         "status": "success",
@@ -510,16 +544,23 @@ async def trace_execution(
         "exit_code": exit_code,
         "timed_out": timed_out,
         "execution_duration_ms": execution_duration_ms,
-        "stdout": stdout_truncated,
-        "stderr": stderr_truncated,
-        "stdout_bytes": len(stdout_data),
-        "stderr_bytes": len(stderr_data),
+        "stdout": stdout_text,
+        "stderr": stderr_text,
+        "stdout_bytes": stdout_buf.total,
+        "stderr_bytes": stderr_buf.total,
+        "stdout_truncated": stdout_buf.truncated,
+        "stderr_truncated": stderr_buf.truncated,
         "isolation_backend": "bwrap" if use_bwrap else "host",
         "crash_info": crash_info,
         "file_activity": fs_diff,
+        "dropped_files": dropped_files,
         "syscall_activity": syscall_activity,
         "anomalies": anomalies,
+        "risk_assessment": risk_assessment,
     }
+
+    if limits:
+        result["resource_limits"] = limits
 
     if api_hooking:
         result["api_activity"] = {
@@ -564,6 +605,7 @@ async def trace_execution(
         )
     if pcap_summary:
         status_msg += f" Logged PCAP ({pcap_summary['total_packets']} pkts)."
+    status_msg += f" Risk: {risk_assessment['level']} ({risk_assessment['score']}/100)."
     if api_hooking:
         status_msg += f" Intercepted {len(api_calls)} API call(s)."
 
