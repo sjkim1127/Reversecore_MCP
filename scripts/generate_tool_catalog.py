@@ -145,6 +145,11 @@ PLUGIN_METADATA: dict[str, dict[str, str]] = {
         "domain": "String Decryption, API Hashing & Dead Code Removal",
         "icon": "🧩",
     },
+    "crypto_tools": {
+        "title": "Cryptographic Analysis & Key Extraction",
+        "domain": "FindCrypt Constant Scanning & Dynamic Hook Key Extraction",
+        "icon": "[Crypto]",
+    },
     "cve_hunter_tools": {
         "title": "Vulnerability Research & CVE Hunting",
         "domain": "ASan Crash Triage, Fuzz Harness Synthesis & PoC Minimization",
