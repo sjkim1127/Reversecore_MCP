@@ -343,7 +343,7 @@ To optimize LLM context usage and minimize token consumption, tools are organize
 | 190 | `dump_process_memory` | Execute a binary, wait for dynamic unpacking, and dump memory segments. | `file_path` (string, req), `arguments` (array), `wait_ms` (integer), `filter_permissions` (string), `output_name` (string), `timeout` (integer), `capture_pcap` (boolean) | `malware` |
 | 191 | `generate_api_hook_library` | Generate and compile a user-space API hooking shared library for sandbox dynamic analysis. | `output_name` (string) | `malware` |
 | 192 | `generate_seccomp_profile` | Generate an OCI/Docker Seccomp JSON profile or systemd filter for sandbox isolation. | `profile_type` (string), `custom_blocked_syscalls` (array), `output_filename` (string), `output_format` (string) | `malware` |
-| 193 | `trace_execution` | Execute a binary under sandbox monitoring to trace runtime behavior. | `file_path` (string, req), `arguments` (array), `stdin_input` (string), `env_vars` (object), `timeout` (integer), `max_output_bytes` (integer), `capture_pcap` (boolean), `seccomp_profile` (string), `isolation_backend` (string), `api_hooking` (boolean) | `malware` |
+| 193 | `trace_execution` | Execute a binary under sandbox monitoring to trace runtime behavior. | `file_path` (string, req), `arguments` (array), `stdin_input` (string), `env_vars` (object), `timeout` (integer), `max_output_bytes` (integer), `capture_pcap` (boolean), `seccomp_profile` (string), `isolation_backend` (string), `api_hooking` (boolean), `resource_limits` (object) | `malware` |
 
 ---
 

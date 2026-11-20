@@ -33558,6 +33558,21 @@
           "default": false,
           "type": "boolean",
           "description": "If True, injects user-space API hooking to trace fopen, connect, system, execve."
+        },
+        "resource_limits": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional POSIX resource limits applied to the sample and its children:\n'cpu_seconds' (1-3600), 'memory_mb' (16-65536), 'max_file_size_mb' (1-10240),\n'max_open_files' (8-65536). Core dumps are disabled when any limit is set.\nBest effort per platform (e.g. memory limits are not enforced on macOS)."
         }
       },
       "required": [
