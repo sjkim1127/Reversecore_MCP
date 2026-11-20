@@ -133,9 +133,11 @@ class LivePcapRecorder:
         self.scapy: Any = None
         self.permission_warning: str | None = None
         self.is_active = False
+        self._summary: dict[str, Any] | None = None
 
     def start(self) -> None:
         """Begin capturing packets asynchronously in the background."""
+        self._summary = None
         try:
             self.scapy = _get_scapy()
             self.output_pcap.parent.mkdir(parents=True, exist_ok=True)
@@ -159,7 +161,13 @@ class LivePcapRecorder:
                 logger.debug(f"Failed to write empty PCAP fallback: {write_exc}")
 
     def stop(self) -> dict[str, Any]:
-        """Stop capturing packets, flush to PCAP file, and return summary statistics."""
+        """Stop capturing packets, flush to PCAP file, and return summary statistics.
+
+        Idempotent: repeated calls return the first summary instead of rewriting the
+        PCAP file with an empty packet list.
+        """
+        if self._summary is not None:
+            return dict(self._summary)
         packets: list[Any] = []
         if self.is_active and self.sniffer:
             try:
@@ -200,7 +208,8 @@ class LivePcapRecorder:
                 "permission_warning": self.permission_warning,
             }
         )
-        return summary
+        self._summary = summary
+        return dict(summary)
 
 
 @log_execution(tool_name="capture_network_traffic")

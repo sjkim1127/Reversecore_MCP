@@ -28,10 +28,12 @@ from reversecore_mcp import server
 # plus registration of reconstruct_feature_code and summary-first paging,
 # plus Layer 1 meta-tools: analyze_binary, triage_incident, investigate_vulnerability,
 # plus Dynamic tools: trace_execution, dump_process_memory, capture_network_traffic, generate_seccomp_profile, generate_api_hook_library,
+# plus trace_execution's resource_limits parameter,
 # plus Crypto tools: scan_crypto_constants, extract_crypto_keys_dynamic.
 EXPECTED_TOOL_COUNT = 196
-EXPECTED_SCHEMA_SHA256 = "6e867eb923220a64ffa8cb5742a0fe94f7ea0119c5311a8f0c6d576cf3e112e3"
+EXPECTED_SCHEMA_SHA256 = "a40d05a1fb563881f97b443746f8a7613c1fb4ed5e0e00f88c500784c722ede6"
 VALID_SCHEMA_SHA256S = {
+    "6e867eb923220a64ffa8cb5742a0fe94f7ea0119c5311a8f0c6d576cf3e112e3",
     "9b49a0443713b4d140ccdc3cf131eb9c252fb8fe365e8331eba6dc59a8cfc31d",
     "562f9ae4371787c02667f828fa30f7ff445a28522a14dbc89f7324f5ee474563",
     "c5702d1c5e737a5835e6de300db9e15c6cc7b602ca5393b6db7b1b9c7763ac03",
