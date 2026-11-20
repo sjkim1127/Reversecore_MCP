@@ -313,10 +313,10 @@ class TestMcpClientE2EWorkflows:
             )
 
             async with spawn_mcp_session("malware", ws_path) as session:
-                # 1. Profile Exposure Check (Contract: Exactly 108 tools)
+                # 1. Profile Exposure Check (Contract: Exactly 110 tools)
                 tools_res = await session.list_tools()
                 exposed_tools = {t.name for t in tools_res.tools}
-                assert len(exposed_tools) == 108, f"Expected 108 tools, got {len(exposed_tools)}"
+                assert len(exposed_tools) == 110, f"Expected 110 tools, got {len(exposed_tools)}"
                 assert "extract_iocs" in exposed_tools
                 assert "run_yara" in exposed_tools
                 assert "detect_anti_analysis" in exposed_tools
